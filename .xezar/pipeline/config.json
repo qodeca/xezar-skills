@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "baseBranch": "auto",
+  "tracker": "github",
+  "browser": { "provider": "agent-browser" },
+  "validation": {
+    "commands": [
+      "bash scripts/lint.sh",
+      "node scripts/test-browser-providers.mjs",
+      "node scripts/test-tracker-providers.mjs",
+      "node scripts/test-classify-runs.mjs",
+      "node scripts/test-close-keywords.mjs"
+    ]
+  },
+  "labels": {
+    "enabled": true,
+    "pipeline": ["review", "changes-requested", "qa", "qa-failed", "merge-queue", "blocked", "do-not-merge"],
+    "category": ["bug", "feature", "refactor", "security", "dependencies", "documentation"],
+    "meta": ["needs-qa", "skip-qa", "qa-approved", "qa-self-verified", "in-progress", "ci-monitoring"],
+    "priority": ["priority-low", "priority-medium", "priority-high", "priority-extreme"],
+    "risk": ["risk-low", "risk-medium", "risk-high"]
+  },
+  "qaGate": true,
+  "ci": { "maxWaitMinutes": 40 },
+  "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
+  "paths": {
+    "runs": ".xezar/pipeline/runs",
+    "analysis": ".xezar/pipeline/analysis",
+    "specs": ".xezar/pipeline/specs",
+    "scripts": ".xezar/pipeline/scripts",
+    "qa": ".local/qa"
+  },
+  "reviewChecklist": null,
+  "closeKeywords": []
+}

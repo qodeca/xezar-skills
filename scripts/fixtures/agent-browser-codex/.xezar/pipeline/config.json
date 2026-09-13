@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "baseBranch": "main",
+  "tracker": "",
+  "browser": { "provider": "agent-browser" },
+  "validation": { "commands": [] },
+  "labels": { "enabled": false },
+  "qaGate": false,
+  "paths": {
+    "runs": ".xezar/pipeline/runs",
+    "analysis": ".xezar/pipeline/analysis",
+    "specs": ".xezar/pipeline/specs",
+    "scripts": ".xezar/pipeline/scripts",
+    "qa": ".local/qa"
+  },
+  "reviewChecklist": null
+}
