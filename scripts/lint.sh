@@ -167,7 +167,23 @@ for pattern in "${patterns[@]}"; do
   hits=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
+    # Native engine/MCP tokens required by onboarding, scoped to their exact
+    # artifact surfaces. Strip tokens, never a whole line/file: adjacent project
+    # instructions must still fail. Other skills keep the existing brand gate.
+    file_strip="$strip_expr"
+    case "$f" in
+      skills/xez-onboard/references/writes.md)
+        file_strip="$file_strip; s#\\.xezar/config\\.json([^A-Za-z0-9_./-]|$)#\\1#g" ;;
+      skills/xez-onboard/references/recheck.md)
+        file_strip="$file_strip; s#\\.local/xezar/onboarding-state\\.json([^A-Za-z0-9_./-]|$)#\\1#g" ;;
+      skills/xez-onboard/references/clients.md)
+        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#server:xezar([^A-Za-z0-9_-]|$)#\\1#g" ;;
+      skills/xez-onboard/templates/claude-mcp.json|skills/xez-onboard/templates/pi-mcp.json)
+        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#\"xezar\":##g" ;;
+      skills/xez-onboard/templates/codex-mcp.toml)
+        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#\\[mcp_servers\\.xezar\\]##g" ;;
+    esac
+    file_hits=$(sed -E "$file_strip" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
     [ -n "$file_hits" ] && hits="${hits}${hits:+
 }${file_hits}"
   done <<EOF
