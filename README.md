@@ -11,7 +11,7 @@
   <a href="https://github.com/qodeca/xezar-skills/pulls"><img src="https://img.shields.io/badge/PRs-welcome-ff69b4.svg" alt="PRs welcome" /></a>
 </p>
 
-This is the team skills collection behind [Xezar](https://github.com/qodeca/xezar), the local cockpit for parallel coding agents. Xezar loads it by default, and nothing here depends on Xezar: every skill is a plain Markdown playbook that installs into any repository and runs under any coding agent that reads skills. The pipeline is product-agnostic by rule – the skills themselves never name a product, a stack or a base branch; everything repo-specific comes from one committed config file.
+This is the team skills collection behind [Xezar](https://github.com/qodeca/xezar), the local cockpit for parallel coding agents. Xezar loads it by default, and its software pipeline runs independently of Xezar: every skill is a plain Markdown playbook that installs into any repository and runs under any coding agent that reads skills. The pipeline is product-agnostic by rule – pipeline behavior comes from project configuration. Onboarding also supports general project work, with optional native Xezar engine and client setup.
 
 ## ⚡ 30-second quickstart
 
@@ -19,15 +19,17 @@ This is the team skills collection behind [Xezar](https://github.com/qodeca/xeza
 npx skills add qodeca/xezar-skills --skill '*'
 ```
 
-Install all thirty-eight — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
+Install all thirty-nine — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
 
-Then, once per repository:
+For optional minimal setup across software, campaign/marketing, research or other work, use [`xez-onboard`](docs/skills/xez-onboard.md). It inspects first and previews only useful project files; no pipeline or leader is required.
+
+For the software delivery pipeline, once per repository:
 
 ```
 /xez-setup-agent-pipeline
 ```
 
-It inspects your repo (default branch, validation scripts, GitHub labels), asks a few questions, writes `.xezar/pipeline/config.json`, and generates `SDLC.md` — your team's ticket-flow doc. Pipeline skills read the config. The standalone `xez-issue-create` skill reads existing project guidance and works without setup.
+It inspects your repo (default branch, validation scripts, GitHub labels), asks a few questions, writes `.xezar/pipeline/config.json`, and generates `SDLC.md` — your team's ticket-flow doc. The software pipeline skills read the config; onboarding does not require it. The standalone `xez-issue-create` skill reads existing project guidance and works without setup.
 
 Then ship something:
 
@@ -288,7 +290,7 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
 }
 ```
 
-A Rust repo puts `cargo test` and `cargo clippy` in `validation.commands`; a Go repo puts `go test ./...`. Skills run whatever you configure and treat any non-zero exit as a gate failure. A skill invoked in a repo without the config runs [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) first — interactively when you're there to answer its questions, with `--defaults` when running unattended — then continues with the freshly written config.
+A Rust repo puts `cargo test` and `cargo clippy` in `validation.commands`; a Go repo puts `go test ./...`. Skills run whatever you configure and treat any non-zero exit as a gate failure. A software pipeline skill invoked in a repo without the config runs [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) first — interactively when you're there to answer its questions, with `--defaults` when running unattended — then continues with the freshly written config.
 
 GitHub is the default tracker. Shipped split-provider templates also support Linear issues through `schpet/linear-cli` and Jira Cloud work items through Atlassian CLI, while GitHub continues to own PRs, reviews, and CI — see the tracker providers section below.
 
@@ -302,7 +304,7 @@ Everything the skills write into a consuming repository lives under two director
 
 | Path | What it holds | Committed? |
 |---|---|---|
-| `.xezar/pipeline/config.json` | the one config file every skill reads | yes |
+| `.xezar/pipeline/config.json` | the config read by software pipeline skills | yes |
 | `.xezar/pipeline/trackers/<tracker>.md` | tracker descriptor(s) – the commands behind every issue/PR/label operation | yes |
 | `.xezar/pipeline/browsers/<provider>.md` | browser-provider descriptor | yes |
 | `.xezar/pipeline/overrides/<skill>.md` | your repo-local extensions, one flat file per skill | yes |

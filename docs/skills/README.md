@@ -24,6 +24,7 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-merge-buddy](xez-merge-buddy.md) | 🧑‍💻 | Reports which open PRs can merge now and which are close but blocked. |
 | [xez-pipeline-retro](xez-pipeline-retro.md) | 🧑‍💻 | Classifies finished runs and ranks what second passes cost, in wall-clock hours. |
 | [xez-approve-merge-pr](xez-approve-merge-pr.md) | 🧑‍💻 | Approves and squash-merges a PR by number, honoring the QA gate. |
+| [xez-onboard](xez-onboard.md) | 🧑‍💻 | Optional minimal project setup or update re-check for software, campaigns, research and other work. |
 | [xez-setup-agent-pipeline](xez-setup-agent-pipeline.md) | 🧑‍💻 | One-per-repo configurator: writes the config, installs descriptors, generates project docs. |
 | [xez-apply-upgrade-notes](xez-apply-upgrade-notes.md) | 🧑‍💻 | Applies UPGRADE_NOTES.md after an upgrade, preserving local edits. |
 | [xez-check-and-commit](xez-check-and-commit.md) | 🧑‍💻 | Runs the validation gate on the branch, fixes obvious drift, commits and pushes when green. |

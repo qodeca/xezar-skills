@@ -1,0 +1,3 @@
+[mcp_servers.xezar]
+command = "npx"
+args = ["-y", "@qodeca/xezar", "mcp"]
