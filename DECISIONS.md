@@ -60,3 +60,7 @@ Browser automation uses the same descriptor pattern under `.xezar/pipeline/brows
 - Discovery questions are written for the person answering: one concrete thing per question, no skill vocabulary, and a hand-off to the next skill instead of a list of commands.
 - Reporting never waits for CI: a run reports, swaps `in-progress` for `ci-monitoring` and bounds the wait with `ci.maxWaitMinutes`; `ci-monitoring` is never a lock signal.
 - Test-env credentials are references (`credentialsFile` + `passwordEnv`); password values never enter the agent's context.
+
+## Standalone issue creation
+
+`xez-issue-create` is an additive create-only path. It reads existing config and overrides but requires no pipeline setup, and carries its own tracker mapping plus local fallback. Its explicit bounded filing mode permits unattended creation without changing the autonomous contract of other skills. It neither claims nor comments on existing issues; label rationale stays in the approved body or receipt. Existing `xez-prepare-issue` behavior is unchanged.
