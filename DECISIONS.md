@@ -70,3 +70,7 @@ is reused by name within onboarding's narrower file and authority scope. The exi
 pipeline skills retain their contracts. The content gate permits only the exact native
 engine paths, package identifier and MCP server identifiers needed by onboarding;
 this is not permission to include this project's working instructions or branding prose.
+
+## Standalone issue creation
+
+`xez-issue-create` is an additive create-only path. It reads existing config and overrides but requires no pipeline setup, and carries its own tracker mapping plus local fallback. Its explicit bounded filing mode permits unattended creation without changing the autonomous contract of other skills. It neither claims nor comments on existing issues; label rationale stays in the approved body or receipt. Existing `xez-prepare-issue` behavior is unchanged.

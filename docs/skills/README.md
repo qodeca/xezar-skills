@@ -30,6 +30,7 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-check-and-commit](xez-check-and-commit.md) | 🧑‍💻 | Runs the validation gate on the branch, fixes obvious drift, commits and pushes when green. |
 | [xez-discover](xez-discover.md) | 🧑‍💻 | Product-level discovery and define in three modes; leaves a product-brief.md built from real material, with tagged evidence and owned decisions. |
 | [xez-brainstorm](xez-brainstorm.md) | 🧑‍💻 | Divergent conversation before any artifact exists; converges on which skill runs next, plus a handoff brief. |
+| [xez-issue-create](xez-issue-create.md) | 🧑‍💻 | Drafts or files one issue with bounded authority, duplicate checks, and recovery; no implementation or setup. |
 | [xez-prepare-issue](xez-prepare-issue.md) | 🧑‍💻 | Files one well-formed, labeled tracker issue from a brief without implementing it. |
 | [xez-spec-writing](xez-spec-writing.md) | 🧑‍💻 | Writes and reviews feature specs to staff-engineer standards. |
 | [xez-ux-review-pr](xez-ux-review-pr.md) | 🧑‍💻 | Design-judgment review of a PR's UI: walks screens in a real browser, posts evidence-tagged findings with done-when criteria. |
