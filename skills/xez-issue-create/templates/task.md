@@ -1,5 +1,3 @@
-# [Specific outcome or symptom]
-
 ## Outcome / problem
 
 [What needs to change or be understood, and for whom]
