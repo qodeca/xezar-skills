@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>🧠 plan · 🔨 implement · 🔍 review · ✅ QA gate · 🚢 merge</b><br/>
-  Thirty-seven agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
+  Thirty-eight agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@ This is the team skills collection behind [Xezar](https://github.com/qodeca/xeza
 npx skills add qodeca/xezar-skills --skill '*'
 ```
 
-Install all thirty-seven — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
+Install all thirty-eight — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
 
 Then, once per repository:
 
@@ -27,7 +27,7 @@ Then, once per repository:
 /xez-setup-agent-pipeline
 ```
 
-It inspects your repo (default branch, validation scripts, GitHub labels), asks a few questions, writes `.xezar/pipeline/config.json`, and generates `SDLC.md` — your team's ticket-flow doc. Every other skill reads the config.
+It inspects your repo (default branch, validation scripts, GitHub labels), asks a few questions, writes `.xezar/pipeline/config.json`, and generates `SDLC.md` — your team's ticket-flow doc. Pipeline skills read the config. The standalone `xez-issue-create` skill reads existing project guidance and works without setup.
 
 Then ship something:
 
@@ -150,6 +150,7 @@ Interactive helpers (no `auto` in the name — the other half of the naming conv
 | [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) | One-per-repo configurator. Inspects the repository, asks a few questions, writes `.xezar/pipeline/config.json`, installs tracker and browser-provider descriptors, generates `SDLC.md` and an `AGENTS.md` starter when missing. Verifies cross-skill coverage: if an installed skill references one that isn't installed, it prints the exact `npx skills add` command to fix it. |
 | [`xez-apply-upgrade-notes`](docs/skills/xez-apply-upgrade-notes.md) | Post-upgrade migrator. Applies `UPGRADE_NOTES.md` to the repo: re-syncs installed tracker/browser descriptors while preserving local edits, reports custom-provider gaps, and checks the config against notable upgrades. |
 | [`xez-merge-buddy`](docs/skills/xez-merge-buddy.md) | Scans open PRs and reports which can merge now and which are close but blocked, based on labels, reviews, CI, and mergeability. |
+| [`xez-issue-create`](docs/skills/xez-issue-create.md) | Draft or file one issue with explicit authority, duplicate checks, project templates, and recovery receipts; no setup required. |
 | [`xez-pipeline-retro`](docs/skills/xez-pipeline-retro.md) | Classifies runs the pipeline already finished — clean single pass, hard recovery, loop checkpoints, or a second pass with no recorded cause — and ranks the causes by the wall-clock hours they cost. Read-only; hands the top cause to `xez-prepare-issue`. |
 | [`xez-approve-merge-pr`](docs/skills/xez-approve-merge-pr.md) | Approves and squash-merges a PR given only its number. Can file a follow-up issue at the same time. |
 | [`xez-check-and-commit`](docs/skills/xez-check-and-commit.md) | Runs the configured validation gate on the current branch, fixes obvious drift, then commits and pushes when green. |
@@ -341,7 +342,7 @@ Local rules win, but an override file can never relax the installed skill's safe
 
 ### Project management (tracker) providers
 
-No skill calls `gh` — or any tracker CLI — directly. Skills name **tracker operations** (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**, …) and one committed descriptor file, `.xezar/pipeline/trackers/<tracker>.md`, defines how each operation is executed. [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) asks which tracker you use, sets the config's `tracker` field, and installs the matching descriptor into your repo.
+Tracker commands live in tracker references. Pipeline skills use committed descriptors; `xez-issue-create` also carries a safe standalone GitHub mapping when no descriptor exists. Skills name **tracker operations** (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**, …) and one committed descriptor file, `.xezar/pipeline/trackers/<tracker>.md`, defines how each operation is executed. [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) asks which tracker you use, sets the config's `tracker` field, and installs the matching descriptor into your repo.
 
 That file is yours, which makes three things easy:
 
