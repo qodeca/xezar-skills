@@ -1,6 +1,6 @@
 # Re-check after an update
 
-An engine/kit change offers **Re-check / Later**. Offering is not permission to launch an agent, edit files or update a successful-check timestamp. Ordinary tasks continue without accepting the offer. The engine owns offer scheduling and disposable state; this skill reports its outcome to that caller and does not invent an API or background updater.
+An engine/kit change offers **Re-check / Later**. Offering is not permission to launch an agent, edit files or update a successful-check timestamp. Accepting Re-check authorizes inspection and preview only; applying needs an explicit choice against the concrete preview through the question mechanism in [questions.md](questions.md), unless the brief names the exact files and keys. Ordinary tasks continue without accepting the offer. The engine owns offer scheduling and disposable state; this skill reports its outcome to that caller and does not invent an API or background updater.
 
 The integration state at `.local/xezar/onboarding-state.json` has four fields:
 
