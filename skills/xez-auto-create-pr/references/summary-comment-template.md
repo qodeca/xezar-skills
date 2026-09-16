@@ -31,7 +31,7 @@ Find the marker below and update it via **update-comment**; create via
   skipped or pending check must remain visible, not become an implied pass.
   Name pending required checks and state that they still gate merge. Name any
   approval still required by the configured QA gate; evidence alone does not
-  grant `qa-approved`. State whether this run will follow up on pending CI;
+  grant the local QA-passed label. State whether this run will follow up on pending CI;
   if it will not, name who owns the next check. Do not call a check required
   unless the tracker or configured fallback establishes that status.
 - Never include secrets, tokens, `.env` content or credentials.

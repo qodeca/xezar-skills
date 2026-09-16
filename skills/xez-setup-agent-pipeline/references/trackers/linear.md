@@ -16,7 +16,7 @@ At runtime, `xez-setup-agent-pipeline` installs both files and sets `"tracker": 
 - Linear issue identifiers are team keys plus numbers, such as `ENG-123`. Preserve that token in branch names and PR bodies. GitHub does not auto-close Linear issues from `Closes ENG-123`; after merge, explicitly run **close-issue** and include the merged PR URL in the closing comment.
 - `{repo}` means a Linear team key for issue creation/search and `owner/name` for delegated GitHub operations. When omitted, issue commands use `LINEAR_TEAM_ID` or the team in `.linear.toml`; GitHub commands infer the repository from the checkout.
 - Linear has no pull-request object. Drafts, reviews, mergeability, CI status, and PR labels are GitHub concepts and always delegate to `.xezar/pipeline/trackers/github.md`.
-- The issue claim signals are: assignee = the Linear automation user, the `in-progress` issue label, and a `🤖`-prefixed timestamped comment. `linear issue view <id> --json --no-download` returns assignee, labels, state, and comments so all three signals are readable.
+- The issue claim signals are: assignee = the Linear automation user, the local active-ownership label issue label, and a `🤖`-prefixed timestamped comment. `linear issue view <id> --json --no-download` returns assignee, labels, state, and comments so all three signals are readable.
 - Use file flags for multi-line Markdown: `--description-file` for descriptions and `--body-file` for comments. Add `--no-interactive` to issue creation so autonomous runs never wait for a prompt.
 - Mutations are read back with `linear issue view <id> --json --no-download` when a later decision depends on success.
 
@@ -49,7 +49,7 @@ remove_issue_label() {
 }
 ```
 
-PR label helpers (`label_exists`, `apply_label`, `remove_label`, and `set_pipeline_label`) execute exactly as defined in `.xezar/pipeline/trackers/github.md`. Setup's **list-labels** and **ensure-label-taxonomy** operations provision the GitHub PR taxonomy. Linear issue labels are intentionally team-owned; optionally create matching category, priority, risk, `in-progress`, and `do-not-close` labels with `linear label create` before running issue-authoring skills.
+PR label helpers (`label_exists`, `apply_label`, `remove_label`, and `set_pipeline_label`) execute exactly as defined in `.xezar/pipeline/trackers/github.md`. Setup's **list-labels** and **ensure-label-taxonomy** operations provision the GitHub PR taxonomy. Linear issue labels are intentionally team-owned; optionally create matching category, priority, risk, the local active-ownership label, and the local closure-prohibited label labels with `linear label create` before running issue-authoring skills.
 
 ## Operations
 

@@ -18,7 +18,7 @@ At runtime, `xez-setup-agent-pipeline` installs both files and sets `"tracker": 
 - Jira work-item identifiers are project keys plus numbers, such as `ENG-123`. Preserve that token in branch names and PR bodies. GitHub does not auto-close Jira issues from `Closes ENG-123`; after merge, explicitly run **close-issue** and include the merged PR URL in the closing comment.
 - `{repo}` means a Jira project key for issue creation/search and `owner/name` for delegated GitHub operations. When omitted, issue commands use `ATLASSIAN_PROJECT`; GitHub commands infer the repository from the checkout.
 - Jira has no pull-request object in `acli`. Drafts, reviews, mergeability, CI status, and PR labels are GitHub concepts and always delegate to `.xezar/pipeline/trackers/github.md`.
-- The issue claim signals are: assignee account id = `ATLASSIAN_ACCOUNT_ID`, the free-form `in-progress` issue label, and a `🤖`-prefixed timestamped comment. **get-issue** requests assignee, labels, status, and comments so all three signals are readable.
+- The issue claim signals are: assignee account id = `ATLASSIAN_ACCOUNT_ID`, the free-form the local active-ownership label issue label, and a `🤖`-prefixed timestamped comment. **get-issue** requests assignee, labels, status, and comments so all three signals are readable.
 - Jira comment ids are only unique with their work item in the CLI. This descriptor serializes them as opaque `{issueKey}:{numericCommentId}` handles (for example, `ENG-123:10042`) from **list-issue-comments** and accepts that handle in **get-issue-comment** and **update-comment**.
 - Use file flags for multi-line text: `--description-file` for descriptions and `--body-file` for comments. Mutating bulk-capable commands always pass a single `--key` and `--yes` so an autonomous run neither expands scope through JQL nor waits for confirmation.
 - Mutations are read back with `acli jira workitem view <key> --fields ... --json` when a later decision depends on success.
@@ -53,7 +53,7 @@ remove_issue_label() {
 }
 ```
 
-PR label helpers (`label_exists`, `apply_label`, `remove_label`, and `set_pipeline_label`) execute exactly as defined in `.xezar/pipeline/trackers/github.md`. Setup's **list-labels** and **ensure-label-taxonomy** operations provision the GitHub PR taxonomy. Jira issue labels need no creation step; issue-authoring skills may apply the same category, priority, risk, `in-progress`, and `do-not-close` values directly through the guard.
+PR label helpers (`label_exists`, `apply_label`, `remove_label`, and `set_pipeline_label`) execute exactly as defined in `.xezar/pipeline/trackers/github.md`. Setup's **list-labels** and **ensure-label-taxonomy** operations provision the GitHub PR taxonomy. Jira issue labels need no creation step; issue-authoring skills may apply the same category, priority, risk, the local active-ownership label, and the local closure-prohibited label values directly through the guard.
 
 ## Operations
 

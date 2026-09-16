@@ -22,3 +22,7 @@ jobs:
         run: node scripts/test-close-keywords.mjs
       - name: Onboarding native-token boundaries and client templates
         run: node scripts/test-onboarding-content.mjs
+      - name: Generic instruction content (P6 skills and all companions)
+        run: npm run check:generic-instructions
+      - name: Generic instruction guard rejection and control cases
+        run: npm run test:generic-instructions

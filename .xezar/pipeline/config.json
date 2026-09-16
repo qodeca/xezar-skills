@@ -10,7 +10,9 @@
       "node scripts/test-tracker-providers.mjs",
       "node scripts/test-classify-runs.mjs",
       "node scripts/test-close-keywords.mjs",
-      "node scripts/test-onboarding-content.mjs"
+      "node scripts/test-onboarding-content.mjs",
+      "npm run check:generic-instructions",
+      "npm run test:generic-instructions"
     ]
   },
   "labels": {

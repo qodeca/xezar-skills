@@ -18,6 +18,8 @@
     "test:close-keywords": "node scripts/test-close-keywords.mjs",
     "test:onboarding-content": "node scripts/test-onboarding-content.mjs",
     "test:discovery-contracts": "node scripts/test-discovery-contracts.mjs",
-    "test:agent-browser-codex": "bash scripts/test-agent-browser-codex.sh"
+    "test:agent-browser-codex": "bash scripts/test-agent-browser-codex.sh",
+    "check:generic-instructions": "node scripts/check-generic-instructions.mjs",
+    "test:generic-instructions": "node scripts/test-generic-instructions.mjs"
   }
 }

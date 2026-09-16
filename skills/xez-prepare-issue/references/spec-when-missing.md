@@ -63,4 +63,4 @@ issue and the spec PR in step 6.
   this path; those implement.
 - Everything else about `xez-prepare-issue` stays tracker-first: duplicate search,
   compatibility flagging, and the label rules (category `feature`; no pipeline or
-  `in-progress` labels on the issue) are unchanged.
+  the local active-ownership labels on the issue) are unchanged.
