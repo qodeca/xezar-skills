@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, inspect, skills } from './check-generic-instructions.mjs';
@@ -18,6 +18,7 @@ const rejected = [
   'A client may read `AGENTS.md`; require another `AGENTS.md`.',
   'Apply `review` and `merge-queue`.',
   'Apply needs-qa.',
+  'Status: in-progress; apply in-progress as a tracker label.',
   'gh label create qa --color 000000',
   '<!-- example:start -->\nRun .xezar/checks/repo-gates.sh.\n<!-- example:end -->',
   '<!-- example:start -->\nCreate SDLC.md.\n<!-- example:end -->',
@@ -38,6 +39,15 @@ for (const text of [
 ]) assert.deepEqual(inspect(text), [], `rejected control: ${text}`);
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+// Interrupted handoffs preserve the parsed protocol even when tracker labels differ.
+const createPr = readFileSync(join(root, 'skills/xez-auto-create-pr/SKILL.md'), 'utf8');
+const interruptionRule = createPr.split('\n').find(line => line.startsWith('- If the run cannot finish'));
+assert.ok(interruptionRule, 'interrupted-run handoff rule must exist');
+assert.match(interruptionRule, /leave the PR body's `Status: in-progress`/,
+  'interrupted-run Status must remain literal in-progress, independent of tracker taxonomy');
+assert.doesNotMatch(interruptionRule, /as the local active-ownership label/);
+console.log('Interrupted-run protocol content OK: Status: in-progress is independent of tracker taxonomy.');
+
 mkdirSync(join(root, '.local'), { recursive: true });
 const fixture = mkdtempSync(join(root, '.local/generic-instructions-'));
 try {
