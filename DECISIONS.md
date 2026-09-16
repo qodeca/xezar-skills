@@ -74,3 +74,29 @@ this is not permission to include this project's working instructions or brandin
 ## Standalone issue creation
 
 `xez-issue-create` is an additive create-only path. It reads existing config and overrides but requires no pipeline setup, and carries its own tracker mapping plus local fallback. Its explicit bounded filing mode permits unattended creation without changing the autonomous contract of other skills. It neither claims nor comments on existing issues; label rationale stays in the approved body or receipt. Existing `xez-prepare-issue` behavior is unchanged.
+
+## Generic applicability for setup, PR delivery, specs and issue preparation
+
+For the four skills changed by issue 466 P6, domain, capability and actual task
+authority precede pipeline setup. General work has a local deliverable path; no
+process filename or label taxonomy is required. Software setup requires Git and
+a package manager, derives guidance and labels from local evidence, and retains
+existing consumer config defaults and quality gates. The former blanket
+auto-setup rule is superseded for these four entry points only.
+
+The targeted companion copies change together. Other installed skills can still
+assume the legacy taxonomy, so these entry points must verify compatibility
+before delegation and cannot use delegation to bypass the local policy. Shared
+references outside the four directories intentionally remain unchanged under the
+P6 scope. No cross-skill parser format, operation name, or existing consumer label
+is renamed.
+
+`npm run check:generic-instructions` certifies all files under those four skill
+directories, including references, templates and tracker descriptors. It is not
+a catalog-wide certificate; the other 35 skills are outside this P6 change.
+Missing/empty/unreadable inputs and symlinks fail. Taxonomy literals belong only
+in balanced `<!-- example:start -->` / `<!-- example:end -->` blocks; those
+markers never exempt project paths or process-filename requirements. Native
+client filenames are allowed only in the guard's exact capability phrases,
+with adjacent requirements still checked. Review remains responsible for
+semantic applicability; a text guard does not prove real-agent behavior.

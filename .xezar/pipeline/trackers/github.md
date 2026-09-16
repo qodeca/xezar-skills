@@ -40,7 +40,7 @@ Upstream references: cli/cli#11983 (`gh pr edit` aborts without any project flag
 - A `--json` field list must never include `projectCards`: it is a Projects (classic) relic that errors on every client version (see above). Request only the fields the calling skill names.
 - A PR is linked to the issue it resolves with `Fixes #{issueId}` (or `Closes #{issueId}`) in the PR body; GitHub then closes the issue on merge. To reference without auto-closing, use a plain issue link.
 - PRs open as **drafts** when a skill says so; a human (or **mark-pr-ready**) promotes them.
-- Claim/lock signals on an issue or PR are: assignee set to the automation user, the `in-progress` label, and a `🤖`-prefixed claim comment. All three are set on claim; the label is guarded (below). The `ci-monitoring` label is **not** a claim signal — it marks work that is finished and reported while its CI-result follow-up is still owed, and never makes another skill back off.
+- Claim/lock signals on an issue or PR are: assignee set to the automation user, the local active-ownership label, and a `🤖`-prefixed claim comment. All three are set on claim; the label is guarded (below). The the local CI-observation label label is **not** a claim signal — it marks work that is finished and reported while its CI-result follow-up is still owed, and never makes another skill back off.
 - Long, multi-line comment bodies are posted with `--body-file` (or a heredoc via process substitution) so formatting is preserved.
 - CI status truth comes from **get-pr-checks**; the set of *required* checks comes from **get-required-checks** (branch protection). When branch protection is not readable (404), treat every reported check as required.
 
@@ -419,33 +419,4 @@ gh label create <name> --color <hex> --description "<description>"
 ```
 
 #### ensure-label-taxonomy
-Create every label from the config's taxonomy that does not exist yet (used by `xez-setup-agent-pipeline`; skip ones that already exist per **list-labels**):
-```bash
-gh label create review            --color 0366d6 --description "Ready for code review"
-gh label create changes-requested --color b60205 --description "Reviewer requested changes"
-gh label create qa                --color fbca04 --description "Manual QA in progress"
-gh label create qa-failed         --color b60205 --description "Manual QA failed"
-gh label create merge-queue       --color 0e8a16 --description "Approved, ready to merge"
-gh label create blocked           --color b60205 --description "Blocked by a dependency"
-gh label create do-not-merge      --color b60205 --description "Hard merge block"
-gh label create bug               --color d73a4a --description "Bug fix"
-gh label create feature           --color a2eeef --description "New capability"
-gh label create refactor          --color cfd3d7 --description "No behavior change"
-gh label create security          --color b60205 --description "Security-relevant change"
-gh label create dependencies      --color 0366d6 --description "Dependency update"
-gh label create documentation     --color 0075ca --description "Docs only"
-gh label create needs-qa          --color fbca04 --description "Requires manual QA before merge"
-gh label create skip-qa           --color 0e8a16 --description "Low risk, QA not required"
-gh label create qa-approved       --color 0e8a16 --description "Manual QA passed"
-gh label create qa-self-verified  --color c5def5 --description "Self-QA exception used"
-gh label create in-progress       --color c5def5 --description "An automated skill is working on this"
-gh label create ci-monitoring     --color d4c5f9 --description "Work complete and reported; agent is watching CI results"
-gh label create do-not-close      --color c5def5 --description "Humans only: never auto-close this issue"
-gh label create priority-low      --color e4e669 --description "Cosmetic or follow-up work"
-gh label create priority-medium   --color fbca04 --description "Ordinary bug or feature"
-gh label create priority-high     --color d93f0b --description "Release-blocking"
-gh label create priority-extreme  --color b60205 --description "Outage or security incident"
-gh label create risk-low          --color 0e8a16 --description "Isolated, low blast radius"
-gh label create risk-medium       --color fbca04 --description "Ordinary change with tests"
-gh label create risk-high         --color b60205 --description "Wide blast radius, review deeply"
-```
+Resolve the exact label names, colors and descriptions from the authorized local taxonomy and **list-labels** evidence. Create only the approved missing entries through **create-label** above; skip existing names without recoloring them. Never seed a universal list from this descriptor. When no taxonomy is established or creation is not authorized, report that and perform no label writes.

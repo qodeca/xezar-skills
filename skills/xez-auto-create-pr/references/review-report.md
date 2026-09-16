@@ -6,7 +6,7 @@ Detailed procedure for step 10, the single code-review/autofix loop of `xez-auto
 
 Before you post the final summary comment, push the last commits, or report back, subject the PR to its authoritative review with the `xez-auto-review-pr` skill. Do not run a separate direct `xez-code-review` pass first: `xez-auto-review-pr` invokes that engine verbatim and adds the autofix loop.
 
-`xez-auto-create-pr` may not hold an `in-progress` lock on the PR at this point (only `xez-auto-continue-pr` does). `xez-auto-review-pr`'s claim check runs **first, before any review work**, in every invocation mode: it either claims the PR fresh (`in-progress` label + claim comment — the PR must never be under review while observably unclaimed) or, when the lock is already held by `$CURRENT_USER`, re-enters with a take-over comment and leaves release to the lock's owner. It releases only a claim its own run opened, per its workflow (see `references/claim-pr.md`, chained hand-off). Do not second-guess its claim/release protocol.
+`xez-auto-create-pr` may not hold a local active-ownership label lock on the PR at this point (only `xez-auto-continue-pr` does). `xez-auto-review-pr`'s claim check runs **first, before any review work**, in every invocation mode: it either claims the PR fresh (the local active-ownership label + claim comment — the PR must never be under review while observably unclaimed) or, when the lock is already held by `$CURRENT_USER`, re-enters with a take-over comment and leaves release to the lock's owner. It releases only a claim its own run opened, per its workflow (see `references/claim-pr.md`, chained hand-off). Do not second-guess its claim/release protocol.
 
 Invoke the `xez-auto-review-pr` skill against `{prNumber}` in autofix mode:
 

@@ -3,7 +3,7 @@
 The issue is the durable explanation. Aim for 150–300 words for substantive
 work, less for a small fix; retain necessary evidence and acceptance criteria
 when they need more. Omit unused optional sections and do not repeat a linked
-spec. The ticket-level Definition of Ready in `SDLC.md` is required: problem,
+spec. Use local readiness rules when present; always state: problem,
 user, checked outcome, explicit non-goals, classified open questions, and human
 confirmation of any autonomous assumptions. A spec cannot supply missing human
 input.
