@@ -60,6 +60,9 @@ Browser automation uses the same descriptor pattern under `.xezar/pipeline/brows
 - Discovery questions are written for the person answering: one concrete thing per question, no skill vocabulary, and a hand-off to the next skill instead of a list of commands.
 - Reporting never waits for CI: a run reports, swaps `in-progress` for `ci-monitoring` and bounds the wait with `ci.maxWaitMinutes`; `ci-monitoring` is never a lock signal.
 - Test-env credentials are references (`credentialsFile` + `passwordEnv`); password values never enter the agent's context.
+- A skill never kills a process by command-line pattern match. It starts the process, saves the PID, and kills that PID. A skill runs in somebody else's checkout: the pattern that matches their dev server also matches their editor and their other checkout of the same project. `scripts/lint.sh` rejects `pkill`, `killall` and `kill $(pgrep …)` inside `skills/`.
+- The committed pipeline config carries no machine-specific values. Worker counts, memory limits and absolute paths are true of one machine and wrong on every other, and a teammate inherits them silently. They live in the environment; `.env.example` names them and `scripts/lint.sh` rejects them in `config.json`.
+- Every safety rule that can be checked, is checked. "Never commit a secret" is worth what its gate is worth, so the lint fails on credential-shaped **values** — key names such as `passwordEnv` are how the collection refers to a secret without holding one.
 
 ## Optional onboarding boundary
 

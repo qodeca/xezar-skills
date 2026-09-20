@@ -224,6 +224,54 @@ if [ -n "$gh_hits" ]; then
   printf '%s\n' "$gh_hits" >&2
 fi
 
+# Process-kill gate: a skill runs in somebody else's checkout, on a machine we
+# know nothing about. Killing by command-line pattern match is unbounded -- the
+# same pattern that matches the dev server matches the user's editor, their other
+# checkout of the same project, or an unrelated process that merely mentions it.
+# Start a process, save its PID, kill that PID.
+kill_hits=$(grep -rEn '(^|[`"'"'"'[:space:]])(pkill|killall)([[:space:]]|$)|kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*\$\((pgrep|ps |lsof)' skills/ 2>/dev/null || true)
+if [ -n "$kill_hits" ]; then
+  err "process killed by pattern match (use a saved PID; a pattern also matches the user's editor):"
+  printf '%s\n' "$kill_hits" >&2
+fi
+
+# Committed-config gate: .xezar/pipeline/config.json is shared by everyone who
+# clones the repo, so it must not carry anything true of one machine only.
+# Memory limits, worker counts and absolute paths belong in the environment, not
+# in a file a teammate inherits and then silently runs with the wrong value.
+if [ -f .xezar/pipeline/config.json ] && command -v node >/dev/null 2>&1; then
+  cfg_hits=$(node -e '
+    const cfg = require("./.xezar/pipeline/config.json");
+    const banned = /^(memory|maxMemory|heap|parallel|parallelism|jobs|threads|maxWorkers|concurrency|cpus|nodePath|homeDir)$/i;
+    const out = [];
+    (function walk(node, path) {
+      if (node === null || typeof node !== "object") return;
+      for (const [k, v] of Object.entries(node)) {
+        const here = path ? path + "." + k : k;
+        if (banned.test(k)) out.push(here + " (machine-specific setting)");
+        if (typeof v === "string" && /^(\/|[A-Za-z]:\\|~\/)/.test(v)) out.push(here + " (absolute path: " + v + ")");
+        walk(v, here);
+      }
+    })(cfg, "");
+    if (out.length) console.log(out.join("\n"));
+  ' 2>/dev/null || true)
+  if [ -n "$cfg_hits" ]; then
+    err "committed pipeline config carries machine-specific values (move them to the environment):"
+    printf '%s\n' "$cfg_hits" >&2
+  fi
+fi
+
+# Secrets gate: the rule "never commit a credential" is worth exactly as much as
+# the check behind it. Values only -- a key NAME like "passwordEnv" is how the
+# collection refers to a secret without holding one.
+secret_hits=$(grep -rEn \
+  '(gh[pousr]_[A-Za-z0-9]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(secret|token|password|api[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9/+_-]{16,}["'"'"'])' \
+  skills/ scripts/ docs/ .xezar/ 2>/dev/null | grep -vE '<[^>]*>|\$\{|\$[A-Za-z_]|example|placeholder|REDACTED|xxxx' || true)
+if [ -n "$secret_hits" ]; then
+  err "credential-shaped value found in a committed file:"
+  printf '%s\n' "$secret_hits" >&2
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "Lint failed." >&2
   exit 1
