@@ -277,7 +277,7 @@ them, the cases a request-analyser would handle are handled — by skills that a
 next step, rather than handing back a classification.
 
 The cost of adding it is not the skill: it is a fourth entry point users have to choose
-between, in a collection whose main usability problem is already that there are forty-one
+between, in a collection whose main usability problem is already that there are forty-four
 skills. A router that saves one decision and adds one is not a router.
 
 Revisit if a real run shows a request that none of the three accepts, or if routing between
@@ -440,6 +440,36 @@ a document — it answers four questions in writing:
 An entry that cannot answer the fourth is a permanent addition, and it should be admitted
 on that basis or not at all. `xez-analyze-request` was declined on question 1; every gate
 switch answers question 4 with an owner and a review date.
+
+### Admitted: the three leader-control skills
+
+`xez-unattended-on`, `xez-unattended-off` and `xez-add-rule`, answered together because they
+are one mechanism in three acts.
+
+1. **What request do they serve?** A project running a leader unattended needs three things
+   nothing here does: a way to hand it a narrower stop list *deliberately and on the record*, a
+   way to get back every decision it made alone, and a way to give it a rule that survives the
+   next compaction. The existing skills all act on a PR or an issue; these act on the project's
+   own operating contract.
+2. **Who decides they worked?** The owner, in the morning. The observation is concrete: the
+   mode file's git history shows exactly when the mode was on, and the count of parked
+   decisions asked back versus parked decisions written tells you whether the interview is
+   doing its job. A morning where the owner says "fine" to everything is the mechanism failing,
+   and it is visible in that count.
+3. **What do they cost?** Two committed files in an onboarded project (`unattended.json` and a
+   `parked.md` in the live campaign), and one growing document: every rule `xez-add-rule` adds
+   loads on every session start and every compaction, permanently. Nothing in the collection
+   costs a reader anything until invoked.
+4. **What would make us remove them?** If the hard stops move into a hook or another
+   enforcement point, `xez-unattended-on`'s contract-reading becomes decoration and the pair
+   should go. If `parked.md` routinely reaches a length nobody interviews honestly, the
+   park-and-continue model is wrong and should be replaced by stopping, not patched.
+
+**Naming, settled deliberately.** They were nearly `xez-autopilot-on` / `-off`. Three reasons
+against: `xez-pr-autopilot` already ships and means something else entirely; the `xez-auto-*`
+prefix is a behavioural contract meaning *never asks mid-run*, which is the opposite of what
+`xez-unattended-off` does; and the lint's prefix check keys on `xez-auto-` **with** the hyphen,
+so it would not have caught the confusion. A skill name is a one-way door.
 
 **Deprecation is two steps, never one.** Step one: mark it deprecated, keep it working, say
 what to use instead and from when. Step two, in a later release: remove it, with a row in
