@@ -79,6 +79,25 @@ Anyone who can comment on a pull request can write text that looks like one, so 
 satisfied by a record — every gate re-derives from the authenticated API at the head commit.
 Without the operations you lose the written trail, not the checking.
 
+**Symptom 5 – no dependency or supply-chain operations are available.** Your repository has no
+`.xezar/pipeline/toolchains/` or `.xezar/pipeline/security/` directory. Skills that want to
+restore dependencies, build, check for outdated packages or scan for vulnerabilities have no
+descriptor to execute.
+
+**Fix 5:** copy the providers you want from this collection's
+`skills/xez-setup-agent-pipeline/references/toolchains/` and `references/security/`, then add the
+config keys:
+
+```json
+"toolchain": { "providers": ["npm"] },
+"security": { "provider": "osv-scanner" }
+```
+
+Nothing changes until you do. `toolchain.providers` absent or empty means no lifecycle operation
+applies, and `security.provider` absent means every supply-chain operation is `not-applicable`
+and nothing executes — which is the deliberate default, so that an upgrade never silently gains a
+stage that runs descriptor commands.
+
 ## 2026-09-13 – migrating from open-mercato/skills
 
 This collection is the continuation of `open-mercato/skills`, renamed and relaid out. The skill

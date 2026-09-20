@@ -249,6 +249,22 @@ breaks(
 );
 
 breaks(
+  "a provider that reads an exit code as a pass when nothing was scanned is rejected",
+  "skills/xez-setup-agent-pipeline/references/security/osv-scanner.md",
+  (s) => s.replace(/\| `128` \| \*\*`unknown`\*\* \|/, "| `128` | `pass` |"),
+  () => script("test-toolchain-providers.mjs"),
+  "exit 128 means nothing was scanned",
+);
+
+breaks(
+  "dropping lifecycle-script suppression from a restore is rejected",
+  "skills/xez-setup-agent-pipeline/references/toolchains/npm.md",
+  (s) => s.replace(/--ignore-scripts/g, ""),
+  () => script("test-toolchain-providers.mjs"),
+  "suppresses package lifecycle scripts",
+);
+
+breaks(
   "an expired allowlist entry is rejected",
   "scripts/allowlists.json",
   (s) => s.replace(/"expires": "20\d\d-\d\d-\d\d"/, '"expires": "2020-01-01"'),

@@ -38,6 +38,8 @@ jobs:
         run: node scripts/test-browser-providers.mjs
       - name: Tracker provider contract and compatibility invariants
         run: node scripts/test-tracker-providers.mjs
+      - name: Toolchain and security provider contract
+        run: node scripts/test-toolchain-providers.mjs
       - name: Merge-gate decision contract
         run: node scripts/test-merge-gate.mjs
       - name: Gate status decision contract

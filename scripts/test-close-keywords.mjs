@@ -25,6 +25,7 @@ const skill = read("skills/xez-close-fixed-issues/SKILL.md");
 const setupSkill = read("skills/xez-close-fixed-issues/references/agentic-setup.md");
 const templates = read("skills/xez-close-fixed-issues/references/report-templates.md");
 const readme = read("README.md");
+const configFields = read("skills/xez-setup-agent-pipeline/references/config-fields.md");
 
 // --- the config schema declares the key, and it is a list ------------------
 // The schema block is what xez-setup-agent-pipeline writes into a repository, so
@@ -41,8 +42,10 @@ assert.deepEqual(
   [],
   "xez-setup-agent-pipeline: closeKeywords must default to empty — English repos keep today's behavior",
 );
+// The field reference lives in references/config-fields.md: the body is a router, and a
+// bullet per config key is exactly the kind of detail that belongs one layer down.
 assert.match(
-  setup,
+  configFields,
   /^- `closeKeywords` — /m,
   "xez-setup-agent-pipeline: closeKeywords needs a field-reference bullet",
 );

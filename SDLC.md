@@ -141,6 +141,7 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `bash scripts/lint.sh`
 - `node scripts/test-browser-providers.mjs`
 - `node scripts/test-tracker-providers.mjs`
+- `node scripts/test-toolchain-providers.mjs`
 - `node scripts/test-merge-gate.mjs`
 - `node scripts/test-gate-status.mjs`
 - `node scripts/test-shared-blocks.mjs`

@@ -283,6 +283,8 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
   },
   "qaGate": true,
   "gates": { "failClosed": false, "requireVerdictHead": false },
+  "toolchain": { "providers": [] },
+  "security": { "provider": null },
   "paths": {
     "runs": ".xezar/pipeline/runs",
     "analysis": ".xezar/pipeline/analysis",

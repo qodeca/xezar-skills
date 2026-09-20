@@ -47,6 +47,16 @@ The named operations (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**
 
 **Operations added 2026-09-20:** **put-verification-record** and **get-verification-record**. An older descriptor copy lacks both. The documented fallback is to report the record as unavailable and carry on — the record was never a gate input, so its absence costs the written trail, not the checking.
 
+### 3b. The toolchain and security provider contracts
+
+The toolchain operations (**toolchain-check**, **restore-dependencies**, **build**, **outdated**, **update-dependency**) defined by `skills/xez-setup-agent-pipeline/references/toolchains/TEMPLATE.md`, and the security operations (**security-check**, **security-scan**, **dependency-inventory**) defined by `references/security/TEMPLATE.md`. Consumer repos hold committed copies at `.xezar/pipeline/toolchains/<name>.md` and `.xezar/pipeline/security/<name>.md`.
+
+Each operation is defined by its **postcondition**, never by a verb, and renaming one or changing what its postcondition guarantees is breaking. So is adding a status value outside the five, since consumers branch on them with a POSIX `case`.
+
+- **`toolchain.providers` is a list.** Turning it back into a single value is breaking: a repository with two ecosystems configures both.
+- **`security.provider` has no default, permanently.** Giving it one would make an upgrade silently gain a stage that executes descriptor commands. Absent is `not-applicable` — never `unknown`, which would look like a problem with every change.
+- **Required path:** a new operation lands in the template and every shipped provider in the same PR, and every cell of the parity matrix in `scripts/test-toolchain-providers.mjs` gets an answer — including the cells where a provider genuinely cannot perform it, which are recorded as `not-applicable` with a reason rather than left blank.
+
 ### 4. The browser-provider operations contract
 
 The named browser operations (**ensure-installed**, **doctor**, **open**, **snapshot**, **interact**, **assert**, **screenshot**, **close**) defined by `skills/xez-setup-agent-pipeline/references/browsers/TEMPLATE.md`. Consumer repos hold committed, possibly team-edited copies at `.xezar/pipeline/browsers/<provider>.md`.

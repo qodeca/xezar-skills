@@ -41,6 +41,8 @@ The following is an **example**, not a default workflow. Populate validation com
   },
   "qaGate": true,
   "gates": { "failClosed": false, "requireVerdictHead": false },
+  "toolchain": { "providers": [] },
+  "security": { "provider": null },
   "ci": { "maxWaitMinutes": 40 },
   "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "paths": {
@@ -57,42 +59,27 @@ The following is an **example**, not a default workflow. Populate validation com
 
 <!-- example:end -->
 
-Field reference:
+Every key, one bullet each: `references/config-fields.md` — read it when writing or reviewing a config.
 
-- `baseBranch` — the branch PRs target. `"auto"` means resolve at runtime from the repository's default branch; set an explicit name only when PRs target something else.
-- `tracker` — selects `.xezar/pipeline/trackers/<tracker>.md`. Shipped values are `"github"`, `"linear"` (Linear issues + GitHub PRs/CI), and `"jira"` (Jira Cloud issues + GitHub PRs/CI); see Tracker providers below.
-- `browser.provider` — the browser-automation provider used by QA and integration-test skills. Selects `.xezar/pipeline/browsers/<provider>.md`. Fresh setups default to `"agent-browser"`; configs without this key keep legacy Playwright behavior (see Browser providers).
-- `validation.commands` — ordered list of shell commands that constitute the full validation gate. Skills run them in order and treat any non-zero exit as a gate failure. Keep the list complete: typecheck, lint, tests, build — whatever proves the repo is healthy.
-- `labels.enabled` — when `false`, skills skip every label operation and note that in their PR summaries. Use this for repos that do not want the label workflow.
-- `labels.pipeline` — mutually exclusive workflow states. A PR carries at most one.
-- `labels.category` — additive kind-of-change labels.
-- `labels.meta` — additive process signals resolved from the project's workflow and tracker descriptions. Discover the labels (if any) for QA required, QA passed, active ownership and CI observation. Never invent a mapping from spelling alone. CI observation is not ownership; missing labels do not bypass required QA or claims recorded by other means.
-- `labels.priority` and `labels.risk` — local urgency and impact categories; preserve the project's exclusivity and inference rules. Do not impose either group on a project that does not use it.
-- `qaGate` — preserve existing required QA and independent approval semantics. Turning labels off never waives required verification. When the project has no documented mapping, report the missing mapping and keep gated delivery pending.
-- `ci.maxWaitMinutes` — bounded CI observation (default `40`, `0` means no wait). Report pending checks honestly when it expires and release only the run's own observation signal. Required checks still gate merge.
-- `gates.failClosed` — optional; when `true`, a gate that reports `unknown` blocks every stage that reads it, not only the merge. Default `false`, so an upgrade changes nothing until someone opts in.
-- `gates.requireVerdictHead` — optional; when `true`, a verdict that does not name the commit it certifies (the `Head:` line) is refused. Default `false`; fresh setups get `true`. Both keys are read from the base branch on a gate path — `references/config-fields.md`.
+## Provider families
 
-- `engine.executorTier` — optional; the default abstract model tier (`cheap` / `standard` / `capable`) for executor subagents dispatched by the loop skills when a Tasks-table `Exec` cell names none. Harnesses that support subagent model selection map the tier onto their closest model class; others ignore it. Configs without the key behave as `standard`.
-- `engine.loopStepThreshold` — the Step count above which `xez-auto-create-pr` hands a run off to `xez-auto-create-pr-loop` (default 20). Raise it to keep more runs on the cheaper plain engine; `--loop` always forces the loop regardless.
-- `engine.stepReview` — optional; how often the loop skills code-review landed work mid-run: `final` (default), `checkpoint`, or `per-step`. Trade-offs and the fix-now/defer split: `references/config-fields.md`.
-- `paths.runs` — where execution plans of autonomous runs are stored.
-- `paths.analysis` — where generated reports are stored.
-- `paths.specs` — where feature specifications live (default `.xezar/pipeline/specs`). Spec filenames follow `{YYYY-MM-DD}-{kebab-case-title}.md`. `xez-spec-writing` writes here, `xez-prepare-issue` links from here, `xez-followup-issue-from-pr` checks here first in design-doc mode, and `xez-brainstorm` writes handoff briefs under `<paths.specs>/briefs/`.
-- `paths.scripts` — where reusable environment scripts are generated (default `.xezar/pipeline/scripts`); `xez-prepare-test-env` writes the env bring-up/teardown scripts here.
-- `paths.qa` — where QA working state and artifacts live (default `.local/qa`): the shared `test-env.json` descriptor, and QA reports/screenshots under `<paths.qa>/artifacts_<runId>/`.
-- `reviewChecklist` — optional path to a repo-local review checklist file. When set, the `xez-code-review` skill reads it in addition to its built-in checklist. Use the existing project checklist when present; no particular filename is required.
-- `closeKeywords` — optional extra words that mark a PR as closing an issue, for repositories whose PR bodies are not written in English. They **extend** the built-in English keywords, never replace them, and a run that finds issue mentions with no recognized keyword reports them rather than passing over them silently. Worked example and the silent failure it prevents: `references/config-fields.md`.
+Trackers, browsers, toolchains and security scanners are all committed descriptors: a
+config key names one, the descriptor says how to execute the operations skills name, and
+the team owns the file. Adding a new provider is a descriptor, never a skill change.
 
-## Tracker providers
+| Family | Config key | Shipped | Absent means |
+|---|---|---|---|
+| Tracker | `tracker` | `github`, `linear`, `jira`, `mock` | required — setup installs one |
+| Browser | `browser.provider` | `agent-browser`, `playwright` | read as `playwright`, for compatibility |
+| Toolchain | `toolchain.providers` (**a list**) | `npm`, `cargo` | no lifecycle operation applies |
+| Security | `security.provider` | `osv-scanner` | **nothing runs**, every operation `not-applicable` |
 
-Skills name the operations in `references/trackers/TEMPLATE.md`; the selected `.xezar/pipeline/trackers/<tracker>.md` says how to execute them and is the team's committed override point. This skill installs shipped descriptors from its own `references/trackers/` directory.
+Linear and Jira own issues but delegate repository, pull-request, review, CI and PR-label
+operations to a required `github.md` companion, so setup installs both. `mock` answers
+from fixture files, for testing with no credentials and no network.
 
-The collection ships `github.md`, `linear.md`, and `jira.md`. Linear and Jira own issues but delegate repository/PR/review/CI/PR-label operations to a required `github.md` companion, so setup installs both. Scaffold any other provider from `TEMPLATE.md`.
-
-## Browser providers
-
-Browser-capable skills use the same committed-descriptor pattern as trackers: they name provider operations (**ensure-installed**, **doctor**, **open**, **snapshot**, **interact**, **assert**, **screenshot**, **close**) and read `.xezar/pipeline/browsers/<provider>.md`, selected by `browser.provider`. The collection ships `agent-browser.md` (the self-provisioning fresh-setup default, local processes only) and `playwright.md`, plus `references/browsers/TEMPLATE.md` for custom providers. A config without `browser.provider` is read as `playwright` for backward compatibility. Full operation contract, `agent-browser` platform support, and the compatibility path: `references/browser-providers.md`.
+Operation contracts, the exit-code rules, split-provider delegation, `agent-browser`
+platform support and the scaffolding templates: `references/providers.md`.
 
 ## Project guidance
 
