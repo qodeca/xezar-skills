@@ -12,7 +12,10 @@ mechanism they proposed to build already ships.
 
 **Based on:** [docs/research/dogfooding-xezar.md](research/dogfooding-xezar.md), a survey of this
 repository, and the two review rounds.
-**Status:** approved roadmap. §2 lists defects, which should be fixed whatever else we choose.
+**Status: delivered, 2026-09-20.** All 64 items across the six releases are implemented on
+`feature/improvement-plan-revision-2`. What that means concretely, and what it does not, is in
+§11 at the bottom — read that before reading the plan as a to-do list, because it is now a
+record of what was done rather than a proposal.
 
 ## 1. Read this first
 
@@ -533,3 +536,66 @@ All 53 numbered findings, plus the Tier-5 bullets. Nothing is silently dropped.
 
 The report's **contract warnings**, **one-direction sync note** and **glossary** are constraints
 rather than findings: the first two are folded into §7, and the glossary seeds item 60.
+
+## 11. What was delivered, and what was not
+
+All six releases shipped. The plan is a record now, not a proposal.
+
+### The gates that did not exist before
+
+| Gate | What it prevents |
+|---|---|
+| `test-merge-gate.mjs` | A merge landing a commit no gate saw — 51 assertions incl. moved head, empty required set, absent label |
+| `test-gate-status.mjs` | Missing evidence reading as a pass — 51 assertions ending in a sweep over every shape of missing input |
+| `test-guards.mjs` | A guard that has quietly stopped catching anything — 23 deliberate defects |
+| `test-chaining-lines.mjs` | A renamed or re-punctuated chaining line silently breaking the handoff |
+| `test-shared-blocks.mjs` | Drift between the copies of shared safety text |
+| `test-toolchain-providers.mjs` | A provider that cannot do something pretending it can |
+| `check-links.mjs` | A pointer between documents that no longer resolves |
+| `check-gate-list.mjs` | The gate list meaning different things in its four homes |
+| `check-allowlists.mjs` | An exception with no owner and no expiry |
+| `check-label-taxonomy.mjs` | The same label name meaning different things in two repositories |
+
+Eighteen gate commands in total, all offline, all runnable with no credentials and no network.
+
+### The seven defects
+
+All fixed. The two that mattered most were fixed in **skills**, not descriptors, because
+descriptors never auto-update and a fix that reaches nobody already installed is close to no
+fix: the merge gate now calls `label_exists` itself and treats an absent label as `unknown`, and
+it pins the head commit at merge time.
+
+### What was declined, in writing
+
+Four entries, each with the trigger that would reopen it, in
+[docs/improvement-register.md](improvement-register.md): `xez-analyze-request`, a coverage floor,
+the per-step evidence file, and read-only enforcement by tool grant.
+
+### The honest limit
+
+[docs/coverage.md](coverage.md) says it plainly: nineteen of the twenty checks read what the
+skills **say**, and one runs a skill and watches what it **does** — and that one cannot run in
+CI, because it needs a full-access sandbox and granting a pull request's own code full access is
+exactly what CI must not do.
+
+So this repository is now well protected against saying the wrong thing, and lightly protected
+against the right thing not working. That gap is recorded rather than papered over, and closing
+it needs a real run under a real agent, which is a labelled demo with a named owner and has never
+been counted here as a check.
+
+### Corrections found while building
+
+Beyond the seven the reviews caught, the work itself surfaced more — each one an argument for
+running a thing rather than reading it:
+
+- `.applicable // true` in jq evaluates to `true` when `applicable` is `false`; the alternative
+  operator treats `false` as empty. One character would have turned every "does not apply" into
+  "applies".
+- The first version of the chaining-line test passed with the label renamed to `PR #123:` —
+  the check only saw lines that already started `PR: `. The guard suite caught it.
+- The guard suite mistook a contributor's own uncommitted work for a mutation it had failed to
+  undo, and two concurrent runs of it trampled each other. Both fixed; it now takes a lock.
+- `SDLC.md` listed eight validation commands while the config listed ten. The gate-list binding
+  found it on its first run.
+- The lint gate caught this plan's sibling document using the permanently banned predecessor
+  brand in an example about renaming.
