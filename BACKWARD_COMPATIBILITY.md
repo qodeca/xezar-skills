@@ -18,7 +18,7 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | Key | Default |
 |---|---|
 | `paths.runs` | `.xezar/pipeline/runs` |
-| `paths.analysis` | `.xezar/pipeline/analysis` |
+| `paths.analysis` | `.xezar/pipeline/analysis` (**reserved, deprecated 2026-09-20** — resolved by the loader, read by nothing; kept because removing a `paths` key is breaking) |
 | `paths.specs` | `.xezar/pipeline/specs` |
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |

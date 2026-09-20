@@ -17,7 +17,12 @@ Invoke the `xez-auto-review-pr` skill against `{prNumber}` in autofix mode:
    - Re-run the full validation gate from step 8 whenever a fix touches code outside a single module/test file.
    - Update the plan's **Progress** section if the fix corresponds to a plan Step (flip `- [ ]` to `- [x]` with the commit SHA); otherwise add a short note under the relevant Phase heading in the plan (e.g. `- [x] Post-review fix: {one-line summary} — {sha}`).
    - Commit using a clear conventional-commit subject (e.g. `fix(ui): address review feedback on confirmation dialog focus trap`). Push immediately.
-4. Loop until `xez-auto-review-pr` returns a clean verdict (no actionable blockers) or the remaining findings are non-actionable (out-of-scope, false positive) and explicitly documented in the summary comment you post in step 11.
+4. Loop, **at most twice**, until `xez-auto-review-pr` returns a clean verdict (no actionable blockers) or the remaining findings are non-actionable (out-of-scope, false positive) and explicitly documented in the summary comment you post in step 11.
+
+**The loop is bounded at two rounds.** Round one fixes what the review found; round two fixes what round one's changes introduced. If a third round would be needed, stop and report the remaining findings verbatim, each with its severity and why it is still open. The only exit other than a clean verdict is a written list of what is left.
+
+**Never lower a severity to finish.** Re-grading a blocker as a nit, or reclassifying an actionable finding as out-of-scope, is not an exit -- it is the failure this bound exists to catch. An honest "two rounds spent, three blockers open" is a better outcome than a clean verdict nobody can trust. The remaining findings go in the summary comment and in the report, so the next run and the human reviewer both start from the real state.
+
 
 ## Verdict handling
 

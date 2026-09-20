@@ -38,6 +38,10 @@ fi
 BASE_BRANCH=$(jq -r '.baseBranch // "auto"' "$CONFIG")
 # "auto" resolves via the tracker descriptor's default-branch operation.
 RUNS_DIR=$(jq -r '.paths.runs // ".xezar/pipeline/runs"' "$CONFIG")
+# Reserved, deprecated. `paths.analysis` is declared, defaulted and resolved, and no
+# skill reads or writes it. It is kept so committed configs keep validating and so the
+# default stays part of the contract -- removing a `paths` key is a breaking change.
+# Do not build new behaviour on it; a run-scoped record belongs in the evidence path.
 ANALYSIS_DIR=$(jq -r '.paths.analysis // ".xezar/pipeline/analysis"' "$CONFIG")
 LABELS_ENABLED=$(jq -r '.labels.enabled // false' "$CONFIG")
 QA_GATE=$(jq -r '.qaGate // false' "$CONFIG")

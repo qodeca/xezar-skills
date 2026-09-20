@@ -24,6 +24,8 @@ description: <one line: what it does + what it produces>. <disambiguation from a
 
 ## Workflow
 
+**ALWAYS check first:** Apply `.xezar/pipeline/overrides/<skill-name>.md` when present; safety rules still win.
+
 0. **Agentic setup** — follow `references/agentic-setup.md`: load
    `.xezar/pipeline/config.json` + tracker descriptor (auto-run
    `xez-setup-agent-pipeline` if missing), apply the repo-local override
@@ -54,6 +56,11 @@ description: <one line: what it does + what it produces>. <disambiguation from a
 
 Reminders:
 
+- **The override preflight line is mandatory and lint-enforced.** `scripts/lint.sh`
+  requires the exact sentence above, with `<skill-name>` replaced by the skill's own
+  directory name, in `SKILL.md` **itself** — not only behind `references/agentic-setup.md`,
+  so partial loading cannot skip it. A skill generated from this skeleton without it
+  fails the gate.
 - The `description` is the routing surface — craft it per `references/description-guide.md`.
 - Output templates, conditional branches, and big tables go to `references/`, not here.
 - Keep `## Rules` short: only hard/global/safety rules; detailed rules go to a `references/` file.

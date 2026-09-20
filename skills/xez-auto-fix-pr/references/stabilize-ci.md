@@ -58,7 +58,7 @@ Classify every check as passing, pending, or failing. Nothing failing and nothin
 pending → report "already green". Checks pending → **watch-run** (or poll) until they
 settle before diagnosing, under the wait budget below.
 
-### The fix → push → re-check loop (up to `--max-iterations`, default 5)
+### The fix → push → re-check loop (up to `--max-iterations`, default 3)
 
 Per iteration:
 
