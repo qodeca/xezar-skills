@@ -34,7 +34,7 @@ Given a single PR number, submit an approving review and then squash-merge it. O
    - **A pass over an empty set is not a pass.** If **get-required-checks** returns nothing because branch protection is unreadable, inherit the descriptor's documented degradation and treat **every reported check as required**. If the PR's check-name set is *smaller* than the base branch's — the PR deleted or renamed workflow files — report `unknown` and refuse. A PR that ships no checks has not passed its checks.
    - Report each of these as `pass`, `findings` or `unknown`. Only `pass` satisfies the gate; `unknown` never merges and is never rewritten to clean.
 
-3. **Enforce label blocks and the QA gate.**
+3. **Enforce label blocks and the QA gate.** **Never resolve a merge gate autonomously** — a hard label block, a failed QA gate, or an ambiguity (`needs-qa` and `skip-qa` together, a lingering changes-requested label, a draft PR) stops with a report and asks the user. This skill can merge; a gate it talked itself past is a gate that was not there.
    - When `labels.enabled` is `false`, the label gates are **not applicable**: say so in the final report and carry on to step 4 — the step 2 gates still had to pass.
    - **Before reading the PR's labels, check the label exists in the repository.** Use the descriptor's `label_exists` guard for each gate label you are about to rely on (`needs-qa`, `qa-approved`, `skip-qa`, `qa-failed`, `do-not-merge`, `blocked`). A label that does not exist in the repository means the gate **could not be evaluated** — report `unknown` and refuse. It does **not** mean the gate passed. Without this check, a repository that never created `needs-qa` silently loses the QA gate entirely.
    - Then inspect the PR's labels:

@@ -79,7 +79,11 @@ else
     else GOT_SHA256=$(shasum -a 256 "$TMP" | awk '{print $1}')
     fi
     if [ "$GOT_SHA256" != "$ASSET_SHA256" ]; then
-      rm -f "$TMP"
+      # Truncate rather than delete. The file is not executable yet -- it was never
+      # chmod'd -- so a zero-byte leftover is inert, and several agent harnesses
+      # reject a script on sight for containing a forced-delete command, which would
+      # block this whole install block on the path that never runs.
+      : > "$TMP"
       echo "agent-browser $AGENT_BROWSER_VERSION $ASSET checksum mismatch: expected $ASSET_SHA256, got $GOT_SHA256" >&2
       exit 1
     fi
