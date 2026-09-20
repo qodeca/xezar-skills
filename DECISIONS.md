@@ -103,3 +103,46 @@ markers never exempt project paths or process-filename requirements. Native
 client filenames are allowed only in the guard's exact capability phrases,
 with adjacent requirements still checked. Review remains responsible for
 semantic applicability; a text guard does not prove real-agent behavior.
+
+## Every exception carries four fields and a date
+
+An allowlist is a gate somebody turned off. The risk is not that exceptions exist –
+some are correct – it is that an exception stops being a decision and becomes
+furniture nobody revisits. So every entry in `scripts/allowlists.json` answers four
+questions: **what** is excused, **why** (a full sentence a stranger can read), **who**
+owns the decision, and **when** it expires. An expired entry fails the gate until
+someone renews it with a fresh date or deletes it. `"expires": "never"` is allowed only
+where `why` explains what makes it permanent – a naming convention, not a workaround.
+
+The lists are bound to the code that uses them. `check-gate-list.mjs` imports the file
+directly. `lint.sh` cannot – it is POSIX `sh` and must run without node – so its
+`name_allow` literal is compared against the file, the same way the gate list binds
+`SDLC.md`.
+
+## A gate that has never failed is not known to work
+
+Every check in this repository is green, which says nothing about whether it still
+catches anything. `scripts/test-guards.mjs` introduces one named, realistic defect at a
+time – a brand token in a skill, a pattern-matched `pkill`, a credential-shaped value, a
+stale skill name, an expired allowlist entry – runs the real gate, and asserts the real
+error message comes back. Asserting the message, not just a non-zero exit, is deliberate:
+a guard failing for an unrelated reason would otherwise count as a pass.
+
+It mutates real tracked files and restores them in a `finally`, then compares `git status`
+against a snapshot taken before the run, so a contributor's own work in progress is not
+mistaken for a mutation the suite failed to undo. The cost is honest: it runs `lint.sh`
+about ten times, so it is the slowest entry in the gate list.
+
+## The label taxonomy is data, not memory
+
+`.xezar/pipeline/config.json` names the labels a pipeline uses;
+`.xezar/pipeline/labels.json` gives each one a colour and a one-line description, and
+`ensure-label-taxonomy` reads it. Before this, two repositories installing the same
+pipeline got the same label names meaning subtly different things, and a reader could
+not learn what `qa-self-verified` was for without finding the skill that applies it.
+
+Deliberately **not** fatal on missing. A label that does not exist in a consumer
+repository still degrades to a logged skip, because a collection that refuses to run in a
+repository whose labels it did not create is a collection nobody installs. The reverse –
+an absent label read as a satisfied gate – is the real defect, and it is fixed in the
+merge gate, not here.

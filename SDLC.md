@@ -148,6 +148,9 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-onboarding-content.mjs`
 - `node scripts/check-links.mjs`
 - `node scripts/check-gate-list.mjs`
+- `node scripts/check-label-taxonomy.mjs`
+- `node scripts/check-allowlists.mjs`
+- `node scripts/test-guards.mjs`
 - `npm run check:generic-instructions`
 - `npm run test:generic-instructions`
 

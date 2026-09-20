@@ -31,15 +31,14 @@ import { dirname, join } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
 
-/**
- * Scripts that must never enter the gate. Each needs a reason, because the default is
- * "in the gate" and an exception is a decision someone has to defend.
- */
-const OPT_OUT = {
-  "test:agent-browser-codex":
-    "needs the `codex` CLI and --sandbox danger-full-access; a CI runner has neither, " +
-    "and granting full access to a PR's own code is exactly what CI must not do",
-};
+// Scripts that must never enter the gate. The entries live in scripts/allowlists.json
+// with their reason, owner and expiry date, so this file cannot grow a quiet exemption
+// of its own and every exception ages out on a date somebody has to renew.
+const OPT_OUT = Object.fromEntries(
+  Object.entries(
+    JSON.parse(read("scripts/allowlists.json")).gateOptOut?.entries ?? {},
+  ).map(([name, entry]) => [name, entry.why]),
+);
 
 const problems = [];
 const pkg = JSON.parse(read("package.json"));
@@ -129,9 +128,9 @@ for (const [name, reason] of Object.entries(OPT_OUT)) {
   if (!pkg.scripts?.[name]) {
     problems.push(`OPT_OUT names "${name}", which package.json no longer defines -- remove it.`);
   }
-  if (!reason || reason.length < 20) {
-    problems.push(`OPT_OUT entry "${name}" has no usable reason.`);
-  }
+  // The reason's shape, the owner and the expiry are checked in check-allowlists.mjs;
+  // here only the "does the script still exist" half applies.
+  void reason;
 }
 
 if (problems.length) {

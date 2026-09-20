@@ -52,6 +52,20 @@ gh api --paginate repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | {id,
 Sibling operations in the same file (`label_exists`, **list-review-comments**) already paginate,
 so this was an inconsistency rather than a deliberate bound.
 
+**Symptom 3 – two repositories on the same pipeline have labels that mean different things.**
+Your `.xezar/pipeline/trackers/github.md` has an **ensure-label-taxonomy** section that resolves
+colours and descriptions "from the authorized local taxonomy". In practice that meant whoever ran
+it, so `qa-self-verified` ended up green in one repository and purple in another, and with no
+description a reader had no way to learn what it was for.
+
+**Fix 3:** the taxonomy is now data. Copy `.xezar/pipeline/labels.json` from this collection
+(`xez-setup-agent-pipeline` ships it as `references/labels.md` and installs it for new software setups), adjust the colours if you like,
+and replace the first sentence of **ensure-label-taxonomy** with the shipped wording, which names
+the file and states the fallback when it is absent.
+
+This one is optional. Without it nothing breaks: the operation keeps asking for colours and
+descriptions instead of reading them.
+
 ## 2026-09-13 – migrating from open-mercato/skills
 
 This collection is the continuation of `open-mercato/skills`, renamed and relaid out. The skill

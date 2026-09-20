@@ -52,6 +52,12 @@ jobs:
         run: node scripts/check-links.mjs
       - name: Gate-list binding (config, workflow, SDLC, package scripts)
         run: node scripts/check-gate-list.mjs
+      - name: Label taxonomy recorded as data
+        run: node scripts/check-label-taxonomy.mjs
+      - name: Allowlist shape, owners and expiry dates
+        run: node scripts/check-allowlists.mjs
+      - name: Guard suite (every gate broken on purpose)
+        run: node scripts/test-guards.mjs
       - name: Generic instruction content (P6 skills and all companions)
         run: npm run check:generic-instructions
       - name: Generic instruction guard rejection and control cases
