@@ -12,14 +12,40 @@
 // restore is unconditional; a crashed assertion still puts the tree back, and the last
 // assertion checks that nothing was left modified.
 //
+// Because it edits the checkout in place, only one run at a time may hold it. Two
+// concurrent runs trample each other's mutations, and each then reports the other's
+// defect as "the wrong guard fired" -- which reads exactly like a broken guard. A lock
+// makes that impossible rather than confusing.
+//
 // Run: node scripts/test-guards.mjs
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// This suite mutates real tracked files. Two copies running at once trample each other's
+// mutations and each one then "fails" on the other's defect -- which looks exactly like a
+// broken guard and is not. `mkdir` is atomic, so it makes a usable lock with no dependency.
+const LOCK = join(root, ".local", "test-guards.lock");
+try {
+  mkdirSync(join(root, ".local"), { recursive: true });
+  mkdirSync(LOCK);
+} catch {
+  console.error(
+    "test-guards: another run holds the lock at .local/test-guards.lock.\n" +
+    "This suite edits tracked files in place, so two runs cannot share a checkout.\n" +
+    "Wait for the other run, or remove the directory if no run is active.",
+  );
+  process.exit(1);
+}
+const releaseLock = () => { try { rmSync(LOCK, { recursive: true, force: true }); } catch {} };
+process.on("exit", releaseLock);
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => { releaseLock(); process.exit(130); });
+}
 
 let failures = 0;
 let asserts = 0;

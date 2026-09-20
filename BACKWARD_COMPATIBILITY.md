@@ -23,6 +23,15 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
 
+Two gate switches were added on 2026-09-20, both optional and both defaulting to `false`, so an existing config keeps its behaviour untouched:
+
+| Key | Default | Meaning of the default |
+|---|---|---|
+| `gates.failClosed` | `false` | A gate reporting `unknown` is disclosed and the run continues. The merge gate refuses on `unknown` either way — it does not read this key. |
+| `gates.requireVerdictHead` | `false` | A verdict with no `Head:` line is read as `unknown` and tolerated. Fresh setups get `true`. |
+
+Flipping either **default** is breaking, because it changes what an unmodified consumer repo does on upgrade. Both are read from the base branch's config on a gate path, never the working tree.
+
 - **Breaking:** moving the file, removing or renaming a key, changing a key's meaning, value format or default, making a previously optional key required.
 - **Not breaking:** adding a new key with a default in the loading snippet (`jq -r '.newKey // "default"'`).
 - **Required path:** new keys always ship with defaults so existing configs keep working; a genuinely incompatible change needs a `version` bump plus explicit migration handling in `xez-setup-agent-pipeline` and an entry in `UPGRADE_NOTES.md`.
@@ -33,6 +42,10 @@ The named operations (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**
 
 - **Breaking:** renaming an operation, changing an operation's inputs/outputs, removing a guard, referencing a new operation from a skill without adding it to the template and shipped descriptors.
 - **Required path:** add new operations to `TEMPLATE.md` and every shipped descriptor in the same PR; skills must degrade gracefully (documented fallback) when running against an older descriptor copy that lacks a newly added operation.
+
+**`get-pr`'s normalized fields** are part of this contract, not per-descriptor detail. A merge gate is portable only if `headRefOid`, `baseRefOid` and `reviewVerdict` mean the same thing on every tracker. A descriptor that cannot produce one emits the literal `unknown` — never a plausible-looking default, because a gate cannot tell a guess from a measurement. `reviewVerdict` is one of `approved` · `rejected` · `pending` · `not-enforced` · `unknown`, and `not-enforced` exists because some hosts report a request as approved when *no approval rule applies to it at all*; collapsing that to "approved" is the same fail-open shape as a label that was never created. Adding a value to that set, or changing what one means, is breaking.
+
+**Operations added 2026-09-20:** **put-verification-record** and **get-verification-record**. An older descriptor copy lacks both. The documented fallback is to report the record as unavailable and carry on — the record was never a gate input, so its absence costs the written trail, not the checking.
 
 ### 4. The browser-provider operations contract
 
@@ -49,6 +62,7 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
 - **Generated launcher scripts in `<paths.scripts>/`** – created by `xez-prepare-test-env`, re-run by later runs and other skills.
 - **Chaining reference lines** (`PR: #<number> (link: <url>)`, `Issue: #<number> (link: <url>)`, `Spec: <path>`) – emitted at the end of every PR-producing/-driving skill's final report, parsed by the next skill in a chain and by session orchestrators. Consumers also accept the legacy `PR_URL=` / `PR_NUMBER=` / `SPEC_PATH=` lines; emitters write only the current form. Skills whose report carries a verdict about a pull request also emit `Head: <head commit sha>`, and `Base: <base commit sha>` where the merge base is part of what was judged, so the verdict names the commit it certifies. **A missing `Head:` line is legacy permanently, keyed to the artifact and not to a release:** a PR opened before the line existed and merged two releases later must not be refused, so a consumer reads its absence as `unknown` and carries on. Enforcement is opt-in through `gates.requireVerdictHead` (default `false`; fresh setups get `true`). The grammar is asserted by `scripts/test-chaining-lines.mjs`, which fills every documented template with realistic values and parses it, and rejects a renamed or re-punctuated label.
 - **Routing lines from `xez-brainstorm`** (`Next: none` | `Next: xez-<skill> <args>`, plus `Brief: <repo-relative path>` when a handoff brief was written) – emitted at the end of its final report, parsed by session orchestrators to route the follow-up run. The `— brief: <path>` suffix inside the args is read by the routed skill (`xez-prepare-issue`, `xez-auto-write-spec`, `xez-spec-writing`, `xez-auto-create-pr`), which ingests the brief file per the brief lifecycle in `xez-brainstorm/references/exit-ramps.md`.
+- **The `Gate:` verdict line and the gate `NAME=value` lines** emitted by `merge-gate.sh` and `gate-status.sh` – line-anchored `^Gate: ` (and `Status=` from the status script), one line per gate plus a `Blocking=` list. Parsers split a `NAME=value` line on the **first** `=` and never source the output as shell. `Status:` is reserved and is not the verdict keyword; renaming `Gate:` is breaking.
 - **The verification record** (a fenced `text` block of `NAME=value` lines carrying `Head=`, `Base=`, `Skill=`, `At=`, repeated `Gate=`/`Status=` pairs and `Verdict=`) – written through **put-verification-record**, read through **get-verification-record**. Parsers split on the **first** `=` only, never source it as shell, and ignore names they do not know, so the grammar can grow without breaking a reader. A tracker with no record support, or a pull request with no record, is **not** a failure: the record was never a gate input, so a consumer reports it as unavailable and decides from the tracker API as it always did.
 - **The five gate statuses** (`pass`, `findings`, `unknown`, `not-applicable`, `evidence-unavailable`) – produced by `gate-status.sh` and read by every gate consumer. Hyphenated, because the consumer is POSIX `sh` and an unquoted `case` word-splits on a space. Only `pass` and `not-applicable` are satisfied; renaming one, or adding a sixth that a consumer's `case` does not handle, is breaking.
 - **Discovery output lines from `xez-discover`** (`Product brief:`, `Coverage:`, `Collection plan:`, `Next:`) – line-anchored like the chaining lines; `product-brief.md` is read by `xez-brainstorm`, `xez-spec-writing` and `xez-prepare-issue` when present.

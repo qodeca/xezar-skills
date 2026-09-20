@@ -93,6 +93,22 @@ const BLOCKS = [
       "never report a status you did not derive",
     ],
   },
+  {
+    // How findings are answered, and how a missing thing is reported. Three rules that
+    // only work when every skill uses the same words for them.
+    id: "review-dispositions",
+    files: "skills/*/references/rules.md",
+    canonical: "skills/xez-auto-create-pr/references/rules.md",
+    minLines: 8,
+    floor: [
+      "silence is not one of them",
+      "fixed in `<sha>`",
+      "**disputed, with",
+      "**deferred, naming the",
+      "Absent is not `false`",
+      "never \"X does not exist\"",
+    ],
+  },
 ];
 
 const marker = (id) => ({

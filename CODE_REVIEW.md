@@ -23,6 +23,51 @@ Review rules for this repository, applied by `xez-code-review` and `xez-auto-rev
 - Layering: a new or grown `SKILL.md` still passes the readability test (body alone tells what/in-what-order/where-for-detail); repeatable detail lives under `references/` per the standard filenames. When a PR edits a shared reference file (`rules.md`, `report-templates.md`, `pr-finalize.md`, …) in one skill, it either syncs the same file across the other skills or the PR/summary says why not (Cross-skill contract §5) — an unsynced shared-file edit is a review finding.
 - Emoji glossary: the line in every touched `references/rules.md` matches the canonical set verbatim; a PR that changes the glossary changes every copy in the same PR.
 
+## What a review may consume, and what it must say it consumed
+
+A review is only as good as its inputs, and a reader cannot judge a finding without
+knowing what the reviewer looked at.
+
+- **Inputs.** The built-in checklist always applies. A repo-local checklist applies in
+  addition when the config's `reviewChecklist` names one — it extends the built-in list,
+  never replaces it. The repo-root `CODE_REVIEW.md` and `BACKWARD_COMPATIBILITY.md` apply
+  automatically when present. Nothing else is a review input by default: a reviewer that
+  wants to apply a rule from somewhere else names the source in the finding.
+- **Acceptance criteria are an input, not background.** When the change has acceptance
+  criteria — on the issue, in a spec, in the PR body — the review states which criteria
+  IDs it checked and who the accepting authority is, by role. A review that says "meets
+  requirements" without naming which ones has certified nothing checkable.
+- **Absence claims name their scope.** "I did not find X in the files I read" is a
+  finding. "X does not exist" is a claim about a repository the reviewer did not read.
+  Write the first one.
+
+## Responding to a review: every finding gets a disposition
+
+A finding stays open until it has one of exactly three dispositions, and **silence is not
+one of them**. A reply that addresses four of six findings has not addressed six.
+
+| Disposition | What it requires |
+|---|---|
+| **Fixed in `<sha>`** | A commit. Name it. "Fixed" with no sha is a claim the reader has to go looking for. |
+| **Disputed, with evidence** | Why the finding is wrong, and what the reviewer can read to check — a file and line, a test run, a spec clause. "I disagree" is not a disposition. |
+| **Deferred, naming the issue** | A tracker issue that exists, by number. Deferring without filing is dropping, with extra words. |
+
+A reviewer re-reading a response checks the dispositions before the diff: a finding with
+none is still open, whatever else changed.
+
+## Two rules that get missed
+
+- **Graceful degradation is a review subject.** When a dependency is unavailable — a tool
+  that is not installed, an API that returns an error, a file that is not there — the
+  change must degrade to a stated, safe behaviour and say so. Flag any path where an
+  unavailable dependency is treated as a satisfied one. That is the same defect as a label
+  that was never created being read as a check that passed.
+- **A default that is absent is not a default that is `false`.** Review every read of a
+  config value, an environment variable, or an API field for the difference between "set
+  to off", "not set", and "could not be read". Collapsing the three is how a gate becomes
+  a no-op: `jq`'s `//` operator, for one, treats `false` as empty, so `.flag // true`
+  turns an explicit `false` into `true`.
+
 ## Severity guidance
 
 - **Critical** — a skill instructs something unsafe or broken: a command that fails or damages state, a safety-rule relaxation, a broken cross-skill contract, a `BACKWARD_COMPATIBILITY.md` violation without a migration path.
