@@ -18,6 +18,8 @@ jobs:
         run: node scripts/test-tracker-providers.mjs
       - name: Merge-gate decision contract
         run: node scripts/test-merge-gate.mjs
+      - name: Shared-block sync contract
+        run: node scripts/test-shared-blocks.mjs
       - name: Pipeline-retro classifier rules
         run: node scripts/test-classify-runs.mjs
       - name: Close-keyword configurability contract

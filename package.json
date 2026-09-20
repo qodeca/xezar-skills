@@ -15,6 +15,8 @@
     "test:browser-providers": "node scripts/test-browser-providers.mjs",
     "test:tracker-providers": "node scripts/test-tracker-providers.mjs",
     "test:merge-gate": "node scripts/test-merge-gate.mjs",
+    "test:shared-blocks": "node scripts/test-shared-blocks.mjs",
+    "sync:shared-blocks": "node scripts/sync-shared-blocks.mjs",
     "test:classify-runs": "node scripts/test-classify-runs.mjs",
     "test:close-keywords": "node scripts/test-close-keywords.mjs",
     "test:onboarding-content": "node scripts/test-onboarding-content.mjs",
