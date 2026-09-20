@@ -115,7 +115,7 @@ Every skill in this collection checks, right after loading the config, for a rep
 
    Prefer commands mirroring what CI already runs (`.github/workflows/*.yml`).
 
-3. **Ask the user (skip with `--defaults`).** Confirm validation, the discovered tracker (`github`, `linear`, `jira`, or custom; or no remote setup), browser provider, label mode, QA gate, spec path, optional review checklist, and missing project docs. Full guidance: `references/interview-questions.md`.
+3. **Ask the user (skip with `--defaults`).** Confirm validation, the discovered tracker (`github`, `linear`, `jira`, `mock`, or custom; or no remote setup), browser provider, label mode, QA gate, spec path, optional review checklist, and missing project docs. Full guidance: `references/interview-questions.md`.
 
 4. **Install the tracker descriptor.** Copy the shipped descriptor for the chosen tracker from this skill's `references/trackers/<tracker>.md` to `.xezar/pipeline/trackers/<tracker>.md` (create the directory). Rules:
 
