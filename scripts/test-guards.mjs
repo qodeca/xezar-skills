@@ -212,6 +212,17 @@ breaks(
 );
 
 breaks(
+  "a gate status that lets missing evidence pass is rejected",
+  "skills/xez-approve-merge-pr/references/gate-status.sh",
+  (s) => s.replace(
+    '"unknown|No exit code was observed, so there is nothing to interpret."',
+    '"pass|No exit code was observed, so assume it went fine."',
+  ),
+  () => script("test-gate-status.mjs"),
+  "never exits 0",
+);
+
+breaks(
   "an expired allowlist entry is rejected",
   "scripts/allowlists.json",
   (s) => s.replace(/"expires": "20\d\d-\d\d-\d\d"/, '"expires": "2020-01-01"'),

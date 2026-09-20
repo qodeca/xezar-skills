@@ -142,6 +142,7 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-browser-providers.mjs`
 - `node scripts/test-tracker-providers.mjs`
 - `node scripts/test-merge-gate.mjs`
+- `node scripts/test-gate-status.mjs`
 - `node scripts/test-shared-blocks.mjs`
 - `node scripts/test-chaining-lines.mjs`
 - `node scripts/test-classify-runs.mjs`

@@ -389,6 +389,68 @@ gh api --paginate repos/{owner}/{repo}/pulls/{prNumber}/comments \
 ```
 REST does not expose a thread's resolved state (that lives in GraphQL's review threads), so treat every returned comment as potentially open and judge it against the current diff. `reply_to` is non-null on replies, which is what lets you reconstruct a thread. Consumers treat an unavailable operation as "inline feedback out of reach", not as a failure: they fall back to review bodies plus conversation comments and state the gap in their report.
 
+### Verification records
+
+A verification record is what a gate run leaves behind so a human, and a later run, can read
+what happened. It is a **published record, not an authority**: anyone who can comment on a pull
+request can write text that looks like one, so a gate never satisfies itself from a record and
+always re-derives from the authenticated API at the head commit. Read it for reporting and
+caching only, and never echo a record body into a report — report the parsed fields.
+
+The body is a fenced `text` block of `NAME=value` lines, **split on the first `=` only** and
+**never sourced as shell**; a value may contain anything, including `$(...)`. Unknown names are
+ignored so the grammar can grow. `Gate=` / `Status=` repeat as a pair, in order, once per gate.
+
+```text
+Head=<head commit sha>
+Base=<base commit sha, or unknown>
+Skill=<skill name>
+At=<ISO-8601 timestamp>
+Gate=<gate name>
+Status=<pass|findings|unknown|not-applicable|evidence-unavailable>
+Verdict=<allowed|refused>
+```
+
+A record whose `Head=` is not the commit a later run is deciding about describes a different
+commit, and is ignored rather than disputed.
+
+On a merge-gate path these two operations run from the **base branch's** copy of this
+descriptor, fetched with `git fetch --depth=1` and read with `git show`. The working tree is the
+pull request under review, so a request that edited this file would otherwise write its own
+record and define its own reading of it.
+
+#### put-verification-record
+`{prNumber}`, `{skillName}`, a record body file → post or update one marker-idempotent comment
+and return its URL. Find this skill's own record first; rewrite it in place rather than posting
+a second one.
+```bash
+MARKER="🤖 \`{skillName}\` — verification record"
+EXISTING=$(gh api --paginate repos/{owner}/{repo}/issues/{prNumber}/comments \
+  --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | tail -n 1)
+{
+  printf '%s\n\n' "$MARKER"
+  printf '```text\n'
+  cat <path>
+  printf '```\n'
+} > "$BODY_FILE"
+if [ -n "$EXISTING" ]; then
+  gh api -X PATCH repos/{owner}/{repo}/issues/comments/"$EXISTING" -F body=@"$BODY_FILE" --jq .html_url
+else
+  gh api -X POST repos/{owner}/{repo}/issues/{prNumber}/comments -F body=@"$BODY_FILE" --jq .html_url
+fi
+```
+The marker match also accepts the legacy bare `🤖 {skillName} — verification record` form, so a
+re-run never duplicates a record written by an older skill version.
+
+#### get-verification-record
+`{prNumber}`, optionally `{skillName}` → the most recent record body and its URL, or nothing.
+```bash
+gh api --paginate repos/{owner}/{repo}/issues/{prNumber}/comments \
+  --jq '[.[] | select(.body | test("— verification record")) | {body,url:.html_url,at:.created_at}] | last'
+```
+Nothing returned means no record exists, which is not a failure and never a gate input: report
+the record as unavailable and decide from the API as usual.
+
 ### CI runs
 
 CI status for a *PR* comes from **get-pr-checks** / **get-required-checks** above. The operations here address CI runs directly — needed when working from a bare branch, or when a failure diagnosis needs the actual logs.

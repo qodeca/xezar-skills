@@ -66,6 +66,19 @@ the file and states the fallback when it is absent.
 This one is optional. Without it nothing breaks: the operation keeps asking for colours and
 descriptions instead of reading them.
 
+**Symptom 4 – a gate run leaves nothing behind for the next reader.** Your
+`.xezar/pipeline/trackers/github.md` has no **put-verification-record** or
+**get-verification-record** section. Skills that evaluate gates can then report what they found
+only in a chat transcript that nobody keeps.
+
+**Fix 4:** copy both sections, and the "Verification records" preamble above them, from this
+collection's `github.md`. They post and re-read one marker-idempotent comment per skill.
+
+Also optional, and deliberately so: the record is a **published record, never an authority**.
+Anyone who can comment on a pull request can write text that looks like one, so no gate is ever
+satisfied by a record — every gate re-derives from the authenticated API at the head commit.
+Without the operations you lose the written trail, not the checking.
+
 ## 2026-09-13 – migrating from open-mercato/skills
 
 This collection is the continuation of `open-mercato/skills`, renamed and relaid out. The skill

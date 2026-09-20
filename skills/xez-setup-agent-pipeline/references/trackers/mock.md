@@ -275,6 +275,23 @@ Read. Fixture: `list-review-comments.json` (or `list-review-comments.<id>.json`)
 mock_read "list-review-comments" "${1:-}"
 ```
 
+#### put-verification-record
+Write. Records to `put-verification-record.<prNumber>.txt` under the fixture directory, replacing
+any previous content — the same marker-idempotent behaviour a real tracker gives, without a
+tracker. Prints a fake comment URL so a caller that parses one still works.
+```bash
+mock_write "put-verification-record" "${1:-}"
+printf 'https://mock.invalid/pr/%s#verification-record\n' "${1:-0}"
+```
+
+#### get-verification-record
+Read. Fixture: `put-verification-record.<prNumber>.txt`, else `get-verification-record.json`.
+Absent → exit `3`, unknown. It is deliberately NOT an empty success: a run that reads "no record"
+as "the record says pass" is the failure this provider exists to expose.
+```bash
+mock_read "get-verification-record" "${1:-}"
+```
+
 #### list-runs
 Read. Fixture: `list-runs.json` (or `list-runs.<id>.json`). Absent → exit `3`, unknown.
 ```bash

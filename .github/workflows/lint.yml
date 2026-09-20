@@ -40,6 +40,8 @@ jobs:
         run: node scripts/test-tracker-providers.mjs
       - name: Merge-gate decision contract
         run: node scripts/test-merge-gate.mjs
+      - name: Gate status decision contract
+        run: node scripts/test-gate-status.mjs
       - name: Shared-block sync contract
         run: node scripts/test-shared-blocks.mjs
       - name: Chaining reference line grammar

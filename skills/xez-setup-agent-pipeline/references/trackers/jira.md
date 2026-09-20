@@ -303,6 +303,13 @@ Delegate both operations to GitHub.
 #### list-review-comments
 Delegate to GitHub **list-review-comments**.
 
+#### put-verification-record
+Delegate to GitHub **put-verification-record**. The record lives on the pull request, which this
+split provider keeps on the code host.
+
+#### get-verification-record
+Delegate to GitHub **get-verification-record**.
+
 ### CI runs
 
 #### list-runs
