@@ -175,6 +175,50 @@ breaks(
   "process killed by pattern match",
 );
 
+// `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
+// kit it ships. Those two halves are checked by different gates -- the kit is excluded from
+// three of them by path -- so a contradiction between them passed everything until people read
+// both. These four break the pins that were written for defects that actually shipped.
+breaks(
+  "the 8 KB note cap the decisions file must be exempt from is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace("NOTE_TAIL_BYTES=65536", "NOTE_TAIL_BYTES=8000"),
+  () => script("test-kit-facts.mjs"),
+  "NOTE_TAIL_BYTES is 8000",
+);
+
+breaks(
+  "calling a committed campaign file runtime is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/leader-context-loading.md",
+  (s) => `${s}\n| \`.xezar/campaigns/x/README.md\` | live state | no — runtime |\n`,
+  () => script("test-kit-facts.mjs"),
+  "no - runtime",
+);
+
+breaks(
+  "a loop ceiling tuned in one place only is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace('"totalTasks": 10', '"totalTasks": 20'),
+  () => script("test-kit-facts.mjs"),
+  "ceiling",
+);
+
+breaks(
+  "a second loop allowed to dispatch is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace('"id": "L1",\n      "role": "unblock",\n      "mechanism": "cron",\n      "schedule": "*/10 * * * *",\n      "mayDispatch": false', '"id": "L1",\n      "role": "unblock",\n      "mechanism": "cron",\n      "schedule": "*/10 * * * *",\n      "mayDispatch": true'),
+  () => script("test-kit-facts.mjs"),
+  "only L3 may",
+);
+
+breaks(
+  "rewording a guide heading xez-add-rule routes into is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("## Review discipline", "## Reviewing"),
+  () => script("test-kit-facts.mjs"),
+  "lands nowhere",
+);
+
 breaks(
   "a credential-shaped value in a committed file is rejected",
   "skills/xez-fix/SKILL.md",

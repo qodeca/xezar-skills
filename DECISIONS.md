@@ -614,3 +614,36 @@ nonce-delimited untrusted-content boundary, defuses any line that imitates its o
 refuses symlinks by shape rather than judging their targets, and skips a candidate campaign that
 carries no readable note — because an empty record is indistinguishable from no campaign at all,
 and a name anyone can choose would otherwise blind the leader in one line.
+
+## A pin board for a vendored kit, not a prose checker
+
+A skill that vendors a kit is two halves: its own prose, and payload copied verbatim into every
+consumer project. The kit is excluded from three gates by path — it is payload, and the
+portability and tracker rules do not fit it — so the two halves can state opposite things while
+every gate stays green. That shipped: one file called campaign folders committed while the file
+beside it said they never were, and prose promising `decisions.md` is never cut shipped next to a
+script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
+no gate found one.
+
+`scripts/test-kit-facts.mjs` pins six facts that have already caused a contradiction, asserted in
+every place that states them.
+
+1. **What request does it serve?** Catching a disagreement between a skill's prose and its
+   vendored payload. Nothing else looks at both halves.
+2. **Who decides it worked?** Five deliberate-break cases in `test-guards.mjs`, one per pinned
+   fact, each restoring the real defect that shipped.
+3. **What does it cost?** A few hundred milliseconds per gate run, and a deliberate act whenever
+   somebody wants a seventh fact pinned.
+4. **What would make us remove it?** The kit ceasing to be vendored, or the pins never firing
+   across a year of changes to both halves.
+
+**It deliberately does not compare meaning.** Deciding whether two English sentences agree is the
+actual problem and no grep does it. A check that pretended otherwise would pass forever and catch
+nothing, which is worse than the gap it replaced, because green would stop meaning anything here.
+So the scope is stated in `docs/coverage.md` in the same words: these six cannot silently drift
+again; a fact nobody pinned is still unchecked.
+
+The pins are also narrow on purpose. The first draft searched for the word "runtime" near
+"campaign" and flagged the sentences saying campaigns are *not* gitignored — the correct ones. A
+check that cries wolf gets relaxed, and a relaxed check is a hole with a green tick over it, so
+each pin matches the exact shape that shipped wrong rather than the topic it belongs to.

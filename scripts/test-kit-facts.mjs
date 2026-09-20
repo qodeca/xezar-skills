@@ -1,0 +1,231 @@
+#!/usr/bin/env node
+// Pins a handful of NAMED FACTS across the two halves of a skill that carries a vendored kit.
+//
+// The problem this exists for. `xez-onboard-opinionated` is two things glued together:
+//   - its own prose  (skills/<name>/SKILL.md, references/*.md) -- what the skill says it does;
+//   - a vendored kit (skills/<name>/kit/**)                    -- ~1 MB copied verbatim into
+//     every project the skill onboards.
+// Every other gate reads the prose. The kit is excluded from three of them by path, on purpose:
+// it is payload, not skill text, and the portability and tracker rules do not fit it. The
+// consequence is that the two halves can state opposite things and every gate stays green.
+//
+// That is not hypothetical. Shipped on main at one point, both at once:
+//   references/write.md      "campaign folders are committed"
+//   kit/docs/campaign-notes.md "still runtime state ... never committed"
+// and separately, prose promising `decisions.md` is never cut beside a script with an 8000-byte
+// cap on it. Both were found by people reading both halves, not by a gate.
+//
+// What this file is, and what it is NOT. It is NOT a general prose-agreement checker -- deciding
+// whether two English sentences mean the same thing is the whole problem, and a grep cannot do
+// it. It is a pin board: a short list of facts that have ALREADY caused a contradiction, each
+// asserted in every place that states it. Narrow and honest beats broad and fake.
+//
+// The cost is stated plainly in docs/coverage.md: a fact nobody pinned is still unchecked, and
+// adding a fact is a deliberate act, not something this file discovers.
+//
+// Run: node scripts/test-kit-facts.mjs
+
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const read = (p) => readFileSync(join(root, p), "utf8");
+const has = (p) => existsSync(join(root, p));
+
+const SKILL = "skills/xez-onboard-opinionated";
+const problems = [];
+const checked = [];
+
+const fail = (fact, where, detail) =>
+  problems.push(`${fact}\n    in ${where}\n    ${detail}`);
+
+// ---------------------------------------------------------------------------
+// FACT 1 -- campaign folders are COMMITTED.
+//
+// Everything else rests on this: the direct-push rule, branch protection without admin
+// enforcement, the decisions.md authority model, and the untrusted-content boundary (records
+// are only untrusted because anyone who can open a pull request can write them). A kit doc that
+// still calls them runtime teaches a leader to gitignore the owner's own words.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 1: campaign folders are committed";
+  const saysCommitted = /campaigns[\s\S]{0,200}?\*\*committed\*\*|\*\*committed\*\*[\s\S]{0,200}?campaigns/i;
+  const notes = read(`${SKILL}/kit/docs/campaign-notes.md`);
+  if (!saysCommitted.test(notes))
+    fail(fact, "kit/docs/campaign-notes.md", "the authority on the campaign folder never states it is committed");
+
+  // No file in the skill may assert that a campaign folder is runtime or uncommitted.
+  //
+  // The patterns below are the exact shapes that shipped wrong, not a general search for the
+  // word "runtime". That is deliberate: a loose search matches the sentences that say campaigns
+  // are NOT gitignored, which are the correct ones, and a check that cries wolf gets relaxed.
+  const WRONG = [
+    [/\|\s*no\s*[—-]\s*runtime\s*\|/i, 'a table row marking a campaign file "no - runtime"'],
+    [/campaign[^.\n]{0,80}\bnever committed\b/i, 'says a campaign file is never committed'],
+    [/campaign[^.\n]{0,80}\b(stay|are|is|remain)s?\s+uncommitted\b/i, "says campaigns stay uncommitted"],
+    [/\bboth are runtime\b/i, "calls the injected campaign files runtime"],
+  ];
+  for (const rel of walk(SKILL, /\.(md|sh)$/)) {
+    for (const line of read(rel).split("\n")) {
+      if (!/campaign|runtime/i.test(line)) continue;
+      for (const [re, why] of WRONG)
+        if (re.test(line)) fail(fact, rel, `${why}:\n    ${line.trim().slice(0, 140)}`);
+    }
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 2 -- the note cap, and the one file that is exempt from it.
+//
+// The prose promise ("decisions.md is never cut") and the script constant are the exact pair
+// that was already wrong in opposite directions. Both are pinned, and so is the exemption:
+// a loader that runs decisions.md through the truncating helper would pass a value check.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 2: 64 KB tail for narrative notes, decisions.md never truncated";
+  const loader = read(`${SKILL}/kit/checks/leader-context.sh`);
+  const m = loader.match(/^NOTE_TAIL_BYTES=(\d+)/m);
+  if (!m) fail(fact, "kit/checks/leader-context.sh", "no NOTE_TAIL_BYTES constant found");
+  else if (m[1] !== "65536")
+    fail(fact, "kit/checks/leader-context.sh", `NOTE_TAIL_BYTES is ${m[1]}, expected 65536 (64 KB)`);
+
+  // decisions.md must never reach the truncating helper.
+  for (const line of loader.split("\n")) {
+    if (/note_tail\s/.test(line) && /decisions\.md/.test(line))
+      fail(fact, "kit/checks/leader-context.sh", `decisions.md passed to the truncating helper:\n    ${line.trim()}`);
+  }
+
+  // Every document that states a cap must state the same one.
+  for (const rel of walk(SKILL, /\.md$/)) {
+    const text = read(rel);
+    if (/8\s?000 bytes|8000 bytes|last 8 KB|8 KB tail/i.test(text))
+      fail(fact, rel, "still states the old 8 KB cap");
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 3 -- the six .local/xezar subfolders, same names in the check and in the prose.
+// The check is the thing that enforces the layout; the prose is what a reader believes.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 3: the six .local/xezar subfolders agree";
+  const expected = ["runtime", "tasks", "worktrees", "scratch", "cache", "qa"];
+  const tree = read(`${SKILL}/kit/checks/local-tree.sh`);
+  const am = tree.match(/^ALLOWED="([^"]+)"/m);
+  if (!am) fail(fact, "kit/checks/local-tree.sh", "no ALLOWED list found");
+  else {
+    const got = am[1].trim().split(/\s+/);
+    if (got.join(" ") !== expected.join(" "))
+      fail(fact, "kit/checks/local-tree.sh", `ALLOWED is "${got.join(" ")}", expected "${expected.join(" ")}"`);
+  }
+  const write = read(`${SKILL}/references/write.md`);
+  for (const name of expected) {
+    if (!new RegExp(`\\b${name}/`).test(write))
+      fail(fact, "references/write.md", `never names the "${name}/" subfolder the check enforces`);
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 4 -- the loop ceilings are one set of numbers, wherever they are written.
+// They appear in the machine-readable block, inside L3's own prompt text (unavoidable -- the
+// prompt is what the leader is given), and in the always-loaded guide. Three copies of a
+// tuning knob is three chances to tune one and miss two.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 4: the loop ceilings agree everywhere they are stated";
+  const loops = JSON.parse(read(`${SKILL}/kit/loops.json`));
+  const c = loops.ceilings ?? {};
+  const want = [c.concurrentGateRuns, c.totalTasks, c.meteredToolTasks, c.machineLoad];
+  if (want.some((v) => typeof v !== "number"))
+    fail(fact, "kit/loops.json", "the ceilings block is missing a number");
+  else {
+    const l3 = (loops.loops ?? []).find((l) => l.id === "L3");
+    if (!l3) fail(fact, "kit/loops.json", "no L3 loop");
+    else
+      for (const n of want)
+        if (!new RegExp(`\\b${n}\\b`).test(l3.prompt))
+          fail(fact, "kit/loops.json", `L3's prompt does not carry the ceiling ${n}`);
+
+    const guide = read(`${SKILL}/kit/leader-guide.template.md`);
+    for (const n of want)
+      if (!new RegExp(`\\b${n}\\b`).test(guide))
+        fail(fact, "kit/leader-guide.template.md", `the guide does not carry the ceiling ${n}`);
+  }
+
+  // Only L3 may dispatch. This is the single-writer invariant the lock-file design was
+  // rejected for; a second dispatcher makes a double dispatch possible again.
+  const dispatchers = (loops.loops ?? []).filter((l) => l.mayDispatch).map((l) => l.id);
+  if (dispatchers.join(",") !== "L3")
+    fail(fact, "kit/loops.json", `loops marked mayDispatch: ${dispatchers.join(", ") || "none"} -- only L3 may`);
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 5 -- the seven campaign file kinds, and the four the loader injects.
+// A file kind named in the contract and never loaded is a leader that believes it has
+// context it does not have.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 5: seven campaign file kinds, four of them injected";
+  const kinds = ["README.md", "decisions.md", "parked.md", "merges.md", "plan.md", "timeline-", "archive-"];
+  const notes = read(`${SKILL}/kit/docs/campaign-notes.md`);
+  for (const k of kinds)
+    if (!notes.includes(k)) fail(fact, "kit/docs/campaign-notes.md", `never names the "${k}" file kind`);
+
+  const loader = read(`${SKILL}/kit/checks/leader-context.sh`);
+  for (const k of ["README.md", "decisions.md", "parked.md", "timeline-"])
+    if (!loader.includes(k)) fail(fact, "kit/checks/leader-context.sh", `does not inject "${k}"`);
+  if (/note_tail[^\n]*merges\.md/.test(loader))
+    fail(fact, "kit/checks/leader-context.sh", "injects merges.md, which the contract says is read on demand");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 6 -- the guide's section headings are the ones xez-add-rule routes into.
+// xez-add-rule matches a heading BY NAME to decide where an owner's new rule goes. A reworded
+// heading in the template sends the rule into the "nothing fits" branch, and the owner is asked
+// to create a section that already exists under a different name.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 6: guide headings match the sections xez-add-rule routes into";
+  const sectionsFile = "skills/xez-add-rule/references/sections.md";
+  if (!has(sectionsFile)) fail(fact, sectionsFile, "missing -- xez-add-rule cannot route a rule");
+  else {
+    const names = [...read(sectionsFile).matchAll(/^\|\s*\*\*(.+?)\*\*\s*\|/gm)].map((m) => m[1].trim());
+    if (names.length === 0) fail(fact, sectionsFile, "no section names found in the table");
+    const guide = read(`${SKILL}/kit/leader-guide.template.md`);
+    const headings = [...guide.matchAll(/^##\s+(.+)$/gm)].map((m) => m[1].trim());
+    for (const n of names)
+      if (!headings.includes(n))
+        fail(fact, "kit/leader-guide.template.md", `has no "## ${n}" heading, so a rule for it lands nowhere`);
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+
+function walk(rel, match) {
+  const out = [];
+  const rec = (d) => {
+    for (const e of readdirSync(join(root, d), { withFileTypes: true })) {
+      const p = `${d}/${e.name}`;
+      if (e.isDirectory()) rec(p);
+      else if (match.test(e.name)) out.push(p);
+    }
+  };
+  rec(rel);
+  return out;
+}
+
+if (problems.length) {
+  console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
+  for (const p of problems) console.error(`  - ${p}\n`);
+  console.error("Each fact above is pinned because it already caused a contradiction that every");
+  console.error("other gate passed. Fix the half that is wrong -- do not relax the pin.");
+  process.exit(1);
+}
+console.log(`Kit facts OK (${checked.length} pinned facts, prose and vendored kit agree).`);
