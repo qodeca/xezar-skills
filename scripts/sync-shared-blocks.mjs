@@ -28,6 +28,17 @@ import { dirname, join, relative } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CHECK = process.argv.includes("--check");
 
+// Files that legitimately do not carry a given block -- a skill that emits no chaining
+// reference line has no marker contract to keep in sync. Each is named in
+// scripts/allowlists.json with a reason and an owner, so "this file has no markers"
+// is a recorded decision rather than an omission the generator quietly tolerates.
+const OPTIONAL = new Set(
+  Object.keys(
+    JSON.parse(readFileSync(join(root, "scripts/allowlists.json"), "utf8"))
+      .sharedBlockOptional?.entries ?? {},
+  ),
+);
+
 /**
  * Each entry: a marked block, its canonical source, and the clauses that must survive
  * inside it. The floor exists because a generator plus an equality test is otherwise
@@ -47,6 +58,23 @@ const BLOCKS = [
       "read credential stores",
       "before shell or path interpolation",
       "Never put a credential",
+    ],
+  },
+  {
+    // The chaining reference lines: the only machine-readable handoff between skills.
+    // 34 copies said the same thing until one of them quietly lost the legacy-fallback
+    // sentence -- which is exactly the drift a generated block removes.
+    id: "chaining-lines",
+    files: "skills/*/references/rules.md",
+    canonical: "skills/xez-auto-create-pr/references/rules.md",
+    minLines: 3,
+    floor: [
+      "PR: #<number> (link: <full PR URL>)",
+      "Issue: #<number> (link: <full issue URL>)",
+      "Spec: <repo-relative path>",
+      "Head: <head commit sha>",
+      "legacy `PR_URL=<url>`",
+      "never emit them",
     ],
   },
 ];
@@ -102,6 +130,7 @@ for (const block of BLOCKS) {
     const found = extract(text, block.id);
 
     if (!found) {
+      if (OPTIONAL.has(`${block.id}:${rel}`)) continue;
       console.error(`${rel}: missing ${block.id} markers`);
       problems += 1;
       continue;

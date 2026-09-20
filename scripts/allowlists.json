@@ -27,6 +27,31 @@
       }
     }
   },
+  "sharedBlockOptional": {
+    "$binds": "scripts/sync-shared-blocks.mjs -> blocks[].allowMissingIn",
+    "entries": {
+      "chaining-lines:skills/xez-issue-create/references/rules.md": {
+        "why": "Files an issue and hands back; it emits no chaining reference line, so carrying the marker contract would cost always-loaded tokens for a rule it never applies. Permanent while the skill stays create-only.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-review-pr/references/rules.md": {
+        "why": "Reports UX findings as tracker comments; it never emits a chaining reference line of its own. Permanent while it neither opens nor drives a pull request.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-setup/references/rules.md": {
+        "why": "Sets up UX tooling locally and emits no tracker artifact, so there is no chaining line to shape. Permanent while it stays a local setup skill.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-shape/references/rules.md": {
+        "why": "Produces a design shape document, not a tracker artifact, so it emits no chaining reference line. Permanent while it stays document-only.",
+        "who": "collection maintainers",
+        "expires": "never"
+      }
+    }
+  },
   "gateOptOut": {
     "$binds": "scripts/check-gate-list.mjs -> OPT_OUT",
     "entries": {

@@ -42,6 +42,8 @@ jobs:
         run: node scripts/test-merge-gate.mjs
       - name: Shared-block sync contract
         run: node scripts/test-shared-blocks.mjs
+      - name: Chaining reference line grammar
+        run: node scripts/test-chaining-lines.mjs
       - name: Pipeline-retro classifier rules
         run: node scripts/test-classify-runs.mjs
       - name: Close-keyword configurability contract

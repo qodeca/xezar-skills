@@ -16,9 +16,10 @@ the human path in the skill. Disclose disabled label checks or a rejected
 self-approval when relevant. Mention branch deletion only if requested and done.
 Omit routine passed-gate lists and “no follow-up requested.”
 
-End with these exact fields; include the issue only when this run has one:
+End with these exact fields. `Head:` is the commit every gate was evaluated against and the commit the merge was pinned to — a merge verdict that names no commit certifies nothing. Include `Base:` when the merge base moved during the run, and the issue only when this run has one:
 
 ```text
 PR: #<number> (link: <full PR URL>)
 Issue: #<number> (link: <full issue URL>)
+Head: <head commit sha>
 ```

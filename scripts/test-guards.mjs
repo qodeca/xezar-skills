@@ -196,6 +196,22 @@ breaks(
 );
 
 breaks(
+  "a chaining line tidied into a different shape is rejected",
+  "skills/xez-approve-merge-pr/references/report-templates.md",
+  (s) => s.replace("PR: #<number> (link: <full PR URL>)", "PR #<number>: <full PR URL>"),
+  () => script("test-chaining-lines.mjs"),
+  "uses the exact PR label form",
+);
+
+breaks(
+  "dropping the Head line from a verdict skill is rejected",
+  "skills/xez-auto-create-pr/references/rules.md",
+  (s) => s.replace("`Head: <head commit sha>`", "`Head: the head commit`"),
+  () => script("test-chaining-lines.mjs"),
+  "documents the Head line",
+);
+
+breaks(
   "an expired allowlist entry is rejected",
   "scripts/allowlists.json",
   (s) => s.replace(/"expires": "20\d\d-\d\d-\d\d"/, '"expires": "2020-01-01"'),
