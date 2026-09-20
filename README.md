@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>🧠 plan · 🔨 implement · 🔍 review · ✅ QA gate · 🚢 merge</b><br/>
-  Thirty-eight agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
+  Thirty-nine agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
 </p>
 
 <p align="center">
@@ -123,6 +123,10 @@ flowchart LR
 ## 📦 Skill catalog
 
 📇 Per-skill cards with parameters: [docs/skills/](docs/skills/README.md)
+
+🔬 What dogfooding taught us, and what to bring in next: [docs/research/dogfooding-xezar.md](docs/research/dogfooding-xezar.md)
+
+🛠️ The plan that follows from it: [docs/improvement-plan.md](docs/improvement-plan.md)
 
 ### 🤖 Autonomous skills
 
