@@ -232,7 +232,14 @@ done
 # Tracker-abstraction gate: no direct gh CLI usage inside skills — all tracker
 # operations go through the descriptor layer. The shipped descriptors under
 # references/trackers/ are the one place gh commands belong.
-gh_hits=$(grep -rEn '(^|[`"[:space:]])gh (api|pr|issue|label|repo|search|auth|run) ' skills/ 2>/dev/null | grep -v 'references/trackers/' || true)
+#
+# `skills/<name>/kit/**` is excluded, and the exclusion is narrow on purpose. A kit
+# is vendored payload a skill COPIES into a consumer project — another product's
+# workflows and check scripts, which run under that product's own engine and never
+# call this collection's tracker operations. Rewriting them would fork the payload
+# from its source, which is the thing a vendored copy must not do. The rule is
+# unchanged for everything a skill actually instructs an agent to do.
+gh_hits=$(grep -rEn '(^|[`"[:space:]])gh (api|pr|issue|label|repo|search|auth|run) ' skills/ 2>/dev/null | grep -v 'references/trackers/' | grep -vE '^skills/[^/]+/kit/' || true)
 if [ -n "$gh_hits" ]; then
   err "direct gh CLI usage found outside references/trackers/ (use a tracker operation instead):"
   printf '%s\n' "$gh_hits" >&2
@@ -243,7 +250,12 @@ fi
 # same pattern that matches the dev server matches the user's editor, their other
 # checkout of the same project, or an unrelated process that merely mentions it.
 # Start a process, save its PID, kill that PID.
-kill_hits=$(grep -rEn '(^|[`"'"'"'[:space:]])(pkill|killall)([[:space:]]|$)|kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*\$\((pgrep|ps |lsof)' skills/ 2>/dev/null || true)
+#
+# `skills/<name>/kit/**` is excluded for the same reason as the gate above, and the
+# hits it was catching there make the point: every one was a comment explaining why
+# the payload does NOT pattern-kill. A text grep cannot tell a rule from its own
+# explanation, and the payload carries its own check for this.
+kill_hits=$(grep -rEn '(^|[`"'"'"'[:space:]])(pkill|killall)([[:space:]]|$)|kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*\$\((pgrep|ps |lsof)' skills/ 2>/dev/null | grep -vE '^skills/[^/]+/kit/' || true)
 if [ -n "$kill_hits" ]; then
   err "process killed by pattern match (use a saved PID; a pattern also matches the user's editor):"
   printf '%s\n' "$kill_hits" >&2
