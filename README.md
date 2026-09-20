@@ -124,10 +124,6 @@ flowchart LR
 
 📇 Per-skill cards with parameters: [docs/skills/](docs/skills/README.md)
 
-🔬 What dogfooding taught us, and what to bring in next: [docs/research/dogfooding-xezar.md](docs/research/dogfooding-xezar.md)
-
-🛠️ The plan that follows from it: [docs/improvement-plan.md](docs/improvement-plan.md)
-
 ### 🤖 Autonomous skills
 
 **Naming convention:** the `xez-auto-*` prefix means **autonomous and non-interactive** — hand these a brief, an issue, or nothing at all and they run end-to-end without supervision: they claim their work with the `in-progress` lock so concurrent agents back off, work in isolated worktrees so your checkout stays untouched, run the validation gate, self-review, make the recommended most-reversible call themselves (documented for override) instead of stopping to ask, and finish with a PR, a review verdict, or a reconciled tracker. Safe to run on a schedule or in CI. Every skill **without** the `auto` prefix is interactive: it acts once, may ask you questions, reports, and hands control back.
@@ -395,7 +391,7 @@ Maintained by [Qodeca](https://github.com/qodeca).
 
 Every gate this repository runs, ranked by what breaking it would cost, with a "runs in CI?" column: [docs/coverage.md](docs/coverage.md). It is an inventory, not a floor — the reasoning for that is in [DECISIONS.md](DECISIONS.md).
 
-Ideas for changing the collection, and the bar they have to clear: [docs/improvement-register.md](docs/improvement-register.md). Wording choices, decided by counting what the skills actually say: [docs/style.md](docs/style.md).
+Wording choices, decided by counting what the skills actually say: [docs/style.md](docs/style.md).
 
 ## Reporting a security problem
 
