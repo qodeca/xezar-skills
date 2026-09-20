@@ -11,7 +11,7 @@
   <a href="https://github.com/qodeca/xezar-skills/pulls"><img src="https://img.shields.io/badge/PRs-welcome-ff69b4.svg" alt="PRs welcome" /></a>
 </p>
 
-This is the team skills collection behind [Xezar](https://github.com/qodeca/xezar), the local cockpit for parallel coding agents. Xezar loads it by default, and its software pipeline runs independently of Xezar: every skill is a plain Markdown playbook that installs into any repository and runs under any coding agent that reads skills. The pipeline is product-agnostic by rule – pipeline behavior comes from project configuration. Onboarding also supports general project work, with optional native Xezar engine and client setup.
+This is the team skills collection behind [Xezar](https://github.com/qodeca/xezar), the local cockpit for parallel coding agents. Xezar loads it by default, and its software pipeline runs independently of Xezar: every skill is a plain Markdown playbook that installs into any repository and runs under any coding agent that reads skills. Pipeline behavior comes from project configuration, never from hard-coded branch names or package managers. Onboarding also supports general project work, with optional native Xezar engine and client setup.
 
 ## ⚡ 30-second quickstart
 

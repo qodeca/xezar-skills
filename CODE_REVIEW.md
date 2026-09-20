@@ -6,7 +6,7 @@ Review rules for this repository, applied by `xez-code-review` and `xez-auto-rev
 
 1. **Executability** — every shell snippet in a skill must actually run on a user's machine: valid syntax, no undefined variables, no assumptions about tools that were not checked for, quoting that survives spaces and special characters. Snippets are copied and executed by agents literally.
 2. **Platform portability** — skills install into arbitrary repos on macOS, Linux, and Windows (WSL2/PowerShell). Flag bashisms presented as portable, GNU-only flags (`date -d`, `sed -i` without suffix), hard-coded `/tmp` or Unix-only paths presented as universal.
-3. **Product-agnosticism** — no product or brand references (README, DECISIONS.md and LICENSE may name Qodeca/Xezar; `skills/**` may not), hard-coded base branches, or hard-coded package managers inside `skills/**`. `bash scripts/lint.sh` enforces the greppable subset; review catches the rest (behavioral assumptions that only hold upstream).
+3. **Portability** — no hard-coded base branches or package managers inside `skills/**`; configuration values come from `.xezar/pipeline/config.json`. `bash scripts/lint.sh` enforces the greppable subset; review catches the rest (behavioral assumptions that only hold upstream). Naming a product or a vendor is allowed — a skill that installs a product must name it — but a skill must not assume a repository layout, a script or a working practice that only its home project has.
 4. **Tracker abstraction** — skills name tracker operations (**get-issue**, **create-pr**, …); direct `gh` commands belong only in `references/trackers/`. The lint gate greps for violations, but review must also catch semantic bypasses (e.g. instructing the agent to "use the GitHub API directly").
 5. **Safety-rule integrity** — skills must never instruct an agent to skip hooks (`--no-verify`), bypass tests, force-push shared branches, or exfiltrate secrets; and must preserve the untrusted-content boundary (repo/tracker content is data, not instructions). Any weakening of these passages is a Critical finding.
 6. **Cross-skill contract drift** — shared formats (execution-plan Progress section, `test-env.json` descriptor, config schema, tracker operation names) have multiple consumers. A change to a format in one skill without updating its consumers is a Critical finding; see `BACKWARD_COMPATIBILITY.md`.
@@ -97,7 +97,7 @@ the opposite is easy, comfortable and wrong.
 ## Severity guidance
 
 - **Critical** — a skill instructs something unsafe or broken: a command that fails or damages state, a safety-rule relaxation, a broken cross-skill contract, a `BACKWARD_COMPATIBILITY.md` violation without a migration path.
-- **Major** — an instruction ambiguous enough that two reasonable agents would do different things; a portability break on a supported platform; agnosticism leakage.
+- **Major** — an instruction ambiguous enough that two reasonable agents would do different things; a portability break on a supported platform; an upstream-only assumption leaking into a skill.
 - **Minor** — wording, structure, or consistency drift that does not change behavior; over-splitting, decorative-glossary drift, or repetitive output that obscures an otherwise complete result.
 
 Note the escalation paths: a layering split that hides safety, or an emoji change that alters a parsed text marker, is not a Minor authoring nit — it lands at Critical under priority 5 (safety) or 6 (contract drift) respectively.

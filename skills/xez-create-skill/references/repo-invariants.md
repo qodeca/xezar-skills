@@ -10,7 +10,7 @@ authors or splits. These are what make a skill "pipeline-shaped" rather than gen
 match its own rule and fail the lint. Therefore this skill — and every skill it
 generates — describes the constraints **abstractly** and points to
 `scripts/lint.sh` as the source of truth, instead of spelling the literals. This
-also keeps generated skills product-agnostic, which is the point of the rule.
+also keeps generated skills portable, which is the point of the rule.
 
 ## The lint gate (authoritative: `scripts/lint.sh`)
 
@@ -19,11 +19,12 @@ Read the script for the exact patterns; the categories are:
 - **Frontmatter**: every `skills/<name>/SKILL.md` starts with a `---` frontmatter
   block declaring `name` (equal to the directory name) and a non-empty
   `description`.
-- **Product-agnostic content** (behavior, not the `xez-` name prefix, which is
-  allowed): no upstream product/monorepo name token, no scoped upstream package
-  name, no hard-coded base-branch name, no specific alternative package-manager
+- **Portable content** (behavior, not the `xez-` name prefix, which is allowed):
+  no hard-coded base-branch name, no specific alternative package-manager
   keyword, no app-specific decryption-helper name. The base branch always comes
-  from config (`baseBranch`), never hard-coded.
+  from config (`baseBranch`), never hard-coded. Product and vendor names are not
+  scanned — a skill that installs a product may name it — but a skill must not
+  assume a layout, a script or a practice only its home project has.
 - **Tracker abstraction**: no direct tracker-CLI command inside a skill. All
   tracker interaction is expressed as **named operations** resolved through the
   tracker descriptor. The one place raw CLI commands belong is the shipped

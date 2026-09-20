@@ -32,7 +32,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Frontmatter, agnosticism, safety and per-run load gates
+      - name: Frontmatter, portability, safety and per-run load gates
         run: bash scripts/lint.sh
       - name: Browser provider contract and platform matrix
         run: node scripts/test-browser-providers.mjs

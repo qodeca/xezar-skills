@@ -16,9 +16,30 @@ Every skill carries the `xez-` prefix (`xez-auto-create-pr`, `xez-fix`, …). It
 
 The `xez-auto-*` sub-prefix marks a skill as autonomous: it takes a brief, an issue or nothing and runs end-to-end without supervision. Every other skill is interactive. Two carve-outs are recorded rather than re-litigated: `xez-pr-autopilot` is autonomous without the prefix (it takes a PR number and dispatches), and `xez-review-prs` / `xez-close-fixed-issues` are sweeps that ask nothing.
 
-## Product-agnosticism gate
+## The brand rule, removed
 
-The skills must run unchanged in any consumer repository, so `skills/**` is brand-free. `scripts/lint.sh` strips the collection's own tokens (the source slug, the `.xezar/pipeline/` directory, the `xez-` prefix) from every line and then fails on any remaining `Qodeca` or `Xezar`, on a hard-coded base branch or package manager, and on upstream helper names. README, this file and LICENSE may name Qodeca and Xezar; skills may not.
+The gate used to fail on `Qodeca` or `Xezar` anywhere under `skills/**`. It is gone, and
+what remains is a portability gate: a hard-coded base branch, a hard-coded package manager,
+an upstream helper name.
+
+The rule could not survive its own scope. It only ever banned this collection's two names,
+while third-party names were always present and legitimately so — Claude, GitHub, npm,
+pnpm, Linear, Jira, Codex, OpenCode. A tracker skill must name its tracker. More decisively,
+a skill that installs a product must name that product: of the kit files an opinionated
+onboarding skill has to carry, 149 of 164 contain the product name, and 145 still do after
+stripping every path and filename, because the word is in ordinary prose. The directory name
+is read from the product's own source and cannot be renamed without breaking it.
+
+**What is lost, and accepted.** Nothing automated keeps the rest of the collection
+product-neutral; it stays neutral by habit and by review. The README's claim that the
+pipeline is "product-agnostic by rule" is withdrawn rather than left standing untrue. The
+asymmetry with the `.local/` artifact rule — where a check was chosen precisely because
+documentation had measurably failed — is real: that rule had a measured failure, this one
+was never enforceable for a skill whose job is installing a named product.
+
+**What survives.** Any skill that is not agent-neutral still says so in its README entry
+and its description; that disclosure was always a separate promise from the gate. The
+permanent old-brand ban below is untouched, as is the portability gate.
 
 A second, permanent ban covers the predecessor collection's brand, its skill prefix and its old pipeline directory across every maintained source. Lineage is recorded in `LICENSE` and in the one migration entry in `UPGRADE_NOTES.md`, nowhere else.
 
@@ -70,9 +91,12 @@ Browser automation uses the same descriptor pattern under `.xezar/pipeline/brows
 configuration. Its engine config and project MCP snippets are an explicit exception
 to the pipeline-only configuration rule. Software pipeline setup stays opt-in and
 is reused by name within onboarding's narrower file and authority scope. The existing
-pipeline skills retain their contracts. The content gate permits only the exact native
-engine paths, package identifier and MCP server identifiers needed by onboarding;
-this is not permission to include this project's working instructions or branding prose.
+pipeline skills retain their contracts. The content gate that once permitted only the
+exact native engine paths, package identifier and MCP server identifiers is superseded by
+"The brand rule, removed" above — naming the engine is no longer an exception but the
+ordinary case. The boundary that still holds is a scope one: onboarding writes project
+files a consumer owns, and carrying another project's working instructions into a consumer
+repository remains out of scope regardless of which names appear in them.
 
 ## Standalone issue creation
 
@@ -123,7 +147,7 @@ directly. `lint.sh` cannot – it is POSIX `sh` and must run without node – so
 
 Every check in this repository is green, which says nothing about whether it still
 catches anything. `scripts/test-guards.mjs` introduces one named, realistic defect at a
-time – a brand token in a skill, a pattern-matched `pkill`, a credential-shaped value, a
+time – a hard-coded package manager, a pattern-matched `pkill`, a credential-shaped value, a
 stale skill name, an expired allowlist entry – runs the real gate, and asserts the real
 error message comes back. Asserting the message, not just a non-zero exit, is deliberate:
 a guard failing for an unrelated reason would otherwise count as a pass.

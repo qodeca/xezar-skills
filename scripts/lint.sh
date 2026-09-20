@@ -180,14 +180,13 @@ done <<EOF
 $name_hits
 EOF
 
-# Agnosticism gate: skills stay brand-free so they run in any consumer repo. The
-# collection's own tokens – the source slug, the pipeline directory and the skill
-# name prefix – are stripped from each line first; every other brand token is a hit.
-strip_expr="s#qodeca/xezar-skills##g; s#\.xezar/pipeline/##g; s#(^|[^A-Za-z0-9])${PREFIX}-#\1#g"
+# Portability gate: a skill never hard-codes the choices a consumer repo owns – its
+# base branch, its package manager – nor an upstream helper name. The skill name
+# prefix is stripped from each line first. Product and vendor names are NOT checked
+# here: a skill that installs a product must name it, and a tracker skill must name
+# its tracker (DECISIONS.md -> "The brand rule, removed").
+strip_expr="s#(^|[^A-Za-z0-9])${PREFIX}-#\1#g"
 patterns=(
-  '[Qq]odeca'
-  '@qodeca'
-  '[Xx]ezar'
   '(^|[^[:alnum:]-])develop($|[^[:alnum:]-])'
   '(^|[^[:alnum:]])yarn '
   'findWithDecryption'
@@ -198,23 +197,7 @@ for pattern in "${patterns[@]}"; do
   hits=""
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    # Native engine/MCP tokens required by onboarding, scoped to their exact
-    # artifact surfaces. Strip tokens, never a whole line/file: adjacent project
-    # instructions must still fail. Other skills keep the existing brand gate.
-    file_strip="$strip_expr"
-    case "$f" in
-      skills/xez-onboard/references/writes.md)
-        file_strip="$file_strip; s#\\.xezar/config\\.json([^A-Za-z0-9_./-]|$)#\\1#g" ;;
-      skills/xez-onboard/references/recheck.md)
-        file_strip="$file_strip; s#\\.local/xezar/onboarding-state\\.json([^A-Za-z0-9_./-]|$)#\\1#g" ;;
-      skills/xez-onboard/references/clients.md)
-        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#server:xezar([^A-Za-z0-9_-]|$)#\\1#g" ;;
-      skills/xez-onboard/templates/claude-mcp.json|skills/xez-onboard/templates/pi-mcp.json)
-        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#\"xezar\":##g" ;;
-      skills/xez-onboard/templates/codex-mcp.toml)
-        file_strip="$file_strip; s#@qodeca/xezar([^A-Za-z0-9_./-]|$)#\\1#g; s#\\[mcp_servers\\.xezar\\]##g" ;;
-    esac
-    file_hits=$(sed -E "$file_strip" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
+    file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
     [ -n "$file_hits" ] && hits="${hits}${hits:+
 }${file_hits}"
   done <<EOF

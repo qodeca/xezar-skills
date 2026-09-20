@@ -12,7 +12,7 @@ bash scripts/lint.sh    # must print "Lint OK" and exit 0
 ```
 
 It verifies frontmatter (`name` == directory, non-empty `description`), the
-product-agnostic forbidden patterns, and the no-direct-tracker-CLI rule across
+portability forbidden patterns, and the no-direct-tracker-CLI rule across
 `skills/` (including `references/`). A failure names the offending file and
 pattern — fix and re-run.
 

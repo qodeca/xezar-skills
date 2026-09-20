@@ -1,3 +1,9 @@
+# Unreleased
+
+## 🔧 Changed
+
+- 🔧 The brand rule is removed from `scripts/lint.sh`. `skills/**` is no longer scanned for this collection's own product names; what remains is a portability gate — a hard-coded base branch, a hard-coded package manager, an upstream helper name. The rule only ever banned two names while third-party names were always present and legitimate, and a skill that installs a product has to be able to name it. Nothing automated keeps the collection product-neutral now; the README's "product-agnostic by rule" claim is withdrawn rather than left standing untrue. Reasoning in `DECISIONS.md` → "The brand rule, removed".
+
 # 1.1.0 (2026-09-20)
 
 ## Highlights

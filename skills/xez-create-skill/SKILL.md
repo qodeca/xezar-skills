@@ -112,9 +112,9 @@ before generating, and it **will not hand back a result that fails the gate** �
   no-exfiltration / QA-gate rules live in the body or in the step-0
   `references/agentic-setup.md` that every run loads first — never behind a
   conditional lazy-load.
-- **Product-agnostic**: generated skills must pass `scripts/lint.sh` — no
-  upstream product-name tokens, no hard-coded base-branch name, no specific
-  alternative package-manager keyword, and **no direct tracker-CLI commands**
+- **Portable**: generated skills must pass `scripts/lint.sh` — no hard-coded
+  base-branch name, no specific alternative package-manager keyword, no
+  app-specific decryption-helper name, and **no direct tracker-CLI commands**
   (use a named tracker operation resolved via the descriptor instead). This
   skill itself never reproduces those literal forbidden tokens.
 - **Reuse, don't reinvent**: prefer the shared preamble blocks and existing
