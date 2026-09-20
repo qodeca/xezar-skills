@@ -42,7 +42,7 @@ Use this skill to triage all open PRs and answer one question: what can merge ri
 ## Rules
 
 - Shared rules: `references/rules.md` — label discipline, claim etiquette, secrets hygiene, markers, emoji glossary. They always apply.
-- Never merge anything — this skill only classifies and reports. When the user picks a PR to ship, hand off to `xez-approve-merge-pr`, which re-checks the same gates before merging.
+- Never merge anything — this skill only classifies and reports. When the user picks a PR to ship, hand off to `xez-approve-merge-pr`, which re-checks the review decision, the required checks and the label gates against the PR's head commit before merging, and pins that commit at merge time. This scan is a triage snapshot, not a merge authorization: it can go stale between the scan and the merge, which is exactly why the merge skill re-derives every gate itself rather than trusting a row here.
 - The QA-approval gate is a hard rule when `qaGate` is on: a `needs-qa` PR without `qa-approved` is never "Ready to merge", even when every other check is green.
 - Sort ready PRs by oldest first.
 - Sort almost-ready PRs by fewest blockers first.

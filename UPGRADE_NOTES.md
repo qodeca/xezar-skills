@@ -17,6 +17,41 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-20 – merge-pr pins the head commit, list-issue-comments paginates
+
+Two fixes to the GitHub tracker descriptor. Both are in the file your repository owns, so an
+upgrade of the skills alone does not deliver them.
+
+**Symptom 1 – a merge can land a commit no gate checked.** Your
+`.xezar/pipeline/trackers/github.md` has a **merge-pr** section whose command ends
+`gh pr merge {prNumber} --squash`, with no head-commit parameter. `xez-approve-merge-pr` checks
+the review decision, the required checks and the labels against the PR's head commit, and then
+asks the tracker to merge. Without the pin, a push in that window merges a commit no gate saw.
+
+**Fix 1:** replace that command, and add the sentence above it:
+
+```bash
+gh pr merge {prNumber} --squash --match-head-commit {headSha}
+```
+
+Until you apply it, `xez-approve-merge-pr` falls back to re-reading the head immediately before
+merging and aborting on any change. That narrows the window; it does not close it.
+
+**Symptom 2 – a re-run posts a duplicate comment instead of updating its own.** Your
+**list-issue-comments** section runs `gh api repos/{owner}/{repo}/issues/{number}/comments`
+without `--paginate`. GitHub returns the first 30 comments and the request **succeeds**, so on a
+busy PR a marker further back reads as absent. Every marker-idempotent comment — label rationale,
+claim, verification — then duplicates instead of being rewritten in place.
+
+**Fix 2:** add `--paginate`:
+
+```bash
+gh api --paginate repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | {id,user:.user.login,body}'
+```
+
+Sibling operations in the same file (`label_exists`, **list-review-comments**) already paginate,
+so this was an inconsistency rather than a deliberate bound.
+
 ## 2026-09-13 – migrating from open-mercato/skills
 
 This collection is the continuation of `open-mercato/skills`, renamed and relaid out. The skill

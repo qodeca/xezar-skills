@@ -201,8 +201,9 @@ gh api repos/{owner}/{repo}/issues/comments/{commentId} --jq '{body,user:.user.l
 
 #### list-issue-comments
 `{issueId or prNumber}` → conversation comments (PR conversation comments are issue comments on GitHub).
+Paginated: without `--paginate` GitHub returns only the first 30 and the request still succeeds, so a marker on an older comment reads as absent and a marker-idempotent re-run posts a duplicate instead of updating in place.
 ```bash
-gh api repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | {id,user:.user.login,body}'
+gh api --paginate repos/{owner}/{repo}/issues/{number}/comments --jq '.[] | {id,user:.user.login,body}'
 ```
 
 #### update-comment
@@ -333,8 +334,9 @@ GitHub rejects self-approval (reviewing your own PR); surface that instead of wo
 
 #### merge-pr
 `{prNumber}`; squash is the default merge strategy. `--auto` merges when checks pass; `--delete-branch` only when asked.
+`{headSha}` pins the merge to one commit: the merge is rejected (exit non-zero) when the PR head has moved since the caller checked its gates. Always pass it when the caller has a head commit; omit it only when the caller has none.
 ```bash
-gh pr merge {prNumber} --squash
+gh pr merge {prNumber} --squash --match-head-commit {headSha}
 ```
 
 #### mark-pr-ready
