@@ -277,7 +277,7 @@ them, the cases a request-analyser would handle are handled — by skills that a
 next step, rather than handing back a classification.
 
 The cost of adding it is not the skill: it is a fourth entry point users have to choose
-between, in a collection whose main usability problem is already that there are forty-four
+between, in a collection whose main usability problem is already that there are forty-five
 skills. A router that saves one decision and adds one is not a router.
 
 Revisit if a real run shows a request that none of the three accepts, or if routing between
@@ -464,6 +464,38 @@ are one mechanism in three acts.
    enforcement point, `xez-unattended-on`'s contract-reading becomes decoration and the pair
    should go. If `parked.md` routinely reaches a length nobody interviews honestly, the
    park-and-continue model is wrong and should be replaced by stopping, not patched.
+
+### Admitted: `xez-onboard-opinionated`, and why a second onboarding skill
+
+1. **What request does it serve?** Reproducing one specific way of working — a leader, an
+   engine, a campaign record and the rules between them — in a new project. `xez-onboard` is
+   deliberately generic and minimal, and `xez-setup-agent-pipeline` configures a pipeline with
+   no leader at all. Neither can install an opinion, because being unopinionated is their
+   contract.
+2. **Who decides it worked?** The setup itself, before it reports success: it dispatches one
+   throwaway task end to end, watches it reach a pull request and pass the gates, then cleans
+   up. Every part of the setup can pass a part-by-part check while the whole cannot run a task
+   — and that failure is otherwise discovered by the first real piece of work, when nobody is
+   watching.
+3. **What does it cost?** It is the largest skill in the collection: it carries the engine kit
+   it installs, roughly a megabyte of workflows, check scripts and role skills. Carried rather
+   than fetched, because every skill here carries its own files so it installs standalone, and
+   because the version tested is then the version installed. The accepted cost is that
+   re-syncing when the engine moves ahead is manual, mitigated by a drift check that **reports**
+   and never auto-updates — a file installed into a consumer repository never updates itself.
+4. **What would make us remove it?** If the engine's own `init` grows to install a real working
+   setup, this skill is duplicating the product and should go. It exists precisely because
+   `init` ships placeholders by design.
+
+**Why three narrow limits rather than graceful degradation.** Claude Code only, GitHub only,
+clean projects only. Each limit is a claim we can actually keep: the leader design is Claude
+Code mechanics, branch protection and the label flow are GitHub mechanics, and merging into an
+existing setup is the one thing that could destroy work somebody already did. The stack limit
+is the deliberate exception — gate commands are detected from whatever build files exist, so any
+stack can onboard, and the description says which stack has actually been tested rather than
+refusing the rest. The difference: the tracker decisions were never designed for another
+tracker, while the gate mechanism is stack-neutral by construction and only its testing is
+narrow.
 
 **Naming, settled deliberately.** They were nearly `xez-autopilot-on` / `-off`. Three reasons
 against: `xez-pr-autopilot` already ships and means something else entirely; the `xez-auto-*`

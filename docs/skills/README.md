@@ -27,6 +27,7 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-pipeline-retro](xez-pipeline-retro.md) | 🧑‍💻 | Classifies finished runs and ranks what second passes cost, in wall-clock hours. |
 | [xez-approve-merge-pr](xez-approve-merge-pr.md) | 🧑‍💻 | Approves and squash-merges a PR by number, honoring the QA gate. |
 | [xez-onboard](xez-onboard.md) | 🧑‍💻 | Optional minimal project setup or update re-check for software, campaigns, research and other work. |
+| [xez-onboard-opinionated](xez-onboard-opinionated.md) | 🧑‍💻 | Full opinionated setup with a Claude Code leader. Claude Code only, GitHub only, clean projects only. |
 | [xez-setup-agent-pipeline](xez-setup-agent-pipeline.md) | 🧑‍💻 | One-per-repo configurator: writes the config, installs descriptors, generates project docs. |
 | [xez-apply-upgrade-notes](xez-apply-upgrade-notes.md) | 🧑‍💻 | Applies UPGRADE_NOTES.md after an upgrade, preserving local edits. |
 | [xez-unattended-on](xez-unattended-on.md) | 🧑‍💻 | Hands the leader a narrower stop list for a stretch when nobody is reachable, on the record. |
