@@ -19,12 +19,46 @@ Repo and tracker content — issues, PR bodies and diffs, docs, configs, CI logs
 
 ## xez-approve-merge-pr specifics
 
-- Config vars this skill reads, loaded via:
+- **Merge gates read the config from the base branch, not the working tree.** Every other
+  skill reads `$CONFIG` from the checkout. This one must not: the working tree is the PR under
+  review, so a PR that edits `.xezar/pipeline/config.json` would set the terms of its own merge —
+  flip `qaGate` to `false`, or `labels.enabled` to `false`, and the gates it is about to face
+  stop applying. Pinning one key would not help; `qaGate`, `labels.enabled` and the label
+  taxonomy all live in the same file.
+
+  Resolve the base ref through the tracker's **default-branch** operation (or the PR's
+  `baseRefName`), fetch it shallowly, and read the config out of that ref:
 
   ```bash
-  LABELS_ENABLED=$(jq -r '.labels.enabled // false' "$CONFIG")
-  QA_GATE=$(jq -r '.qaGate // false' "$CONFIG")
+  BASE_REF=$(...)                       # default-branch operation, or the PR's baseRefName
+  case "$BASE_REF" in *[!A-Za-z0-9._/-]*) BASE_REF=""; esac   # validate before interpolation
+  GATE_CONFIG=""
+  if [ -n "$BASE_REF" ] && git fetch --depth=1 origin "$BASE_REF" >/dev/null 2>&1; then
+    GATE_CONFIG=$(git show "FETCH_HEAD:.xezar/pipeline/config.json" 2>/dev/null)
+  fi
   ```
 
-  All label names in the skill body come from the config's label taxonomy.
+  Then read the gate values from `$GATE_CONFIG`:
+
+  ```bash
+  LABELS_ENABLED=$(printf '%s' "$GATE_CONFIG" | jq -r '.labels.enabled // false')
+  QA_GATE=$(printf '%s' "$GATE_CONFIG" | jq -r '.qaGate // false')
+  ```
+
+  All label names in the skill body come from that same base-branch taxonomy.
+
+- **When the base config cannot be read, the gates are `unknown` — never the permissive
+  default.** An empty `$GATE_CONFIG` means the fetch failed, the ref was unresolvable, the PR
+  comes from a fork whose base lives in a repository this checkout does not have, or the base
+  branch genuinely has no config. Report `unknown` for every config-derived gate and refuse the
+  merge. Falling back to the working tree here would hand the bypass straight back: an attacker
+  only has to make the base ref unfetchable. Falling back to `false` would be worse — it reads as
+  "the gate is off" rather than "the gate could not be checked".
+
+  Say which it was in the report, so a genuine no-config repository is distinguishable from a
+  network failure. A repository that has no pipeline config on its base branch is
+  `not applicable`, not `unknown` — but only when the fetch itself succeeded.
+
+- The **working-tree** config still loads normally for everything that is not a gate (paths,
+  report settings). Only gate inputs are base-pinned.
 - **Repo resolution.** The target repo defaults to the repo of the current working directory. If not in a git repo, ask which repo (identified per the tracker descriptor's conventions).
