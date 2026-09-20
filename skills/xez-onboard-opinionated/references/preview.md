@@ -54,10 +54,12 @@ Three things, named explicitly, because they are the ones that surprise people:
   owner. Say whether this login can apply it, which the preflight already determined.
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
 - **The interview state file** under `.local/runtime/` was already written, before this preview.
-  It is the only thing this half writes, and the owner should know it exists.
+  It is the only thing written so far, and the owner should know it exists.
 
-## This half stops here
+## One approval, over the whole set
 
-Print the preview, state that the writing half is not installed yet, and stop. Do not ask for
-approval of a set of writes that cannot happen — a preview approved now would be stale by the
-time the writing half exists, and asking for it would imply otherwise.
+Ask once, for everything. Not file by file: a partial approval would produce a partial setup,
+and the preflight's whole promise is that a half-applied opinionated setup cannot exist.
+
+Anything other than a clear yes ends the run with nothing written into the project. The saved
+interview stays, so the owner can come back to it.

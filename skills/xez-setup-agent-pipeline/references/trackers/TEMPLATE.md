@@ -92,6 +92,17 @@ Copy this file to `.xezar/pipeline/trackers/{name}.md`, set `"tracker": "{name}"
 - **mark-pr-ready** — promote a draft PR.
 - **get-pr-checks** — number → CI check runs (name, state, link).
 - **get-required-checks** — base branch → required status checks; when unreadable, treat all reported checks as required.
+- **branch-protected** — branch + the checks that must pass → that branch ends the call
+  protected: direct pushes refused, those checks required before a merge. Named for the
+  postcondition, because "set branch protection" is one tracker's verb for it and another has
+  no such call at all. Two things the implementation must state rather than assume: whether
+  administrators are included (a setup whose own record files are pushed straight to the base
+  branch needs them excluded, and that is a choice the caller makes, not a default), and what
+  happens without permission — refuse and print the exact command for a human, never report a
+  postcondition nobody reached. A tracker with no protection surface answers `not-applicable`
+  and says so here; a caller then tells the user their gates are advisory. **The caller always
+  re-reads with get-required-checks afterwards:** a write that returned success and a branch
+  that is actually protected are different claims, and only the second one is worth reporting.
 - **get-pr-comment / get-review-comment** — comment id → body, author, URL (conversation vs inline review comment).
 - **list-review-comments** — number → the PR's inline review comments (file, line, author, body). This is how a skill reads feedback left *on the diff* rather than in the conversation: `xez-auto-review-pr` carries it as inherited findings, and `xez-auto-continue-pr` mines it for remaining work when it adopts a PR that has no execution plan. When the tracker has no separate inline-comment surface, document that here — consumers degrade to review bodies plus conversation comments and say so in their report.
 

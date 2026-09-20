@@ -263,6 +263,12 @@ Read. Fixture: `get-required-checks.json` (or `get-required-checks.<id>.json`). 
 mock_read "get-required-checks" "${1:-}"
 ```
 
+#### branch-protected
+Write. Records the call and reports the postcondition from the fixture, so a test can exercise both the protected and the no-permission path without a repository.
+```bash
+mock_write "branch-protected" "${1:-}"
+```
+
 #### get-pr-comment / get-review-comment
 Read. Fixture: `get-pr-comment.json` (or `get-pr-comment.<id>.json`). Absent → exit `3`, unknown.
 ```bash

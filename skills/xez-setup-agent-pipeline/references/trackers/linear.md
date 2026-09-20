@@ -288,6 +288,9 @@ Delegate to GitHub **get-pr-checks**.
 #### get-required-checks
 Delegate to GitHub **get-required-checks**.
 
+#### branch-protected
+Delegate to GitHub **branch-protected**. Branch protection belongs to the code host, not to the issue tracker, so this is a delegation rather than a gap.
+
 #### get-pr-comment / get-review-comment
 Delegate both operations to GitHub.
 

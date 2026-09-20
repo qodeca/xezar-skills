@@ -22,13 +22,6 @@ refuses rather than merging into a setup somebody already has.
 TypeScript/npm is the only stack tested so far, and this skill says so rather than refusing the
 rest.
 
-## What this half does
-
-**This PR installs the analysis and interview half. It writes nothing into the project.** It
-reaches a complete, digest-bound preview of every file the full setup would create, and stops
-there. The writing half ships separately; until then the final report says so plainly rather
-than implying a half-finished install.
-
 ## Arguments
 
 - `--resume` — continue an interview that was interrupted. Also the default behaviour when an
@@ -66,20 +59,37 @@ than implying a half-finished install.
    the first dispatch.
 
 5. **Preview everything, bound to digests** — follow `references/preview.md`. Every file the
-   full setup would write, grouped create / leave alone / needs-your-decision, each bound to the
-   content digest it was computed against. A file that changes underneath invalidates the
-   preview rather than being silently overwritten.
+   setup will write, grouped create / leave alone / needs-your-decision, each bound to the
+   content digest it was computed against. **Approve the whole set or nothing.** A file that
+   changed underneath invalidates the preview rather than being silently overwritten.
 
-6. **Report** using `references/report-templates.md`, and stop. State that the writing half is
-   not installed yet, and where the saved interview lives so the next run continues from it.
+6. **Write** — follow `references/write.md`. Re-check every digest, copy the kit, generate what
+   is generated, then commit on a setup branch and open a pull request. The owner merges it;
+   this skill does not merge its own setup.
+
+7. **Protect the base branch** — follow `references/protection.md`. Tracker operation
+   **branch-protected** with the confirmed gate commands as required checks, administrators
+   **not** enforced. No admin rights → print the exact command and wait. Either way, re-read
+   with **get-required-checks**: this skill does not report success while protection is off.
+
+8. **Prove it works** — follow `references/smoke-test.md`. Dispatch one throwaway task, watch
+   it run the workflow, open a pull request and pass the gates, then close that pull request and
+   delete its branch. Every part of a setup can pass a part-by-part check while the whole still
+   cannot run a task.
+
+9. **Report** using `references/report-templates.md`, ending with the chaining reference lines.
 
 ## Rules
 
 - Shared rules: `references/rules.md` — label discipline, secrets hygiene, markers, emoji
   glossary, reporting style. They always apply.
-- **Nothing is written into the project by this half.** The one file it writes is the interview
-  state under `.local/runtime/`, which is gitignored working state, not configuration — and the
-  clean-project check deliberately never looks at it, or a resumed run would refuse itself.
+- **Nothing is written into the project until the interview completes and the preview is
+  approved.** Before that the only file written is the interview state under `.local/runtime/`,
+  which is working state rather than configuration — and the clean-project check deliberately
+  never looks at it, or a resumed run would refuse itself.
+- **Never report success while a gate is off.** Protection is re-read after it is set, and the
+  smoke test runs before the final report. A setup whose gates cannot stop anything is not the
+  "ready to work immediately" result this skill promises.
 - **Detected is never decided.** Every fact analysis derives is shown to the owner as a proposal
   with the evidence behind it. This holds for the branch name, the gate commands, the design
   gate, and every account.
