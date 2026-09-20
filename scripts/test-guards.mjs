@@ -178,7 +178,8 @@ breaks(
 // `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
 // kit it ships. Those two halves are checked by different gates -- the kit is excluded from
 // three of them by path -- so a contradiction between them passed everything until people read
-// both. These four break the pins that were written for defects that actually shipped.
+// both. One break per pinned fact, plus a second for the dispatcher half of the ceilings pin --
+// seven in all. A pin nothing breaks is a pin nobody knows still fires.
 breaks(
   "the 8 KB note cap the decisions file must be exempt from is rejected",
   "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
@@ -209,6 +210,22 @@ breaks(
   (s) => s.replace('"id": "L1",\n      "role": "unblock",\n      "mechanism": "cron",\n      "schedule": "*/10 * * * *",\n      "mayDispatch": false', '"id": "L1",\n      "role": "unblock",\n      "mechanism": "cron",\n      "schedule": "*/10 * * * *",\n      "mayDispatch": true'),
   () => script("test-kit-facts.mjs"),
   "only L3 may",
+);
+
+breaks(
+  "dropping a subfolder from the list the tidiness check enforces is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/local-tree.sh",
+  (s) => s.replace('ALLOWED="runtime tasks worktrees scratch cache qa"', 'ALLOWED="runtime tasks worktrees scratch cache"'),
+  () => script("test-kit-facts.mjs"),
+  "ALLOWED is",
+);
+
+breaks(
+  "injecting a campaign file the contract says is read on demand is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace('note_tail "${campaign}parked.md"', 'note_tail "${campaign}merges.md"'),
+  () => script("test-kit-facts.mjs"),
+  "merges.md",
 );
 
 breaks(
