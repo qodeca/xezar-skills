@@ -23,6 +23,7 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-close-fixed-issues](xez-close-fixed-issues.md) | 🧑‍💻 | Post-merge housekeeping: closes issues merged PRs fixed, comments on closed-unmerged PRs. |
 | [xez-merge-buddy](xez-merge-buddy.md) | 🧑‍💻 | Reports which open PRs can merge now and which are close but blocked. |
 | [xez-maintain-deps](xez-maintain-deps.md) | 🧑‍💻 | Inventories dependencies, lists what is behind and what is vulnerable, proposes grouped updates. |
+| [xez-release](xez-release.md) | 🧑‍💻 | Folds the changelog, writes the version, tags a commit that already merged. Never publishes. |
 | [xez-pipeline-retro](xez-pipeline-retro.md) | 🧑‍💻 | Classifies finished runs and ranks what second passes cost, in wall-clock hours. |
 | [xez-approve-merge-pr](xez-approve-merge-pr.md) | 🧑‍💻 | Approves and squash-merges a PR by number, honoring the QA gate. |
 | [xez-onboard](xez-onboard.md) | 🧑‍💻 | Optional minimal project setup or update re-check for software, campaigns, research and other work. |

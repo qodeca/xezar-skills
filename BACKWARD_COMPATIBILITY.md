@@ -29,6 +29,7 @@ Two gate switches were added on 2026-09-20, both optional and both defaulting to
 |---|---|---|
 | `gates.failClosed` | `false` | A gate reporting `unknown` is disclosed and the run continues. The merge gate refuses on `unknown` either way — it does not read this key. |
 | `gates.requireVerdictHead` | `false` | A verdict with no `Head:` line is read as `unknown` and tolerated. Fresh setups get `true`. |
+| `gates.designGate` | `false` | A change marked as needing a design answer passes review without one. |
 
 Flipping either **default** is breaking, because it changes what an unmodified consumer repo does on upgrade. Both are read from the base branch's config on a gate path, never the working tree.
 

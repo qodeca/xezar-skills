@@ -134,6 +134,40 @@ None of this touches the merge gates. Reporting early is safe; merging early is 
 
 The `xez-auto-*` skills run this process unattended and are chainable: each accepts the artifact the previous one produced (an issue id, a spec path, or a PR number from the `PR: #<number> (link: <url>)` reference line every PR-producing skill emits), and each detects work already started — an open PR referencing the issue or plan — and continues on it rather than opening a duplicate. A completed autonomous run leaves a **ready** (non-draft), fully labeled PR — one pipeline label, category, QA meta, one priority, one risk — with a run-summary comment and, for user-facing changes, screenshots from the working app attached as PR evidence. Draft PRs are reserved for explicitly incomplete states: spec-only design PRs, interrupted hand-offs, or autonomous defaults flagged for human confirmation. Automation never applies `qa-approved`.
 
+## The merge policy
+
+Short on purpose. A merge policy nobody can hold in their head is a policy nobody runs, and
+the failure mode of a long one is that people skim it and merge anyway — worse than a short
+one, because everyone believes it was followed.
+
+Every check a merge depends on ends in one of three words. There is no fourth.
+
+| Word | Meaning | Merge |
+|---|---|---|
+| **passed** | The check ran and was satisfied. | allowed |
+| **refused** | The check ran and was not satisfied. | blocked |
+| **unavailable** | The check did not run, or its result could not be read. | blocked |
+
+The third word is the whole point. "Unavailable" is not a soft "passed": a label that was
+never created, a protection API that returned 404, a scanner that found no packages, a
+tracker that timed out — each of them produces silence, and silence read as permission is
+how every one of them becomes a way through. It is also not a "refused": nothing is wrong
+with the change, and the report says so, so the fix is to make the check available rather
+than to change the code.
+
+Three consequences, and that is the policy:
+
+1. **A check whose result you did not read is unavailable.** Not skipped, not assumed.
+2. **Unavailable blocks, and says what would make it available.** A block with no next
+   action is a dead end.
+3. **Only the merge step is allowed to block on this.** Every other stage reports
+   unavailable and carries on, so one unreadable check does not stop the work — it stops
+   the merge.
+
+The mapping to the five gate statuses the automation uses: `pass` and `not-applicable` are
+**passed**; `findings` is **refused**; `unknown` and `evidence-unavailable` are
+**unavailable**.
+
 ## Validation gate
 
 Every PR passes the full validation gate before review sign-off, in this order:

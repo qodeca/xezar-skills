@@ -40,6 +40,8 @@
     "qa-self-verified": { "group": "meta", "description": "The agent verified its own work under the documented self-QA exception." },
     "in-progress": { "group": "meta", "description": "An agent holds an active claim on this change." },
     "ci-monitoring": { "group": "meta", "description": "A finished run still owes a CI-result comment. Not a claim." },
+    "needs-design": { "group": "meta", "description": "The flow and its states must be settled before the code is written." },
+    "design-approved": { "group": "meta", "description": "The design was reviewed and accepted by a named authority." },
 
     "priority-low": { "group": "priority", "description": "Can wait behind everything else." },
     "priority-medium": { "group": "priority", "description": "Normal queue position." },

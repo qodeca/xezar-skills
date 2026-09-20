@@ -19,7 +19,7 @@ This is the team skills collection behind [Xezar](https://github.com/qodeca/xeza
 npx skills add qodeca/xezar-skills --skill '*'
 ```
 
-Install all forty — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
+Install all forty-one — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
 
 For optional minimal setup across software, campaign/marketing, research or other work, use [`xez-onboard`](docs/skills/xez-onboard.md). It inspects first and previews only useful project files; no pipeline or leader is required.
 
@@ -157,6 +157,7 @@ Interactive helpers (no `auto` in the name — the other half of the naming conv
 | [`xez-apply-upgrade-notes`](docs/skills/xez-apply-upgrade-notes.md) | Post-upgrade migrator. Applies `UPGRADE_NOTES.md` to the repo: re-syncs installed tracker/browser descriptors while preserving local edits, reports custom-provider gaps, and checks the config against notable upgrades. |
 | [`xez-merge-buddy`](docs/skills/xez-merge-buddy.md) | Scans open PRs and reports which can merge now and which are close but blocked, based on labels, reviews, CI, and mergeability. |
 | [`xez-maintain-deps`](docs/skills/xez-maintain-deps.md) | Takes stock of dependencies through the configured toolchain and security providers: a bill of materials, what is behind, what is vulnerable. Proposes one PR per update group with the blast radius and the gate result stated. Proposes only — it never merges, widens a range, or disables a check. |
+| [`xez-release`](docs/skills/xez-release.md) | Cuts a release from a commit that already merged: folds changelog fragments, writes the version, opens the release PR, tags the merge. Refuses to tag anything that is not already an ancestor of the base branch, and holds no publishing credential — it prints the publish command and stops. |
 | [`xez-issue-create`](docs/skills/xez-issue-create.md) | Draft or file one issue with explicit authority, duplicate checks, project templates, and recovery receipts; no setup required. |
 | [`xez-pipeline-retro`](docs/skills/xez-pipeline-retro.md) | Classifies runs the pipeline already finished — clean single pass, hard recovery, loop checkpoints, or a second pass with no recorded cause — and ranks the causes by the wall-clock hours they cost. Read-only; hands the top cause to `xez-prepare-issue`. |
 | [`xez-approve-merge-pr`](docs/skills/xez-approve-merge-pr.md) | Approves and squash-merges a PR given only its number. Can file a follow-up issue at the same time. |
@@ -253,6 +254,7 @@ Sweep open PRs, drive them to merge-ready, and ship — the QA gate stays a huma
 |---|---|---|
 | `/xez-merge-buddy` | tracker scan of labels, reviews, CI, mergeability | a report of which PRs can merge now and which are close but blocked |
 | `/xez-maintain-deps` | the configured toolchain and security providers | what you depend on, what is behind, what is vulnerable — plus one PR per update group, gate already run |
+| `/xez-release` | changelog fold, version bump, ancestry re-check, annotated tag | a tagged release of code that already merged — and the publish command, for you to run |
 | `/xez-review-prs` | [`xez-auto-review-pr`](docs/skills/xez-auto-review-pr.md) per PR, claim-lock aware | every unreviewed open PR reviewed, newest first |
 | `/xez-auto-fix-pr 123` | [`xez-auto-review-pr`](docs/skills/xez-auto-review-pr.md), its CI-stabilization step, [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md), [`xez-followup-issue-from-pr`](docs/skills/xez-followup-issue-from-pr.md) | one PR driven to approvable, green, QA-evidenced — handed to [`xez-approve-merge-pr`](docs/skills/xez-approve-merge-pr.md), never self-merged |
 | `/xez-auto-fix-pr 123 --ci-only` | tracker check status + failed-step logs | green CI from real fixes with tests, never by weakening checks |
@@ -279,12 +281,12 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
     "enabled": true,
     "pipeline": ["review", "changes-requested", "qa", "qa-failed", "merge-queue", "blocked", "do-not-merge"],
     "category": ["bug", "feature", "refactor", "security", "dependencies", "documentation"],
-    "meta": ["needs-qa", "skip-qa", "qa-approved", "qa-self-verified", "in-progress"],
+    "meta": ["needs-qa", "skip-qa", "qa-approved", "qa-self-verified", "in-progress", "ci-monitoring", "needs-design", "design-approved"],
     "priority": ["priority-low", "priority-medium", "priority-high", "priority-extreme"],
     "risk": ["risk-low", "risk-medium", "risk-high"]
   },
   "qaGate": true,
-  "gates": { "failClosed": false, "requireVerdictHead": false },
+  "gates": { "failClosed": false, "requireVerdictHead": false, "designGate": false },
   "toolchain": { "providers": [] },
   "security": { "provider": null },
   "paths": {

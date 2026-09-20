@@ -178,3 +178,39 @@ first failure and stopping looks efficient and is not: it teaches the reader to 
 thing, re-run, and discover the next, which costs a full cycle per problem. The rule
 lives in every skill's `rules.md` as a generated shared block, alongside the five gate
 statuses and the reason `unknown` and `evidence-unavailable` are not passes.
+
+
+## Publishing is the third hard stop
+
+This collection's autonomous skills have exactly two hard stops: a claim conflict without
+`--force`, and a `⚠ NEEDS HUMAN CONFIRMATION` default. `xez-release` adds the third and
+last one: it never publishes, and holds no credential that could.
+
+Three reasons, in order of weight. Publishing is release-time code execution holding the
+most valuable secret a repository has, so it is the step an attacker most wants to reach.
+The ecosystems are moving off long-lived tokens anyway — npm revoked classic tokens on
+2025-12-09 — so a skill built around a stored token would be building on something already
+being removed. And a tag-triggered publishing workflow is read *from the tagged commit*,
+which is why the skill also refuses to tag anything that is not already an ancestor of the
+protected base branch: tagging an unmerged head would run that branch's workflow definition
+with release secrets, which is strictly worse than holding the token.
+
+The skill prints the publish command and stops. A workflow triggered by the tag runs under
+the repository's own credentials, from a commit that was reviewed on its way to the
+protected branch. That is where publishing authority belongs.
+
+`xez-release` also refuses on `unknown`, which is the one place in this collection that
+does. Everywhere else a run reports what it could not check and carries on; a tag is the
+artifact everyone downstream trusts, and it is the one place where the cost of being wrong
+is not local.
+
+## A model never approves its own work
+
+Stated once, in the shared rules every skill carries, because the self-QA exception and the
+autofix loop both leaned on it without saying it.
+
+The exception stays, and stays narrow: a run that verified its own change applies the
+self-verified marker *alongside* the approval, so a reader can tell independent sign-off
+from a self-check at a glance. Outside it, a run that wrote a change reports what it found
+and hands the verdict to someone else. "I reviewed it and it is fine" from the author is a
+status report, not a review.

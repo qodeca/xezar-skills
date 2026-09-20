@@ -17,6 +17,7 @@ Every key in the schema, one bullet each.
 - `ci.maxWaitMinutes` — bounded CI observation (default `40`, `0` means no wait). Report pending checks honestly when it expires and release only the run's own observation signal. Required checks still gate merge.
 - `gates.failClosed` — optional; when `true`, a gate that reports `unknown` blocks every stage that reads it, not only the merge. Default `false`, so an upgrade changes nothing until someone opts in.
 - `gates.requireVerdictHead` — optional; when `true`, a verdict that does not name the commit it certifies (the `Head:` line) is refused. Default `false`; fresh setups get `true`. Both keys are read from the base branch on a gate path — `references/config-fields.md`.
+- `gates.designGate` — optional; when `true`, a change the project marked as needing a design answer does not pass review until the project's design-accepted marker is present. Default `false`, so nothing changes on upgrade. Both markers belong in the **meta** group, not the mutually-exclusive pipeline group.
 - `toolchain.providers` — optional **list** of dependency-lifecycle providers, each selecting `.xezar/pipeline/toolchains/<name>.md`. A list because one repository often has several ecosystems. Empty or absent means no toolchain operation applies — `not-applicable`, never `unknown`. Shipped: `npm`, `cargo`; scaffold others from `references/toolchains/TEMPLATE.md`.
 - `security.provider` — optional; selects `.xezar/pipeline/security/<name>.md`. **No default.** Absent means every supply-chain operation is `not-applicable` and nothing runs, so an upgrade never silently gains a stage that executes descriptor commands. Shipped: `osv-scanner`; scaffold others from `references/security/TEMPLATE.md`.
 
@@ -70,7 +71,7 @@ Blocker and major findings are fixed immediately as `X.Y-review-fix` Steps; mino
 findings defer to the final review, which runs in every mode. Raising the frequency buys
 earlier detection at the cost of more review passes over the same code.
 
-## `gates.failClosed` and `gates.requireVerdictHead`
+## `gates.failClosed`, `gates.requireVerdictHead` and `gates.designGate`
 
 Both default to `false`, and both are read from the **base branch's** config, never the
 working tree — see `agentic-setup.md` in a gate skill for why.
@@ -92,3 +93,28 @@ that was correct when it was done.
 Both switches are off-by-default by design: an upgrade must be a no-op until somebody
 opts in. Each carries an owner and a review date in `DECISIONS.md`, under the rule that
 an off-by-default switch with no expiry quietly becomes permanent.
+
+### `gates.designGate`
+
+Where a project's own process document already describes a design stage — for a user-facing
+change, the flow and its states settled before the code exists: what the screen does when empty,
+loading, in error, and without permission — that stage usually has no enforcement behind it, so
+it happens when someone remembers.
+
+With the switch on, a change that the project marked as needing a design answer does not pass
+review until the project's design-accepted marker is also present. A change with no such marker
+is unaffected: the gate applies to what somebody flagged, not to every change.
+
+<!-- example:start -->
+For a project using the example taxonomy, that means a change carrying `needs-design` waits for
+`design-approved`.
+<!-- example:end -->
+
+Both markers belong in the **meta** group, deliberately. The pipeline group is mutually exclusive
+— a change is in exactly one of its states — and a design question does not replace any of them.
+A change can be in review and waiting on a design answer at the same time, and modelling that as
+a pipeline state would force a false choice.
+
+Off by default because an upgrade must be a no-op, and because a gate nobody asked for turns
+every user-facing change into a stall. Owner: the collection maintainers. Review date:
+2027-09-20.
