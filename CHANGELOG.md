@@ -1,8 +1,42 @@
-# Unreleased
+# 1.2.0 (2026-09-20)
+
+## Highlights
+
+The collection could set up a pull-request pipeline, but not the thing that *runs* one: a leader session that dispatches work, reads what comes back, and keeps going while nobody is watching. This release adds that — one skill that installs the whole setup into a clean project, and three small ones the owner drives it with.
+
+It also closes two security defects found in review before they reached a release, and adds the first gate that reads a skill's vendored payload at all.
+
+Forty-five skills, nineteen gate commands.
+
+## ✨ Features
+
+- ✨ `xez-onboard-opinionated` — analyses a clean GitHub project, interviews the owner, and writes a complete leader setup: workflows, checks, role skills, the leader guide, the session-start hook, the three standing loops as data, and both halves of an onboarding manifest. Every answer is saved as it is given, so an interrupted run resumes. Nothing reaches the project until the whole preview is approved, bound to content digests. It then opens a pull request, turns on branch protection and **re-reads it**, and dispatches one throwaway task end to end before it reports success. Claude Code and GitHub only; TypeScript/npm is the only tested stack.
+- ✨ `xez-unattended-on` and `xez-unattended-off` — hand the leader a narrower set of hard stops for a stretch when nobody is reachable, and take it back. Awake, six decisions are the owner's; away, three still stop the leader dead and three it decides itself and parks. Leaving the mode asks every parked decision back, one at a time, and records the owner's exact words.
+- ✨ `xez-add-rule` — adds a standing rule to the leader guide in the owner's exact words, dated, routed into the section it governs.
+- ✨ A tracker operation, **branch-protected**, in the template and all four shipped descriptors. Named by its postcondition; the GitHub implementation writes required checks with admin enforcement set by the caller, and answers `unknown` rather than guessing when it lacks the rights. Until now the contract could only *read* protection, so a setup could report success while its gates enforced nothing. Additive — forty-seven operations.
+- ✨ A nineteenth gate, `test-kit-facts.mjs`. A skill that vendors a kit is two halves, and the kit is excluded from three gates by path, so the halves could state opposite things while everything stayed green. This pins six facts that already caused such a contradiction, in every place that states them. It does not compare meaning, and `docs/coverage.md` says so: these six cannot silently drift again; an unpinned fact is still unchecked.
+- ✨ The guard suite now breaks thirty guards on purpose, up from twenty-three.
+
+## 💥 Fixed
+
+- 💥 **The leader's session-start loader followed symlinks.** Campaign records are committed, so a pull request could deliver a symlink, and the loader printed its target into a privileged agent session — any file on the machine. Found in review and reproduced with a canary; never released. Symlinks are now refused by shape, per folder and per file, without judging the target.
+- 💥 **Committed campaign text was injected with no untrusted-content boundary,** under headers any file could forge. It is now wrapped in a nonce-delimited region that says it is a record to read and never instructions to follow, and any line imitating a delimiter is defused on the way through. Never released.
+- 💥 One stray file beside the campaign folders silently disabled all campaign context, and an empty folder with a well-chosen name could do the same on purpose. The loader now walks candidates newest-first and takes the first real directory that carries a readable note.
+- 💥 The vendored kit shipped the design it was meant to replace: an 8 KB cap on the one file that must never be cut, campaign folders described as gitignored, two loops where three were decided, and a load-bearing typo carried verbatim. Corrected in the shipped files rather than as instructions to edit them during the copy.
+- 💥 Three private account labels were published in a vendored example. Removed, with an explicit rule never to write a real label into a committed file. They remain in git history; the decision not to rewrite it is recorded in `DECISIONS.md` — they are directory suffixes, not credentials.
+- 💥 Nothing wrote the root ignore rule that a task's own preflight requires, so the first task in a freshly onboarded project would have failed. Now an explicit, verified step.
 
 ## 🔧 Changed
 
 - 🔧 The brand rule is removed from `scripts/lint.sh`. `skills/**` is no longer scanned for this collection's own product names; what remains is a portability gate — a hard-coded base branch, a hard-coded package manager, an upstream helper name. The rule only ever banned two names while third-party names were always present and legitimate, and a skill that installs a product has to be able to name it. Nothing automated keeps the collection product-neutral now; the README's "product-agnostic by rule" claim is withdrawn rather than left standing untrue. Reasoning in `DECISIONS.md` → "The brand rule, removed".
+- 🔧 Every local artifact the onboarding setup writes lives under `.local/xezar/` in six named subfolders, and a check reports anything loose. `paths.qa` is set per project to match; the shipped default is unchanged, so nothing moves for an existing install.
+- 🔧 The pinned `agent-browser` release moves v0.34.0 → v0.38.1, with its per-asset checksums.
+
+## 🏷️ Notes
+
+- Two new symptom-keyed `UPGRADE_NOTES.md` entries: **branch-protected** for an installed tracker descriptor, and the corrected context loader for a project already onboarded. Neither reaches an existing install by upgrading the skills.
+- **Five of the six pull requests in this release merged without a changelog line.** The entries above for them were written at release time from the merged pull requests and their commit messages, not invented — but the release skill's own rule is that an entry is written with the change, and this release did not follow it.
+- `main` carries no branch protection, so no check on it is *required*. The release commit passed the full nineteen-command gate in CI; the release skill's rule that an empty required set stops a release was met in substance and not in letter, by the owner's decision.
 
 # 1.1.0 (2026-09-20)
 
