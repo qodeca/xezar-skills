@@ -50,7 +50,32 @@ Copy this file to `.xezar/pipeline/trackers/{name}.md`, set `"tracker": "{name}"
 
 ### Pull requests
 
-- **get-pr** — number, field list → PR data (see `github.md` for the full field set skills request). The set includes the request's own lifecycle and size facts: `createdAt`, `mergedAt`, `closedAt`, `additions`, `changedFiles`, and per-comment `createdAt` on `comments`. Serialize `state` as `OPEN`/`CLOSED`/`MERGED`, review states as `APPROVED`/`CHANGES_REQUESTED`/`COMMENTED`/`DISMISSED`, and every timestamp as ISO-8601.
+- **get-pr** — number, field list → PR data. Request only the fields the calling skill names. Serialize `state` as `OPEN`/`CLOSED`/`MERGED`, per-review states as `APPROVED`/`CHANGES_REQUESTED`/`COMMENTED`/`DISMISSED`, and every timestamp as ISO-8601. The set includes the request's own lifecycle and size facts: `createdAt`, `mergedAt`, `closedAt`, `additions`, `changedFiles`, and per-comment `createdAt` on `comments`.
+
+  **Normalized fields every descriptor must provide.** The rest of the field set is
+  host-shaped and a skill asks for it by name, but a merge gate is portable only if these
+  three mean the same thing everywhere. A descriptor that cannot produce one emits the literal
+  `unknown` — never a plausible-looking default, because a gate reading a guessed value cannot
+  tell it from a measured one.
+
+  | Field | Value | Meaning |
+  |---|---|---|
+  | `headRefOid` | commit sha, or `unknown` | The commit the PR currently proposes. Gates are evaluated against it and the merge is pinned to it. Absent means the run cannot bind its verdict to anything. |
+  | `baseRefOid` | commit sha, or `unknown` | The commit the PR is merging into. A verdict certifies the reviewed input; when the base moves, what merges is not what was reviewed. |
+  | `reviewVerdict` | `approved` · `rejected` · `pending` · `not-enforced` · `unknown` | The **aggregate** verdict, not a list of per-review states. |
+
+  **`reviewVerdict` is deliberately not a boolean, and `not-enforced` is the reason.** Hosts
+  differ in a way that is easy to get dangerously wrong: some report a pull request as approved
+  when *no approval rule applies to it at all* — GitLab's approvals API returns `approved: true`
+  in that case. Collapsing that to "approved" tells a merge gate that review happened when
+  nothing was ever required, which is the same fail-open shape as a label that was never
+  created. So a descriptor emits `not-enforced` when the host reports approval in the absence of
+  any rule, and the gate treats it as `unknown` and refuses. If your host cannot distinguish
+  "approved by a reviewer" from "approved because nobody had to", emit `unknown` and say so in
+  this file.
+
+  A split provider that delegates PR operations to a companion descriptor inherits all three
+  fields from it and does not restate them.
 - **list-prs** — state/search filters, limit → PRs.
 - **search-prs** — free-text query (e.g. an issue reference), state → matching PRs.
 - **create-pr** — base branch, draft flag, title, body → PR URL + number.

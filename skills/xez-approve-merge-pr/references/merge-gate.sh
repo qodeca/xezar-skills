@@ -14,7 +14,9 @@
 #   mergeable        "MERGEABLE" | "CONFLICTING" | ...
 #   headSha          commit the gates were evaluated against   (null = unknown)
 #   mergeHeadSha     head at merge time, if re-read            (null = not re-read)
-#   reviewDecision   "APPROVED" | "CHANGES_REQUESTED" | ... | null
+#   reviewVerdict    "approved" | "rejected" | "pending"
+#                    | "not-enforced" | "unknown"   (TEMPLATE normalized field)
+#   reviewDecision   host-shaped fallback, used only when reviewVerdict is absent
 #   reviewEnforced   false when the host reports approval with no rule applying
 #   checks           [{"name":..., "state":"SUCCESS"|"FAILURE"|"PENDING"|...}]
 #   requiredChecks   ["name", ...]        names branch protection requires
@@ -42,9 +44,13 @@
 #   3. COMMIT BINDING. Gates are evaluated against `headSha`. Absent `headSha` is
 #      `unknown`. When `mergeHeadSha` is present and differs, the head moved
 #      between the check and the merge: refuse.
-#   4. REVIEW. `reviewDecision` must be "APPROVED" AND `reviewEnforced` must not
-#      be false. A host that reports approval because no approval rule applies
-#      has told us nothing, so that is `unknown`.
+#   4. REVIEW. Prefer the normalized `reviewVerdict`: only "approved" passes,
+#      "rejected" refuses, and "pending", "not-enforced" and "unknown"
+#      are all `unknown`. "not-enforced" is the important one -- a host that
+#      reports approval because NO approval rule applies has told us nothing, and
+#      reading that as approved is the same fail-open as a label nobody created.
+#      Falling back to `reviewDecision`, "APPROVED" passes unless `reviewEnforced`
+#      is false.
 #   5. CHECKS. Every required check must be "SUCCESS". When protection is not
 #      readable, every REPORTED check is treated as required -- the descriptor's
 #      documented degradation. A pass over an EMPTY required set is not a pass:
@@ -130,7 +136,12 @@ OUT=$(printf '%s' "$INPUT" | jq -r '
      else "pass" end) as $commit
 
   # --- review --------------------------------------------------------------
-  | (if ($in | b("reviewEnforced")) == false then "unknown"
+  | ($in | s("reviewVerdict")) as $verdict
+  | (if $verdict != null then
+       (if $verdict == "approved" then "pass"
+        elif $verdict == "rejected" then "findings"
+        else "unknown" end)
+     elif ($in | b("reviewEnforced")) == false then "unknown"
      elif ($in | s("reviewDecision")) == null then "unknown"
      elif ($in | s("reviewDecision")) == "APPROVED" then "pass"
      else "findings" end) as $review

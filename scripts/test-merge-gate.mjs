@@ -120,6 +120,23 @@ check("no review decision is unknown",
 check("approved-because-no-rule-applies is unknown, not approved",
   { reviewEnforced: false }, REFUSE_UNKNOWN(["review", "unknown"]));
 
+// --- the normalized tri-state verdict (TEMPLATE contract) ------------------
+check("reviewVerdict approved passes",
+  { reviewVerdict: "approved" }, PASS);
+check("reviewVerdict rejected refuses",
+  { reviewVerdict: "rejected" }, REFUSE_FINDINGS(["review", "findings"]));
+check("reviewVerdict pending is unknown",
+  { reviewVerdict: "pending" }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("THE GITLAB SHAPE: not-enforced is unknown, never approved",
+  { reviewVerdict: "not-enforced" }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("reviewVerdict unknown is unknown",
+  { reviewVerdict: "unknown" }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("reviewVerdict wins over a disagreeing host field",
+  { reviewVerdict: "not-enforced", reviewDecision: "APPROVED" },
+  REFUSE_UNKNOWN(["review", "unknown"]));
+check("an unrecognised verdict is unknown, never a pass",
+  { reviewVerdict: "looks-fine-to-me" }, REFUSE_UNKNOWN(["review", "unknown"]));
+
 // --- checks (defect 2.2, second half, plus the empty-set hole) --------------
 check("a failing required check refuses",
   { checks: [{ name: "ci", state: "FAILURE" }] }, REFUSE_FINDINGS(["checks", "findings"]));

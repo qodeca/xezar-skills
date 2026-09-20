@@ -216,6 +216,23 @@ gh api -X PATCH repos/{owner}/{repo}/issues/comments/{commentId} -F body=@<path>
 
 #### get-pr
 `{prNumber}`, field list → PR data. Request only the fields the calling skill names; the full field set skills use:
+
+Normalized fields (TEMPLATE contract): `headRefOid` and `baseRefOid` come back directly.
+`reviewVerdict` is derived from `reviewDecision`, because GitHub's field is empty both when no
+review has happened and when no review is required — and a merge gate must not read the second
+as the first:
+
+| `reviewDecision` | `reviewVerdict` |
+|---|---|
+| `APPROVED` | `approved` |
+| `CHANGES_REQUESTED` | `rejected` |
+| `REVIEW_REQUIRED` | `pending` |
+| empty, and branch protection requires reviews | `pending` |
+| empty, and branch protection does not require reviews (or is unreadable) | `not-enforced` |
+
+Read the requirement from **get-required-checks**' protection call; when that returns 404 the
+review requirement is unreadable, so the verdict is `not-enforced` and the gate refuses rather
+than reading silence as approval.
 ```bash
 gh pr view {prNumber} --json number,title,url,body,state,author,isDraft,baseRefName,baseRefOid,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,maintainerCanModify,mergeable,mergeStateStatus,reviewDecision,labels,latestReviews,reviews,commits,files,assignees,comments,mergedAt,mergeCommit,closingIssuesReferences,createdAt,closedAt,additions,changedFiles
 ```
