@@ -19,6 +19,7 @@
     "node scripts/check-links.mjs",
     "node scripts/check-gate-list.mjs",
     "node scripts/check-label-taxonomy.mjs",
+    "node scripts/test-kit-facts.mjs",
     "node scripts/check-allowlists.mjs",
     "node scripts/test-guards.mjs",
       "npm run check:generic-instructions",

@@ -81,7 +81,7 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 ## xez-onboard-opinionated specifics
 
 - **Interactive, and deliberately not autonomous.** It carries no `--defaults` and no unattended path. Every default it could take alone is a decision about how a project will be run for the rest of its life; the questions are the skill.
-- **This half writes nothing into the project.** The only file it writes is the interview state under `.local/runtime/`, which is working state rather than configuration — and the clean-project check never looks at it, or a resumed run would refuse itself.
+- **This half writes nothing into the project.** The only file it writes is the interview state under `.local/xezar/runtime/`, which is working state rather than configuration — and the clean-project check never looks at it, or a resumed run would refuse itself.
 - **Detected is never decided.** Every fact analysis derives reaches the owner as a proposal carrying the evidence behind it: the branch name read from the remote, the gate commands read from the build files, the design signal, every account. An owner who cannot tell a reading from a guess trusts both equally.
 - **Never invent a quality bar.** No derivable validation command → "no validation command found", and ask. A placeholder that echoes a suggestion looks like a configured gate and enforces nothing, which is worse than an empty answer.
 - **Refuse rather than merge.** Any real prior configuration stops the run. No merge mode, no `--force`, no partial install: a half-applied opinionated setup cannot exist, so either one approved and still-valid preview is applied whole, or nothing is.

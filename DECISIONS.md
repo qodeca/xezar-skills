@@ -561,3 +561,89 @@ nobody can say whether it was ever revisited or simply forgotten. The same rule 
 applies to allowlist entries, which fail the gate when they expire; a switch cannot expire
 that way without breaking consumers, so the date is a review rather than an expiry, and the
 honesty depends on someone keeping it.
+
+## Every local artifact lives under `.local/xezar/`, and a check says so
+
+The opinionated onboarding skill creates six named subfolders and nothing else at the top of
+`.local/xezar/`: `runtime/` engine state and claim files · `tasks/` per-run evidence and phase
+records · `worktrees/` task checkouts · `scratch/` throwaway, safe to delete at any time ·
+`cache/` anything re-derivable · `qa/` test artefacts. `kit/checks/local-tree.sh` reports a
+missing subfolder or a loose entry, and deletes nothing.
+
+Answering the admission gate, because a check is a thing that enters the collection:
+
+1. **What request does it serve?** Keeping an agent's working area legible over months. Nothing
+   else in the collection owns the untracked tree; every skill writes into it and none tidies it.
+2. **Who decides it worked?** The check itself: it exits 0 on a clean tree and names what is loose
+   otherwise. It runs as part of `repository-checks.sh`, the last gate command.
+3. **What does it cost?** One directory listing per gate run, and six empty folders in a fresh
+   checkout. It is skipped in a linked worktree, which only ever holds the folders it needs.
+4. **What would make us remove it?** Nobody reading its output, or the tree staying clean for a
+   year without it. Both are visible in the same place: the gate log.
+
+The rule is a **check** rather than a line in a document because a rule about tidiness is exactly
+the kind that gets skimmed. The path carries the `xezar/` level deliberately: it keeps the engine's
+working area distinct from anything else a project already puts in `.local/`, which is a
+conventional user-level directory and not ours to claim whole.
+
+Two consequences worth stating, because each looks like a mistake from the outside:
+
+- **`paths.qa` is set per project, not changed.** The frozen default stays `.local/qa` for every
+  existing install; the onboarding skill writes `".local/xezar/qa"` into the new project's own
+  config. Flipping the default would be breaking; setting a config value is what config is for.
+- **`.local/xezar-tasks` stays spelled that way.** It is the frozen historical evidence root, and
+  a sealed manifest stores absolute paths into it. Renaming the literal in code is the bulk move
+  the two-roots rule exists to forbid.
+
+## Campaign records are committed, and the bypass that costs
+
+Campaign folders live at `.xezar/campaigns/<yyyymmdd>-<code-name>/` and are committed, because a
+record that lives only in an ignored directory dies with the machine and takes the trail of who
+decided what with it.
+
+The cost is a bypass: record files are pushed straight to the base branch, so branch protection is
+configured **without admin enforcement**. That exemption is scope-free — nothing in the repository
+limits it to record files, and two of the three permitted paths are the leader's own governing
+files. The owner accepted this on 2026-09-20 in preference to routing every record write through a
+pull request. The leader guide states the limit, states that it is a written rule rather than an
+enforced one, and names what must never travel that way.
+
+Committing the records also makes them **untrusted input**: anyone who can open a pull request can
+put text in front of a privileged session. So the session-start loader wraps them in a
+nonce-delimited untrusted-content boundary, defuses any line that imitates its own delimiters,
+refuses symlinks by shape rather than judging their targets, and skips a candidate campaign that
+carries no readable note — because an empty record is indistinguishable from no campaign at all,
+and a name anyone can choose would otherwise blind the leader in one line.
+
+## A pin board for a vendored kit, not a prose checker
+
+A skill that vendors a kit is two halves: its own prose, and payload copied verbatim into every
+consumer project. The kit is excluded from three gates by path — it is payload, and the
+portability and tracker rules do not fit it — so the two halves can state opposite things while
+every gate stays green. That shipped: one file called campaign folders committed while the file
+beside it said they never were, and prose promising `decisions.md` is never cut shipped next to a
+script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
+no gate found one.
+
+`scripts/test-kit-facts.mjs` pins six facts that have already caused a contradiction, asserted in
+every place that states them.
+
+1. **What request does it serve?** Catching a disagreement between a skill's prose and its
+   vendored payload. Nothing else looks at both halves.
+2. **Who decides it worked?** Five deliberate-break cases in `test-guards.mjs`, one per pinned
+   fact, each restoring the real defect that shipped.
+3. **What does it cost?** A few hundred milliseconds per gate run, and a deliberate act whenever
+   somebody wants a seventh fact pinned.
+4. **What would make us remove it?** The kit ceasing to be vendored, or the pins never firing
+   across a year of changes to both halves.
+
+**It deliberately does not compare meaning.** Deciding whether two English sentences agree is the
+actual problem and no grep does it. A check that pretended otherwise would pass forever and catch
+nothing, which is worse than the gap it replaced, because green would stop meaning anything here.
+So the scope is stated in `docs/coverage.md` in the same words: these six cannot silently drift
+again; a fact nobody pinned is still unchecked.
+
+The pins are also narrow on purpose. The first draft searched for the word "runtime" near
+"campaign" and flagged the sentences saying campaigns are *not* gitignored — the correct ones. A
+check that cries wolf gets relaxed, and a relaxed check is a hole with a green tick over it, so
+each pin matches the exact shape that shipped wrong rather than the topic it belongs to.

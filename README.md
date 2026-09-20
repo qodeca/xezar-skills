@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>🧠 plan · 🔨 implement · 🔍 review · ✅ QA gate · 🚢 merge</b><br/>
-  Forty-one agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
+  Forty-five agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
 </p>
 
 <p align="center">

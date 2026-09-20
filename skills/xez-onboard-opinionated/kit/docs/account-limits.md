@@ -40,7 +40,7 @@ Wait for the `task.done` / `task.failed` events; they normally arrive within a f
 - `failed` with an error like `You've hit your session limit · resets 6:30pm (Europe/Warsaw)` → a 5-hour window limit, a short outage.
 - `failed` with an error like `You've hit your weekly limit · resets Sep 19 at 6pm (Europe/Warsaw)` → the account is out for days.
 
-Example (this machine, 2026-09-17): four accounts, handles `default` (`~/.claude`, the leader's own login), `qodeca-priv` (`~/.claude.qodeca.priv`), `gmail-priv` (`~/.claude.gmail.priv`) and `eqamana-priv` (`~/.claude.eqamana.priv`). A handle is the account label with every `.` turned into `-`.
+Example shape: a machine carries the leader's own login plus one lane account per extra profile — `default` (`~/.claude`, the leader's own login) and one handle per additional config directory. A handle is the account label with every `.` turned into `-`, so `~/.claude.<label>` is read as the handle `<label>`. Never write real account labels into this document or any other committed file; read them from the live configuration instead.
 
 ## Recovery
 

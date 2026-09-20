@@ -15,11 +15,11 @@
 //
 // WHAT A RECORD IS AND IS NOT. It is an auditable assertion made by the agent that ran the
 // gates, bound to an immutable revision and to content digests of its own logs. It is NOT a
-// signed proof against a malicious agent — anything with write access to `.local/` can write
+// signed proof against a malicious agent — anything with write access to `.local/xezar/` can write
 // a record. CI is the separate corroboration, and it is kept in a separate, mutable list
 // (`ciObservations`) precisely so a later CI result can never rewrite a sealed local one.
 //
-// LAYOUT, under the PRIMARY checkout (never the worktree's own `.local/`):
+// LAYOUT, under the PRIMARY checkout (never the worktree's own `.local/xezar/`):
 //
 //   .local/xezar/tasks/<runId>/gates/<headSha>/<attemptId>/
 //     attempt.json   the in-progress record; its presence WITHOUT result.json means the
@@ -414,7 +414,7 @@ export function reserveSequence(gatesRoot, headSha, attemptSuffix) {
         EXIT_REFUSED,
         `could not create the gate attempt reservation ${slot}: ${error?.code ?? "unknown error"} — ` +
           `${error?.message ?? String(error)}. This is not sequence contention: no other number would ` +
-          "have succeeded either. Fix the permissions or the free space on the primary checkout's .local/.",
+          "have succeeded either. Fix the permissions or the free space on the primary checkout's .local/xezar/.",
       );
     }
     const attemptId = `${String(sequence).padStart(4, "0")}-${attemptSuffix}`;

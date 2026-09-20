@@ -1,20 +1,15 @@
 # Leader-context loading: the committed guide a leader session reloads itself from
 
-This is the standard for giving the AI session that **leads** a project its own durable context: a
-committed **leader guide**, loaded automatically by a committed client hook, together with the live
-campaign notes the guide points at. It exists because a leader's rules and current state must
-survive a new session and a context-window compaction, and because the same mechanism has to be
-installable in any project xezar leads — this repository is the dogfooding case, not the target.
+This is the standard for giving the AI session that **leads** this project its own durable
+context: a committed **leader guide**, loaded automatically by a committed session-start hook,
+together with the live campaign notes the guide points at.
 
-Owner decision, 2026-09-18 20:57 (verbatim): "comprehensively document this entire mechanism as we
-will be using it probably in many different project. Remember that dogfooding Xezar on xezar
-project is to prepare standards for other projects and improve new project onboarding to Xezar
-later." Refs #600.
+It exists because a leader's rules and its current state must survive a new session and a
+context-window compaction. A leader that loses either does not fail loudly — it keeps working from
+whatever is left, which looks like ordinary work and is not.
 
-Related: [campaign-notes.md](campaign-notes.md) for the campaign note's own contract,
-[worktrees.md](worktrees.md) for the worktree rules the guard depends on, this project's own
-observation ledger for how observations are classified, and `AGENTS.md` § Generic instructions
-for the product-neutrality rule the user-guide half follows.
+Related: [campaign-notes.md](campaign-notes.md) — the authority on the campaign folder's own
+contract — and [worktrees.md](worktrees.md) for the worktree rules this page's guard depends on.
 
 ## Purpose
 
@@ -36,12 +31,13 @@ is what makes the client reload both without a prompt.
 
 | Path | What it is | Committed? |
 | --- | --- | --- |
-| `.xezar/docs/leader-guide.md` | The leader guide: rules, patterns, recovery steps, owner-only decisions, brief rules and a checklist. 377 lines in this repository. | yes |
-| `.claude/settings.json` | The Claude Code `SessionStart` hook that runs the loader. Un-ignored by `.gitignore`, alongside the committed `.claude/skills/design-system/` skill. | yes |
+| `.xezar/docs/leader-guide.md` | The leader guide: rules, patterns, recovery steps, owner-only decisions, brief rules and a checklist. Generated during onboarding from the shipped template. | yes |
+| `.claude/settings.json` | The Claude Code `SessionStart` hook that runs the loader. Un-ignored by `.gitignore`, which otherwise hides all of `.claude/`. | yes |
 | `.xezar/checks/leader-context.sh` | The loader. Prints one JSON object when it should; prints nothing when it should not. | yes |
-| `.xezar/checks/leader-context.test.mjs` | The fixture case: loud in the primary, silent in each agent shape. | yes |
-| `.local/xezar/campaigns/<release>/README.md` | Live campaign state, rewritten at every milestone. | no — runtime |
-| `.local/xezar/campaigns/<release>/decisions.md` | Owner decisions in the owner's exact words, append-only. | no — runtime |
+| `.xezar/campaigns/<yyyymmdd>-<code-name>/README.md` | Live campaign state, rewritten at every milestone. | **yes** |
+| `.xezar/campaigns/<yyyymmdd>-<code-name>/decisions.md` | Owner decisions in the owner's exact words, append-only. | **yes** |
+| `.xezar/campaigns/<yyyymmdd>-<code-name>/parked.md` | Calls the leader made alone while the owner was away. | **yes** |
+| `.xezar/campaigns/<yyyymmdd>-<code-name>/timeline-<date>.md` | What happened, minute by minute, append-only. | **yes** |
 
 The loader's documented JSON shape is checked by its allowlisted fixture. Values can vary with the
 guide and campaign notes, while these keys are its stable output contract:
@@ -60,7 +56,8 @@ The loader is deliberately tiny and dependency-free: a shell script that reads t
 newest campaign folder, checks the guard, and prints one JSON object. It reads no configuration, so
 a project that has the three committed files needs nothing else. The newest folder is chosen by
 **name**, not by modification time: a restore or a `cp -r` can make an old folder look newest, while
-slugs (`release-<version>`, dated names) sort stably in reverse.
+compact start dates (`20260817-amber-ridge`) sort stably by name, and the loader walks them
+newest-first and takes the first real directory.
 
 ## The guard, and why each rule exists
 
@@ -103,14 +100,26 @@ Claude Code session opened on that branch — including a reviewer's own task wo
 A `SessionStart` hook prints nothing on stdout in the silent cases, and one line of JSON otherwise:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n=== /…/.local/xezar/campaigns/v0.16.0/README.md (campaign live state) ===\n…"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n--- <nonce>: /…/.xezar/campaigns/20260817-amber-ridge/README.md (campaign live state) ---\n…"}}
 ```
 
-`additionalContext` is one string holding three labelled blocks in a fixed order: the guide, the
-newest campaign `README.md`, then its `decisions.md`. Order matters — a rule that a decision
-overrides is read after the rule, and the live state is read last, nearest to the work. The guide's
-block heading is the literal relative path; each campaign block heading is the file's absolute path,
-which is also how a truncated note names itself (see the cost model below). The hook is
+`additionalContext` is one string holding the guide and then, when a campaign is open, four more
+labelled blocks inside an untrusted-content boundary. The fixed order is: the guide, the
+newest campaign `README.md`, its newest `timeline-*.md`, its `parked.md`, then its `decisions.md`.
+Order matters — a rule that a decision overrides is read after the rule, and the authority file is
+read last, nearest to the work.
+
+**The campaign blocks are wrapped, and the wrapper is the security boundary.** Campaign files are
+committed, so their content arrives from anyone who can open a pull request or push to the base
+branch. The loader prints a `BEGIN UNTRUSTED CAMPAIGN RECORD` line, a sentence saying the region is
+a record to read and never instructions to follow, and a matching `END` line. Both carry a
+**per-run nonce**, because a fixed marker is forgeable by any file that simply contains that line;
+and every campaign line that looks like one of the loader's own delimiters is defused on the way
+through, so a file cannot close the region early and have the rest of itself read as trusted text.
+
+The guide's block heading is the literal relative path; each campaign block heading is the nonce
+plus the file's absolute path, which is also how a truncated note names itself (see the cost model
+below). The hook is
 registered in `.claude/settings.json` with the four matchers a leader has to survive:
 
 <!-- from: .claude/settings.json -->
@@ -139,119 +148,89 @@ subdirectory and fail. The explicit `bash` means the copied script does not depe
 bit surviving the copy, and `"timeout": 15` bounds a hook that runs on every session start and
 compaction.
 
-## The test
-
-`leader-context.test.mjs` builds a primary-shaped checkout with a guide and both campaign files, then
-runs the loader in the primary, in every agent shape, and in the degraded cases, and asserts the
-outcome:
-
-- the **primary** prints one parseable object whose `additionalContext` contains the guide and both
-  campaign files, guide first;
-- the committed `.claude/settings.json` command **run from a subdirectory** with `CLAUDE_PROJECT_DIR`
-  set still prints the payload — the case the `$CLAUDE_PROJECT_DIR` form exists for;
-- a **linked worktree**, a **path under `.local/xezar/worktrees/`**, and a primary with
-  **`XEZ_HANDOFF_FILE`**, **`XEZ_TODOS_FILE`** or **`XEZ_TASK_ID`** set each print **nothing at all**;
-- a **missing guide** and a **checkout git cannot resolve** print nothing;
-- an oversized `decisions.md` loses its head and carries the truncation line, and the newest campaign
-  folder is picked **by name** when an older one has a newer mtime.
-
-"Nothing at all" is the assertion, not "an empty object": a loader that prints `{}` still wakes the
-client and still risks a future field. Run the case directly or through the kit's isolated suite:
-
-```sh
-node --test .xezar/checks/leader-context.test.mjs
-bash .xezar/checks/infra-tests.sh
-```
-
 ## The cost model
 
 The hook runs on `startup`, `resume`, `clear` **and** `compact`. Compaction is triggered by a full
 context window, so a large block loaded at compaction makes the next compaction come sooner and the
 guide's size compounds. Three caps follow, and all are requirements rather than style:
 
-- The guide stays bounded — **377 lines** in this repository. Everything durable and leader-only
+- The guide stays bounded — aim for **200 lines**, and treat 300 as the point where something
+  has to move out. Everything durable and leader-only
   belongs there; anything that is really project documentation belongs in a linked file the guide
   names.
-- The campaign `README.md` stays at about **120 lines** (see [campaign-notes.md](campaign-notes.md)),
-  and the loader loads only the newest folder's `README.md` and `decisions.md`. A plan, a timeline or
-  an archive is never loaded; the leader reads its tail on demand.
-- Both campaign note files are bounded **in the payload** to their last **8 000 bytes**
-  (`NOTE_TAIL_BYTES`), because a note grows for the life of a campaign — `decisions.md` is
-  append-only by contract — while the leader reads the tail anyway. A note over the cap is preceded
-  by a visible line naming the file and its size:
-  `[note truncated: <file> is <size> bytes; showing only its last 8000 bytes]`, so a partial note is
-  never mistaken for the whole. The guide itself is **not** capped; it is always loaded in full.
+- The campaign `README.md` stays at about **120 lines** (see [campaign-notes.md](campaign-notes.md)).
+  The loader loads the newest campaign folder's `README.md`, its newest `timeline-*.md`, its
+  `parked.md` and its `decisions.md`. A plan or an archive is never loaded; the leader reads those
+  on demand.
+- **The cap depends on the file's role, and one file has no cap at all.** The narrative notes —
+  `README.md`, the newest timeline, `parked.md` — are bounded in the payload to their last
+  **65 536 bytes** (`NOTE_TAIL_BYTES`), because they grow for the life of a campaign while the
+  leader reads the tail anyway. A note over the cap is preceded by a visible line naming the file
+  and its size, so a partial note is never mistaken for the whole.
+- **`decisions.md` is injected whole and is never cut.** It is the authority file: the owner's exact
+  words, append-only, and the oldest entry binds the leader exactly as hard as the newest. Cutting
+  its head would silently drop standing decisions the leader is still required to follow, and it
+  would do so with no visible failure — which is the worst shape a defect can take. The guide is
+  likewise **not** capped; it is always loaded in full.
 
-A silent case costs one process spawn and no tokens. A loud case costs the guide plus the two bounded
-campaign files.
-
-## The Codex and pi fallback
-
-Codex and pi have no Claude Code `SessionStart` hook, so nothing reloads the guide for them. Their
-leaders load it because the guide orders it: its session-start section says to read the live campaign
-state — the newest campaign `README.md`, then `decisions.md` — immediately after every start and every
-compaction, before dispatching any task, and its standing-loops section tells Codex and pi leaders
-(which have no cron) to check the same two loops at every start. A Codex or pi leader that skips that
-order is not covered by the hook, which is why the session-start section is a requirement of the
-guide, not a nicety.
+A silent case costs one process spawn and no tokens. A loud case costs the guide, the whole
+decisions file, and the bounded narrative notes.
 
 ## Standing loops the leader runs
 
-Two recurring checks keep a campaign moving when no push arrives. They are **session state**: a hook
-runs once per event and cannot schedule, and a machine cron cannot talk to the session, so a loop dies
-when the session ends or its context is cleared. The guide therefore orders the leader to re-create
-them on every start, resume and compaction: run `CronList`, compare what is scheduled against the
-guide's list, and re-create whatever is missing.
+Three recurring checks keep a campaign moving when no push arrives. They are **session state**: a
+hook runs once per event and cannot schedule, and a machine cron cannot talk to the session, so a
+loop dies when the session ends or its context is cleared.
 
-**Loop A — bottleneck check.** A recurring cron job at `*/10 * * * *` (every ten minutes). Prompt,
-verbatim: "check every 10 minutes if you are not a bottlenect and if Xezar tasks are not waiting for
-you". Tasks stop at questions, review verdicts and merge steps that only the leader can move; the
-loop makes the leader read `leader_events` `status` / `read` and `task_read` `list` even when no push
-arrived, which is exactly the case after a compaction. A tick that finds nothing to move is a noop.
+**The loops ship as data, not as prose.** `.xezar/loops.json` carries each loop's id, mechanism,
+exact schedule and exact prompt. At every start, resume and compaction the leader lists what is
+actually scheduled, compares it against that file **by schedule and by prompt**, and re-creates
+anything that is **missing or drifted**. Comparing the file as a whole rather than loop by loop is
+deliberate: a partial comparison lets a drifted prompt survive because its schedule still matches.
 
-**Loop B — usage-limit watch.** A self-paced `/loop` (a ScheduleWakeup of 3600 s, with noop ticks
-when nothing changed). Prompt, verbatim: "check every hour if the new limit is available and resume
-the work when it is available". When an account hits its usage limit, the leader re-probes at the
-reset time with one tiny task per account, updates the account table in the campaign `README.md`,
-cancels a wrong auto-resume (a weekly reset can be scheduled one day early, #581), and re-dispatches
-the held work.
+Prose alone was the old design and it failed in a predictable way — a prompt copied by hand drifts,
+and nothing notices, because there is nothing to compare against.
 
-Rules that make the loops safe:
+The exact prompt for each loop is in `.xezar/loops.json` and **is not repeated here**. That is
+deliberate: the leader compares what is scheduled against that file by schedule *and* by prompt, so
+a second copy in prose is a copy that drifts by a dash or an emphasis marker and then reports drift
+on every session start, forever.
 
-- **The owner asks for a loop; the guide only re-creates it.** A loop exists because the owner
-  requested that recurring check, and the guide's job is to restore what the owner asked for — never
-  to invent new recurring work.
-- **A tick that changes nothing is a noop.** Neither loop dispatches new scope; they only unblock
-  work that is already waiting.
-- **A cron job expires after seven days** and must be re-created, which is one more reason the guide
-  carries the cadence and the prompt rather than relying on the job's own memory.
+| Loop | Role | Cadence | May dispatch |
+|---|---|---|---|
+| L1 | unblock what is already waiting on you | every 10 minutes | no |
+| L2 | budget and reset times | every hour | no |
+| L3 | pace new work | every 30 minutes | **yes, only L3** |
 
-Why not a hook: Claude Code hooks fire once per event and cannot schedule, and an operating-system
-cron cannot reach into the session. The guide's re-create order is the only durable mechanism.
+### The rules that make the loops safe
 
-## How to install it in a NEW project
+**L3 is the only loop that may dispatch.** L1 unblocks what is stuck and, when it finds ready work,
+**wakes** L3 rather than starting anything itself. At most one such wake is pending, and re-waking
+replaces the pending one instead of queuing another. L2 is likewise a non-dispatcher: it resumes
+paused work only by waking L3. A double dispatch is therefore impossible **by construction**, not by
+timing — which matters, because L1 and L3 fire together every thirty minutes.
 
-1. **Copy the loader.** Put `leader-context.sh` at the project's own kit path (`.xezar/checks/` in a
-   xezar kit) and keep its guard logic unchanged. Change only the paths it reads if the project uses
-   different ones; the four guard rules are the mechanism and travel as they are.
-2. **Add the hook.** Create `.claude/settings.json` with the `SessionStart` block above: the four
-   matchers `startup|resume|clear|compact`, and a command that runs the loader through
-   `$CLAUDE_PROJECT_DIR`, so a session opened in a subdirectory still finds it.
-3. **Un-ignore exactly that one file.** The project's `.gitignore` ignores `.claude/*`; add
-   `!.claude/settings.json` and nothing else, so per-machine `.claude/` state (locks, worktrees,
-   `settings.local.json`) stays uncommitted while the hook travels with a clone.
-4. **Write the guide from the template outline.** Start with the Codex/pi first section, then:
-   standing rules and patterns; recovery steps for a restart or a compaction; owner-only decisions;
-   how to write a task brief; and a short pre-dispatch checklist. Cite the source of every rule
-   (issue number, dated decision) instead of asserting it, and keep the whole file under the cap.
-5. **Put campaign notes under `.local/xezar/campaigns/<release>/`.** `README.md` is live state,
-   rewritten at every milestone; `decisions.md` is append-only owner words with date and channel.
-   Both are runtime and stay uncommitted.
-6. **Write the standing loops into the guide's checklist.** Record each recurring check the owner
-   asked for with its prompt and its cadence, plus the re-create order (list, compare, re-create),
-   so a new session restores them instead of relying on the loop's own memory.
-7. **Verify with the test.** Run the loader's fixture case and confirm the primary is loud and every
-   agent shape is silent. If the project's docs changed, run its link checker as well.
+The rejected alternative was a lock file either loop may take. A loop that crashes while holding the
+lock stalls all dispatching silently, with no way to tell a held lock from a busy one, and clearing
+it needs a human.
+
+**Selection is by file overlap, not by priority.** The leader keeps a file-ownership table of what
+each running task owns (`<runId first 8> owns <path glob>`) and refreshes it at every dispatch. The
+next item is the ready one with the least overlap against that table; priority breaks ties only.
+
+The accepted cost is real: a high-priority item can wait behind a lower-priority one that sits in a
+clean part of the tree, and the ownership table is state the leader must keep current. The rejected
+alternative — dispatch strictly by priority — is worse, because two tasks on one file means the
+second one rebases, conflicts, or fails its gate at merge.
+
+**A tick that changes nothing is a noop**, and each prompt says so explicitly. A loop with no defined
+way to do nothing invents work.
+
+**A cron job expires after seven days** and must be re-created, which is one more reason the schedule
+and the prompt live in a file rather than in the job's own memory.
+
+Why not a hook: hooks fire once per event and cannot schedule, and an operating-system cron cannot
+reach into the session. The re-create-from-file order is the only durable mechanism.
 
 ## How to keep it honest
 
@@ -264,26 +243,8 @@ cron cannot reach into the session. The guide's re-create order is the only dura
   session that reads a stale rule will act on it. A decision that changes the product also belongs in
   the project's own decision log or issue — the campaign file is a coordination aid, never the only
   copy.
-- **The older campaign path is reconciled.** [campaign-notes.md](campaign-notes.md) now describes a
-  `.local/xezar/campaigns/<date-slug>/` folder, matching the owner rule of 2026-09-18 that puts
-  everything uncommitted and xezar-related under `.local/xezar/`, and the loader reads the newest
-  folder under `.local/xezar/campaigns/<release>/`. The layout and the loader agree, so no silent
-  override is left to reconcile.
+- **[campaign-notes.md](campaign-notes.md) is the authority on the campaign folder**, not this
+  file. It defines the seven file kinds, the `<yyyymmdd>-<code-name>` name, the reserved
+  `future-campaign/`, and the fact that the folder is **committed**. This page only describes what
+  the loader does with it. Where the two disagree, campaign-notes.md wins and this page is wrong.
 
-## What this dogfooding proved
-
-- **2026-09-18 — a root `CLAUDE.md` leaked into task worktrees.** A local `.claude/CLAUDE.md` at the
-  repository root was picked up by every worktree session through Claude Code's parent-folder walk,
-  so a task agent received leader instructions it must not have, and there was no per-worktree way to
-  mute it. This is why the guide is loaded by a hook with an explicit guard rather than by an
-  imported instruction file.
-- **2026-09-18 — the MCP bridge needed `/mcp` after the mode switch.** Switching the project into
-  single-project mode invalidated the running Claude Code session's MCP connection; the leader could
-  not attach again until the bridge was reconnected with `/mcp` and a new session was started. The
-  guide's recovery section records the step, because a mode switch is exactly the kind of change that
-  otherwise costs a session.
-- **2026-09-18 — a committed hook is what travels.** A local-only hook (in the uncommitted
-  `settings.local.json`) works on the machine that wrote it and does not travel with a clone; a
-  memory file lives on one machine and on one tool. Only a committed `.claude/settings.json` plus a
-  committed script gives a new clone the same leader context, which is what makes this a standard for
-  onboarding a project rather than a personal convenience.

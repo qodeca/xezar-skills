@@ -28,7 +28,6 @@
 /agent-home/
 /evidence/
 /snapshots/
-/.local/
 /.kit-snapshot.json
 /.kit-bootstrap-lock
 /.kit-stage-*

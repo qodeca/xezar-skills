@@ -1,88 +1,119 @@
-# Campaign notes: a folder, not a file
+# Campaign notes: a folder, committed
 
-SDLC.md § Campaign notes defines what a campaign note is and what it must record (Done, Open
-items, Owner decisions, Standing rules, Restart and re-attach) and the short single-file template
-for a small campaign. This page adds the default *layout* for a campaign that outgrows that one
-file: a folder under `.local/xezar/campaigns/<yyyy-mm-dd>-<slug>/`, still primary-checkout runtime
-state, still covered by the root `/.local/` ignore rule, never committed.
+A campaign is a folder under `.xezar/campaigns/<yyyymmdd>-<code-name>/`, and it is **committed**.
+Not a single file that becomes a folder once it gets big — a folder from the first minute, always.
 
-## Why split
+## Why a folder from the start, and why committed
 
-A single-file note for the 0.16.0 campaign grew past 360 lines and 150 KB in one day. Claude Code
-and Codex memory hold only a pointer to the note (SDLC.md), but the note itself was still loaded
-whole at every session start and at every context-window compaction — so the file's own growth
-made every restart slower and every compaction more expensive. Splitting the live state from the
-append-only history cuts what loads at start-up to about a third of the old file, and lets the
-leader read the timeline's tail on demand instead of the whole day. Splitting a note in place also
-leaves a short pointer stub at the old single-file path — see "The files and their contract" below
-— so a stale reference or a date-slug search still finds where the note went instead of dead-ending.
+Two decisions sit behind that one sentence, and both were made against the obvious alternative.
 
-## The files and their contract
+**Always a folder, never split-on-growth.** The tempting design is a single file that splits into a
+folder once it outgrows a comfortable load. It fails in the only case that matters: the split lands
+in the middle of a busy campaign, which is exactly when nobody has attention to spare for moving
+records around. It also means every reader must handle two layouts, and every tool must guess which
+one it is looking at. One shape, from the first minute, costs a few empty files and removes all of
+that.
 
-- **`README.md`** – live state. **Rewritten**, not appended, at every milestone (SDLC.md's "last
-  act of handling that event, before reporting to the owner" still applies). Stamp `Updated:` with
-  the output of `date`. Keep: a table of the folder's own files and whether each loads at session
-  start; a State block (main sha, merges so far, checkpoints met); open pull requests with head
-  sha, verdict state and the single next action; the serial merge line; running tasks per account;
-  the account table (state, reset times — see `.xezar/docs/account-limits.md`); held/queued work;
-  owner items; a "rules that bit" list for briefs; restart and re-attach steps. Target ≤ 120 lines
-  — when it grows past that, move a stale block to an `archive-*.md` file rather than trim history
-  silently.
-- **`decisions.md`** – owner decisions in the owner's exact words, with the date and the channel
-  (chat or `AskUserQuestion`), plus the campaign's standing rules. Append-only; never edit or
-  reorder a past entry.
-- **`merges.md`** – one line per day, listing every merge that day as `#PR → sha`. Each merge's own
-  verification (parent count, file count, issues left open, main CI result) lives in that day's
-  timeline entry, not here — this file is the index, not the evidence.
-- **`plan.md`** – the owner-approved plan, copied in once. Never edited afterward; a plan change
-  goes through the owner and is recorded as a dated entry in `decisions.md`, not as a silent edit
-  here.
-- **`timeline-YYYY-MM-DD.md`** – one file per day, append-only. Every line starts
-  `- YYYY-MM-DD HH:MM – …` stamped from `date`, names run ids by their first 8 characters, and ends
-  by naming the leader-events sequence acked so far. Never read this file whole; read its tail.
-- **`archive-*.md`** – stale blocks kept for history (a past day's morning state, an old single-file
-  note before a split). Never loaded at session start or compaction.
-- **The old single-file path** – kept in place as a short pointer stub, written once at split time
-  and never edited again. It holds a `# Moved` heading, the split date and time, the new folder's
-  name, and a line noting that `README.md` is the live state and
-  `archive-single-file-note-until-<hhmm>.md` holds the full old copy. A stale reference or a
-  date-slug search that still lands on the old path finds the stub and where the note actually
-  went, instead of finding nothing.
+**Committed, not runtime state.** A campaign folder holds the owner's own decisions in their own
+words. If it lives only in an ignored directory, it dies with the machine, and there is no history
+of who decided what or when. In git, the record survives a rebuild and carries its own timestamps.
+The cost is accepted and named: record files are pushed straight to the base branch rather than
+through a pull request, which is why branch protection is configured **without** admin enforcement.
+
+Campaign files, the leader guide and the mode file are the only files that may be pushed directly.
+Everything else goes through a pull request.
+
+## The seven file kinds
+
+| File | Shape | Loaded at session start |
+|---|---|---|
+| `README.md` | live state, **rewritten** at every milestone | yes |
+| `decisions.md` | owner's exact words, dated, **append-only** | yes, **whole** |
+| `parked.md` | calls the leader made alone while the owner was away | yes |
+| `merges.md` | one line per day: every merge as `#PR -> sha` | no, read on demand |
+| `plan.md` | the owner-approved plan, copied in once, never edited | on demand |
+| `timeline-YYYY-MM-DD.md` | one file per day, append-only | newest day only, tail |
+| `archive-*.md` | stale blocks kept for history | never |
+
+- **`README.md`** — live state. Rewritten, not appended, at every milestone, as the last act of
+  handling that event and before reporting to the owner. Stamp `Updated:` from `date`. Keep: a
+  State block (base-branch sha, merges so far, checkpoints met); open pull requests with head sha,
+  verdict and the single next action; the serial merge line; running tasks per lane; the account
+  table with state and reset times (see `.xezar/docs/account-limits.md`); held or queued work;
+  owner items; a "rules that bit" list for briefs; restart and re-attach steps; and the
+  **file-ownership table** — one line per running task, `<runId first 8> owns <path glob>`,
+  refreshed at every dispatch. That table is the input to every selection decision and it is the
+  first thing a compaction loses, which is exactly why it lives in a file rather than in context. Target 120 lines —
+  past that, move a stale block into an `archive-*.md` rather than trim history silently.
+
+- **`decisions.md`** — owner decisions in the owner's exact words, with the date and the channel
+  (chat or a direct question), plus the campaign's standing rules. **Append-only**: never edit or
+  reorder a past entry. This file is injected **whole** at session start, never truncated, because
+  the oldest entry binds the leader exactly as hard as the newest one.
+
+- **`parked.md`** — one entry per decision the leader made on the owner's behalf during unattended
+  mode. Each entry records what it chose, why, the alternative it rejected, and how to undo it.
+  Emptied by the morning interview, which asks every entry back. Created empty with its heading the
+  moment a campaign opens, so the leader always has somewhere to write.
+
+- **`merges.md`** — one line per day listing that day's merges. Each merge's own verification
+  (parent count, file count, issues left open, base-branch CI result) lives in that day's timeline
+  entry. This file is the index, not the evidence.
+
+- **`plan.md`** — the owner-approved plan, copied in once and never edited. A plan change goes
+  through the owner and lands as a dated entry in `decisions.md`, never as a silent edit here.
+
+- **`timeline-YYYY-MM-DD.md`** — one file per day, append-only. Every line starts
+  `- YYYY-MM-DD HH:MM - ...` stamped from `date` and names run ids by their first 8 characters.
+  Never read this file whole; read its tail.
+
+- **`archive-*.md`** — stale blocks kept for history. Never loaded at session start.
+
+## `future-campaign/`
+
+`.xezar/campaigns/future-campaign/` is reserved. It holds work aimed at a campaign that has not
+opened yet, and it carries the same seven file kinds so nothing has to be invented later.
+
+It is **never** the live campaign. Every lookup for the live campaign takes the last folder whose
+name **starts with a digit**, so `future-campaign` is excluded by shape rather than by remembering
+its name — which matters, because it sorts after every `2026...` name and an unfiltered lookup
+picks it every single time.
+
+```sh
+LIVE=$(ls -1 .xezar/campaigns 2>/dev/null | grep -E '^[0-9]' | sort | tail -n 1)
+```
+
+Sort by **name**, not by modification time. The name carries the start date, so reading, grepping
+or copying an old campaign no longer promotes it to "current".
+
+## Opening and closing a campaign
+
+**Opening a campaign is the owner's decision, always.** The leader never opens one — not when the
+work obviously needs it, not overnight, not with the owner's general approval of the direction. In
+unattended mode it does not even ask: it closes the finished campaign, keeps watching CI, and idles
+until the owner returns.
+
+Closing is ordinary work: finish the close-out, leave `README.md` describing the end state, and
+leave the folder in place. Campaigns are never deleted.
 
 ## Loading
 
-The leader's own bootstrap file (for example `.claude/CLAUDE.md`, itself git-ignored) imports only
-`README.md`, `decisions.md` and `merges.md` with `@`-paths — the three files a new session or a
-post-compaction reload needs to reconstruct state. `plan.md` is named as a plain path instead, read
-on demand rather than `@`-imported: the plan is large, and auto-loading it at every session start
-and every compaction would defeat the split this page exists for (see "Why split" above). The
-timeline is likewise never `@`-imported; the leader reads a day's tail on demand instead. Claude
-Code or Codex memory holds one pointer to the folder, never a copy of its content (SDLC.md's "never
-its only copy" rule applies to the folder exactly as it did to the single file).
+The leader's session-start hook injects `README.md`, the newest `timeline-*.md`, `parked.md` and
+the whole of `decisions.md`. `plan.md` and the archives are read on demand. Agent memory holds a
+pointer to the folder, never a copy of its content.
 
 ## Writing rules
 
 - Stamp every line from `date`; never hand-write a time.
-- A run-id placeholder in a brief is filled with `sed` right after the matching `task_create`
-  call returns its real id — never left as a placeholder in a note.
-- Never put backticks inside a double-quoted shell string when appending to a note file — the
-  shell executes them. Use single quotes, or a Python heredoc, for any append that contains a
-  command example or code fragment.
-- The erfana bash-safety hook blocks note text that contains a destructive git phrase (for example
-  a literal `git reset --hard` or `git push --force`) even inside a quoted description of what NOT
-  to do. Describe such a rule in words instead of pasting the command.
+- Fill a run-id placeholder in a brief right after the matching create call returns the real id —
+  never leave a placeholder in a note.
+- Never put backticks inside a double-quoted shell string when appending to a note file: the shell
+  executes them. Use single quotes, or a Python heredoc, for any append containing a command.
+- A safety hook can block note text that contains a destructive git phrase, even inside a quoted
+  description of what **not** to do. Describe such a rule in words instead of pasting the command.
 
 ## When a day ends
 
-Start a new `timeline-YYYY-MM-DD.md` for the next day; do not keep appending to the old one. The
-README's State block names the running merge count and which plan checkpoints the campaign has
-met so far, so a new day starts from a written number rather than a recount.
-
-## Scope
-
-This page is a default layout, not a new requirement: SDLC.md's single-file template still covers
-a campaign small enough to stay under it, and this folder shape is what to reach for once that
-file would otherwise grow past a comfortable single load. Everything SDLC.md says about a campaign
-note — what it is, what it must record, when to update it, that it is a coordination aid and not
-evidence — applies to the folder unchanged; this page only describes how those records are split
-across files.
+Start a new `timeline-YYYY-MM-DD.md`; do not keep appending to the old one. The README's State
+block carries the running merge count and the checkpoints met, so a new day starts from a written
+number rather than a recount.

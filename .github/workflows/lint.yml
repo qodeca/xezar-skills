@@ -60,6 +60,8 @@ jobs:
         run: node scripts/check-gate-list.mjs
       - name: Label taxonomy recorded as data
         run: node scripts/check-label-taxonomy.mjs
+      - name: Kit facts
+        run: node scripts/test-kit-facts.mjs
       - name: Allowlist shape, owners and expiry dates
         run: node scripts/check-allowlists.mjs
       - name: Guard suite (every gate broken on purpose)

@@ -1,6 +1,6 @@
 # Report templates
 
-Called from step 6. Omit any optional line that would say nothing.
+Called from step 10. Omit any optional line that would say nothing.
 
 ## Setup complete
 
@@ -30,8 +30,22 @@ workflow → pull request → gates green. Its branch and pull request are clean
   a prompt. A tool the product adds later is allowed without anyone looking at it.
 - Opening a campaign is yours. The leader never opens one, so nothing starts until you do.
 
-**Next:** open a session with `<launcher>`, then run `xez-add-rule` for anything the leader
-should always do, and `xez-unattended-on` before the first stretch you are away.
+🧑‍💻 **Your controls** — <all three installed / `<names>` are not installed yet>
+
+<when all three are present:>
+`xez-unattended-on` before a stretch you are away · `xez-unattended-off` when you are back, to
+clear what it parked · `xez-add-rule` for anything the leader should always do.
+
+<when one or more is missing — say what is lost, then give exactly one command:>
+Until you install <names>, the leader keeps its **full** owner-only list and stops on every one of
+the six. Nothing is less safe; it is just less useful overnight.
+
+```bash
+npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule
+```
+
+**Next:** open a session with `<launcher>` — the full command, including
+`--dangerously-load-development-channels`, so you can see what it turns on before you run it.
 
 PR: #<number> (link: <full PR URL>)
 ```
@@ -80,7 +94,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 **Three things the preview does not cover:** branch protection is a repository setting rather
 than a file and affects everyone on the repo<, and this login <can / cannot> apply it>; the
 smoke test creates and then deletes a real branch and pull request; and the saved interview at
-`.local/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
+`.local/xezar/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
 
 **Approve the whole set, or nothing.** A partial approval would produce a partial setup, which
 is the one outcome the clean-project rule exists to prevent. Anything other than a clear yes

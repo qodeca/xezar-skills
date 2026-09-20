@@ -197,7 +197,7 @@ fi
 # orphan sweep removes both (`src/git-worktree.ts`, `pruneOrphans`), and the cockpit's Delete
 # action removes the run, its worktree and its branch with no undo — so anything
 # git-ignored written inside the worktree is destroyed without warning. The engine's own
-# per-run scratch at `.local/xezar/tmp/<runId>` (`src/runs/agent-tmpdir.ts`) is reaped too.
+# per-run scratch at `.local/xezar/scratch/<runId>` (`src/runs/agent-tmpdir.ts`) is reaped too.
 # This lives in the primary checkout instead.
 if [ -z "${TASK_ID:-}" ]; then
   printf '  manifest      SKIPPED: the run id could not be derived from the checkout path\n'
@@ -224,5 +224,5 @@ printf '  work in       %s\n' "$TASK_CWD"
 printf '  on branch     %s (Xezar owns it — do not rename or replace it)\n' "$BRANCH"
 printf '  forked from   %s\n' "${base_ref:-$BASE_BRANCH}"
 printf '  evidence to   %s/\n' "$(task_evidence_dir 2>/dev/null || printf '%s/.local/xezar/tasks/<no task id>' "$MAIN_ROOT")"
-printf '  NOT to        %s/.local/ (destroyed with the worktree)\n' "$TASK_CWD"
+printf '  NOT to        %s/.local/xezar/ (destroyed with the worktree)\n' "$TASK_CWD"
 exit 0

@@ -5,9 +5,9 @@ given.
 
 ## State, and why it is saved after every answer
 
-The interview state lives at `.local/runtime/onboarding-interview.json` — a named subfolder,
+The interview state lives at `.local/xezar/runtime/onboarding-interview.json` — a named subfolder,
 because the setup this skill installs enforces that local artifacts live in named subfolders
-under `.local/`, and a skill that breaks its own rule on its first run is not worth much.
+under `.local/xezar/`, and a skill that breaks its own rule on its first run is not worth much.
 
 ```json
 {

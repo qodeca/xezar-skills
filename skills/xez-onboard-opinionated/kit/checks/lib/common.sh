@@ -156,11 +156,11 @@ xezar_base_branch() {
   printf 'main'
 }
 
-# The per-task evidence directory in the PRIMARY checkout. Worktree-local .local/ is
+# The per-task evidence directory in the PRIMARY checkout. Worktree-local .local/xezar/ is
 # destroyed by retention, the orphan sweep and the cockpit's Delete action, so nothing
 # that must outlive the run may be written there.
 #
-# The engine also hands each run its own scratch directory at `.local/xezar/tmp/<runId>`
+# The engine also hands each run its own scratch directory at `.local/xezar/scratch/<runId>`
 # and reaps it at run end (src/runs/agent-tmpdir.ts). That is engine-owned state, not an
 # evidence location: anything that must survive the run still belongs here.
 # TWO ROOTS, AND NOTHING EVER MOVES BETWEEN THEM. `.local/xezar-tasks` is the frozen historical
@@ -325,9 +325,9 @@ merge_intent_path() {
 #
 #   - NOT /tmp: it is outside the repository, outside every retention rule, and its contents are
 #     invisible to anyone auditing what a run did;
-#   - NOT the worktree's own .local/: retention, the boot orphan sweep and the cockpit's Delete
+#   - NOT the worktree's own .local/xezar/: retention, the boot orphan sweep and the cockpit's Delete
 #     action destroy that directory with no warning and no undo;
-#   - NOT the engine's per-run scratch at .local/xezar/tmp/<runId>: it is reaped at run end, which
+#   - NOT the engine's per-run scratch at .local/xezar/scratch/<runId>: it is reaped at run end, which
 #     makes it fine for transient state and wrong for anything a human may need to look at.
 #
 # CLEANUP IS BEST EFFORT AND IS SAID TO BE. A normal exit removes the directory through the
@@ -336,7 +336,7 @@ merge_intent_path() {
 # an interrupted run's leftover rather than an unexplained directory nobody dares delete. Nothing
 # here promises cleanup after SIGKILL, and no sweep deletes these automatically.
 fixture_scratch_root() {
-  printf '%s/.local/xezar/tests' "$MAIN_ROOT"
+  printf '%s/.local/xezar/qa/tests' "$MAIN_ROOT"
 }
 
 # Claim one fixture directory, named by an id the caller owns. The id is validated as a single
@@ -370,7 +370,7 @@ fixture_scratch_dir() {
 # any parent of the checkout is a symlink, which on macOS is routine.
 #
 # OWNERSHIP BOUNDARY. This deletes only what this suite created under
-# `<primary>/.local/xezar/tests/`. It is not a general remover, it never touches a repository, a
+# `<primary>/.local/xezar/qa/tests/`. It is not a general remover, it never touches a repository, a
 # worktree registration or anything under a task evidence root, and it deliberately does NOT reuse
 # `assert_isolated_fixture_root`: a scratch directory being removed need not be a git repository at
 # all, so a repository assertion would be the wrong proof for this caller.
