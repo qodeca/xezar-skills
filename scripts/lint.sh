@@ -10,6 +10,14 @@
 # Scope of 3: skills/** only. README, LICENSE, and DECISIONS.md may name Qodeca/Xezar.
 set -uo pipefail
 
+# Per-run load ceiling (body + always-loaded references). Ratchet: lower only.
+# 2026-09-20: worst skill measured 27034, so the ceiling is 27500 and the warning
+# threshold is 85% of it. Nine skills sit above the 20000 body figure once their
+# always-loaded reference is counted; that is the number this gate exists to shrink.
+LOADED_CEILING=27500
+LOADED_WARN=23375
+
+
 cd "$(dirname "$0")/.."
 fail=0
 PREFIX="${SKILL_PREFIX:-xez}"
@@ -49,6 +57,29 @@ for dir in skills/*/; do
   body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -c)
   if [ "$body_chars" -gt 20000 ]; then
     err "$file body is ${body_chars} chars (budget 20000 ≈ 5k tokens) — move detail into references/"
+  fi
+
+  # What actually loads is the body PLUS every reference the body opens
+  # unconditionally. The body budget alone can be satisfied by moving text into
+  # references/agentic-setup.md, which step 0 opens on every single run — the lint
+  # goes green and the per-run cost is unchanged. A reference declares itself with
+  # `<!-- loaded: always -->` on its first line, so this is measured, not guessed.
+  #
+  # The ceiling is a RATCHET: it starts just above today's worst skill and only ever
+  # moves down. It is not a target to grow into, and safety text never moves behind a
+  # conditional branch to get under it.
+  always_chars=0
+  for ref in "$(dirname "$file")"/references/*.md; do
+    [ -f "$ref" ] || continue
+    if [ "$(head -1 "$ref")" = "<!-- loaded: always -->" ]; then
+      always_chars=$((always_chars + $(wc -c < "$ref")))
+    fi
+  done
+  loaded_chars=$((body_chars + always_chars))
+  if [ "$loaded_chars" -gt "$LOADED_CEILING" ]; then
+    err "$file loads ${loaded_chars} chars per run (body ${body_chars} + always-loaded ${always_chars}); ceiling ${LOADED_CEILING} — the ceiling is a ratchet and never rises"
+  elif [ "$loaded_chars" -gt "$LOADED_WARN" ]; then
+    echo "note: $file loads ${loaded_chars} chars per run (${LOADED_WARN} is 85% of the ${LOADED_CEILING} ceiling) — trim before adding to it" >&2
   fi
 
   # Invocation-layer invariant: the command must live in SKILL.md itself, not only

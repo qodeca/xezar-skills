@@ -1,3 +1,4 @@
+<!-- loaded: always -->
 # Agentic setup (step 0)
 
 Canonical preflight for this skill. Run it before touching anything else; for
