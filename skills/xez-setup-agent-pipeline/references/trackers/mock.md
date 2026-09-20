@@ -275,6 +275,18 @@ Read. Fixture: `list-review-comments.json` (or `list-review-comments.<id>.json`)
 mock_read "list-review-comments" "${1:-}"
 ```
 
+#### get-pr-template
+Read. Fixture: `get-pr-template.txt`. Absent → exit `3`, unknown.
+```bash
+mock_read "get-pr-template" ""
+```
+
+#### get-issue-templates
+Read. Fixture: `get-issue-templates.json`. Absent → exit `3`, unknown.
+```bash
+mock_read "get-issue-templates" ""
+```
+
 #### put-verification-record
 Write. Records to `put-verification-record.<prNumber>.txt` under the fixture directory, replacing
 any previous content — the same marker-idempotent behaviour a real tracker gives, without a

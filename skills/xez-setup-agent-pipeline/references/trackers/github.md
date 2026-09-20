@@ -389,6 +389,39 @@ gh api --paginate repos/{owner}/{repo}/pulls/{prNumber}/comments \
 ```
 REST does not expose a thread's resolved state (that lives in GraphQL's review threads), so treat every returned comment as potentially open and judge it against the current diff. `reply_to` is non-null on replies, which is what lets you reconstruct a thread. Consumers treat an unavailable operation as "inline feedback out of reach", not as a failure: they fall back to review bodies plus conversation comments and state the gap in their report.
 
+#### get-pr-template
+→ the repository's pull-request template, or nothing. GitHub looks in several places; check them
+in order and stop at the first hit.
+```bash
+for p in .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md \
+         docs/pull_request_template.md pull_request_template.md; do
+  [ -f "$p" ] && { cat "$p"; break; }
+done
+```
+Nothing found is `not-applicable`: the repository has no template, which is not a failure.
+
+#### get-issue-templates
+→ the repository's issue templates. Modern repositories use YAML forms under
+`.github/ISSUE_TEMPLATE/`; older ones use Markdown files in the same directory.
+```bash
+for f in .github/ISSUE_TEMPLATE/*.yml .github/ISSUE_TEMPLATE/*.yaml; do
+  [ -f "$f" ] || continue
+  printf 'TEMPLATE_ID=%s\n' "$(basename "$f")"
+  printf 'TEMPLATE_NAME=%s\n' "$(sed -n 's/^name:[[:space:]]*//p' "$f" | head -n 1)"
+done
+for f in .github/ISSUE_TEMPLATE/*.md; do
+  [ -f "$f" ] || continue
+  printf 'TEMPLATE_ID=%s\n' "$(basename "$f")"
+  printf 'TEMPLATE_NAME=%s\n' "$(sed -n 's/^name:[[:space:]]*//p' "$f" | head -n 1)"
+done
+```
+Parse a YAML form's `body:` entries for the field list: each entry's `id`, its `attributes.label`,
+and `validations.required`. A required field with no answer is a question for the user, never a
+guess — an invented answer in a required field is indistinguishable from a real one.
+
+Both operations read the checkout, so on a gate path read them from the base branch ref.
+
+
 ### Verification records
 
 A verification record is what a gate run leaves behind so a human, and a later run, can read

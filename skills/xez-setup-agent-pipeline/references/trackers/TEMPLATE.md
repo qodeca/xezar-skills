@@ -95,6 +95,16 @@ Copy this file to `.xezar/pipeline/trackers/{name}.md`, set `"tracker": "{name}"
 - **get-pr-comment / get-review-comment** — comment id → body, author, URL (conversation vs inline review comment).
 - **list-review-comments** — number → the PR's inline review comments (file, line, author, body). This is how a skill reads feedback left *on the diff* rather than in the conversation: `xez-auto-review-pr` carries it as inherited findings, and `xez-auto-continue-pr` mines it for remaining work when it adopts a PR that has no execution plan. When the tracker has no separate inline-comment surface, document that here — consumers degrade to review bodies plus conversation comments and say so in their report.
 
+- **get-pr-template** — → the repository's pull-request template text, or nothing when there is
+  none. A repository that publishes a template has told you the shape its reviewers expect;
+  writing a PR body that ignores it makes every request look foreign to the people who review
+  them. Nothing returned is `not-applicable`, not a failure — plenty of repositories have none.
+- **get-issue-templates** — → the repository's issue templates or forms: for each, an id, a
+  title, and its fields (label, whether it is required, and the choices for a dropdown). A skill
+  that files an issue fills the matching template instead of inventing headings, and when a
+  required field has no answer it asks rather than guessing one. A tracker with no template
+  surface documents that here, and consumers fall back to a plain body and say so.
+
 ### Verification records
 
 A **verification record** is what a gate run leaves behind so a human, and a later run,

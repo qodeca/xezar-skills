@@ -45,7 +45,7 @@ The named operations (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**
 
 **`get-pr`'s normalized fields** are part of this contract, not per-descriptor detail. A merge gate is portable only if `headRefOid`, `baseRefOid` and `reviewVerdict` mean the same thing on every tracker. A descriptor that cannot produce one emits the literal `unknown` — never a plausible-looking default, because a gate cannot tell a guess from a measurement. `reviewVerdict` is one of `approved` · `rejected` · `pending` · `not-enforced` · `unknown`, and `not-enforced` exists because some hosts report a request as approved when *no approval rule applies to it at all*; collapsing that to "approved" is the same fail-open shape as a label that was never created. Adding a value to that set, or changing what one means, is breaking.
 
-**Operations added 2026-09-20:** **put-verification-record** and **get-verification-record**. An older descriptor copy lacks both. The documented fallback is to report the record as unavailable and carry on — the record was never a gate input, so its absence costs the written trail, not the checking.
+**Operations added 2026-09-20:** **put-verification-record**, **get-verification-record**, **get-pr-template** and **get-issue-templates**. The two template operations degrade to "no template", which is `not-applicable` — plenty of repositories have none, and a skill that treated absence as a failure would refuse to file an issue in them. An older descriptor copy lacks both. The documented fallback is to report the record as unavailable and carry on — the record was never a gate input, so its absence costs the written trail, not the checking.
 
 ### 3b. The toolchain and security provider contracts
 

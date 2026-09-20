@@ -98,6 +98,17 @@ applies, and `security.provider` absent means every supply-chain operation is `n
 and nothing executes — which is the deliberate default, so that an upgrade never silently gains a
 stage that runs descriptor commands.
 
+**Symptom 6 – PR bodies and issues ignore your repository's own templates.** Your
+`.xezar/pipeline/trackers/github.md` has no **get-pr-template** or **get-issue-templates**
+section, so skills write bodies in the collection's shape rather than the one your reviewers
+expect, and issue forms with required fields get a free-form body instead.
+
+**Fix 6:** copy both sections from this collection's `github.md`. They read the checkout, so on
+a gate path read them from the base branch ref.
+
+Optional. Without them a skill writes a plain body and says so; with them it fills the template
+and asks about a required field it cannot answer, rather than inventing one.
+
 ## 2026-09-13 – migrating from open-mercato/skills
 
 This collection is the continuation of `open-mercato/skills`, renamed and relaid out. The skill

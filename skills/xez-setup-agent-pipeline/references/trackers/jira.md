@@ -303,6 +303,13 @@ Delegate both operations to GitHub.
 #### list-review-comments
 Delegate to GitHub **list-review-comments**.
 
+#### get-pr-template
+Delegate to GitHub **get-pr-template**: pull requests live on the code host.
+
+#### get-issue-templates
+Implement against this tracker's own issue templates or forms when it has them; when it does not,
+say so here and consumers fall back to a plain body and state the gap.
+
 #### put-verification-record
 Delegate to GitHub **put-verification-record**. The record lives on the pull request, which this
 split provider keeps on the code host.

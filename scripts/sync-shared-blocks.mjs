@@ -109,6 +109,21 @@ const BLOCKS = [
       "never \"X does not exist\"",
     ],
   },
+  {
+    // Two honesty rules that are cheap to state and expensive to discover the hard way:
+    // where a claim about the outside world came from, and which copy of a file is the one
+    // worth editing.
+    id: "research-and-docs",
+    files: "skills/*/references/rules.md",
+    canonical: "skills/xez-auto-create-pr/references/rules.md",
+    minLines: 8,
+    floor: [
+      "No link, no claim",
+      "whether web access was available",
+      "Never edit a generated copy",
+      "Edit the source and re-run the generator",
+    ],
+  },
 ];
 
 const marker = (id) => ({
