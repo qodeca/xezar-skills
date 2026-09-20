@@ -4,7 +4,7 @@ Called from step 3. The leader guide is read at every session start and every co
 rule is applied at the moment its section is read. Placement is therefore about *when* the rule
 fires, not about tidiness.
 
-## The five sections a rule can go in
+## The six sections a rule can go in
 
 | Section | Takes rules about | Fires when |
 |---|---|---|
@@ -15,8 +15,7 @@ fires, not about tidiness.
 | **Owner-only decisions, and how to ask** | what stops the leader, and how it asks | when a decision comes up |
 | **What to log where, and the honesty rule** | what gets written, where, and how truthfully | at every write |
 
-Six rows for "five sections" — the last two are frequently confused and are listed separately
-on purpose: a rule about *asking* belongs in owner-only decisions; a rule about *recording* an
+The last two are frequently confused, and are separate rows on purpose: a rule about *asking* belongs in owner-only decisions; a rule about *recording* an
 answer belongs in what-to-log.
 
 ## How to propose

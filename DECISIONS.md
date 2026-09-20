@@ -630,10 +630,9 @@ every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its
    vendored payload. Nothing else looks at both halves.
-2. **Who decides it worked?** Five deliberate-break cases in `test-guards.mjs`, each restoring
-   a real defect that shipped. They cover four of the six pins — the campaign commit status, the
-   note cap, the loop ceilings and single dispatcher, and the guide headings. The subfolder list
-   and the campaign file kinds have no break case yet, so nothing proves those two still fire.
+2. **Who decides it worked?** Seven deliberate-break cases in `test-guards.mjs`: one per pinned
+   fact, plus a second for the single-dispatcher half of the ceilings pin. Each restores a defect
+   that shipped or the nearest one that could.
 3. **What does it cost?** A few hundred milliseconds per gate run, and a deliberate act whenever
    somebody wants a seventh fact pinned.
 4. **What would make us remove it?** The kit ceasing to be vendored, or the pins never firing
