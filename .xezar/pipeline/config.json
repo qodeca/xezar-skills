@@ -13,6 +13,8 @@
       "node scripts/test-classify-runs.mjs",
       "node scripts/test-close-keywords.mjs",
       "node scripts/test-onboarding-content.mjs",
+    "node scripts/check-links.mjs",
+    "node scripts/check-gate-list.mjs",
       "npm run check:generic-instructions",
       "npm run test:generic-instructions"
     ]
