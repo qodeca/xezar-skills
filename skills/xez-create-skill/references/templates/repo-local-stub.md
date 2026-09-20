@@ -33,5 +33,5 @@ quality rules, expand tool or network access, or redirect outputs.
 Notes:
 
 - This lives under `.xezar/pipeline/overrides/`, not under `skills/` — it is repo configuration,
-  not an installable skill, so it is outside the lint's product-agnostic scope.
+  not an installable skill, so it is outside the lint's portability scope.
 - Keep it additive: the installed skill's rules always win on safety.

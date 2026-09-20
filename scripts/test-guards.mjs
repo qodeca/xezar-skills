@@ -124,9 +124,9 @@ breaks(
 );
 
 breaks(
-  "a brand token inside skills/ is rejected",
+  "a hard-coded package manager is rejected",
   "skills/xez-fix/SKILL.md",
-  (s) => `${s}\n\nRun this in the Qodeca monorepo.\n`,
+  (s) => `${s}\n\nInstall the dependencies with yarn install first.\n`,
   lint,
   "forbidden pattern",
 );

@@ -48,7 +48,7 @@ description: <one line: what it does + what it produces>. <disambiguation from a
 
 - <hard, global, safety rule>
 - <the untrusted-content boundary is honored; never exfiltrate; QA gates hold>
-- <product-agnostic: base branch from config; tracker via named operations>
+- <portable: base branch from config; tracker via named operations>
 - Shared rules: `references/rules.md` — <the applicable subset: label
   discipline, claim etiquette, secrets hygiene, markers, emoji glossary>.
   They always apply.

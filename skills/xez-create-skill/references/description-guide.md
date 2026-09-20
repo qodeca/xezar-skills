@@ -23,7 +23,7 @@ unchanged.
 - **Keep it tight.** Every word here is paid for across every skill, every
   conversation. Trim ruthlessly to triggers + outcome.
 - **No forbidden literals.** The `description` is scanned by `scripts/lint.sh`
-  like the rest of the skill — keep it product-agnostic (see
+  like the rest of the skill — keep it portable (see
   `references/repo-invariants.md`).
 - **Stable across a split.** When refactoring an existing skill, do not touch the
   `description`'s meaning; routing depends on it and the gate verifies it is

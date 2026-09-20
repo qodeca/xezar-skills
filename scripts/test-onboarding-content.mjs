@@ -1,6 +1,9 @@
 #!/usr/bin/env node
-// Exercise the real lint boundary in an isolated copy. Native identifiers are
-// allowed only on their declared surfaces; neighbouring project prose still fails.
+// Exercise the real lint boundary in an isolated copy. Onboarding names a product
+// and an MCP server on purpose, so brand tokens are not checked; what must still
+// fail there is what every consumer repo owns – its base branch, its package
+// manager – and any credential-shaped value. The client JSON contracts are asserted
+// against the shipped templates, since a wrong server entry is silent at run time.
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,18 +26,20 @@ try {
   assert.equal(valid.status, 0, valid.output);
 
   const cases = [
-    ['skills/xez-onboard/references/writes.md', '\nUse `.xezar/config.json` and follow Xezar project policy.\n'],
-    ['skills/xez-onboard/references/clients.md', '\nUse `@qodeca/xezar` and copy Qodeca working instructions.\n'],
-    ['skills/xez-onboard/references/clients.md', '\nUse `@qodeca/xezar-private` here.\n'],
-    ['skills/xez-onboard/SKILL.md', '\nUse `@qodeca/xezar` here.\n'],
+    ['skills/xez-onboard/references/writes.md', '\nBranch from develop before writing any file.\n', /forbidden pattern/],
+    ['skills/xez-onboard/references/clients.md', '\nInstall the client with yarn add, then register it.\n', /forbidden pattern/],
+    ['skills/xez-onboard/SKILL.md', '\nBranch from develop first.\n', /forbidden pattern/],
+    // Assembled at run time: the fixture copies scripts/ too, so a literal here
+    // would trip the same gate on this file.
+    ['skills/xez-onboard/references/clients.md', `\n    token = "gh${'p'}_0123456789abcdefghij"\n`, /credential-shaped value/],
   ];
-  for (const [path, injected] of cases) {
+  for (const [path, injected, expected] of cases) {
     const target = join(fixture, path);
     const original = readFileSync(target, 'utf8');
     writeFileSync(target, original + injected);
     const rejected = lint();
     assert.equal(rejected.status, 1, `unsafe fixture passed: ${path}`);
-    assert.match(rejected.output, /forbidden pattern/);
+    assert.match(rejected.output, expected);
     assert.ok(rejected.output.includes(path), rejected.output);
     writeFileSync(target, original);
   }
@@ -49,7 +54,7 @@ try {
   const pi = JSON.parse(readFileSync(join(templates, 'pi-mcp.json'), 'utf8'));
   assert.equal(pi.settings.directTools, true);
   assert.equal(pi.mcpServers.xezar.lifecycle, 'keep-alive');
-  console.log('Onboarding content OK: valid native tokens, adjacent contamination and undeclared-surface rejection, JSON client contracts.');
+  console.log('Onboarding content OK: base branch, package manager and credential-shaped rejection, JSON client contracts.');
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }

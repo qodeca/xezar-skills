@@ -11,7 +11,7 @@ rather than the pipeline config.
    must obey, and whose literal forbidden tokens it must never reproduce (see
    `references/repo-invariants.md` for why that would itself trip the lint):
    - **`scripts/lint.sh`** — the authoritative content gate (frontmatter rules,
-     product-agnostic forbidden patterns, the no-direct-tracker-CLI rule).
+     portability forbidden patterns, the no-direct-tracker-CLI rule).
    - **`references/philosophy.md`** (this skill) — the layering philosophy this skill
      operationalizes.
 2. This skill consumes no pipeline config vars and names no tracker operations
