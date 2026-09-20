@@ -15,13 +15,14 @@ step actually found.
 
 ## What is shipped
 
-- **The rows.** Roughly two dozen task kinds, each with the workflow it runs and a written
-  trigger: one sentence saying how the leader recognises that this row is the one. A row without
-  a trigger is a row the leader guesses at.
-- **The global prohibitions**, stated once rather than repeated per row: never the authoring
-  model for its own review; a locally hosted model never touches a branch; a cloud-lane write
-  needs another vendor's review; a high-risk change needs a different account *and* a different
-  vendor.
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Twenty-six rows over
+  roughly two dozen task kinds, each carrying the workflow it runs and a written trigger: one
+  sentence saying how the leader recognises that this row is the one. A row without a trigger is
+  a row the leader guesses at.
+- **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
+  never the authoring model for its own review; a locally hosted model never touches a branch; a
+  cloud-lane write needs another vendor's review; a high-risk change needs a different account
+  *and* a different vendor.
 - **The Never column**, which carries only row-specific bans — each one with the run that
   earned it. A prohibition that applies everywhere belongs above, not repeated twenty-four times.
 
@@ -56,6 +57,9 @@ Ask **per task class**, then expand. Five classes cover the rows:
 | implementation | bounded fixes, multi-file work, UI work, kit refactors | the working horse of the project |
 | review | scoped re-checks, full cold reviews, review responses | who is allowed to judge whose work |
 | security and release | security-sensitive review, verifying a strong claim, the release role | the strongest lane, and never the author's |
+
+The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
+expansion is a lookup rather than a judgement.
 
 The owner ranks the available lanes once per class. The skill expands that into the full row set,
 applies the global prohibitions, and then **shows the whole table for row-level edits**. Most

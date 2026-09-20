@@ -21,6 +21,7 @@ From this skill's `kit/` into the project:
 | `kit/claude/settings.json` | `.claude/settings.json` |
 | `kit/xezar.gitignore` | `.xezar/.gitignore` |
 | `kit/github/**` | `.github/` |
+| `kit/loops.json` | `.xezar/loops.json` |
 
 **Rewritten during the copy**, routine and not an owner decision: any absolute path becomes the
 new project root, and references to the source project's own module layout, issue numbers and
@@ -43,11 +44,18 @@ Never copied, because each depends on an answer:
   base branch, tracker, validation commands, label taxonomy, QA gate, paths.
 - **`.xezar/pipeline/trackers/github.md`** — copied from **this collection's** shipped
   descriptor, not from another project's copy, so a new project starts on the current contract.
-- **`.xezar/docs/leader-guide.md`** — the shipped half verbatim (who the leader is and is not ·
-  session start, re-attach and compaction recovery · standing loops · review discipline ·
-  owner-only decisions · what to log where and the honesty rule · the one-page checklist) plus
-  the generated half (this repository's setup · the task lifecycle · routing, accounts and
-  limits · the release runbook). Never any absolute path, never an account name.
+- **`.xezar/docs/leader-guide.md`** — built from `kit/leader-guide.template.md`. Everything
+  outside a `{{...}}` placeholder ships **verbatim and is never reworded**: who the leader is and
+  is not · session start, re-attach and compaction recovery · standing loops · owner-only
+  decisions and how unattended mode narrows them · review discipline · what to log where and the
+  honesty rule · direct pushes · the owner's three control skills · the one-page checklist. Those
+  sections *are* the decisions, and a paraphrase loses the reason.
+
+  Fill the four placeholders from the analysis and the interview: `{{REPOSITORY_SETUP}}`,
+  `{{TASK_LIFECYCLE}}`, `{{ROUTING_ACCOUNTS_LIMITS}}`, `{{RELEASE_RUNBOOK}}`. Strip the HTML
+  comment header. Never write an absolute path or an account name into the result — both are
+  gitignored runtime facts. Leave the trailing "Rules added by the owner" heading in place; it is
+  where `xez-add-rule` appends.
 - **`.xezar/docs/model-routing.md`** — from the routing interview.
 - **`SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`** — generated together from the confirmed gate list
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
@@ -59,14 +67,20 @@ Never copied, because each depends on an answer:
 
 ## 3. The leader's context loader
 
-`kit/checks/leader-context.sh` is copied **and edited**, because three of this setup's decisions
-changed what it must do:
+`kit/checks/leader-context.sh` is copied **verbatim** with the rest of `kit/checks/**`. Three of
+this setup's decisions changed what it must do, and all three are already in the shipped file —
+they are **not** hand-edits to remember during the copy:
 
-- read campaigns from `.xezar/campaigns/`, not the gitignored location;
-- pick the live campaign by sorting **digit-prefixed** folder names and taking the last, so the
-  reserved `future-campaign/` is never a candidate and touching an old campaign cannot promote it;
-- inject `decisions.md` **whole** and keep a 64 KB tail for the README and the timeline. A
-  binding decision must not be invisible, and for those two files newest genuinely matters.
+- it reads campaigns from `.xezar/campaigns/`, not from the gitignored location;
+- it picks the live campaign by sorting **digit-prefixed** folder names and taking the last, so
+  the reserved `future-campaign/` is never a candidate and touching an old campaign cannot
+  promote it to "current";
+- it injects `decisions.md` **whole** and keeps a 64 KB tail for the README, the newest timeline
+  and `parked.md`. A binding decision must not be invisible; for the narrative files newest
+  genuinely matters.
+
+A correction that lives only as prose in this file is a correction that gets skipped on the run
+where it matters. The shipped file is the correction.
 
 Carry the adapted test beside it, so the loader's own contract is checked in the project.
 
@@ -90,11 +104,13 @@ Carry the adapted test beside it, so the loader's own contract is checked in the
 - `.xezar/loops.json` — the three loops as data, exact schedule and exact prompt. The leader
   compares schedule and prompt at every start and recreates anything missing or drifted; this
   skill cannot create them, because that lives in the session rather than in settings.
-- `.local/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`), each
-  with a stated meaning, plus the check that reports anything loose at the top level.
+- `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`), each
+  with a stated meaning, plus `kit/checks/local-tree.sh` — which reports a missing subfolder or
+  anything loose at the top level, and deletes nothing. It is a check rather than a line in a
+  document because a rule about tidiness is exactly the kind that gets skimmed and ignored.
 - **Both halves of the manifest.** Committed `.xezar/onboarding.json`: version, date, stack,
   detected facts, the *shape* of the answers, per-file digest and origin. Gitignored
-  `.local/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
+  `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
   teammate cloning the repository gets the first and not the second, and a future migration
   reads both when present and degrades honestly when the local half is absent.
 - The drift check, which compares the installed setup against the current one and **reports**.

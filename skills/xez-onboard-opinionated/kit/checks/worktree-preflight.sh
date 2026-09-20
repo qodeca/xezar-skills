@@ -299,21 +299,21 @@ fi
 # The cockpit autosaves with `git add -A` and `--no-verify` at every turn end, at run
 # finalize and before a draft PR (`packages/xezar/src/git-worktree.ts`, `autosaveCommit`, called by
 # `src/workflows/run.ts`; only the `periodic` timer is opt-in). Everything
-# that must not be committed has to be ignored BEFORE the first turn ends, and .local/ must
+# that must not be committed has to be ignored BEFORE the first turn ends, and .local/xezar/ must
 # never become tracked — otherwise scratch evidence lands in the branch and in the PR.
-# Directory rules are probed through a child path (".local/probe", not ".local"): a
+# Directory rules are probed through a child path (".local/xezar/probe", not ".local"): a
 # `dir/` pattern is directory-only, so `git check-ignore` answers "not ignored" for a
 # directory that does not exist yet — which is precisely the moment before a run creates it.
-for ignored in .local/probe node_modules/probe dist/probe coverage/probe \
-               .local/xezar/tmp/probe .local/xezar/worktrees/probe \
-               .local/xezar/runs.json .local/xezar/ui-state.json; do
+for ignored in .local/xezar/probe node_modules/probe dist/probe coverage/probe \
+               .local/xezar/scratch/probe .local/xezar/worktrees/probe \
+               .local/xezar/runtime/runs.json .local/xezar/runtime/ui-state.json; do
   if ! git -C "$TASK_CWD" check-ignore -q "$ignored" 2>/dev/null; then
     fail ignore.hygiene "\"${ignored%/probe}\" is not git-ignored — autosave would commit scratch, runtime or build output"
   fi
 done
 tracked_local="$(git -C "$TASK_CWD" ls-files -- .local | head -5)"
 if [ -n "$tracked_local" ]; then
-  fail ignore.local-untracked ".local/ contains tracked files, which .gitignore cannot protect: $(printf '%s' "$tracked_local" | tr '\n' ' ')"
+  fail ignore.local-untracked ".local/xezar/ contains tracked files, which .gitignore cannot protect: $(printf '%s' "$tracked_local" | tr '\n' ' ')"
 fi
 
 # --- The contract is present ------------------------------------------------------------

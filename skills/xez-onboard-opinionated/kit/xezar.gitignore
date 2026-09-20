@@ -28,7 +28,7 @@
 /agent-home/
 /evidence/
 /snapshots/
-/.local/
+/.local/xezar/
 /.kit-snapshot.json
 /.kit-bootstrap-lock
 /.kit-stage-*

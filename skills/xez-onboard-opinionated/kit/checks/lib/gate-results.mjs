@@ -15,11 +15,11 @@
 //
 // WHAT A RECORD IS AND IS NOT. It is an auditable assertion made by the agent that ran the
 // gates, bound to an immutable revision and to content digests of its own logs. It is NOT a
-// signed proof against a malicious agent — anything with write access to `.local/` can write
+// signed proof against a malicious agent — anything with write access to `.local/xezar/` can write
 // a record. CI is the separate corroboration, and it is kept in a separate, mutable list
 // (`ciObservations`) precisely so a later CI result can never rewrite a sealed local one.
 //
-// LAYOUT, under the PRIMARY checkout (never the worktree's own `.local/`):
+// LAYOUT, under the PRIMARY checkout (never the worktree's own `.local/xezar/`):
 //
 //   .local/xezar/tasks/<runId>/gates/<headSha>/<attemptId>/
 //     attempt.json   the in-progress record; its presence WITHOUT result.json means the
@@ -414,7 +414,7 @@ export function reserveSequence(gatesRoot, headSha, attemptSuffix) {
         EXIT_REFUSED,
         `could not create the gate attempt reservation ${slot}: ${error?.code ?? "unknown error"} — ` +
           `${error?.message ?? String(error)}. This is not sequence contention: no other number would ` +
-          "have succeeded either. Fix the permissions or the free space on the primary checkout's .local/.",
+          "have succeeded either. Fix the permissions or the free space on the primary checkout's .local/xezar/.",
       );
     }
     const attemptId = `${String(sequence).padStart(4, "0")}-${attemptSuffix}`;
@@ -1141,7 +1141,7 @@ function cmdVerify(args) {
 
   // Path safety before any read, and the fence is NOT derived from the document being audited.
   //
-  // It used to be: `resolve(repo, ".local/xezar-tasks", seal.runId, "gates")`. `seal.runId`
+  // It used to be: `resolve(repo, ".local-tasks", seal.runId, "gates")`. `seal.runId`
   // comes out of the same manifest as `seal.resultPath`, and `resolve` collapses `..`, so a
   // runId of `../../../elsewhere` moved the fence to wherever the caller wanted and the fence
   // then trivially contained the target. The root is instead the manifest's OWN location,
@@ -1162,12 +1162,12 @@ function cmdVerify(args) {
   // And the independently resolved canonical location has to be where the manifest actually is,
   // so a manifest smuggled in from elsewhere cannot borrow a valid-looking run id.
   //
-  // There are TWO canonical roots while the `.local/xezar-tasks` → `.local/xezar/tasks` rename
+  // There are TWO canonical roots while the `.local-tasks` → `.local/xezar/tasks` rename
   // window lasts, and the fence accepts EITHER — never "anywhere". Old evidence is frozen where it
   // lies (a seal stores absolute paths, so moving it would break every historical seal) and new
   // evidence is written to the new root, so a seal has to verify at whichever of the two it was
   // written under.
-  const canonicalRoots = [resolve(repo, ".local/xezar/tasks"), resolve(repo, ".local/xezar-tasks")];
+  const canonicalRoots = [resolve(repo, ".local/xezar/tasks"), resolve(repo, ".local-tasks")];
   if (!canonicalRoots.some((root) => runDir === resolve(root, runIdFromPath))) {
     report.reasons.push(`the manifest is not at this repository's canonical evidence path for run "${runIdFromPath}" (${runDir})`);
   }

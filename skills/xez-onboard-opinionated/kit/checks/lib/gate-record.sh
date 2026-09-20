@@ -11,7 +11,7 @@
 # 1. Truncation. The gates used to write every command's full output to stdout, and the
 #    cockpit truncates a long step's output. On the P1 run the summary at the end was cut off
 #    and the whole gate pass had to be re-run to find out what it had said. Here the COMPLETE
-#    output goes to a file under the primary checkout's `.local/`, and only a bounded excerpt
+#    output goes to a file under the primary checkout's `.local/xezar/`, and only a bounded excerpt
 #    reaches stdout — so the verdict is always the part that survives.
 #
 # 2. Unevidenced passes. A gate's exit status used to exist only in a shell variable that died
@@ -89,7 +89,7 @@ gate_resolve_producer() {
       const gates = (run?.workflowDef?.steps ?? []).find((s) => s.id === "gates");
       process.stdout.write(`${run?.workflow ?? ""}\t${gates?.command ?? ""}`);
     } catch {}
-  ' "${MAIN_ROOT:-}/.local/xezar/runs.json" "${TASK_ID:-}" 2>/dev/null)" || probe=""
+  ' "${MAIN_ROOT:-}/.local/xezar/runtime/runs.json" "${TASK_ID:-}" 2>/dev/null)" || probe=""
   workflow="${probe%%$'\t'*}"
   command="${probe#*$'\t'}"
   if [ -n "$workflow" ] && [ -n "$command" ]; then

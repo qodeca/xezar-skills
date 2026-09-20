@@ -7,7 +7,7 @@
 # indistinguishable from a phase nobody ran, which is the `phase-hole` failure this closes.
 #
 # Everything lives in the PRIMARY checkout's `.local/xezar/tasks/<runId>/`, resolved through
-# `lib/common.sh` — never the task worktree's own `.local/`, which retention reclaims.
+# `lib/common.sh` — never the task worktree's own `.local/xezar/`, which retention reclaims.
 #
 # Usage:
 #   phase-record.sh set <NAME> [<text>]      write a record (text, or stdin when omitted)

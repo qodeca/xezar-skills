@@ -80,7 +80,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 **Three things the preview does not cover:** branch protection is a repository setting rather
 than a file and affects everyone on the repo<, and this login <can / cannot> apply it>; the
 smoke test creates and then deletes a real branch and pull request; and the saved interview at
-`.local/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
+`.local/xezar/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
 
 **Approve the whole set, or nothing.** A partial approval would produce a partial setup, which
 is the one outcome the clean-project rule exists to prevent. Anything other than a clear yes

@@ -40,7 +40,7 @@ Group the entries the way the owner thinks about them, not by directory:
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the
   launcher script.
 - **Records and working state** — the campaigns directory with its reserved future-campaign
-  folder, the `.local/` subfolder structure, both halves of the onboarding manifest.
+  folder, the `.local/xezar/` subfolder structure, both halves of the onboarding manifest.
 
 For each group: how many files, what generates rather than copies, and the one line that says
 what it is for. A preview nobody reads is a preview that approved everything.
@@ -53,7 +53,7 @@ Three things, named explicitly, because they are the ones that surprise people:
   reaches beyond project files, and it affects everyone on the repository rather than only the
   owner. Say whether this login can apply it, which the preflight already determined.
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
-- **The interview state file** under `.local/runtime/` was already written, before this preview.
+- **The interview state file** under `.local/xezar/runtime/` was already written, before this preview.
   It is the only thing written so far, and the owner should know it exists.
 
 ## One approval, over the whole set

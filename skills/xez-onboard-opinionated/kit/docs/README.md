@@ -1,29 +1,47 @@
-# Xezar project dogfooding kit
+# `.xezar/docs/` — the leader's operating documents
 
-This local installation is for developing Xezar with Xezar. It is not the proposed distributed kit or a built-in leader. The MCP server exists: The project leader works through the Xezar MCP tools only – no cockpit UI, no HTTP API – and is attached so that events are pushed to it as `<channel source="xezar">` messages (a started turn for Codex, OpenCode and pi). `leader_events` pull is the fallback for a leader that is not attached, not the normal path. `gh` stays the way to read GitHub facts (labels, verdicts, merge state) because the MCP does not carry them. Attaching is an MCP action too (#450): the leader calls `leader_events` action `attach` with a new `operationId`, and xezar takes the client from its own session (Claude Code, Codex or pi), so the leader names nothing; `leader_events` action `status` says whether it is attached and can receive pushes. An OpenCode leader is attached by a person in Settings → MCP connection → Attach leader (owner rule, 2026-09-15, #439). Derived from the current reference .xezar source, adapted to this repository; no runtime/private API content is imported.
+These are the operational documents for a project whose work is coordinated by a leader and
+carried out by dispatched task agents. They describe **how this project is run**, not what it
+builds. The product's own documentation lives elsewhere.
 
-18 workflows and 20 skills cover triage, issue filing, analysis, external research, planning, UX design, design review, implementation, bugfix, review, independent QA, review response, testing, docs, dependencies, release preparation, release, integration and root synchronization. Two skills are named by no workflow and are launched straight from the composer on the built-in `quick-task`: `xezar-quality-gates` and `xezar-issue-create`. `qa` is read-only like `code-review` and posts a `## QA` verdict on the PR; it never runs `--readiness`, so reviewing another PR's head (which detaches HEAD) never trips the branch-ownership check. `research` answers a question from sources outside the repository and returns a cited, dated document with no source change. UX design has one skill and two workflows: `design` writes a mockup in `designs/<feature>/` and drafts a PR; `design-review` is read-only and posts a `## Design review` verdict on the PR. The skill is also read inside `plan-and-spec` and `feature-implementation` when a task touches a user-facing surface. A person uses the matching workflow in the existing composer; a leader starts it with the MCP `task_create` tool (`source.workflow`, and `worktree: false` where the workflow says Worktree OFF). Choose an available backend/model. No foreign model pins. The first `kit` command snapshots this local installation into a new task worktree. The kit is committed, so it usually arrives through Git and bootstrap reuses or refuses rather than copying. Source code, unrelated edits, runtime and secrets are not copied. Existing conflicting task assets are refused, never overwritten. Resumed tasks keep their kit snapshot, but delivered skills and companion reads can resolve current primary/installed content; verify their versions before claiming unchanged context. A tracked future kit uses its existing content; see worktrees.md.
+`leader-guide.md` and `model-routing.md` are written for this project during onboarding; the rest
+ship as they are.
 
-Canonical gates: npm ci (or verified-current dependency reuse), then the five commands in AGENTS/SDLC/.xezar/pipeline/config.json, then actual repository checks. Independent application checks overlap while typecheck → build → package stays ordered. The required Xezar infrastructure fixtures CI job runs isolated kit fixtures unconditionally; also run them locally when changing kit checks or workflows. UI/browser QA is separate from the gates; the `qa` and `design-review` roles exercise it when the change calls for it, and an unavailable browser is not a pass. A missing required prerequisite is not a pass. Release is manual dispatch only under existing authority.
+## Read these first
 
-Releasing: pick the `release` workflow in the composer, leave Worktree ON, and type the one-line brief `bump: patch` (or `minor` / `major`; add `dry-run: true` to stop before the Release dispatch and only merge the changelog). No changelog brief is needed: the task derives the entry from the PRs merged since the last `v*` tag, gates it, merges the changelog PR, dispatches the manually authorized Release workflow once, verifies npm and merges the bot's bump PR, with independent exact-candidate review and integration preflight before each merge. Remote waits stay in the last interactive step, using a finite observation deadline and resumable checkpoint; the earlier release author step retains its default timeout. It ends by naming the two follow-ups you still own: a `root-sync` task (Worktree OFF) targeting the bump merge commit, and `npm i -g @qodeca/xezar@<version>`. Launching `release` is the authorization for exactly one dispatch of that bump; required decisions surface with evidence; routine repair proceeds within existing authority and no red/missing check is waived. `dry-run: true` remains the legacy mutating stop-before-dispatch mode, not a nonmutating preview.
+| Document | What it answers |
+|---|---|
+| `leader-guide.md` | Who the leader is, what only the owner may decide, how a session starts and recovers, what gets logged where. **Generated during onboarding.** |
+| `leader-context-loading.md` | How the guide gets reloaded at every session start and compaction, the guard that keeps it out of task agents, and the three standing loops. |
+| `campaign-notes.md` | What a campaign folder is, its seven file kinds, and which of them load at session start. |
+| `model-routing.md` | Which lane and model the leader dispatches for each task kind. **Built with the owner during onboarding**, because lanes exist on a machine, not in a repository. |
 
-Phases and their records: `SDLC.md` § Task phases names the phases of one development task, the three depth levels, the maturity ladder of the inputs, the ownership rule, the three durable repair counters, security before the quality verdict, AC verification as its own question, and the named-break technique. phase-record.md is its companion here: what each phase writes down – capability inventory, depth, maturity, accepted criteria, self-review rounds, counters consumed, the security applicability decision – and where, in primary `.local/xezar/tasks/<runId>/`. `BLOCKED`, `DELIVERED`, `VERIFICATION` and `REFRESH` are the four records that already have teeth today; the others are named by that contract and enforced by sequenced follow-up work.
+## Running the work
 
-Start with ui-operations.md, worktrees.md, recovery.md and dogfooding.md. Files under docs are operational guidance; primary .local/xezar/tasks holds private runtime evidence. Never commit runtime. Root AGENTS/SDLC/review/backward compatibility rules continue to govern. Start with `.xezar/CLAUDE.md` for the complete directory guide. Maintained files here are versionable directly; only the paths in `.gitignore` are local runtime.
+| Document | What it answers |
+|---|---|
+| `worktrees.md` | How a task gets its own checkout, and how one is cleaned up. |
+| `parallel-tasks.md` | What may run at the same time, and the ceilings that decide it. |
+| `account-limits.md` | What usage cannot be read, how a lane is probed for its limit, and how to recover one that is out. |
+| `recovery.md` | What to do when a task, a merge or a session fails part-way. |
+| `phase-record.md` | What each phase of a task writes down, and where. |
+| `close-out.md` | How a campaign ends and what has to be true before it does. |
 
-model-routing.md – which model and runner the leader dispatches for each task kind, with the evidence
+## Specialised
 
-opencode-qualification-2026-09-19.md – the 2026-09-19 OpenCode qualification: the 11 read-only runs and the writing retrial, the two defects it found (#686 fixed by #688, #692 open) and the routing verdict
+| Document | What it answers |
+|---|---|
+| `business-analysis.md` | How a "what should we build" question is answered as a task. |
+| `ui-operations.md` | How UI work and its evidence are handled. |
+| `documented-output.md` | The allowlisted script-output marker and its fail-closed trust boundary. |
+| `fenced-quotes.md` | The source marker for byte-checked fenced quotes. |
 
-account-limits.md – what usage cannot be read, how the leader probes an account for its limit, and how to recover a lane once it is hit
+## Two rules that hold across all of them
 
-campaign-notes.md – the default folder layout for a campaign note once SDLC.md's single-file template outgrows one comfortable load
+**Records are committed; runtime is not.** Campaign folders, this directory and the leader guide
+live in git, because they are the trail of what happened and who decided it. Everything under
+`.local/xezar/` is working state: rebuildable, never committed, and never the only copy of anything.
 
-leader-guide.md – the project leader's own contract: who the leader is, session start and compaction recovery, the task lifecycle, review discipline, routing, brief rules and the release runbook; loaded automatically for a leader session and never for a task agent
-
-leader-context-loading.md – the committed leader guide and the SessionStart hook that reloads it, the guard that keeps it out of task agents, and the checklist for installing it in a new project
-
-fenced-quotes.md – the source marker for byte-checked fenced quotes and the maintained Markdown surfaces the repository check scans
-
-documented-output.md – the allowlisted script-output marker, isolated fixtures and fail-closed trust boundary
+**These documents describe the process, not the evidence.** A document says how something is
+done; what actually happened on a given day belongs in the campaign's timeline, and a verdict
+belongs on the pull request that earned it.

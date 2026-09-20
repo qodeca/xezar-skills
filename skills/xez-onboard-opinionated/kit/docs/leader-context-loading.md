@@ -40,8 +40,8 @@ is what makes the client reload both without a prompt.
 | `.claude/settings.json` | The Claude Code `SessionStart` hook that runs the loader. Un-ignored by `.gitignore`, alongside the committed `.claude/skills/design-system/` skill. | yes |
 | `.xezar/checks/leader-context.sh` | The loader. Prints one JSON object when it should; prints nothing when it should not. | yes |
 | `.xezar/checks/leader-context.test.mjs` | The fixture case: loud in the primary, silent in each agent shape. | yes |
-| `.local/xezar/campaigns/<release>/README.md` | Live campaign state, rewritten at every milestone. | no — runtime |
-| `.local/xezar/campaigns/<release>/decisions.md` | Owner decisions in the owner's exact words, append-only. | no — runtime |
+| `.xezar/campaigns/<release>/README.md` | Live campaign state, rewritten at every milestone. | no — runtime |
+| `.xezar/campaigns/<release>/decisions.md` | Owner decisions in the owner's exact words, append-only. | no — runtime |
 
 The loader's documented JSON shape is checked by its allowlisted fixture. Values can vary with the
 guide and campaign notes, while these keys are its stable output contract:
@@ -103,7 +103,7 @@ Claude Code session opened on that branch — including a reviewer's own task wo
 A `SessionStart` hook prints nothing on stdout in the silent cases, and one line of JSON otherwise:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n=== /…/.local/xezar/campaigns/v0.16.0/README.md (campaign live state) ===\n…"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n=== /…/.xezar/campaigns/v0.16.0/README.md (campaign live state) ===\n…"}}
 ```
 
 `additionalContext` is one string holding three labelled blocks in a fixed order: the guide, the
@@ -172,18 +172,23 @@ guide's size compounds. Three caps follow, and all are requirements rather than 
 - The guide stays bounded — **377 lines** in this repository. Everything durable and leader-only
   belongs there; anything that is really project documentation belongs in a linked file the guide
   names.
-- The campaign `README.md` stays at about **120 lines** (see [campaign-notes.md](campaign-notes.md)),
-  and the loader loads only the newest folder's `README.md` and `decisions.md`. A plan, a timeline or
-  an archive is never loaded; the leader reads its tail on demand.
-- Both campaign note files are bounded **in the payload** to their last **8 000 bytes**
-  (`NOTE_TAIL_BYTES`), because a note grows for the life of a campaign — `decisions.md` is
-  append-only by contract — while the leader reads the tail anyway. A note over the cap is preceded
-  by a visible line naming the file and its size:
-  `[note truncated: <file> is <size> bytes; showing only its last 8000 bytes]`, so a partial note is
-  never mistaken for the whole. The guide itself is **not** capped; it is always loaded in full.
+- The campaign `README.md` stays at about **120 lines** (see [campaign-notes.md](campaign-notes.md)).
+  The loader loads the newest campaign folder's `README.md`, its newest `timeline-*.md`, its
+  `parked.md` and its `decisions.md`. A plan or an archive is never loaded; the leader reads those
+  on demand.
+- **The cap depends on the file's role, and one file has no cap at all.** The narrative notes —
+  `README.md`, the newest timeline, `parked.md` — are bounded in the payload to their last
+  **65 536 bytes** (`NOTE_TAIL_BYTES`), because they grow for the life of a campaign while the
+  leader reads the tail anyway. A note over the cap is preceded by a visible line naming the file
+  and its size, so a partial note is never mistaken for the whole.
+- **`decisions.md` is injected whole and is never cut.** It is the authority file: the owner's exact
+  words, append-only, and the oldest entry binds the leader exactly as hard as the newest. Cutting
+  its head would silently drop standing decisions the leader is still required to follow, and it
+  would do so with no visible failure — which is the worst shape a defect can take. The guide is
+  likewise **not** capped; it is always loaded in full.
 
-A silent case costs one process spawn and no tokens. A loud case costs the guide plus the two bounded
-campaign files.
+A silent case costs one process spawn and no tokens. A loud case costs the guide, the whole
+decisions file, and the bounded narrative notes.
 
 ## The Codex and pi fallback
 
@@ -191,43 +196,83 @@ Codex and pi have no Claude Code `SessionStart` hook, so nothing reloads the gui
 leaders load it because the guide orders it: its session-start section says to read the live campaign
 state — the newest campaign `README.md`, then `decisions.md` — immediately after every start and every
 compaction, before dispatching any task, and its standing-loops section tells Codex and pi leaders
-(which have no cron) to check the same two loops at every start. A Codex or pi leader that skips that
+(which have no cron) to check the same three loops at every start. A Codex or pi leader that skips that
 order is not covered by the hook, which is why the session-start section is a requirement of the
 guide, not a nicety.
 
 ## Standing loops the leader runs
 
-Two recurring checks keep a campaign moving when no push arrives. They are **session state**: a hook
-runs once per event and cannot schedule, and a machine cron cannot talk to the session, so a loop dies
-when the session ends or its context is cleared. The guide therefore orders the leader to re-create
-them on every start, resume and compaction: run `CronList`, compare what is scheduled against the
-guide's list, and re-create whatever is missing.
+Three recurring checks keep a campaign moving when no push arrives. They are **session state**: a
+hook runs once per event and cannot schedule, and a machine cron cannot talk to the session, so a
+loop dies when the session ends or its context is cleared.
 
-**Loop A — bottleneck check.** A recurring cron job at `*/10 * * * *` (every ten minutes). Prompt,
-verbatim: "check every 10 minutes if you are not a bottlenect and if Xezar tasks are not waiting for
-you". Tasks stop at questions, review verdicts and merge steps that only the leader can move; the
-loop makes the leader read `leader_events` `status` / `read` and `task_read` `list` even when no push
-arrived, which is exactly the case after a compaction. A tick that finds nothing to move is a noop.
+**The loops ship as data, not as prose.** `.xezar/loops.json` carries each loop's id, mechanism,
+exact schedule and exact prompt. At every start, resume and compaction the leader lists what is
+actually scheduled, compares it against that file **by schedule and by prompt**, and re-creates
+anything that is **missing or drifted**. Comparing the file as a whole rather than loop by loop is
+deliberate: a partial comparison lets a drifted prompt survive because its schedule still matches.
 
-**Loop B — usage-limit watch.** A self-paced `/loop` (a ScheduleWakeup of 3600 s, with noop ticks
-when nothing changed). Prompt, verbatim: "check every hour if the new limit is available and resume
-the work when it is available". When an account hits its usage limit, the leader re-probes at the
-reset time with one tiny task per account, updates the account table in the campaign `README.md`,
-cancels a wrong auto-resume (a weekly reset can be scheduled one day early, #581), and re-dispatches
-the held work.
+Prose alone was the old design and it failed in a predictable way — a prompt copied by hand drifts,
+and nothing notices, because there is nothing to compare against.
 
-Rules that make the loops safe:
+### L1 — unblock — every 10 minutes, cron `*/10 * * * *`
 
-- **The owner asks for a loop; the guide only re-creates it.** A loop exists because the owner
-  requested that recurring check, and the guide's job is to restore what the owner asked for — never
-  to invent new recurring work.
-- **A tick that changes nothing is a noop.** Neither loop dispatches new scope; they only unblock
-  work that is already waiting.
-- **A cron job expires after seven days** and must be re-created, which is one more reason the guide
-  carries the cadence and the prompt rather than relying on the job's own memory.
+> Check whether anything is waiting on you: a task in a blocked or question state, a review verdict
+> you have not acted on, a PR that is mergeable now, or a finished task whose result you have not
+> read. Act on what you find, one item at a time. **Never start new work here** — that is the
+> pacing loop's job alone. If work finished and there is ready work to follow it, wake the pacing
+> loop now instead of waiting for its clock; keep at most one such wake pending, replacing any
+> earlier one. If nothing is waiting, do nothing and say so.
 
-Why not a hook: Claude Code hooks fire once per event and cannot schedule, and an operating-system
-cron cannot reach into the session. The guide's re-create order is the only durable mechanism.
+### L2 — budget — every hour, a self-paced wake-up of 3600 s
+
+> Walk the budget table. Move any metered lane whose reset time has passed from `out` to `unknown`.
+> Do not probe — the next real dispatch that prefers that lane is the probe. If work is paused only
+> because every preferred lane was out, and a lane is now `unknown` or available, resume that work.
+> Skip unlimited lanes entirely. If nothing changed, do nothing and say so.
+
+### L3 — pace — every 30 minutes
+
+> Decide whether to start more work. Count what is running: full gate runs, total tasks, tasks on
+> the metered agent tool, and machine load. Start another task only while **all** of these hold: at
+> most 2 gate runs, at most 10 tasks, at most 4 metered-tool tasks, machine load at or below 18.
+> If there is ready work and headroom, pick the next item **by least file overlap against every
+> running task**, using priority only to break a tie, then route that item through the routing
+> table to choose its lane and model. If you are at a ceiling, queue and name which ceiling. If
+> there is no ready work, do nothing and say so.
+
+The ceilings are measured, not guessed: attempt failure runs about 20 % at one concurrent gate run,
+37 % at three, and 100 % at six or more.
+
+### Two rules that make the loops safe
+
+**L3 is the only loop that may dispatch.** L1 unblocks what is stuck and, when it finds ready work,
+**wakes** L3 rather than starting anything itself. At most one such wake is pending, and re-waking
+replaces the pending one instead of queuing another. L2 is likewise a non-dispatcher: it resumes
+paused work only by waking L3. A double dispatch is therefore impossible **by construction**, not by
+timing — which matters, because L1 and L3 fire together every thirty minutes.
+
+The rejected alternative was a lock file either loop may take. A loop that crashes while holding the
+lock stalls all dispatching silently, with no way to tell a held lock from a busy one, and clearing
+it needs a human.
+
+**Selection is by file overlap, not by priority.** The leader keeps a file-ownership table of what
+each running task owns (`<runId first 8> owns <path glob>`) and refreshes it at every dispatch. The
+next item is the ready one with the least overlap against that table; priority breaks ties only.
+
+The accepted cost is real: a high-priority item can wait behind a lower-priority one that sits in a
+clean part of the tree, and the ownership table is state the leader must keep current. The rejected
+alternative — dispatch strictly by priority — is worse, because two tasks on one file means the
+second one rebases, conflicts, or fails its gate at merge.
+
+**A tick that changes nothing is a noop**, and each prompt says so explicitly. A loop with no defined
+way to do nothing invents work.
+
+**A cron job expires after seven days** and must be re-created, which is one more reason the schedule
+and the prompt live in a file rather than in the job's own memory.
+
+Why not a hook: hooks fire once per event and cannot schedule, and an operating-system cron cannot
+reach into the session. The re-create-from-file order is the only durable mechanism.
 
 ## How to install it in a NEW project
 
@@ -244,7 +289,7 @@ cron cannot reach into the session. The guide's re-create order is the only dura
    standing rules and patterns; recovery steps for a restart or a compaction; owner-only decisions;
    how to write a task brief; and a short pre-dispatch checklist. Cite the source of every rule
    (issue number, dated decision) instead of asserting it, and keep the whole file under the cap.
-5. **Put campaign notes under `.local/xezar/campaigns/<release>/`.** `README.md` is live state,
+5. **Put campaign notes under `.xezar/campaigns/<release>/`.** `README.md` is live state,
    rewritten at every milestone; `decisions.md` is append-only owner words with date and channel.
    Both are runtime and stay uncommitted.
 6. **Write the standing loops into the guide's checklist.** Record each recurring check the owner
@@ -265,9 +310,9 @@ cron cannot reach into the session. The guide's re-create order is the only dura
   the project's own decision log or issue — the campaign file is a coordination aid, never the only
   copy.
 - **The older campaign path is reconciled.** [campaign-notes.md](campaign-notes.md) now describes a
-  `.local/xezar/campaigns/<date-slug>/` folder, matching the owner rule of 2026-09-18 that puts
+  `.xezar/campaigns/<date-slug>/` folder, matching the owner rule of 2026-09-18 that puts
   everything uncommitted and xezar-related under `.local/xezar/`, and the loader reads the newest
-  folder under `.local/xezar/campaigns/<release>/`. The layout and the loader agree, so no silent
+  folder under `.xezar/campaigns/<release>/`. The layout and the loader agree, so no silent
   override is left to reconcile.
 
 ## What this dogfooding proved

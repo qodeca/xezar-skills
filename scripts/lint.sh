@@ -2,12 +2,14 @@
 # Lint gate for the skills collection.
 # 1. Frontmatter: every skills/<name>/SKILL.md declares name (== directory) and a description.
 # 2. Local overrides: every skill explicitly checks its own `.xezar/pipeline/overrides/<name>.md` override file.
-# 3. Grep gate: installable skill content must be product-agnostic — no product or brand
-#    tokens, no hard-coded base branch, no hard-coded package manager. The xez- name
-#    prefix is the naming convention and is allowed; agnosticism is about behavior.
+# 3. Portability gate: a skill never hard-codes a choice the consumer repo owns — its base
+#    branch, its package manager — nor an upstream helper name. The xez- name prefix is the
+#    naming convention and is allowed; portability is about behavior, not naming.
+#    A skill MAY name a product or a brand: that gate was removed deliberately, because the
+#    opinionated onboarding skill has to name the product it installs.
 # 4. Old-brand ban: the predecessor collection's brand, prefix and `.ai/` layout may not
 #    reappear anywhere in the maintained sources (LICENSE and UPGRADE_NOTES.md excepted).
-# Scope of 3: skills/** only. README, LICENSE, and DECISIONS.md may name Qodeca/Xezar.
+# Scope of 3: skills/** only, and never a vendored `skills/<name>/kit/` payload.
 set -uo pipefail
 
 # Per-run load ceiling (body + always-loaded references). Ratchet: lower only.

@@ -16,10 +16,10 @@ rather than trusting this table for a precise number.
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 215 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
-| 7 | A tracker descriptor implements every operation skills name | `test-tracker-providers.mjs` — 46 operations × 4 providers | ✅ |
+| 7 | A tracker descriptor implements every operation skills name | `test-tracker-providers.mjs` — 47 operations × 4 providers | ✅ |
 | 8 | A toolchain or security provider degrades where it cannot act | `test-toolchain-providers.mjs` — 12 parity cells | ✅ |
 | 9 | A browser provider implements every operation, on every platform | `test-browser-providers.mjs` | ✅ |
-| 10 | Every pointer between documents resolves | `check-links.mjs` — 404 documents | ✅ |
+| 10 | Every pointer between documents resolves | `check-links.mjs` — 439 documents | ✅ |
 | 11 | The gate list means the same thing in all four places | `check-gate-list.mjs` | ✅ |
 | 12 | Every gate exception has an owner and an expiry | `check-allowlists.mjs` | ✅ |
 | 13 | Labels mean the same thing in every repository | `check-label-taxonomy.mjs` | ✅ |
@@ -31,13 +31,23 @@ rather than trusting this table for a precise number.
 | 19 | Discovery contracts | `test-discovery-contracts.mjs`, invoked by `lint.sh` | ✅ |
 | 20 | A skill actually works end to end under a real coding agent | `test:agent-browser-codex` | ❌ — needs the `codex` CLI and a full-access sandbox |
 | 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
+| 22 | The kit the onboarding skill ships matches the decisions it documents | nothing — **not checked**. The corrections to a vendored file live in the shipped file itself, but nothing compares the kit against the skill's prose. | ❌ |
 
 ## What this says
 
-**The thin row is row 20.** Twenty checks read what the skills *say*; one runs a
+**The thin rows are 20 and 22.** Twenty checks read what the skills *say*; one runs a
 skill and watches what it *does*, and that one cannot run in CI — it needs a CLI and a
 sandbox with full access, and granting a pull request's own code full access is exactly
 what CI must not do.
+
+**Row 22 is the newer gap, and it is the one that has already bitten.** The opinionated
+onboarding skill carries about a megabyte of vendored payload under `skills/<name>/kit/`,
+excluded from three gates by path. Where a decision changed what a vendored file must do, the
+fix now lives **in the shipped file**, which is the right place — but nothing checks that the
+file and the skill's own prose still agree. The failure mode is silent and it ships: a corrected
+document says one thing, the payload beside it says another, and both get copied into every
+onboarded project. This is stated here rather than fixed because a check for it would have to
+compare prose against payload, and nobody has a cheap way to do that.
 
 So: everything above the line is a check on instructions. That is worth a great deal for a
 collection whose deliverable *is* instructions, and it is not the same as knowing the

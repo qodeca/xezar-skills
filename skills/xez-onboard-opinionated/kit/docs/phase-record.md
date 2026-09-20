@@ -12,7 +12,7 @@ One directory per run, in the **primary checkout**:
 .local/xezar/tasks/<runId>/
 ```
 
-Resolve it with the shared helper rather than by hand — `.xezar/checks/lib/common.sh`, `resolve_task_paths` then `task_evidence_dir`. A task worktree's own `.local` is reclaimable and the engine's tmp directory is not durable; neither is a record. `/.local/` is already ignored at the repository root, so no new ignore line is needed and nothing here is ever committed.
+Resolve it with the shared helper rather than by hand — `.xezar/checks/lib/common.sh`, `resolve_task_paths` then `task_evidence_dir`. A task worktree's own `.local` is reclaimable and the engine's tmp directory is not durable; neither is a record. `/.local/xezar/` is already ignored at the repository root, so no new ignore line is needed and nothing here is ever committed.
 
 What must never enter it: secrets, credentials, `.env` contents, personal agent configuration, and source content unrelated to this task. A report that would need one of those says "not recorded" instead.
 

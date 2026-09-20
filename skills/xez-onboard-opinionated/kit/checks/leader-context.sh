@@ -7,7 +7,8 @@
 # to the work a task was given. It therefore stays silent:
 #   - in a linked worktree (`--git-dir` differs from `--git-common-dir`), which is where every
 #     task runs by default;
-#   - when the path itself is a task worktree (`/.local/xezar/worktrees/`);
+#   - when the path itself is a task worktree (`/.local/xezar/worktrees/` or the legacy
+#     `/.local/xezar/worktrees/`);
 #   - whenever xezar set `XEZ_HANDOFF_FILE`, `XEZ_TODOS_FILE` or `XEZ_TASK_ID` for this process,
 #     which covers a Worktree-OFF task running in the primary checkout. `XEZ_TASK_ID` is the one
 #     that is unconditional and always non-empty; `XEZ_TODOS_FILE` is set to an EMPTY string when
@@ -23,7 +24,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 GUIDE="$REPO_ROOT/.xezar/docs/leader-guide.md"
-CAMPAIGNS="$REPO_ROOT/.local/xezar/campaigns"
+CAMPAIGNS="$REPO_ROOT/.xezar/campaigns"
 
 silent() { exit 0; }
 
@@ -33,8 +34,8 @@ silent() { exit 0; }
 [ -z "${XEZ_TASK_ID:-}" ] || silent
 
 # A task worktree, by path or by git registration.
-case "$PWD" in */.local/xezar/worktrees/*) silent ;; esac
-case "$REPO_ROOT" in */.local/xezar/worktrees/*) silent ;; esac
+case "$PWD" in */.local/xezar/worktrees/*|*/.local/xezar/worktrees/*) silent ;; esac
+case "$REPO_ROOT" in */.local/xezar/worktrees/*|*/.local/xezar/worktrees/*) silent ;; esac
 git_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
 common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 [ -n "$git_dir" ] && [ "$git_dir" = "$common_dir" ] || silent
@@ -42,19 +43,30 @@ common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-
 # Without the guide there is nothing to load.
 [ -f "$GUIDE" ] || silent
 
-# The newest campaign folder under .local/xezar/campaigns, if one exists. Chosen by NAME, not by
-# modification time: a restore or a `cp -r` can make an old folder look newest, while the slugs
-# (`release-<version>`, dated names) sort stably in reverse.
+# The live campaign folder under .xezar/campaigns, if one exists. Two rules, both load-bearing:
+#
+#   - Chosen by NAME, not by modification time. Folders carry a compact start date
+#     (`20260817-amber-ridge`), so the name is the sort key. Reading, grepping or copying an old
+#     campaign no longer promotes it to "current", which is exactly what a newest-modified lookup
+#     does — it silently loads a finished campaign as the live one.
+#   - Only digit-prefixed names are candidates. The reserved `future-campaign/` holds work aimed at
+#     a campaign that has not opened yet. It sorts after every `2026...` name, so an unfiltered
+#     lookup would pick it every single time. It is excluded by shape, not by remembering the name.
 campaign=""
 if [ -d "$CAMPAIGNS" ]; then
-  campaign="$(ls -1d "$CAMPAIGNS"/*/ 2>/dev/null | LC_ALL=C sort -r | head -n 1 || true)"
+  name="$(ls -1 "$CAMPAIGNS" 2>/dev/null | grep -E '^[0-9]' | LC_ALL=C sort | tail -n 1 || true)"
+  [ -n "$name" ] && [ -d "$CAMPAIGNS/$name" ] && campaign="$CAMPAIGNS/$name/"
 fi
 
-# A campaign note grows for the life of a campaign — `decisions.md` is append-only by contract
-# (`.xezar/docs/campaign-notes.md`) — so the two note files, unlike the guide, are bounded to their
+# A campaign note grows for the life of a campaign, so the narrative notes are bounded to their
 # LAST bytes. The leader reads the tail anyway, and a note that was cut is labelled with its own
 # path so a partial note is never mistaken for the whole.
-NOTE_TAIL_BYTES=8000
+#
+# `decisions.md` is the ONE exception: it is injected whole, never truncated. It holds the owner's
+# exact words, append-only, and the oldest entry binds the leader exactly as hard as the newest.
+# Cutting its head would silently drop standing decisions the leader is still required to follow —
+# and it would do so without any visible failure, which is the worst shape a defect can take.
+NOTE_TAIL_BYTES=65536
 note_tail() {
   local file="$1" heading="$2" size
   size="$(wc -c < "$file" 2>/dev/null | tr -d '[:space:]')"
@@ -72,7 +84,14 @@ note_tail() {
   cat "$GUIDE"
   if [ -n "$campaign" ] && [ -d "$campaign" ]; then
     [ -f "${campaign}README.md" ] && note_tail "${campaign}README.md" "${campaign}README.md (campaign live state)"
-    [ -f "${campaign}decisions.md" ] && note_tail "${campaign}decisions.md" "${campaign}decisions.md (owner decisions, exact words)"
+    newest_timeline="$(ls -1 "$campaign" 2>/dev/null | grep -E '^timeline-.*\.md$' | LC_ALL=C sort | tail -n 1 || true)"
+    [ -n "$newest_timeline" ] && note_tail "${campaign}${newest_timeline}" "${campaign}${newest_timeline} (newest day timeline)"
+    [ -f "${campaign}parked.md" ] && note_tail "${campaign}parked.md" "${campaign}parked.md (decisions the leader made alone, waiting for the owner)"
+    # Whole, never truncated. See NOTE_TAIL_BYTES above.
+    if [ -f "${campaign}decisions.md" ]; then
+      printf '\n\n=== %s ===\n\n' "${campaign}decisions.md (owner decisions, exact words — complete)"
+      cat "${campaign}decisions.md"
+    fi
   fi
 } | node -e 'const fs=require("node:fs");const text=fs.readFileSync(0,"utf8");process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:text}})+"\n")'
 

@@ -49,7 +49,7 @@ rest.
    enumerates which agent tools, accounts and models actually exist on this machine.
 
 3. **Interview the owner** — follow `references/interview.md`. Every answer is saved to
-   `.local/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
+   `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
    resumes rather than restarting. Detected facts are shown as proposals to confirm or correct,
    never as decisions already taken.
 
@@ -77,14 +77,20 @@ rest.
    delete its branch. Every part of a setup can pass a part-by-part check while the whole still
    cannot run a task.
 
-9. **Report** using `references/report-templates.md`, ending with the chaining reference lines.
+9. **Check the owner's controls are installed** — follow `references/control-skills.md`. The
+   generated guide names `xez-unattended-on`, `xez-unattended-off` and `xez-add-rule` as the
+   owner's three controls, and one of them refuses to run without the manifest just written.
+   Never a stop: everything missing only leaves the leader on its **strictest** behaviour. Name
+   what is absent and give one paste-and-run command that installs all three.
+
+10. **Report** using `references/report-templates.md`, ending with the chaining reference lines.
 
 ## Rules
 
 - Shared rules: `references/rules.md` — label discipline, secrets hygiene, markers, emoji
   glossary, reporting style. They always apply.
 - **Nothing is written into the project until the interview completes and the preview is
-  approved.** Before that the only file written is the interview state under `.local/runtime/`,
+  approved.** Before that the only file written is the interview state under `.local/xezar/runtime/`,
   which is working state rather than configuration — and the clean-project check deliberately
   never looks at it, or a resumed run would refuse itself.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
