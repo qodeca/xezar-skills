@@ -1,0 +1,65 @@
+{
+  "$comment": [
+    "Every exception to a gate lives here, and every entry answers four questions:",
+    "  what     -- the key: the exact token, script or path being excused",
+    "  why      -- the reason, in a full sentence, readable by someone who was not there",
+    "  who      -- the owner: who decided, and who to ask before removing it",
+    "  expires  -- an ISO date after which the gate fails until someone renews it,",
+    "              or \"never\", which is only allowed when `why` says why it is permanent",
+    "",
+    "The expiry is the point. An allowlist without one is a decision that quietly becomes",
+    "policy: nobody revisits it, and in a year nobody can say whether it is still true.",
+    "scripts/check-allowlists.mjs enforces the shape and the dates; the guard-break suite",
+    "proves it fails when an entry expires."
+  ],
+  "skillNames": {
+    "$binds": "scripts/lint.sh -> name_allow",
+    "entries": {
+      "xez-skill": {
+        "why": "Prose, not a skill reference: documents say \"a new xez-skill\" as a common noun. Permanent, because it is the collection's naming convention rather than an exception to it.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "xez-skills": {
+        "why": "Prose, not a skill reference: documents say \"the xez-skills collection\". Permanent, because it is the collection's own name.",
+        "who": "collection maintainers",
+        "expires": "never"
+      }
+    }
+  },
+  "sharedBlockOptional": {
+    "$binds": "scripts/sync-shared-blocks.mjs -> blocks[].allowMissingIn",
+    "entries": {
+      "chaining-lines:skills/xez-issue-create/references/rules.md": {
+        "why": "Files an issue and hands back; it emits no chaining reference line, so carrying the marker contract would cost always-loaded tokens for a rule it never applies. Permanent while the skill stays create-only.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-review-pr/references/rules.md": {
+        "why": "Reports UX findings as tracker comments; it never emits a chaining reference line of its own. Permanent while it neither opens nor drives a pull request.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-setup/references/rules.md": {
+        "why": "Sets up UX tooling locally and emits no tracker artifact, so there is no chaining line to shape. Permanent while it stays a local setup skill.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "chaining-lines:skills/xez-ux-shape/references/rules.md": {
+        "why": "Produces a design shape document, not a tracker artifact, so it emits no chaining reference line. Permanent while it stays document-only.",
+        "who": "collection maintainers",
+        "expires": "never"
+      }
+    }
+  },
+  "gateOptOut": {
+    "$binds": "scripts/check-gate-list.mjs -> OPT_OUT",
+    "entries": {
+      "test:agent-browser-codex": {
+        "why": "Needs the `codex` CLI and a full-access sandbox. A CI runner has neither, and granting full access to a pull request's own code is exactly what CI must not do.",
+        "who": "collection maintainers",
+        "expires": "2027-09-20"
+      }
+    }
+  }
+}

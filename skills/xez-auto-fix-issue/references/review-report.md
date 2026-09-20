@@ -13,7 +13,12 @@ Invoke the `xez-auto-review-pr` skill against `PR_NUMBER` in autofix mode:
 1. Follow the entire `xez-auto-review-pr` workflow verbatim — do not cherry-pick steps.
 2. When it flags actionable issues, apply fixes directly in the same worktree used for this run, as new commits. Never rewrite history.
 3. After each batch of fixes, re-run the targeted validation for the changed areas, and the full configured validation gate whenever a fix reaches beyond a single module/test file. Push after each batch.
-4. Loop until `xez-auto-review-pr` returns a clean verdict (no actionable blockers) or the remaining findings are non-actionable (out of scope, false positive) — document those explicitly in one PR comment; later reports link it.
+4. Loop, **at most twice**, until `xez-auto-review-pr` returns a clean verdict (no actionable blockers) or the remaining findings are non-actionable (out of scope, false positive) — document those explicitly in one PR comment; later reports link it.
+
+**The loop is bounded at two rounds.** Round one fixes what the review found; round two fixes what round one's changes introduced. If a third round would be needed, stop and report the remaining findings verbatim, each with its severity and why it is still open. The only exit other than a clean verdict is a written list of what is left.
+
+**Never lower a severity to finish.** Re-grading a blocker as a nit, or reclassifying an actionable finding as out-of-scope, is not an exit -- it is the failure this bound exists to catch. An honest "two rounds spent, three blockers open" is a better outcome than a clean verdict nobody can trust. The remaining findings go in the summary comment and in the report, so the next run and the human reviewer both start from the real state.
+
 
 ## Verdict handling
 

@@ -5,7 +5,7 @@ description: Review or re-review a PR by number in an isolated worktree. Runs th
 
 # Auto Review PR
 
-Review a PR by number without touching the current worktree. Fetch the exact PR from the tracker, review it in an isolated worktree, and submit the verdict — **as soon as the review is decided, never waiting for CI to go green and never skipping the review because a signal is already red**: conflicts and failing checks become blocker findings *inside* the full review, so one cycle leaves the author the whole picture. When blockers remain **and the run is autofix-eligible** (the automation's own PR, or `--autofix` passed), continue into the autonomous autofix flow — conflicts first, then findings, then CI — until the PR is ready or a non-actionable blocker remains. Without `--autofix` on another author's PR the run ends with the review and the author handoff; it never modifies someone else's branch uninstructed.
+Review a PR by number without touching the current worktree. Fetch the exact PR from the tracker, review it in an isolated worktree, and submit the verdict — **as soon as the review is decided, never waiting for CI to go green and never skipping the review because a signal is already red**: conflicts and failing checks become blocker findings *inside* the review, so one cycle gives the author the whole picture. When blockers remain **and the run is autofix-eligible** (the automation's own PR, or `--autofix` passed), continue into the autonomous autofix flow — conflicts first, then findings, then CI — for at most two rounds, until ready or a non-actionable blocker remains. Without `--autofix` on another author's PR the run ends with the review and the handoff; it never modifies someone else's branch uninstructed.
 
 ## Arguments
 

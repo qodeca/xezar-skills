@@ -93,7 +93,7 @@ Do not run `git commit`, `git push`, or the **create-pr** tracker operation — 
 
 - Shared rules: `references/rules.md` — autonomous-run contract, label discipline, claim etiquette, secrets, markers, emoji glossary. They always apply.
 - Tests are mandatory and added autonomously — never hand off without them.
-- No commit, no push, no PR — leave that to `xez-open-pr`.
+- No commit, no push, no PR — leave that to `xez-open-pr`. What the later authoritative review pass must check on a fix produced from an analyzer brief: `references/review-report.md`.
 - Stay inside the worktree the engine prepared; do not create nested worktrees.
 - Keep scope minimal; refactors belong in their own PR.
 - Every label mutation honors `labels.enabled` and the existence guard from the tracker descriptor; a missing label degrades to a logged skip, never a failure.

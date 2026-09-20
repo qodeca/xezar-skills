@@ -18,10 +18,20 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | Key | Default |
 |---|---|
 | `paths.runs` | `.xezar/pipeline/runs` |
-| `paths.analysis` | `.xezar/pipeline/analysis` |
+| `paths.analysis` | `.xezar/pipeline/analysis` (**reserved, deprecated 2026-09-20** — resolved by the loader, read by nothing; kept because removing a `paths` key is breaking) |
 | `paths.specs` | `.xezar/pipeline/specs` |
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
+
+Three gate switches were added on 2026-09-20, all optional and all defaulting to `false`, so an existing config keeps its behaviour untouched:
+
+| Key | Default | Meaning of the default |
+|---|---|---|
+| `gates.failClosed` | `false` | A gate reporting `unknown` is disclosed and the run continues. The merge gate refuses on `unknown` either way — it does not read this key. |
+| `gates.requireVerdictHead` | `false` | A verdict with no `Head:` line is read as `unknown` and tolerated. Fresh setups get `true`. |
+| `gates.designGate` | `false` | A change marked as needing a design answer passes review without one. |
+
+Flipping any of these **defaults** is breaking, because it changes what an unmodified consumer repo does on upgrade. All three are read from the base branch's config on a gate path, never the working tree.
 
 - **Breaking:** moving the file, removing or renaming a key, changing a key's meaning, value format or default, making a previously optional key required.
 - **Not breaking:** adding a new key with a default in the loading snippet (`jq -r '.newKey // "default"'`).
@@ -33,6 +43,20 @@ The named operations (**get-issue**, **create-pr**, **comment-pr**, **merge-pr**
 
 - **Breaking:** renaming an operation, changing an operation's inputs/outputs, removing a guard, referencing a new operation from a skill without adding it to the template and shipped descriptors.
 - **Required path:** add new operations to `TEMPLATE.md` and every shipped descriptor in the same PR; skills must degrade gracefully (documented fallback) when running against an older descriptor copy that lacks a newly added operation.
+
+**`get-pr`'s normalized fields** are part of this contract, not per-descriptor detail. A merge gate is portable only if `headRefOid`, `baseRefOid` and `reviewVerdict` mean the same thing on every tracker. A descriptor that cannot produce one emits the literal `unknown` — never a plausible-looking default, because a gate cannot tell a guess from a measurement. `reviewVerdict` is one of `approved` · `rejected` · `pending` · `not-enforced` · `unknown`, and `not-enforced` exists because some hosts report a request as approved when *no approval rule applies to it at all*; collapsing that to "approved" is the same fail-open shape as a label that was never created. Adding a value to that set, or changing what one means, is breaking.
+
+**Operations added 2026-09-20:** **put-verification-record**, **get-verification-record**, **get-pr-template** and **get-issue-templates**. The two template operations degrade to "no template", which is `not-applicable` — plenty of repositories have none, and a skill that treated absence as a failure would refuse to file an issue in them. An older descriptor copy lacks both. The documented fallback is to report the record as unavailable and carry on — the record was never a gate input, so its absence costs the written trail, not the checking.
+
+### 3b. The toolchain and security provider contracts
+
+The toolchain operations (**toolchain-check**, **restore-dependencies**, **build**, **outdated**, **update-dependency**) defined by `skills/xez-setup-agent-pipeline/references/toolchains/TEMPLATE.md`, and the security operations (**security-check**, **security-scan**, **dependency-inventory**) defined by `references/security/TEMPLATE.md`. Consumer repos hold committed copies at `.xezar/pipeline/toolchains/<name>.md` and `.xezar/pipeline/security/<name>.md`.
+
+Each operation is defined by its **postcondition**, never by a verb, and renaming one or changing what its postcondition guarantees is breaking. So is adding a status value outside the five, since consumers branch on them with a POSIX `case`.
+
+- **`toolchain.providers` is a list.** Turning it back into a single value is breaking: a repository with two ecosystems configures both.
+- **`security.provider` has no default, permanently.** Giving it one would make an upgrade silently gain a stage that executes descriptor commands. Absent is `not-applicable` — never `unknown`, which would look like a problem with every change.
+- **Required path:** a new operation lands in the template and every shipped provider in the same PR, and every cell of the parity matrix in `scripts/test-toolchain-providers.mjs` gets an answer — including the cells where a provider genuinely cannot perform it, which are recorded as `not-applicable` with a reason rather than left blank.
 
 ### 4. The browser-provider operations contract
 
@@ -47,8 +71,11 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
 - **PR body `Tracking plan:` and `Status:` lines** – written by `xez-auto-create-pr`, parsed by `xez-auto-continue-pr` and the loop skills.
 - **`<paths.qa>/test-env.json`** – written by `xez-prepare-test-env`, consumed by `xez-auto-qa-pr` and `xez-integration-tests`. Readers accept both the provider-neutral `browser` object and the legacy `playwright` object.
 - **Generated launcher scripts in `<paths.scripts>/`** – created by `xez-prepare-test-env`, re-run by later runs and other skills.
-- **Chaining reference lines** (`PR: #<number> (link: <url>)`, `Issue: #<number> (link: <url>)`, `Spec: <path>`) – emitted at the end of every PR-producing/-driving skill's final report, parsed by the next skill in a chain and by session orchestrators. Consumers also accept the legacy `PR_URL=` / `PR_NUMBER=` / `SPEC_PATH=` lines; emitters write only the current form.
+- **Chaining reference lines** (`PR: #<number> (link: <url>)`, `Issue: #<number> (link: <url>)`, `Spec: <path>`) – emitted at the end of every PR-producing/-driving skill's final report, parsed by the next skill in a chain and by session orchestrators. Consumers also accept the legacy `PR_URL=` / `PR_NUMBER=` / `SPEC_PATH=` lines; emitters write only the current form. Skills whose report carries a verdict about a pull request also emit `Head: <head commit sha>`, and `Base: <base commit sha>` where the merge base is part of what was judged, so the verdict names the commit it certifies. **A missing `Head:` line is legacy permanently, keyed to the artifact and not to a release:** a PR opened before the line existed and merged two releases later must not be refused, so a consumer reads its absence as `unknown` and carries on. Enforcement is opt-in through `gates.requireVerdictHead` (default `false`; fresh setups get `true`). The grammar is asserted by `scripts/test-chaining-lines.mjs`, which fills every documented template with realistic values and parses it, and rejects a renamed or re-punctuated label.
 - **Routing lines from `xez-brainstorm`** (`Next: none` | `Next: xez-<skill> <args>`, plus `Brief: <repo-relative path>` when a handoff brief was written) – emitted at the end of its final report, parsed by session orchestrators to route the follow-up run. The `— brief: <path>` suffix inside the args is read by the routed skill (`xez-prepare-issue`, `xez-auto-write-spec`, `xez-spec-writing`, `xez-auto-create-pr`), which ingests the brief file per the brief lifecycle in `xez-brainstorm/references/exit-ramps.md`.
+- **The `Gate:` verdict line and the gate `NAME=value` lines** emitted by `merge-gate.sh` and `gate-status.sh` – line-anchored `^Gate: ` (and `Status=` from the status script), one line per gate plus a `Blocking=` list. Parsers split a `NAME=value` line on the **first** `=` and never source the output as shell. `Status:` is reserved and is not the verdict keyword; renaming `Gate:` is breaking.
+- **The verification record** (a fenced `text` block of `NAME=value` lines carrying `Head=`, `Base=`, `Skill=`, `At=`, repeated `Gate=`/`Status=` pairs and `Verdict=`) – written through **put-verification-record**, read through **get-verification-record**. Parsers split on the **first** `=` only, never source it as shell, and ignore names they do not know, so the grammar can grow without breaking a reader. A tracker with no record support, or a pull request with no record, is **not** a failure: the record was never a gate input, so a consumer reports it as unavailable and decides from the tracker API as it always did.
+- **The five gate statuses** (`pass`, `findings`, `unknown`, `not-applicable`, `evidence-unavailable`) – produced by `gate-status.sh` and read by every gate consumer. Hyphenated, because the consumer is POSIX `sh` and an unquoted `case` word-splits on a space. Only `pass` and `not-applicable` are satisfied; renaming one, or adding a sixth that a consumer's `case` does not handle, is breaking.
 - **Discovery output lines from `xez-discover`** (`Product brief:`, `Coverage:`, `Collection plan:`, `Next:`) – line-anchored like the chaining lines; `product-brief.md` is read by `xez-brainstorm`, `xez-spec-writing` and `xez-prepare-issue` when present.
 
 **Breaking:** changing any of these formats so an unmodified consumer skill can no longer parse output produced by a modified producer (or vice versa). **Required path:** update producer and all consumers in one PR, and keep the parser tolerant of the previous format when consumer repos may hold old artifacts (committed plans, descriptors).
@@ -68,6 +95,38 @@ The pipeline/category/meta/priority/risk groups, their exclusivity rules, and th
 
 - **Breaking:** removing a script or flag, moving `skills/` – this breaks documented install instructions and skills.sh scanning.
 - **Required path:** keep old flags as deprecated aliases; update README in the same PR.
+
+## The ledger of deliberate breaks
+
+Every break we chose, with its date and its reason. The point of writing them down is not
+politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
+then "fixes" it back.
+
+Nothing has been broken yet. When something is, it gets a row here on the day it ships:
+
+| Date | What changed | Who it affects | What they must do | Why it was worth it |
+|---|---|---|---|---|
+| — | — | — | — | — |
+
+A row is written **in the PR that ships the break**, never afterwards. "We will document it
+later" has the same success rate everywhere.
+
+### Reserved, waiting for a major
+
+Things that are wrong, that we are not fixing yet, because fixing them is a break.
+
+- **`paths.analysis`** — declared in the config schema, created with a `.gitkeep`, committed,
+  and read by nothing. Deprecated 2026-09-20 and marked reserved; the loader still resolves
+  it and the default is unchanged.
+
+  It is **not** removed, and this is the part worth reading. Removing a `paths` key is
+  breaking by the rule two sections up, and the benefit is tidiness. So it waits for a major
+  version, or stays reserved indefinitely if no major version is ever worth cutting for it.
+  A key that costs one line of loader code is cheaper than a migration every consumer has to
+  perform.
+
+  The lesson is recorded under "Zero config is a design law" in `DECISIONS.md`: a key that
+  nothing reads is unremovable the moment it ships.
 
 ## Out of scope
 

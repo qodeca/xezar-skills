@@ -15,6 +15,7 @@ The shared PR-opening step of the agent pipeline. It commits the worktree, pushe
 | `--plan <path>` | Optional | Execution-plan path; adds the tracking-plan/status lines and `## Progress` section so `xez-auto-continue-pr` can resume. |
 | `--draft` | Optional | Open as a draft — only for explicitly incomplete work; default is ready for review. |
 | `--summary-file <path>` | Optional | Caller-provided run-summary body, posted as a PR comment after labeling. |
+| `--handoff <next-skill>` | Optional | The caller's chain continues on this PR with `<next-skill>`, so the `in-progress` lock is moved onto the PR before the issue lock is released. Without it the PR is left unclaimed — correct only when this skill is the chain's last step. |
 
 ## Works with
 

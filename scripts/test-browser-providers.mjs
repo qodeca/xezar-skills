@@ -12,9 +12,14 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 // references/agentic-setup.md — assert over SKILL.md and that file together.
 const readSkill = (name) => {
   let text = read(`skills/${name}/SKILL.md`);
-  try {
-    text += read(`skills/${name}/references/agentic-setup.md`);
-  } catch {}
+  // Per-run load budgeting split large canonical artifacts out of the always-loaded
+  // agentic-setup.md, so the snippet a skill *documents* may live in a sibling file.
+  // Read every reference, so this contract follows the text rather than a path.
+  for (const ref of ["agentic-setup.md", "config-snippet.md"]) {
+    try {
+      text += read(`skills/${name}/references/${ref}`);
+    } catch {}
+  }
   return text;
 };
 

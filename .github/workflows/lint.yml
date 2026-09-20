@@ -5,23 +5,65 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege. This workflow only reads the tree and runs offline checks; it
+# writes nothing back, so nothing beyond `contents: read` is granted. Without this
+# block the job inherits the repository default, which is often write access to
+# everything.
+permissions:
+  contents: read
+
+# One run per ref. A push on top of a push cancels the older run rather than
+# leaving two jobs racing to report on a ref that no longer exists.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    # Every check here is offline and finishes in seconds. A job still running after
+    # ten minutes is hung, not slow, and should fail rather than hold a runner.
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: Frontmatter and product-agnosticism gate
+      # Pinned by commit sha, not by tag: a tag is mutable, so `@v4` means "whatever
+      # that tag points at when this runs" — a supply-chain decision taken by someone
+      # else, after review. The comment records the human-readable version.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Frontmatter, agnosticism, safety and per-run load gates
         run: bash scripts/lint.sh
       - name: Browser provider contract and platform matrix
         run: node scripts/test-browser-providers.mjs
       - name: Tracker provider contract and compatibility invariants
         run: node scripts/test-tracker-providers.mjs
+      - name: Toolchain and security provider contract
+        run: node scripts/test-toolchain-providers.mjs
+      - name: Merge-gate decision contract
+        run: node scripts/test-merge-gate.mjs
+      - name: Gate status decision contract
+        run: node scripts/test-gate-status.mjs
+      - name: Shared-block sync contract
+        run: node scripts/test-shared-blocks.mjs
+      - name: Chaining reference line grammar
+        run: node scripts/test-chaining-lines.mjs
       - name: Pipeline-retro classifier rules
         run: node scripts/test-classify-runs.mjs
       - name: Close-keyword configurability contract
         run: node scripts/test-close-keywords.mjs
       - name: Onboarding native-token boundaries and client templates
         run: node scripts/test-onboarding-content.mjs
+      - name: Cross-reference and anchor resolution
+        run: node scripts/check-links.mjs
+      - name: Gate-list binding (config, workflow, SDLC, package scripts)
+        run: node scripts/check-gate-list.mjs
+      - name: Label taxonomy recorded as data
+        run: node scripts/check-label-taxonomy.mjs
+      - name: Allowlist shape, owners and expiry dates
+        run: node scripts/check-allowlists.mjs
+      - name: Guard suite (every gate broken on purpose)
+        run: node scripts/test-guards.mjs
       - name: Generic instruction content (P6 skills and all companions)
         run: npm run check:generic-instructions
       - name: Generic instruction guard rejection and control cases

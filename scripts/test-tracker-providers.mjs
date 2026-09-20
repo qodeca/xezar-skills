@@ -18,7 +18,25 @@ const upgradeNotes = read("UPGRADE_NOTES.md");
 const operationHeadings = (descriptor) =>
   [...descriptor.matchAll(/^#### (.+)$/gm)].map((match) => match[1]).sort();
 
+const mock = read(`${trackerDir}/mock.md`);
+
 const githubOperations = operationHeadings(github);
+
+// The mock provider answers from files so a contributor can exercise a skill with no
+// credentials and no network. It must cover the same operation surface -- a mock that
+// silently lacks an operation would make a skill look correct by never reaching the gap.
+assert.deepEqual(
+  operationHeadings(mock),
+  githubOperations,
+  "mock: fixture provider must implement every tracker operation",
+);
+// A missing fixture is unknown, never an empty success: the states worth testing are the
+// ones where a real tracker says nothing, and returning {} would turn each into a pass.
+assert.match(mock, /return 3/, "mock: a missing fixture must exit 3 (unknown)");
+assert.match(mock, /never be selected in a repository/, "mock: must warn against real use");
+assert.match(mock, /merges nothing/, "mock: must state that merge-pr does not merge");
+assert.doesNotMatch(mock, /\bcurl\b|\bwget\b/, "mock: must make no network call");
+
 for (const [name, descriptor] of [["linear", linear], ["jira", jira]]) {
   assert.deepEqual(
     operationHeadings(descriptor),
@@ -32,7 +50,7 @@ for (const [name, descriptor] of [["linear", linear], ["jira", jira]]) {
   );
 }
 
-assert.match(setup, /`github`, `linear`, `jira`, or custom/);
+assert.match(setup, /`github`, `linear`, `jira`, `mock`, or custom/);
 assert.match(setup, /`linear` and `jira` require `\.xezar\/pipeline\/trackers\/github\.md`/);
 
 assert.match(linear, /requires `linear` 2\.4\.0 or newer/);
@@ -62,4 +80,4 @@ assert.match(jira, /workitem edit --help \| grep -Fq -- '--remove-labels'/);
 assert.match(jira, /workitem comment list --help \| grep -Fq -- '--paginate'/);
 assert.match(jira, /workitem comment update --help \| grep -Fq -- '--body-file'/);
 
-console.log(`Tracker provider contract OK (${githubOperations.length} operations, 2 split providers).`);
+console.log(`Tracker provider contract OK (${githubOperations.length} operations, 2 split providers, 1 fixture provider).`);

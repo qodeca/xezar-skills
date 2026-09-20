@@ -35,11 +35,14 @@ The following is an **example**, not a default workflow. Populate validation com
     "enabled": true,
     "pipeline": ["review", "changes-requested", "qa", "qa-failed", "merge-queue", "blocked", "do-not-merge"],
     "category": ["bug", "feature", "refactor", "security", "dependencies", "documentation"],
-    "meta": ["needs-qa", "skip-qa", "qa-approved", "qa-self-verified", "in-progress", "ci-monitoring"],
+    "meta": ["needs-qa", "skip-qa", "qa-approved", "qa-self-verified", "in-progress", "ci-monitoring", "needs-design", "design-approved"],
     "priority": ["priority-low", "priority-medium", "priority-high", "priority-extreme"],
     "risk": ["risk-low", "risk-medium", "risk-high"]
   },
   "qaGate": true,
+  "gates": { "failClosed": false, "requireVerdictHead": false, "designGate": false },
+  "toolchain": { "providers": [] },
+  "security": { "provider": null },
   "ci": { "maxWaitMinutes": 40 },
   "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "paths": {
@@ -56,40 +59,27 @@ The following is an **example**, not a default workflow. Populate validation com
 
 <!-- example:end -->
 
-Field reference:
+Every key, one bullet each: `references/config-fields.md` — read it when writing or reviewing a config.
 
-- `baseBranch` — the branch PRs target. `"auto"` means resolve at runtime from the repository's default branch; set an explicit name only when PRs target something else.
-- `tracker` — selects `.xezar/pipeline/trackers/<tracker>.md`. Shipped values are `"github"`, `"linear"` (Linear issues + GitHub PRs/CI), and `"jira"` (Jira Cloud issues + GitHub PRs/CI); see Tracker providers below.
-- `browser.provider` — the browser-automation provider used by QA and integration-test skills. Selects `.xezar/pipeline/browsers/<provider>.md`. Fresh setups default to `"agent-browser"`; configs without this key keep legacy Playwright behavior (see Browser providers).
-- `validation.commands` — ordered list of shell commands that constitute the full validation gate. Skills run them in order and treat any non-zero exit as a gate failure. Keep the list complete: typecheck, lint, tests, build — whatever proves the repo is healthy.
-- `labels.enabled` — when `false`, skills skip every label operation and note that in their PR summaries. Use this for repos that do not want the label workflow.
-- `labels.pipeline` — mutually exclusive workflow states. A PR carries at most one.
-- `labels.category` — additive kind-of-change labels.
-- `labels.meta` — additive process signals resolved from the project's workflow and tracker descriptions. Discover the labels (if any) for QA required, QA passed, active ownership and CI observation. Never invent a mapping from spelling alone. CI observation is not ownership; missing labels do not bypass required QA or claims recorded by other means.
-- `labels.priority` and `labels.risk` — local urgency and impact categories; preserve the project's exclusivity and inference rules. Do not impose either group on a project that does not use it.
-- `qaGate` — preserve existing required QA and independent approval semantics. Turning labels off never waives required verification. When the project has no documented mapping, report the missing mapping and keep gated delivery pending.
-- `ci.maxWaitMinutes` — bounded CI observation (default `40`, `0` means no wait). Report pending checks honestly when it expires and release only the run's own observation signal. Required checks still gate merge.
+## Provider families
 
-- `engine.executorTier` — optional; the default abstract model tier (`cheap` / `standard` / `capable`) for executor subagents dispatched by the loop skills when a Tasks-table `Exec` cell names none. Harnesses that support subagent model selection map the tier onto their closest model class; others ignore it. Configs without the key behave as `standard`.
-- `engine.loopStepThreshold` — the Step count above which `xez-auto-create-pr` hands a run off to `xez-auto-create-pr-loop` (default 20). Raise it to keep more runs on the cheaper plain engine; `--loop` always forces the loop regardless.
-- `engine.stepReview` — optional; how often the loop skills code-review landed work mid-run: `final` (default — only the authoritative end-of-run review), `checkpoint` (review the diff at every checkpoint pass), or `per-step` (review each Step's commit as it lands). Blocker/major findings are fixed immediately as `X.Y-review-fix` Steps; minors defer to the final review, which runs in every mode.
-- `paths.runs` — where execution plans of autonomous runs are stored.
-- `paths.analysis` — where generated reports are stored.
-- `paths.specs` — where feature specifications live (default `.xezar/pipeline/specs`). Spec filenames follow `{YYYY-MM-DD}-{kebab-case-title}.md`. `xez-spec-writing` writes here, `xez-prepare-issue` links from here, `xez-followup-issue-from-pr` checks here first in design-doc mode, and `xez-brainstorm` writes handoff briefs under `<paths.specs>/briefs/`.
-- `paths.scripts` — where reusable environment scripts are generated (default `.xezar/pipeline/scripts`); `xez-prepare-test-env` writes the env bring-up/teardown scripts here.
-- `paths.qa` — where QA working state and artifacts live (default `.local/qa`): the shared `test-env.json` descriptor, and QA reports/screenshots under `<paths.qa>/artifacts_<runId>/`.
-- `reviewChecklist` — optional path to a repo-local review checklist file. When set, the `xez-code-review` skill reads it in addition to its built-in checklist. Use the existing project checklist when present; no particular filename is required.
-- `closeKeywords` — optional list of extra words that mark a PR as closing an issue, for repositories whose PR bodies are not written in English. `xez-close-fixed-issues` matches the built-in English keywords (`fix`/`fixes`/`fixed`, `close`/`closes`/`closed`, `resolve`/`resolves`/`resolved`) plus everything listed here, case-insensitively and only immediately before a `#N` token; configured words extend the built-ins and never replace them. The tracker's own `closingIssuesReferences` parse is English-only too, so a Polish repo writing `Zamyka #88` gets no closing signal from either source until it sets, for example, `["zamyka", "naprawia", "rozwiązuje"]`. Leave it empty on an English repository. Whatever the setting, a run that finds issue mentions without a recognized keyword reports them rather than passing over them silently.
+Trackers, browsers, toolchains and security scanners are all committed descriptors: a
+config key names one, the descriptor says how to execute the operations skills name, and
+the team owns the file. Adding a new provider is a descriptor, never a skill change.
 
-## Tracker providers
+| Family | Config key | Shipped | Absent means |
+|---|---|---|---|
+| Tracker | `tracker` | `github`, `linear`, `jira`, `mock` | required — setup installs one |
+| Browser | `browser.provider` | `agent-browser`, `playwright` | read as `playwright`, for compatibility |
+| Toolchain | `toolchain.providers` (**a list**) | `npm`, `cargo` | no lifecycle operation applies |
+| Security | `security.provider` | `osv-scanner` | **nothing runs**, every operation `not-applicable` |
 
-Skills name the operations in `references/trackers/TEMPLATE.md`; the selected `.xezar/pipeline/trackers/<tracker>.md` says how to execute them and is the team's committed override point. This skill installs shipped descriptors from its own `references/trackers/` directory.
+Linear and Jira own issues but delegate repository, pull-request, review, CI and PR-label
+operations to a required `github.md` companion, so setup installs both. `mock` answers
+from fixture files, for testing with no credentials and no network.
 
-The collection ships `github.md`, `linear.md`, and `jira.md`. Linear and Jira own issues but delegate repository/PR/review/CI/PR-label operations to a required `github.md` companion, so setup installs both. Scaffold any other provider from `TEMPLATE.md`.
-
-## Browser providers
-
-Browser-capable skills use the same committed-descriptor pattern as trackers: they name provider operations (**ensure-installed**, **doctor**, **open**, **snapshot**, **interact**, **assert**, **screenshot**, **close**) and read `.xezar/pipeline/browsers/<provider>.md`, selected by `browser.provider`. The collection ships `agent-browser.md` (the self-provisioning fresh-setup default, local processes only) and `playwright.md`, plus `references/browsers/TEMPLATE.md` for custom providers. A config without `browser.provider` is read as `playwright` for backward compatibility. Full operation contract, `agent-browser` platform support, and the compatibility path: `references/browser-providers.md`.
+Operation contracts, the exit-code rules, split-provider delegation, `agent-browser`
+platform support and the scaffolding templates: `references/providers.md`.
 
 ## Project guidance
 
@@ -115,7 +105,7 @@ Every skill in this collection checks, right after loading the config, for a rep
 
    Prefer commands mirroring what CI already runs (`.github/workflows/*.yml`).
 
-3. **Ask the user (skip with `--defaults`).** Confirm validation, the discovered tracker (`github`, `linear`, `jira`, or custom; or no remote setup), browser provider, label mode, QA gate, spec path, optional review checklist, and missing project docs. Full guidance: `references/interview-questions.md`.
+3. **Ask the user (skip with `--defaults`).** Confirm validation, the discovered tracker (`github`, `linear`, `jira`, `mock`, or custom; or no remote setup), browser provider, label mode, QA gate, spec path, optional review checklist, and missing project docs. Full guidance: `references/interview-questions.md`.
 
 4. **Install the tracker descriptor.** Copy the shipped descriptor for the chosen tracker from this skill's `references/trackers/<tracker>.md` to `.xezar/pipeline/trackers/<tracker>.md` (create the directory). Rules:
 
@@ -129,7 +119,7 @@ Every skill in this collection checks, right after loading the config, for a rep
 
 7. **Generate authorized guidance.** Follow `references/project-docs.md`; `references/sdlc-template.md` is an optional software example to adapt only when relevant and authorized. Select relevant content and paths from the project's own conventions and the user's requested outputs. Show each proposed document before writing unless the exact write is already authorized. Preserve existing files and link them instead of duplicating their rules.
 
-8. **Write and commit the config.** Write `.xezar/pipeline/config.json`, create the `paths.runs`, `paths.analysis`, `paths.specs`, and `paths.scripts` directories with a `.gitkeep` each (`paths.qa` lives under the ignored `.local/` and needs neither), show the final file to the user, and offer to commit. Add `.local/` to `.gitignore` – it holds the QA running-state descriptor `<paths.qa>/test-env.json`, the credentials env file `<paths.qa>/test-env.env`, and `<paths.qa>/artifacts_*/` (generated per run, not source) – while keeping the generated `<paths.scripts>/` launchers committed so the environment is reproducible:
+8. **Write and commit the config.** Write `.xezar/pipeline/config.json` and, where labels are in use, `.xezar/pipeline/labels.json` copied from `references/labels.md` — the taxonomy as data (colour and description per label), so **ensure-label-taxonomy** creates the same labels everywhere. A label named in the config with no entry there gets neither. Create the `paths.runs`, `paths.analysis`, `paths.specs`, and `paths.scripts` directories with a `.gitkeep` each (`paths.qa` lives under the ignored `.local/` and needs neither), show the final file to the user, and offer to commit. Add `.local/` to `.gitignore` – it holds the QA running-state descriptor `<paths.qa>/test-env.json`, the credentials env file `<paths.qa>/test-env.env`, and `<paths.qa>/artifacts_*/` (generated per run, not source) – while keeping the generated `<paths.scripts>/` launchers committed so the environment is reproducible:
 
    Stage only files actually generated or changed within this authorization, inspect the staged diff, and use a Conventional Commit when committing is authorized. Do not add a document merely because a template names it.
 

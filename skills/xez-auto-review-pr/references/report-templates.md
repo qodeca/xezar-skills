@@ -21,11 +21,12 @@ the review rather than listing them again. Do not repeat labels, the PR body,
 resolved findings, or routine branch/claim metadata. Approval alone does not
 establish that required CI and QA gates are satisfied.
 
-End with exact chaining lines; include `Issue:` only for a subject issue:
+End with exact chaining lines. `Head:` is the commit this verdict certifies; a later push makes the verdict stale rather than wrong, and a consumer can tell. Include `Issue:` only for a subject issue:
 
 ```text
 PR: #<number> (link: <full PR URL>)
 Issue: #<number> (link: <full issue URL>)
+Head: <head commit sha>
 ```
 
 ## CI-result comment (step 13)

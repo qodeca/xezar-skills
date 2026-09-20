@@ -58,7 +58,21 @@ Classify every check as passing, pending, or failing. Nothing failing and nothin
 pending → report "already green". Checks pending → **watch-run** (or poll) until they
 settle before diagnosing, under the wait budget below.
 
-### The fix → push → re-check loop (up to `--max-iterations`, default 5)
+### The fix → push → re-check loop (up to `--max-iterations`, default 3)
+
+**The iteration counter is advisory, and lives in the in-run cache.** Write it to
+`<paths.qa>/retries-pr-<number>.json` as `{"prNumber": <n>, "headSha": "<sha>", "iterations": <k>,
+"updatedAt": "<ISO-8601>"}`, and read it back at the start of a run so a re-invocation on the same
+PR continues counting instead of starting over.
+
+It is advisory on purpose, and the reason matters. `<paths.qa>` lives under the gitignored
+`.local/` directory: it is per-checkout, so a fresh clone, a new worktree or a CI leg sees nothing
+at all. A counter that can legitimately come back empty must never be a gate — reading "no file"
+as "no attempts" is correct here precisely because nothing depends on it being true. When the
+file is missing, start at zero and say so in the report rather than refusing to work.
+
+Reset the count when `headSha` in the file is not the PR's current head: a new head is new work,
+not a continuation of the old loop.
 
 Per iteration:
 

@@ -7,9 +7,13 @@ description: Apply the skills collection's UPGRADE_NOTES.md after an upgrade. Re
 
 Upgrading the skills collection updates the skill instructions, but not the artifacts a previous
 skill run **installed into this repository** — notably tracker descriptors at
-`.xezar/pipeline/trackers/<tracker>.md` and browser-provider descriptors at
-`.xezar/pipeline/browsers/<provider>.md`. A stale descriptor can degrade or skip operations
-it does not define. This skill reads the collection's `UPGRADE_NOTES.md`, brings
+`.xezar/pipeline/trackers/<tracker>.md`, browser-provider descriptors at
+`.xezar/pipeline/browsers/<provider>.md`, toolchain descriptors at
+`.xezar/pipeline/toolchains/<name>.md`, security descriptors at
+`.xezar/pipeline/security/<name>.md`, and the label taxonomy at
+`.xezar/pipeline/labels.json`. A stale descriptor can degrade or skip operations
+it does not define, and a directory that does not exist at all means the operations
+in it are simply unavailable. This skill reads the collection's `UPGRADE_NOTES.md`, brings
 installed artifacts up to date, and reports what it changed.
 
 It touches **only** pipeline artifacts under `.xezar/pipeline/` (and documented config files). It never edits
@@ -33,10 +37,13 @@ customization without asking.
 
 1. **Locate the shipped sources.** The freshly upgraded truth ships inside the skills installation itself, next to this skill:
 
-   1. `<this skill's base directory>/../xez-setup-agent-pipeline/references/trackers/`
-      and `references/browsers/` — present in every install mode (skills.sh,
+   1. `<this skill's base directory>/../xez-setup-agent-pipeline/references/trackers/`,
+      `references/browsers/`, `references/toolchains/`, `references/security/` and the label
+      taxonomy template beside them — present in every install mode (skills.sh,
       symlinked checkout, vendored copy). These are the primary sources for
-      shipped provider descriptors and their templates.
+      shipped provider descriptors and their templates. A source directory this
+      installation does not have is reported as unavailable, never treated as
+      "nothing to upgrade".
    2. `UPGRADE_NOTES.md` lives at the skills collection's **repo root**, which per-skill installs
       do not copy. Resolve it in order: a repo-root file two levels above this skill's base
       directory (symlinked or vendored checkout) → fetch the raw `UPGRADE_NOTES.md` from the
@@ -118,8 +125,20 @@ customization without asking.
 
 - Shared rules: `references/rules.md` — emoji glossary, secrets hygiene, and how the shared contracts map onto this tracker-operation-free skill. They always apply.
 - Touch only pipeline artifacts: `.xezar/pipeline/trackers/*.md`, `.xezar/pipeline/browsers/*.md`,
-  `.xezar/pipeline/config.json`, and artifacts named by an UPGRADE_NOTES entry. Never
-  edit application source, tests, or the skills installation.
+  `.xezar/pipeline/toolchains/*.md`, `.xezar/pipeline/security/*.md`,
+  `.xezar/pipeline/labels.json`, `.xezar/pipeline/config.json`, and artifacts named by an
+  UPGRADE_NOTES entry. Never edit application source, tests, or the skills installation.
+- **Deliver the changes as a pull request, not as commits on the current branch.** These files
+  are executed by every later run: a descriptor edit changes what merging, labelling and
+  scanning do, in a file nobody watches. That belongs in a diff someone approves. Open the PR
+  through the standard path (`references/pr-finalize.md`), one PR per upgrade run, with the
+  UPGRADE_NOTES entries it applied listed in the body and the local customizations it preserved
+  named explicitly. A repository with no tracker configured has nowhere to open a PR — leave the
+  changes uncommitted in the working tree and say so.
+- **A new descriptor directory is created, not assumed.** When an UPGRADE_NOTES entry introduces
+  a family this repository has never had (`toolchains/`, `security/`), create the directory and
+  install only the providers the config names. Installing every shipped provider would hand the
+  repository operations it never asked for.
 - Preserve local customizations: a section that differs from stock is the team's — ask before
   replacing it, and always keep local-only operations.
 - Additive by default: add missing operations and missing config keys; never delete or rewrite
