@@ -1,3 +1,11 @@
+# Unreleased
+
+## 🔧 Changed
+
+- 🔧 Documentation brought back in line with the skills after 1.2.0. The README no longer promises that `xez-setup-agent-pipeline` generates `SDLC.md`, `CODE_REVIEW.md`, `BACKWARD_COMPATIBILITY.md` and an `AGENTS.md` starter whenever they are missing, that a missing config makes a pipeline skill run setup on its own, or that setup creates missing labels for you — the skill stopped doing all three unasked, and the README had not caught up. Three `xez-auto-*` skills were listed under "Interactive"; they are under "Autonomous" now, and the three recorded exceptions to the naming rule are stated where the tables are. Cards corrected: `xez-open-pr` (one consolidated label comment, not one per label), `xez-spec-writing` (the `--autonomous` flag exists), `xez-auto-fix-issue` (brief mode), `xez-code-review`, `xez-ux-setup` (the pinned version), and the badges on the two sweeps.
+- 🔧 `SECURITY.md` now counts committed repository content that a privileged session loads as untrusted input, and names the one accepted gate bypass — branch protection without admin enforcement in the opinionated onboarding setup — as recorded rather than found.
+- 🔧 Stale counts corrected in `docs/coverage.md`, `DECISIONS.md` and `AGENTS.md`; `docs/style.md` re-measured, with a skill's vendored `kit/` left out of the counts and two rules that outlived the brand gate reworded. `AGENTS.md` loses its closing "Process documents" section, which repeated the top of the same file.
+
 # 1.2.0 (2026-09-20)
 
 ## Highlights

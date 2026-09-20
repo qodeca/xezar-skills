@@ -6,7 +6,7 @@ Writes and reviews feature specifications to staff-engineer standards. It drafts
 
 ## Parameters
 
-This skill takes no parameters.
+One optional flag: `--autonomous`, for unattended runs driven by an `xez-auto-*` skill. With it the Open Questions gate resolves itself and records its assumptions instead of stopping; without it the skill stops after the skeleton and waits for your answers.
 
 ## Works with
 

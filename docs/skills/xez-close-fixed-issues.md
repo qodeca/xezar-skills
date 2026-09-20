@@ -1,6 +1,6 @@
 # xez-close-fixed-issues
 
-> 🧑‍💻 Interactive — acts once, may ask questions, hands control back
+> 🤖 Autonomous — runs end-to-end without supervision
 
 Reconciles a window of recent pull requests against the issue tracker. Where a merged PR authoritatively closes an issue — via `fixes`/`closes`/`resolves` keywords or the tracker's `closingIssuesReferences` — it closes the issue with a linked comment; where a PR was closed without merging (or merged into a non-base branch), it leaves an informational comment instead of closing. It never acts on bare `#N` mentions and respects `do-not-close`, `blocked`, and claim locks. Use it for post-merge housekeeping and release prep.
 

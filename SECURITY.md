@@ -12,15 +12,22 @@ operator did not intend.
   destroys state, touches files outside the repository, or kills a process by pattern match
   (which in a consumer's repository can kill their editor).
 - **A path where untrusted content becomes an instruction.** Issue bodies, pull-request
-  descriptions, review comments, CI logs, scanner output and fetched pages are data. Any
-  place a skill would follow a directive found inside one of them is a vulnerability, not a
-  bug.
+  descriptions, review comments, CI logs, scanner output and fetched pages are data. So is
+  **committed repository content that a privileged session loads for itself** — campaign
+  records a session-start hook injects, for one: anyone who can open a pull request can write
+  them, so being in the repository does not make text trusted. Any place a skill would follow
+  a directive found inside one of these is a vulnerability, not a bug.
 - **A credential leaving its boundary** — a token in model output, in a tracker comment, in
   a log, or passed to a system under test.
 - **A gate that can be made to pass without being satisfied.** A label that was never
   created read as a check that passed, a protection API returning 404 read as "no
   requirements", a scanner that scanned nothing read as clean. These are the defects this
-  collection was rebuilt around, so a new one is a serious finding.
+  collection was rebuilt around, so a new one is a serious finding. **One bypass is accepted
+  and recorded rather than found:** the opinionated onboarding setup configures branch
+  protection without admin enforcement so that record files can be pushed directly. That
+  exemption is scope-free, the owner accepted it, and `DECISIONS.md` → "Campaign records are
+  committed, and the bypass that costs" states what it gives away. A *second* bypass, or this
+  one used for anything but records, is still a finding.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on
