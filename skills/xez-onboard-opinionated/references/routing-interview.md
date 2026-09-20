@@ -23,8 +23,8 @@ step actually found.
   never the authoring model for its own review; a locally hosted model never touches a branch; a
   cloud-lane write needs another vendor's review; a high-risk change needs a different account
   *and* a different vendor.
-- **The Never column**, which carries only row-specific bans — each one with the run that
-  earned it. A prohibition that applies everywhere belongs above, not repeated twenty-four times.
+- **The Never column**, which carries only row-specific bans, plus the precedence rule for the
+  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated twenty-six times.
 
 ## What is built with the owner
 
@@ -46,7 +46,7 @@ consequences worth stating in the interview:
   login.
 - **Adding an account later changes the lane list, never the table's shape.**
 
-## How to ask without twenty-four questions
+## How to ask without twenty-six questions
 
 Ask **per task class**, then expand. Five classes cover the rows:
 

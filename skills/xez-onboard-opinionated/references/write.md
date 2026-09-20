@@ -41,7 +41,10 @@ Never copied, because each depends on an answer:
   the file that turns an answer into an enforced gate.
 - **`.xezar/config.json`** — the base branch and the system prompt, written for this project.
 - **`.xezar/pipeline/config.json`** and **`labels.json`** — this collection's current schema:
-  base branch, tracker, validation commands, label taxonomy, QA gate, paths.
+  base branch, tracker, validation commands, label taxonomy, QA gate, paths. Set
+  `paths.qa` to `".local/xezar/qa"` rather than leaving the `.local/qa` default: every local
+  artifact belongs in the one tree, and the tidiness check only looks inside it. This is a config
+  value, set per project — the shipped default is unchanged, so nothing breaks for anyone else.
 - **`.xezar/pipeline/trackers/github.md`** — copied from **this collection's** shipped
   descriptor, not from another project's copy, so a new project starts on the current contract.
 - **`.xezar/docs/leader-guide.md`** — built from `kit/leader-guide.template.md`. Everything
@@ -51,11 +54,26 @@ Never copied, because each depends on an answer:
   honesty rule · direct pushes · the owner's three control skills · the one-page checklist. Those
   sections *are* the decisions, and a paraphrase loses the reason.
 
-  Fill the four placeholders from the analysis and the interview: `{{REPOSITORY_SETUP}}`,
-  `{{TASK_LIFECYCLE}}`, `{{ROUTING_ACCOUNTS_LIMITS}}`, `{{RELEASE_RUNBOOK}}`. Strip the HTML
-  comment header. Never write an absolute path or an account name into the result — both are
-  gitignored runtime facts. Leave the trailing "Rules added by the owner" heading in place; it is
-  where `xez-add-rule` appends.
+  Fill the four placeholders as specified below. Delete all three HTML comments — the header
+  block, the "Everything below is GENERATED" marker and the `---` rule above it. **Keep every
+  section heading exactly as written:** `xez-add-rule` matches them by name to decide where a new
+  owner rule goes, so a reworded heading sends the rule nowhere. Never write an absolute path or
+  an account name into the result — both are gitignored runtime facts.
+
+  The guide is injected **in full** at every start, resume, clear and compaction, so its size is
+  paid on every one of those events. Keep the whole file under **200 lines**; the shipped template
+  is about 190, which leaves roughly 60 for the four sections together. Budget them:
+
+  | Placeholder | Must state | Lines |
+  |---|---|---|
+  | `{{REPOSITORY_SETUP}}` | the base branch; the gate command list; where source, tests and docs live; the one command that runs the gate | ≤ 15 |
+  | `{{TASK_LIFECYCLE}}` | the stages a task passes through, in order, and which of them a label marks | ≤ 15 |
+  | `{{ROUTING_ACCOUNTS_LIMITS}}` | the path to `.xezar/docs/model-routing.md`; **which login is the reserved leader login and that it runs no tasks**; how a lane being out is recorded | ≤ 20 |
+  | `{{RELEASE_RUNBOOK}}` | who authorises a release, the steps in order, and what proves each one | ≤ 15 |
+
+  A section with nothing true to say gets one honest line — "this project has no release process
+  yet" — not invented content. The guide is read after every compaction, so a padded section costs
+  tokens forever.
 - **`.xezar/docs/model-routing.md`** — from the routing interview.
 - **`SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`** — generated together from the confirmed gate list
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
@@ -82,7 +100,9 @@ they are **not** hand-edits to remember during the copy:
 A correction that lives only as prose in this file is a correction that gets skipped on the run
 where it matters. The shipped file is the correction.
 
-Carry the adapted test beside it, so the loader's own contract is checked in the project.
+The loader's own contract is checked by the fixture built into `kit/checks/documented-output.mjs`,
+which `repository-checks.sh` runs as part of the gate. There is no separate `leader-context.test.mjs`
+to carry — do not invent one, and do not tell the owner to run one.
 
 ## 4. Wiring, all inside the project
 
@@ -92,9 +112,14 @@ Carry the adapted test beside it, so the loader's own contract is checked in the
 - **`.claude/settings.local.json`**, gitignored: `permissions.allow` covering the leader's MCP
   tools, so unattended mode never stops on an interactive prompt. **Accepted cost, recorded in
   the report:** a tool the product adds later is allowed without anyone looking at it.
-- **A committed launcher script** that starts the agent with the development-channels flag for
-  this server. Without it the leader silently degrades to polling, which its own guide calls the
-  fallback rather than the normal path.
+- **A committed launcher script** that starts the agent with the
+  `--dangerously-load-development-channels` flag for this server. **Say the flag's full name in
+  the report, including the word `dangerously`.** A vendor puts that word in a flag name to force
+  a decision; paraphrasing it away in the install instruction takes the decision from the person
+  installing. What it does: it lets the server push events straight into the session. Without it
+  the leader silently degrades to polling, which its own guide calls the fallback rather than the
+  normal path. Committing a script that carries the flag is the accepted cost, and it is named
+  here so it can be refused.
 
 ## 5. Records and working state
 
@@ -104,6 +129,12 @@ Carry the adapted test beside it, so the loader's own contract is checked in the
 - `.xezar/loops.json` — the three loops as data, exact schedule and exact prompt. The leader
   compares schedule and prompt at every start and recreates anything missing or drifted; this
   skill cannot create them, because that lives in the session rather than in settings.
+- **The project's root `.gitignore` gains `/.local/`.** Write this, and verify it, before anything
+  else in this section. Everything below depends on it: the preflight a task runs refuses to start
+  unless `.local/xezar/` and its subfolders are genuinely ignored, and the agent's own autosave
+  will otherwise commit scratch, runtime state and the gitignored identity half of the manifest
+  into the first branch it touches. `kit/xezar.gitignore` lands at `.xezar/.gitignore` and its
+  paths are rooted there, so it **cannot** cover a repo-root path — this is a separate write.
 - `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`), each
   with a stated meaning, plus `kit/checks/local-tree.sh` — which reports a missing subfolder or
   anything loose at the top level, and deletes nothing. It is a check rather than a line in a

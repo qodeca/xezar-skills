@@ -561,3 +561,56 @@ nobody can say whether it was ever revisited or simply forgotten. The same rule 
 applies to allowlist entries, which fail the gate when they expire; a switch cannot expire
 that way without breaking consumers, so the date is a review rather than an expiry, and the
 honesty depends on someone keeping it.
+
+## Every local artifact lives under `.local/xezar/`, and a check says so
+
+The opinionated onboarding skill creates six named subfolders and nothing else at the top of
+`.local/xezar/`: `runtime/` engine state and claim files · `tasks/` per-run evidence and phase
+records · `worktrees/` task checkouts · `scratch/` throwaway, safe to delete at any time ·
+`cache/` anything re-derivable · `qa/` test artefacts. `kit/checks/local-tree.sh` reports a
+missing subfolder or a loose entry, and deletes nothing.
+
+Answering the admission gate, because a check is a thing that enters the collection:
+
+1. **What request does it serve?** Keeping an agent's working area legible over months. Nothing
+   else in the collection owns the untracked tree; every skill writes into it and none tidies it.
+2. **Who decides it worked?** The check itself: it exits 0 on a clean tree and names what is loose
+   otherwise. It runs as part of `repository-checks.sh`, the last gate command.
+3. **What does it cost?** One directory listing per gate run, and six empty folders in a fresh
+   checkout. It is skipped in a linked worktree, which only ever holds the folders it needs.
+4. **What would make us remove it?** Nobody reading its output, or the tree staying clean for a
+   year without it. Both are visible in the same place: the gate log.
+
+The rule is a **check** rather than a line in a document because a rule about tidiness is exactly
+the kind that gets skimmed. The path carries the `xezar/` level deliberately: it keeps the engine's
+working area distinct from anything else a project already puts in `.local/`, which is a
+conventional user-level directory and not ours to claim whole.
+
+Two consequences worth stating, because each looks like a mistake from the outside:
+
+- **`paths.qa` is set per project, not changed.** The frozen default stays `.local/qa` for every
+  existing install; the onboarding skill writes `".local/xezar/qa"` into the new project's own
+  config. Flipping the default would be breaking; setting a config value is what config is for.
+- **`.local/xezar-tasks` stays spelled that way.** It is the frozen historical evidence root, and
+  a sealed manifest stores absolute paths into it. Renaming the literal in code is the bulk move
+  the two-roots rule exists to forbid.
+
+## Campaign records are committed, and the bypass that costs
+
+Campaign folders live at `.xezar/campaigns/<yyyymmdd>-<code-name>/` and are committed, because a
+record that lives only in an ignored directory dies with the machine and takes the trail of who
+decided what with it.
+
+The cost is a bypass: record files are pushed straight to the base branch, so branch protection is
+configured **without admin enforcement**. That exemption is scope-free — nothing in the repository
+limits it to record files, and two of the three permitted paths are the leader's own governing
+files. The owner accepted this on 2026-09-20 in preference to routing every record write through a
+pull request. The leader guide states the limit, states that it is a written rule rather than an
+enforced one, and names what must never travel that way.
+
+Committing the records also makes them **untrusted input**: anyone who can open a pull request can
+put text in front of a privileged session. So the session-start loader wraps them in a
+nonce-delimited untrusted-content boundary, defuses any line that imitates its own delimiters,
+refuses symlinks by shape rather than judging their targets, and skips a candidate campaign that
+carries no readable note — because an empty record is indistinguishable from no campaign at all,
+and a name anyone can choose would otherwise blind the leader in one line.

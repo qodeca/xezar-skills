@@ -311,7 +311,7 @@ for ignored in .local/xezar/probe node_modules/probe dist/probe coverage/probe \
     fail ignore.hygiene "\"${ignored%/probe}\" is not git-ignored — autosave would commit scratch, runtime or build output"
   fi
 done
-tracked_local="$(git -C "$TASK_CWD" ls-files -- .local | head -5)"
+tracked_local="$(git -C "$TASK_CWD" ls-files -- .local/xezar | head -5)"
 if [ -n "$tracked_local" ]; then
   fail ignore.local-untracked ".local/xezar/ contains tracked files, which .gitignore cannot protect: $(printf '%s' "$tracked_local" | tr '\n' ' ')"
 fi

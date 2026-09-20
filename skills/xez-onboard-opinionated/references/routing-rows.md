@@ -15,9 +15,13 @@ repository, and a shipped lane name is a first dispatch to something that is not
 | **Workflow** | the shipped workflow file the leader runs for this kind |
 | **Trigger** | one sentence saying how the leader recognises that this row is the one |
 | **Class** | which of the five interview questions sets this row's chain |
-| **Never** | row-specific bans only, each earned by a real run |
+| **Never** | row-specific bans only — a prohibition that holds everywhere is stated once above, not repeated per row |
 
 A row without a trigger is a row the leader guesses at, so every row carries one.
+
+**"Strongest" and "cheapest" are about the lanes this machine has**, ranked in the routing
+interview — not about any particular vendor or model. The chain column, once filled, is what makes
+them concrete.
 
 ## Global prohibitions
 
@@ -28,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The twenty-four rows
+## The twenty-six rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -59,9 +63,18 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 25 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
 | 26 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
 
-Twenty-six rows for twenty-four task kinds: rows 25 and 26 share the security-and-release class
-with row 24 but run different workflows, and splitting them is cheaper than a row whose trigger
-has to say "or".
+**When two triggers both match, take the more specific row.** Several rows overlap on purpose —
+row 24 (security-sensitive) is a *subset* of row 19 (full cold review), and row 25 is a subset of
+row 24. Without this rule a cold review of an authentication diff routes to row 19 and quietly
+loses the security chain. When two rows are equally specific, take the later one.
+
+Two pairs need saying out loud, because their triggers read alike:
+
+- **18 vs 20.** Row 18 *judges* — is this earlier finding actually fixed? Row 20 *changes code* to
+  answer a verdict. Judging goes to the review workflow, fixing goes to the response workflow.
+- **15 vs 16.** A merge chain that hits a conflict is row 15, not row 16, for as long as the
+  conflict is open. Row 16 bans the strongest lanes; a conflict needs judgement, so routing it as
+  16 bans exactly the lane the work requires.
 
 ## Filling the chain column
 

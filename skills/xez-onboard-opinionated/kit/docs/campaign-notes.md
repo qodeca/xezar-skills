@@ -30,7 +30,7 @@ Everything else goes through a pull request.
 | `README.md` | live state, **rewritten** at every milestone | yes |
 | `decisions.md` | owner's exact words, dated, **append-only** | yes, **whole** |
 | `parked.md` | calls the leader made alone while the owner was away | yes |
-| `merges.md` | one line per day: every merge as `#PR -> sha` | yes |
+| `merges.md` | one line per day: every merge as `#PR -> sha` | no, read on demand |
 | `plan.md` | the owner-approved plan, copied in once, never edited | on demand |
 | `timeline-YYYY-MM-DD.md` | one file per day, append-only | newest day only, tail |
 | `archive-*.md` | stale blocks kept for history | never |
@@ -40,7 +40,10 @@ Everything else goes through a pull request.
   State block (base-branch sha, merges so far, checkpoints met); open pull requests with head sha,
   verdict and the single next action; the serial merge line; running tasks per lane; the account
   table with state and reset times (see `.xezar/docs/account-limits.md`); held or queued work;
-  owner items; a "rules that bit" list for briefs; restart and re-attach steps. Target 120 lines —
+  owner items; a "rules that bit" list for briefs; restart and re-attach steps; and the
+  **file-ownership table** — one line per running task, `<runId first 8> owns <path glob>`,
+  refreshed at every dispatch. That table is the input to every selection decision and it is the
+  first thing a compaction loses, which is exactly why it lives in a file rather than in context. Target 120 lines —
   past that, move a stale block into an `archive-*.md` rather than trim history silently.
 
 - **`decisions.md`** — owner decisions in the owner's exact words, with the date and the channel

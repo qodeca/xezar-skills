@@ -163,7 +163,7 @@ xezar_base_branch() {
 # The engine also hands each run its own scratch directory at `.local/xezar/scratch/<runId>`
 # and reaps it at run end (src/runs/agent-tmpdir.ts). That is engine-owned state, not an
 # evidence location: anything that must survive the run still belongs here.
-# TWO ROOTS, AND NOTHING EVER MOVES BETWEEN THEM. `.local-tasks` is the frozen historical
+# TWO ROOTS, AND NOTHING EVER MOVES BETWEEN THEM. `.local/xezar-tasks` is the frozen historical
 # root; `.local/xezar/tasks` is where new evidence goes. A sealed manifest stores ABSOLUTE paths
 # and gate-results.mjs asserts the manifest sits at its canonical location, so bulk-moving old
 # evidence would invalidate every historical seal — which is why this is a resolve rather than a
@@ -182,7 +182,7 @@ task_evidence_dir_of() {
   local id="${1:-}" new old
   [ -n "$id" ] || return 1
   new="$MAIN_ROOT/.local/xezar/tasks/$id"
-  old="$MAIN_ROOT/.local-tasks/$id"
+  old="$MAIN_ROOT/.local/xezar-tasks/$id"
   if [ ! -d "$new" ] && [ -d "$old" ]; then printf '%s' "$old"; return; fi
   printf '%s' "$new"
 }
@@ -191,7 +191,7 @@ task_evidence_dir_of() {
 # while runs exist under the other is the silent half-state this window has to prevent, so every
 # scan walks this list rather than a literal.
 task_evidence_roots() {
-  printf '%s/.local/xezar/tasks\n%s/.local-tasks\n' "$MAIN_ROOT" "$MAIN_ROOT"
+  printf '%s/.local/xezar/tasks\n%s/.local/xezar-tasks\n' "$MAIN_ROOT" "$MAIN_ROOT"
 }
 
 task_manifest_path() {

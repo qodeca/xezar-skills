@@ -17,6 +17,37 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – the leader's context loader, corrected
+
+Applies only to a repository onboarded by `xez-onboard-opinionated`. Everything it installed is
+yours and never auto-updates, so these corrections do not reach you by upgrading the skills.
+
+**Symptom – standing decisions vanish from the leader's context, and a finished campaign loads as
+the live one.** Your `.xezar/checks/leader-context.sh` has `NOTE_TAIL_BYTES=8000` and reads
+campaigns from `.local/xezar/campaigns`. Three things follow, none of which announces itself:
+
+- `decisions.md` is cut to its last 8 KB. The owner's oldest decisions still bind, and they are
+  the ones that disappear — silently, with the file still present and still labelled complete.
+- The campaign lookup takes the last folder by name with no digit filter, so the reserved
+  `future-campaign/` sorts above every dated one and wins every time.
+- Campaign records are read from a gitignored path, so a rebuild loses them entirely.
+
+**What is lost by skipping this.** The leader keeps working from a truncated decision file. That
+is not a visible failure: it looks like ordinary work, and the first sign is the leader doing
+something the owner ruled against months ago.
+
+**Also corrected, same file.** The loader now wraps campaign content in an untrusted-content
+boundary, refuses symlinked campaign folders and notes, and will not elect a campaign folder that
+carries no readable note. Campaign records are committed, so their content arrives from anyone who
+can open a pull request; an older loader prints it into a privileged session as if the owner had
+written it, and a committed symlink reads any file on the machine into that session.
+
+**How to apply.** Copy the current `leader-context.sh` and `local-tree.sh` from the skill's
+`kit/checks/` over your `.xezar/checks/` copies, move `.local/xezar/campaigns/` to
+`.xezar/campaigns/` and commit it, and re-read `.xezar/docs/campaign-notes.md` — the campaign
+contract changed from a gitignored file that splits when it grows to a committed folder with seven
+file kinds.
+
 ## 2026-09-21 – branch-protected, a new tracker operation
 
 Additive: nothing that works today stops working. You need this only if you want a skill to be

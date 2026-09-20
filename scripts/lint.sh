@@ -9,7 +9,8 @@
 #    opinionated onboarding skill has to name the product it installs.
 # 4. Old-brand ban: the predecessor collection's brand, prefix and `.ai/` layout may not
 #    reappear anywhere in the maintained sources (LICENSE and UPGRADE_NOTES.md excepted).
-# Scope of 3: skills/** only, and never a vendored `skills/<name>/kit/` payload.
+# Scope of 3: skills/** including a vendored `skills/<name>/kit/` payload. The kit exclusion
+#    applies only to the tracker-abstraction and process-kill gates, not to this one.
 set -uo pipefail
 
 # Per-run load ceiling (body + always-loaded references). Ratchet: lower only.

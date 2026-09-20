@@ -21,11 +21,24 @@ LOCAL="$REPO_ROOT/.local/xezar"
 # The six named subfolders. Anything else at the top level is loose.
 ALLOWED="runtime tasks worktrees scratch cache qa"
 
-[ -d "$LOCAL" ] || { echo "local-tree: no .local/xezar/ directory - nothing to check."; exit 0; }
+# Only the primary checkout has the full tree. A task worktree creates the one or two subfolders
+# it needs, so running this there would report four missing folders on every single task.
+git_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$git_dir" ] && [ "$git_dir" != "$common_dir" ]; then
+  echo "local-tree: linked worktree - skipped (the primary checkout owns the tree)."
+  exit 0
+fi
+
+# Absent is not a failure: a fresh clone has no .local/ at all, because git stores no empty
+# directories. The first run in a new checkout must not fail for that.
+[ -d "$LOCAL" ] || { echo "local-tree: no .local/xezar/ directory yet - nothing to check."; exit 0; }
 
 loose=""
-for entry in "$LOCAL"/* "$LOCAL"/.[!.]*; do
-  [ -e "$entry" ] || continue
+for entry in "$LOCAL"/* "$LOCAL"/.[!.]* "$LOCAL"/..?*; do
+  # `-e` is false for a BROKEN symlink, so `-L` is what catches a dangling link. Without it a
+  # dangling link is the one kind of loose entry this check cannot see.
+  { [ -e "$entry" ] || [ -L "$entry" ]; } || continue
   name="$(basename "$entry")"
   # A bare .gitignore at the top level is part of the structure, not loose.
   [ "$name" = ".gitignore" ] && continue

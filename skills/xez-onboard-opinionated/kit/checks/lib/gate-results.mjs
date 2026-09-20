@@ -1141,7 +1141,7 @@ function cmdVerify(args) {
 
   // Path safety before any read, and the fence is NOT derived from the document being audited.
   //
-  // It used to be: `resolve(repo, ".local-tasks", seal.runId, "gates")`. `seal.runId`
+  // It used to be: `resolve(repo, ".local/xezar-tasks", seal.runId, "gates")`. `seal.runId`
   // comes out of the same manifest as `seal.resultPath`, and `resolve` collapses `..`, so a
   // runId of `../../../elsewhere` moved the fence to wherever the caller wanted and the fence
   // then trivially contained the target. The root is instead the manifest's OWN location,
@@ -1162,12 +1162,12 @@ function cmdVerify(args) {
   // And the independently resolved canonical location has to be where the manifest actually is,
   // so a manifest smuggled in from elsewhere cannot borrow a valid-looking run id.
   //
-  // There are TWO canonical roots while the `.local-tasks` → `.local/xezar/tasks` rename
+  // There are TWO canonical roots while the `.local/xezar-tasks` → `.local/xezar/tasks` rename
   // window lasts, and the fence accepts EITHER — never "anywhere". Old evidence is frozen where it
   // lies (a seal stores absolute paths, so moving it would break every historical seal) and new
   // evidence is written to the new root, so a seal has to verify at whichever of the two it was
   // written under.
-  const canonicalRoots = [resolve(repo, ".local/xezar/tasks"), resolve(repo, ".local-tasks")];
+  const canonicalRoots = [resolve(repo, ".local/xezar/tasks"), resolve(repo, ".local/xezar-tasks")];
   if (!canonicalRoots.some((root) => runDir === resolve(root, runIdFromPath))) {
     report.reasons.push(`the manifest is not at this repository's canonical evidence path for run "${runIdFromPath}" (${runDir})`);
   }

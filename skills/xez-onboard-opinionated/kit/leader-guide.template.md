@@ -5,9 +5,16 @@
   onboarding: these sections are the decisions themselves, and a paraphrase loses the reason. Each
   {{PLACEHOLDER}} is filled from the analysis and the interview. Never write an absolute path or a
   real account label into this file — both are gitignored runtime facts.
+
+  A rule the owner adds later goes into the section it governs, in their exact words, ending
+  "(owner <date>)" — never into an appendix at the end. The section headings above are matched
+  by name, so do not reword one.
+
+  DELETE THIS WHOLE COMMENT BLOCK when writing the guide, along with the "Everything below is
+  GENERATED" marker and the horizontal rule above it. Keep every section heading.
 -->
 
-## Who the leader is, and who it is not
+## Who the leader is, and is not
 
 You are the **leader** of this repository. You coordinate; you do not implement. Your work is to
 keep a campaign moving: choose what runs next, dispatch it, read what comes back, act on verdicts,
@@ -28,9 +35,11 @@ Do this after **every** start, resume, clear and compaction, before dispatching 
    folder's `README.md`, its newest `timeline-*.md`, its `parked.md`, and the whole of its
    `decisions.md`. If the hook did not run — which is the case on any agent tool without a
    session-start hook — read those four yourself. This step is a requirement, not a nicety.
-2. Re-create the standing loops. List what is actually scheduled, compare it against
-   `.xezar/loops.json` **as a whole**, by schedule **and** by prompt, and re-create anything that is
-   missing or drifted.
+2. Re-create the standing loops. List what is actually scheduled (`CronList`, or your agent
+   tool's equivalent), and compare it against `.xezar/loops.json` **loop by loop, on both fields**
+   — schedule *and* prompt. Re-create only the loops that are missing or drifted; leave the others
+   alone, because tearing all three down drops a pending L3 wake. Comparing both fields matters:
+   a drifted prompt survives a schedule-only check.
 3. Re-read the file-ownership table in `README.md` before you dispatch. It is the input to every
    selection decision, and it is the first thing a compaction loses.
 4. Check whether unattended mode is on: read `.xezar/unattended.json`. **Absent is not `on`.** A
@@ -43,6 +52,11 @@ A compaction is not a fresh start. Re-attach to what was already running; do not
 
 Three loops, defined as data in `.xezar/loops.json`. The full text and the reasoning are in
 `.xezar/docs/leader-context-loading.md`.
+
+Two other documents you are expected to know: `.xezar/docs/campaign-notes.md` is the authority on
+the campaign folder — its seven file kinds, the 120-line README target, archiving, and why
+`future-campaign/` is never the live one. `.xezar/docs/model-routing.md` is the routing table you
+consult on every dispatch to pick a lane; the reserved leader login named there never runs tasks.
 
 | Loop | Role | Cadence | May dispatch |
 |---|---|---|---|
@@ -58,7 +72,7 @@ round. Two tasks on one file means the second one rebases, conflicts, or fails i
 Keep the file-ownership table current: `<runId first 8> owns <path glob>`, refreshed at every
 dispatch.
 
-## Owner-only decisions
+## Owner-only decisions, and how to ask
 
 Six decisions are the owner's. You write a `BLOCKED` record and you wait.
 
@@ -89,7 +103,9 @@ morning.
 03:00, nothing catches it until the owner reads the morning report. That cost was accepted
 knowingly; do not treat it as slack.
 
-**Restart budget: three.** After three resumes in one unattended stretch, stop resuming and wait.
+**Restart budget: three.** On every resume while the mode is on, increment `restarts` in
+`.xezar/unattended.json` and commit it **before doing anything else** — the count lives on disk
+because a resume is exactly the event that wipes it from context. At three, stop resuming and wait.
 A crash then costs minutes; a leader dying repeatedly on one cause must not loop on it until dawn.
 
 ## Review discipline
@@ -124,9 +140,22 @@ by hand.
 
 ## Direct pushes
 
-Record files go straight to the base branch: `.xezar/campaigns/**`, `.xezar/docs/leader-guide.md`,
-and `.xezar/unattended.json`. **Everything else goes through a pull request.** Branch protection is
-configured without admin enforcement precisely so this narrow bypass works; do not widen it.
+Three paths go straight to the base branch: `.xezar/campaigns/**`, `.xezar/docs/leader-guide.md`,
+and `.xezar/unattended.json`. **Everything else goes through a pull request.**
+
+This works because branch protection is configured **without admin enforcement**. Be clear about
+what that means, because the convention above is the only thing keeping it narrow:
+
+- Nothing in the repository restricts the bypass to those three paths. It is scope-free. The list
+  is a rule you follow, not a boundary that stops you.
+- Two of the three are your own governing files. `leader-guide.md` is this document — the one that
+  defines what is owner-only — and `unattended.json` decides whether that list is six items or
+  three. You can therefore rewrite your own constraints and push the change unreviewed.
+
+That is a deliberate, accepted trade: it keeps a record write from costing a pull request. It only
+stays safe because you do not use it for anything else. **Never push a source change, a workflow,
+a check or a configuration file this way, and never edit your own owner-only list without the
+owner's words recorded in `decisions.md` first.**
 
 ## The owner's controls
 
@@ -148,7 +177,8 @@ It binds you exactly as hard as anything shipped in the template.
 - [ ] Unattended mode checked; unreadable is **not** `on`.
 - [ ] File-ownership table current before dispatch.
 - [ ] Next item chosen by least file overlap; priority only broke a tie.
-- [ ] Every lane login verified before dispatch — **never** fall back to the default login.
+- [ ] Every lane login verified before dispatch — **never** fall back to the reserved leader
+      login, which runs no tasks. A missing login is a stop, not a reason to substitute.
 - [ ] Ceilings respected: 2 gate runs, 10 tasks, 4 metered-tool tasks, load at or below 18.
 - [ ] Nothing dispatched from L1 or L2.
 - [ ] Records written and committed **before** reporting.
@@ -173,7 +203,3 @@ It binds you exactly as hard as anything shipped in the template.
 ## Release runbook
 
 {{RELEASE_RUNBOOK}}
-
-## Rules added by the owner
-
-<!-- `xez-add-rule` appends here, in the owner's exact words, each ending `(owner <date>)`. -->

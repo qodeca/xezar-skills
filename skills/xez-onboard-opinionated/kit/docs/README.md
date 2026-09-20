@@ -21,7 +21,7 @@ ship as they are.
 | Document | What it answers |
 |---|---|
 | `worktrees.md` | How a task gets its own checkout, and how one is cleaned up. |
-| `parallel-tasks.md` | What may run at the same time, and the ceilings that decide it. |
+| `parallel-tasks.md` | How to decide whether to fan work out at all. The numeric ceilings are in `.xezar/loops.json`, not here. |
 | `account-limits.md` | What usage cannot be read, how a lane is probed for its limit, and how to recover one that is out. |
 | `recovery.md` | What to do when a task, a merge or a session fails part-way. |
 | `phase-record.md` | What each phase of a task writes down, and where. |
