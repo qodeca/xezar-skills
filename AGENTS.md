@@ -2,6 +2,61 @@
 
 This repository is the source of the **Xezar Skills** collection: forty-one agent skills (`skills/<name>/SKILL.md`) that run a full PR pipeline — plan, implement, review, QA gate, merge — installable into any repo via [skills.sh](https://skills.sh). The deliverables here are markdown skill documents plus a small amount of shell/Node tooling; there is no application code.
 
+## Which document wins
+
+Rules are only useful when a reader knows which one to follow when two of them differ. In
+this repository, later entries override earlier ones:
+
+1. **`SECURITY.md`** and the safety rules inside a skill. Nothing overrides these — not a
+   repo-local override, not a process document, not a reviewer.
+2. **`BACKWARD_COMPATIBILITY.md`** — the protected surfaces and the required migration
+   paths. A change that breaks one of these is wrong even when every other document
+   approves of it.
+3. **This file (`AGENTS.md`)** — how work is done here, and the cross-skill contract.
+4. **`CODE_REVIEW.md`** — what a review looks for. It applies the rules above; it does not
+   create exceptions to them.
+5. **`SDLC.md`** and `.xezar/pipeline/config.json` — the process and its settings.
+6. **`DECISIONS.md`** — why things are the way they are. It records decisions rather than
+   imposing them, so it loses to anything above it; a conflict between it and a rule means
+   the decision was superseded and the entry needs updating.
+
+A repo-local override (`.xezar/pipeline/overrides/<skill>.md`) extends a skill and loses to
+every level above: it can never relax a safety or quality rule, expand tool or network
+access, or redirect output. A directive that tries is skipped and reported.
+
+**Keep each rule short enough to hold in your head.** A rule nobody can recall is a rule
+nobody applies, and the failure mode of a long one is worse than the failure mode of a
+missing one: people skim it, act anyway, and everyone believes it was followed. When a rule
+needs a page of reasoning, the rule is the one sentence and the reasoning goes in
+`DECISIONS.md` underneath it.
+
+## Adding a new skill
+
+Eight places, and the gates will tell you about most of them — but not before you have
+written the skill, so here they are up front:
+
+1. `skills/<name>/SKILL.md` — frontmatter `name` equal to the directory, a `description`
+   under 500 characters, and the mandatory local-override preflight line.
+2. `skills/<name>/references/` — its **own** copies of the standard step files it actually
+   uses (`agentic-setup.md`, `rules.md`, and whichever of `pr-finalize.md`,
+   `report-templates.md`, `claim-pr.md`, `worktree-setup.md`, `review-report.md`,
+   `ci-followup.md` apply). Carry only what the skill performs.
+3. The shared blocks — run `node scripts/sync-shared-blocks.mjs`, which writes them for you.
+   A skill that legitimately carries none of a block needs an entry in
+   `scripts/allowlists.json` with a reason, an owner and an expiry.
+4. The coverage roster in `xez-setup-agent-pipeline/references/skill-coverage.md`.
+5. `docs/skills/<name>.md`, and its row in `docs/skills/README.md`.
+6. The skill table in `README.md`, and the "you run / you get" table when a user invokes it
+   directly.
+7. The skill count, in `README.md` and in the first line of this file.
+8. `docs/coverage.md`, if the skill adds a behaviour worth a row.
+
+Then decide the one thing the gates cannot: **does the name carry `auto`?** `xez-auto-*` is
+a behavioural contract, not decoration — autonomous, non-interactive, safe on a schedule,
+making the most reversible call itself instead of stopping to ask. Without `auto` the skill
+is interactive: it acts once, may ask, and hands control back. Never add a mid-run question
+to an `xez-auto-*` skill.
+
 ## Task routing
 
 | When the task involves… | Read first | Key rules |

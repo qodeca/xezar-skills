@@ -96,6 +96,38 @@ The pipeline/category/meta/priority/risk groups, their exclusivity rules, and th
 - **Breaking:** removing a script or flag, moving `skills/` – this breaks documented install instructions and skills.sh scanning.
 - **Required path:** keep old flags as deprecated aliases; update README in the same PR.
 
+## The ledger of deliberate breaks
+
+Every break we chose, with its date and its reason. The point of writing them down is not
+politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
+then "fixes" it back.
+
+Nothing has been broken yet. When something is, it gets a row here on the day it ships:
+
+| Date | What changed | Who it affects | What they must do | Why it was worth it |
+|---|---|---|---|---|
+| — | — | — | — | — |
+
+A row is written **in the PR that ships the break**, never afterwards. "We will document it
+later" has the same success rate everywhere.
+
+### Reserved, waiting for a major
+
+Things that are wrong, that we are not fixing yet, because fixing them is a break.
+
+- **`paths.analysis`** — declared in the config schema, created with a `.gitkeep`, committed,
+  and read by nothing. Deprecated 2026-09-20 and marked reserved; the loader still resolves
+  it and the default is unchanged.
+
+  It is **not** removed, and this is the part worth reading. Removing a `paths` key is
+  breaking by the rule two sections up, and the benefit is tidiness. So it waits for a major
+  version, or stays reserved indefinitely if no major version is ever worth cutting for it.
+  A key that costs one line of loader code is cheaper than a migration every consumer has to
+  perform.
+
+  The lesson is recorded under "Zero config is a design law" in `DECISIONS.md`: a key that
+  nothing reads is unremovable the moment it ships.
+
 ## Out of scope
 
 Prose wording inside skills, `references/` content that no other skill parses, README copy, and this repo's own CI workflows may change freely – they have no external consumers beyond fresh installs.

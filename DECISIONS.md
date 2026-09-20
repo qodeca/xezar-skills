@@ -252,3 +252,89 @@ skills. A router that saves one decision and adds one is not a router.
 Revisit if a real run shows a request that none of the three accepts, or if routing between
 them is repeatedly got wrong. Neither has happened yet, and "it would be tidy" is not a
 trigger.
+
+## Coordination: the portable half and the vendor hook, kept apart
+
+Agents coordinate so they do not clobber each other, and the mechanism splits cleanly into
+two halves that must not be confused.
+
+**The portable half** is the claim protocol: an assignee, an active-ownership marker, and a
+timestamped comment, all three readable back through the tracker operations any descriptor
+implements. It works on every tracker, it survives a restart, and a second agent can see it
+without sharing a machine with the first.
+
+**The vendor hook** is anything a particular harness offers — a lock file, a session
+registry, a scheduler's own mutex. It is faster and it is not portable: it does not exist
+under most of the 22+ agents this collection installs into, and it does not survive a
+different checkout.
+
+The rule: a skill's correctness depends only on the portable half. A vendor hook may make
+coordination cheaper, never make it possible. A skill that would misbehave when the hook is
+absent is broken, because that is the normal case.
+
+The corollary is the one that bites: the CI-observation marker is **not** a claim. It
+records that a finished, fully reported run still owes a result comment. Reading it as
+ownership would make every later skill back off from a pull request nobody is working on.
+
+## Two rulers, not one: depth and maturity
+
+Asking "how good is this" gets one answer where two are needed, and the two move
+independently.
+
+**Depth** is how much of the problem is addressed. A skill that handles the common case and
+says so is shallow and correct; one that claims to handle everything and handles the common
+case is shallow and wrong.
+
+**Maturity** is how much the claim has been tested. The four evidence levels apply:
+adapted, fixture-tested, real-task verified, recommended.
+
+They are independent, and the dangerous quadrant is deep-and-immature: a thorough-looking
+thing nobody has run. It reads as the most trustworthy of the four and is the least. The
+comfortable quadrant is shallow-and-mature, which is usually the right place to ship from.
+
+So a claim states both, or it states neither. "Handles the common case; fixture-tested" is
+a useful sentence. "Works well" is not.
+
+## Seven rules for replacing something that works
+
+Rewrites of working things fail in a recognisable way, so these are the conditions before
+starting one.
+
+1. **Name what the current thing does that you do not yet know about.** Every working
+   system encodes cases nobody remembers. If you cannot name at least one, you have not
+   read it closely enough to replace it.
+2. **Write down what would make the replacement wrong**, before building it. A rewrite with
+   no falsifiable failure condition is a preference.
+3. **Keep the old one running until the new one has done the job for real.** Not a fixture:
+   the actual work, on actual inputs.
+4. **Migrate the data and the decisions, not just the code.** The allowlist entries, the
+   recorded exceptions, the dated notes — those are the expensive part, and they are the
+   part that gets dropped.
+5. **Keep the seam.** A replacement that cannot be reverted in one step is a commitment, not
+   a change.
+6. **State the cost in the same sentence as the benefit.** "Simpler" always has a price;
+   naming it is what makes the trade reviewable.
+7. **Delete the old one on a date, in writing.** Two systems doing the same job is the worst
+   state of all, and the way to stay there forever is to never name the day you leave it.
+
+If three or more of these cannot be answered, the honest move is to improve the existing
+thing instead.
+
+## Zero config is a design law, not a nicety
+
+Every config key is a decision pushed onto someone who has less context than the person who
+added it. So:
+
+- **A new key ships with a default that makes an upgrade a no-op.** Absent must behave as
+  the repository behaved yesterday. Every gate switch in this collection is off by default
+  for this reason.
+- **A key exists only when two reasonable repositories genuinely need different answers.**
+  Not when we are unsure which answer is right — that is a decision to make, not to export.
+- **Absent, off, and unreadable are three different things**, and a key that collapses them
+  is worse than no key.
+- **A key that nothing reads is deleted**, or marked reserved with a date. `paths.analysis`
+  is the cautionary example: declared, created, committed and read by nothing, and now
+  unremovable without a major version because removing a `paths` key is breaking.
+
+The test before adding one: *what does this repository do if the key never exists?* If the
+answer is "the right thing", do not add the key.
