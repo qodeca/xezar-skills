@@ -29,6 +29,9 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-onboard](xez-onboard.md) | 🧑‍💻 | Optional minimal project setup or update re-check for software, campaigns, research and other work. |
 | [xez-setup-agent-pipeline](xez-setup-agent-pipeline.md) | 🧑‍💻 | One-per-repo configurator: writes the config, installs descriptors, generates project docs. |
 | [xez-apply-upgrade-notes](xez-apply-upgrade-notes.md) | 🧑‍💻 | Applies UPGRADE_NOTES.md after an upgrade, preserving local edits. |
+| [xez-unattended-on](xez-unattended-on.md) | 🧑‍💻 | Hands the leader a narrower stop list for a stretch when nobody is reachable, on the record. |
+| [xez-unattended-off](xez-unattended-off.md) | 🧑‍💻 | Ends that mode and asks back every decision the leader parked, one at a time. |
+| [xez-add-rule](xez-add-rule.md) | 🧑‍💻 | Writes a standing rule into the leader guide, so it loads at every session start and compaction. |
 | [xez-check-and-commit](xez-check-and-commit.md) | 🧑‍💻 | Runs the validation gate on the branch, fixes obvious drift, commits and pushes when green. |
 | [xez-discover](xez-discover.md) | 🧑‍💻 | Product-level discovery and define in three modes; leaves a product-brief.md built from real material, with tagged evidence and owned decisions. |
 | [xez-brainstorm](xez-brainstorm.md) | 🧑‍💻 | Divergent conversation before any artifact exists; converges on which skill runs next, plus a handoff brief. |
