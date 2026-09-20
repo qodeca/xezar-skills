@@ -155,6 +155,26 @@ breaks(
   "process killed by pattern match",
 );
 
+// The two gates above exclude `skills/<name>/kit/**` — vendored payload a skill copies
+// into a consumer project. These two prove the exclusion is a path exclusion and nothing
+// more: the same text in the skill's own body still fails, in the same skill that owns a
+// kit. An exclusion nobody tests is an exclusion that quietly becomes a hole.
+breaks(
+  "direct tracker CLI use is still rejected in a skill that owns a kit",
+  "skills/xez-onboard-opinionated/SKILL.md",
+  (s) => `${s}\n\n\`\`\`bash\ngh pr create --title "setup"\n\`\`\`\n`,
+  lint,
+  "direct gh CLI usage",
+);
+
+breaks(
+  "pattern-killing is still rejected in a skill that owns a kit",
+  "skills/xez-onboard-opinionated/SKILL.md",
+  (s) => `${s}\n\n\`\`\`bash\npkill -f "node server.js"\n\`\`\`\n`,
+  lint,
+  "process killed by pattern match",
+);
+
 breaks(
   "a credential-shaped value in a committed file is rejected",
   "skills/xez-fix/SKILL.md",

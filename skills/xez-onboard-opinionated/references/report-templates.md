@@ -2,6 +2,59 @@
 
 Called from step 6. Omit any optional line that would say nothing.
 
+## Setup complete
+
+Only after the smoke test passed and protection was re-read.
+
+```markdown
+## 🚀 Setup complete — and proved by a real task
+
+<n> files written, merged in <PR>. A throwaway task ran end to end through the new setup:
+workflow → pull request → gates green. Its branch and pull request are cleaned up.
+
+| | |
+|---|---|
+| 🎯 Base branch | `<name>`, protected — <n> required checks, administrators **not** enforced |
+| 🧪 Gates | `<command>`, … — run by the smoke test, not only written down |
+| 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
+| 📋 Routing | <n> rows, chains ending in `wait` |
+| 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
+
+⚠️ **Three things to know before you rely on it**
+
+- Administrators can push directly to the protected branch. That is deliberate — the leader
+  commits campaign records at every milestone and routing each through a pull request would make
+  the record lag the event. The leader guide limits the bypass to record files, and **that limit
+  is a written rule, not an enforced one**.
+- The permission file allows the leader's MCP tools by pattern, so unattended runs never stop on
+  a prompt. A tool the product adds later is allowed without anyone looking at it.
+- Opening a campaign is yours. The leader never opens one, so nothing starts until you do.
+
+**Next:** open a session with `<launcher>`, then run `xez-add-rule` for anything the leader
+should always do, and `xez-unattended-on` before the first stretch you are away.
+
+PR: #<number> (link: <full PR URL>)
+```
+
+## Protection could not be applied
+
+Replaces the protection row above, and the report does **not** say the setup is complete:
+
+```markdown
+## ⚠️ Setup written, but the gates are not enforced yet
+
+Everything is installed and the smoke test passed, but this login cannot change repository
+settings, so `<branch>` is unprotected. Until somebody with admin rights runs this, every label,
+review rule and CI check the setup installed is advisory — a branch can merge with none of them
+satisfied:
+
+```bash
+<the exact command>
+```
+
+Re-run this skill's protection step, or re-read it yourself, once that has run.
+```
+
 ## Interview complete, preview printed
 
 ```markdown
@@ -29,10 +82,29 @@ than a file and affects everyone on the repo<, and this login <can / cannot> app
 smoke test creates and then deletes a real branch and pull request; and the saved interview at
 `.local/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
 
-⚠️ **The writing half is not installed yet.** Nothing here has been applied, and this preview is
-not an approval you are being asked for — it would be stale by the time the writing half exists.
+**Approve the whole set, or nothing.** A partial approval would produce a partial setup, which
+is the one outcome the clean-project rule exists to prevent. Anything other than a clear yes
+ends the run with nothing written into the project; the saved interview stays either way.
 
-Re-run to continue from the saved interview, or `--section <name>` to change one answer.
+Use `--section <name>` to change one answer first.
+```
+
+## Smoke test failed
+
+The result, reported as the result — not a caveat on a success:
+
+```markdown
+## ❌ Setup written, but it cannot run a task
+
+The throwaway task failed at **<step>**: <what the gate or step reported>.
+
+Its pull request is left open on purpose so you can read the output; the branch is not deleted.
+
+<one line: what this most likely means — a missing MCP registration, an account this machine
+does not have, a gate command that does not run here.>
+
+The setup files are in place and the configuration is valid. What is not proved is that the
+whole thing runs, which is exactly what this step exists to find out while you are still here.
 ```
 
 ## Resumed

@@ -17,6 +17,32 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – branch-protected, a new tracker operation
+
+Additive: nothing that works today stops working. You need this only if you want a skill to be
+able to turn branch protection on, which until now nothing in the contract could do.
+
+**Symptom – a setup reports success while its gates enforce nothing.** Your
+`.xezar/pipeline/trackers/<tracker>.md` has a **get-required-checks** section and no
+**branch-protected** section. `get-required-checks` only *reads*, so a repository whose base
+branch has no protection passes every label, review and CI step and still merges anything: the
+labels are decoration and the QA gate is advice. A skill that wants to fix that has no operation
+to call.
+
+**Fix:** copy the **branch-protected** section from this release's shipped descriptor into your
+own copy, next to **get-required-checks**. The shipped GitHub version is in
+`skills/xez-setup-agent-pipeline/references/trackers/github.md`; Jira and Linear delegate to it,
+because branch protection belongs to the code host rather than to the issue tracker.
+
+Two things to read before you paste it. It takes `enforce_admins` from the caller and does not
+default it — a setup whose leader pushes its own record files straight to the base branch needs
+it `false`, a repository where nobody may bypass needs it `true`, and guessing is wrong for half
+of callers. And on `403`/`404` it refuses and prints the command for someone with admin rights
+rather than reporting a postcondition nobody reached.
+
+Until you apply it, skills that need protection print the command and wait for you instead of
+applying it. Nothing breaks; you do that step by hand.
+
 ## 2026-09-20 – merge-pr pins the head commit, list-issue-comments paginates
 
 Two fixes to the GitHub tracker descriptor. Both are in the file your repository owns, so an

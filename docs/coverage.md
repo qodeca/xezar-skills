@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 23 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 25 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 215 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
@@ -27,13 +27,14 @@ rather than trusting this table for a precise number.
 | 15 | A skill body stays inside its per-run token budget | `lint.sh` load-budget gate | ✅ |
 | 16 | Close-keyword configurability | `test-close-keywords.mjs` | ✅ |
 | 17 | Pipeline-retro classification rules | `test-classify-runs.mjs` | ✅ |
-| 18 | Onboarding native-token boundaries | `test-onboarding-content.mjs` | ✅ |
+| 18 | Onboarding portability and credential boundaries | `test-onboarding-content.mjs` | ✅ |
 | 19 | Discovery contracts | `test-discovery-contracts.mjs`, invoked by `lint.sh` | ✅ |
 | 20 | A skill actually works end to end under a real coding agent | `test:agent-browser-codex` | ❌ — needs the `codex` CLI and a full-access sandbox |
+| 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
 
 ## What this says
 
-**The thin row is the last one.** Nineteen checks read what the skills *say*; one runs a
+**The thin row is row 20.** Twenty checks read what the skills *say*; one runs a
 skill and watches what it *does*, and that one cannot run in CI — it needs a CLI and a
 sandbox with full access, and granting a pull request's own code full access is exactly
 what CI must not do.

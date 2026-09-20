@@ -374,6 +374,28 @@ Base branch → the set of required status checks. A 404 means branch protection
 gh api repos/{owner}/{repo}/branches/{baseRefName}/protection/required_status_checks --jq '.contexts[]' 2>/dev/null
 ```
 
+#### branch-protected
+Branch + required checks → that branch ends the call protected. Needs admin on the repository.
+
+`enforce_admins` is passed by the caller and is **not** defaulted here. A setup whose leader
+writes its own record files straight to the base branch needs it `false`; a repository where
+nobody may bypass needs it `true`. Guessing either way is wrong for half the callers.
+
+```bash
+CONTEXTS=$(printf '%s\n' "$@" | jq -R . | jq -sc .)   # required check names, as given
+jq -nc --argjson c "$CONTEXTS" --argjson admins "${ENFORCE_ADMINS:-false}" '{
+  required_status_checks: { strict: true, contexts: $c },
+  enforce_admins: $admins,
+  required_pull_request_reviews: null,
+  restrictions: null
+}' | gh api -X PUT "repos/{owner}/{repo}/branches/{branch}/protection" --input - >/dev/null
+```
+
+`403` or `404` means no admin rights on this repository: **do not** report the branch as
+protected. Print the command above for someone who has them, and return `unknown`. Then
+re-read with **get-required-checks** either way — a write that returned success and a branch
+that is actually protected are different claims, and only the second is worth reporting.
+
 #### get-pr-comment / get-review-comment
 Conversation comment id (`issuecomment-<id>` links) vs inline review comment id (`discussion_r<id>` links) → body, author, URL.
 ```bash

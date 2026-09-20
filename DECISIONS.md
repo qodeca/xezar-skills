@@ -465,6 +465,25 @@ are one mechanism in three acts.
    should go. If `parked.md` routinely reaches a length nobody interviews honestly, the
    park-and-continue model is wrong and should be replaced by stopping, not patched.
 
+### A vendored kit is payload, not skill prose
+
+`skills/<name>/kit/**` is excluded from three gates: the tracker-CLI gate, the process-kill
+gate and the link checker. The exclusion is a **path** exclusion and nothing else.
+
+A kit is another product's files, copied verbatim into a consumer project by the skill that
+carries them. They run under that product's own engine, so they call its tracker directly
+rather than naming this collection's operations, and their relative links resolve at the
+install location rather than in this tree. Rewriting them to satisfy a checker here would
+fork the payload from its source — which is the one thing a vendored copy must not do, since
+the version tested would stop being the version installed.
+
+Two things keep this from becoming a hole. Every excluded gate has a deliberate-break case
+proving it still fires in the *body* of the very skill that owns a kit, so the exclusion
+cannot quietly widen into "that skill is exempt". And the exclusions are three, named, and
+listed here: the permanent old-brand ban, the credential-shape gate and the portability gate
+still walk every kit file, and kit content that failed them was fixed at source rather than
+exempted.
+
 ### Admitted: `xez-onboard-opinionated`, and why a second onboarding skill
 
 1. **What request does it serve?** Reproducing one specific way of working — a leader, an

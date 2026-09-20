@@ -8,7 +8,7 @@ Three limits, all stated before anything is touched. **Claude Code only** — th
 
 It analyses the repository read-only (the real branching model, the gate commands, the design signal, which agent tools and accounts this machine actually has), interviews you with every detected fact shown as a proposal carrying its evidence, builds the routing table from the lanes that exist here rather than shipping one, and previews every file bound to a content digest before anything is written.
 
-**This release ships the analysis and interview half only.** It writes nothing into the project — the one file it writes is the saved interview under `.local/runtime/`, so an interrupted run resumes instead of restarting.
+Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch and opens a pull request for you to merge, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
 ## Parameters
 

@@ -27,12 +27,19 @@ import { dirname, join, relative, resolve, posix } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+// `skills/<name>/kit/**` is excluded: a kit is vendored payload a skill copies into a
+// consumer project, and its relative links resolve at the INSTALL location, not here.
+// `../../AGENTS.md` from a kit doc is correct once installed and necessarily broken in
+// this tree. Checking it here would only teach contributors to rewrite the payload so a
+// checker passes, which is the one thing a vendored copy must not do.
+const isKit = (p) => /^skills\/[^/]+\/kit\//.test(p);
+
 const FILES = [
   ...globSync("*.md", { cwd: root }),
   ...globSync("docs/**/*.md", { cwd: root }),
   ...globSync("skills/**/*.md", { cwd: root }),
   ...globSync(".xezar/**/*.md", { cwd: root }),
-].sort();
+].filter((p) => !isKit(p.split("\\").join("/"))).sort();
 
 /** GitHub's heading slug: lowercase, drop punctuation, spaces to hyphens. */
 function slug(heading) {
