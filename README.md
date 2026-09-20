@@ -395,6 +395,8 @@ Maintained by [Qodeca](https://github.com/qodeca).
 
 Every gate this repository runs, ranked by what breaking it would cost, with a "runs in CI?" column: [docs/coverage.md](docs/coverage.md). It is an inventory, not a floor — the reasoning for that is in [DECISIONS.md](DECISIONS.md).
 
+Ideas for changing the collection, and the bar they have to clear: [docs/improvement-register.md](docs/improvement-register.md). Wording choices, decided by counting what the skills actually say: [docs/style.md](docs/style.md).
+
 ## Reporting a security problem
 
 Privately, through the repository host's security advisories — not a public issue. What counts as a vulnerability here, what to include, and the response timeline: [SECURITY.md](SECURITY.md).

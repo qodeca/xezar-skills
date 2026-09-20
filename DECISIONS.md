@@ -338,3 +338,114 @@ added it. So:
 
 The test before adding one: *what does this repository do if the key never exists?* If the
 answer is "the right thing", do not add the key.
+
+## Cheap document conventions
+
+Four, because a convention that costs effort gets dropped exactly when things are busy.
+
+- **Date anything that will look stale.** A measurement, a count, a "currently". Write the
+  date next to it, so a reader knows whether to re-check rather than guessing.
+- **One file, one job.** A document that has grown a second subject gets split, not a new
+  heading. The test is whether you can say what it is for in one clause.
+- **Link, do not copy.** Except where a skill must install standalone — the one deliberate
+  exception in this repository, and it is paid for with a generator.
+- **Say what a document is not for**, near the top, when it is likely to be mistaken for a
+  neighbour. One sentence saves a lot of reading.
+
+`docs/style.md` holds the counted wording choices; it is the only place wording is decided.
+
+## You do not need the automation
+
+Automation is worth its cost only sometimes, and a collection that never says so trains
+people to reach for it always. Reach for the plain thing when the row matches:
+
+| Situation | Do this instead | Why |
+|---|---|---|
+| A one-line fix you already understand | Edit, run the gate, commit | The skill would spend a claim, a worktree and a review cycle to save you one minute |
+| One PR, and you are the only person on it | Open it yourself | Claim protocols exist for concurrency you do not have |
+| You want to know what a skill would do | Read its `SKILL.md` | The body is a numbered list on purpose; it is faster than a dry run |
+| A question about the repo | Search it | A skill that reads files is a slower `grep` with a worse summary |
+| Something is broken and you do not know why | Look first | Diagnosis is the part a skill is worst at without your context |
+| A change nobody else will review | Still get a review | This is the row where the automation is worth it — see below |
+
+The last row is the point of the table. The cases where automation pays are the ones with
+**concurrency, repetition, or a check you would skip** — several agents on one tracker, the
+same twelve steps for the fortieth time, a gate you would wave through at 6pm on a Friday.
+The cases where it does not are the ones where you already have the context and the work is
+one step.
+
+Reaching for a skill to avoid thinking is the failure this table exists to name.
+
+## A rename never rewrites a dated record
+
+When something is renamed, the new name goes in the current documents. Dated records —
+`UPGRADE_NOTES.md` entries, the ledger of deliberate breaks, `CHANGELOG.md`, a decision
+recorded here — keep the name that was true on their date.
+
+The reason is simple: those documents are read to find out what happened. A note dated
+2026-09-13 that uses a name coined in 2027 describes a past nobody lived through, and the
+reader who matches it against their own repository finds nothing and concludes the note
+does not apply to them.
+
+Where a stale name in a record would genuinely confuse, add the current name in brackets
+after the old one — `<old name>` (now `<current name>`) — rather than replacing it. Add;
+never overwrite. (The predecessor collection's own name is the one exception: it is
+permanently banned outside `LICENSE` and `UPGRADE_NOTES.md`, and `scripts/lint.sh`
+enforces that, so records naming it live only in those two files.)
+
+`scripts/lint.sh` enforces the other half: a stale `xez-` name in a *skill* is an error,
+because there it reads as an optional dependency that simply never fires.
+
+## Admission gate, and two-step deprecation
+
+**Admission.** Before anything new enters this collection — a skill, a config key, a gate,
+a document — it answers four questions in writing:
+
+1. What request does it serve that nothing here serves today?
+2. Who decides it worked, and by what observation?
+3. What does it cost every run, every reader, or every consumer repository?
+4. What would make us remove it again?
+
+An entry that cannot answer the fourth is a permanent addition, and it should be admitted
+on that basis or not at all. `xez-analyze-request` was declined on question 1; every gate
+switch answers question 4 with an owner and a review date.
+
+**Deprecation is two steps, never one.** Step one: mark it deprecated, keep it working, say
+what to use instead and from when. Step two, in a later release: remove it, with a row in
+the ledger of deliberate breaks.
+
+Collapsing the two is how a consumer discovers a removal by having a run fail. The gap
+between the steps is the entire value of the process, so a "deprecated and removed in the
+same release" is a break with a softer word on it.
+
+## A worker cap, because a worktree is not a sandbox
+
+Skills that run work in parallel bound the number of concurrent workers, and the bound is
+about the machine rather than about correctness.
+
+A git worktree isolates the **files**. It does not isolate anything else: the CPU, the
+memory, the port a dev server binds, the browser processes a QA run starts, the rate limit
+the tracker applies per account, the database the tests connect to. Four agents in four
+worktrees are four builds on one machine, competing for all of it — and the failures that
+produces look like flaky tests rather than like resource exhaustion, which is why it is
+worth saying out loud.
+
+So: a default of no more than a handful of concurrent workers, lowered further when the
+work starts servers or browsers, and never raised because "the worktrees are separate".
+They are separate in exactly one dimension.
+
+## Gate hygiene: no switch without an owner and a date
+
+Every off-by-default switch gets both **at the moment it is created**, recorded where the
+switch is documented:
+
+- `gates.failClosed` — collection maintainers, review 2027-09-20.
+- `gates.requireVerdictHead` — collection maintainers, review 2027-09-20.
+- `gates.designGate` — collection maintainers, review 2027-09-20.
+
+A switch is a decision postponed. Without an owner there is nobody to ask, and without a
+date nobody asks — so the temporary default becomes the permanent behaviour, and in a year
+nobody can say whether it was ever revisited or simply forgotten. The same rule already
+applies to allowlist entries, which fail the gate when they expire; a switch cannot expire
+that way without breaking consumers, so the date is a review rather than an expiry, and the
+honesty depends on someone keeping it.
