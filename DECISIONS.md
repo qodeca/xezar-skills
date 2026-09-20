@@ -146,3 +146,35 @@ repository still degrades to a logged skip, because a collection that refuses to
 repository whose labels it did not create is a collection nobody installs. The reverse –
 an absent label read as a satisfied gate – is the real defect, and it is fixed in the
 merge gate, not here.
+
+## Two gate switches, both off, both with an owner and a date
+
+`gates.failClosed` and `gates.requireVerdictHead` default to `false`, and both are
+read from the **base branch's** config rather than the working tree — a pull request
+must not set the terms of its own merge.
+
+`gates.failClosed` decides what a stage does when a gate could not be evaluated at
+all. The merge gate deliberately does **not** read it: refusing to merge on unknown
+evidence was already its behaviour, and reading the switch there would suggest that
+behaviour is optional. It governs the stages that currently carry on.
+
+`gates.requireVerdictHead` decides whether a verdict must name the commit it
+certifies. Absence of a `Head:` line is legacy **permanently**, keyed to the artifact
+and not to a release: a pull request opened before the line existed and merged two
+releases later must not be refused. A `Head:` line naming a *different* commit is a
+different matter — that refuses whether the switch is on or off, because the switch
+governs absence, never a mismatch.
+
+Both are off so an upgrade is a no-op until somebody opts in. Owner: the collection
+maintainers. Review date: 2027-09-20. An off-by-default switch with no owner and no
+date quietly becomes permanent, which is how a temporary tolerance turns into policy
+nobody remembers choosing.
+
+## Report every gate failure at once
+
+A gate run evaluates everything before it reports anything, and names all the failing
+gates together — `merge-gate.sh` prints a `Blocking=` line listing them. Reporting the
+first failure and stopping looks efficient and is not: it teaches the reader to fix one
+thing, re-run, and discover the next, which costs a full cycle per problem. The rule
+lives in every skill's `rules.md` as a generated shared block, alongside the five gate
+statuses and the reason `unknown` and `evidence-unavailable` are not passes.

@@ -40,6 +40,7 @@ The following is an **example**, not a default workflow. Populate validation com
     "risk": ["risk-low", "risk-medium", "risk-high"]
   },
   "qaGate": true,
+  "gates": { "failClosed": false, "requireVerdictHead": false },
   "ci": { "maxWaitMinutes": 40 },
   "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "paths": {
@@ -69,17 +70,19 @@ Field reference:
 - `labels.priority` and `labels.risk` — local urgency and impact categories; preserve the project's exclusivity and inference rules. Do not impose either group on a project that does not use it.
 - `qaGate` — preserve existing required QA and independent approval semantics. Turning labels off never waives required verification. When the project has no documented mapping, report the missing mapping and keep gated delivery pending.
 - `ci.maxWaitMinutes` — bounded CI observation (default `40`, `0` means no wait). Report pending checks honestly when it expires and release only the run's own observation signal. Required checks still gate merge.
+- `gates.failClosed` — optional; when `true`, a gate that reports `unknown` blocks every stage that reads it, not only the merge. Default `false`, so an upgrade changes nothing until someone opts in.
+- `gates.requireVerdictHead` — optional; when `true`, a verdict that does not name the commit it certifies (the `Head:` line) is refused. Default `false`; fresh setups get `true`. Both keys are read from the base branch on a gate path — `references/config-fields.md`.
 
 - `engine.executorTier` — optional; the default abstract model tier (`cheap` / `standard` / `capable`) for executor subagents dispatched by the loop skills when a Tasks-table `Exec` cell names none. Harnesses that support subagent model selection map the tier onto their closest model class; others ignore it. Configs without the key behave as `standard`.
 - `engine.loopStepThreshold` — the Step count above which `xez-auto-create-pr` hands a run off to `xez-auto-create-pr-loop` (default 20). Raise it to keep more runs on the cheaper plain engine; `--loop` always forces the loop regardless.
-- `engine.stepReview` — optional; how often the loop skills code-review landed work mid-run: `final` (default — only the authoritative end-of-run review), `checkpoint` (review the diff at every checkpoint pass), or `per-step` (review each Step's commit as it lands). Blocker/major findings are fixed immediately as `X.Y-review-fix` Steps; minors defer to the final review, which runs in every mode.
+- `engine.stepReview` — optional; how often the loop skills code-review landed work mid-run: `final` (default), `checkpoint`, or `per-step`. Trade-offs and the fix-now/defer split: `references/config-fields.md`.
 - `paths.runs` — where execution plans of autonomous runs are stored.
 - `paths.analysis` — where generated reports are stored.
 - `paths.specs` — where feature specifications live (default `.xezar/pipeline/specs`). Spec filenames follow `{YYYY-MM-DD}-{kebab-case-title}.md`. `xez-spec-writing` writes here, `xez-prepare-issue` links from here, `xez-followup-issue-from-pr` checks here first in design-doc mode, and `xez-brainstorm` writes handoff briefs under `<paths.specs>/briefs/`.
 - `paths.scripts` — where reusable environment scripts are generated (default `.xezar/pipeline/scripts`); `xez-prepare-test-env` writes the env bring-up/teardown scripts here.
 - `paths.qa` — where QA working state and artifacts live (default `.local/qa`): the shared `test-env.json` descriptor, and QA reports/screenshots under `<paths.qa>/artifacts_<runId>/`.
 - `reviewChecklist` — optional path to a repo-local review checklist file. When set, the `xez-code-review` skill reads it in addition to its built-in checklist. Use the existing project checklist when present; no particular filename is required.
-- `closeKeywords` — optional list of extra words that mark a PR as closing an issue, for repositories whose PR bodies are not written in English. `xez-close-fixed-issues` matches the built-in English keywords (`fix`/`fixes`/`fixed`, `close`/`closes`/`closed`, `resolve`/`resolves`/`resolved`) plus everything listed here, case-insensitively and only immediately before a `#N` token; configured words extend the built-ins and never replace them. The tracker's own `closingIssuesReferences` parse is English-only too, so a Polish repo writing `Zamyka #88` gets no closing signal from either source until it sets, for example, `["zamyka", "naprawia", "rozwiązuje"]`. Leave it empty on an English repository. Whatever the setting, a run that finds issue mentions without a recognized keyword reports them rather than passing over them silently.
+- `closeKeywords` — optional extra words that mark a PR as closing an issue, for repositories whose PR bodies are not written in English. They **extend** the built-in English keywords, never replace them, and a run that finds issue mentions with no recognized keyword reports them rather than passing over them silently. Worked example and the silent failure it prevents: `references/config-fields.md`.
 
 ## Tracker providers
 

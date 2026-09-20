@@ -77,6 +77,22 @@ const BLOCKS = [
       "never emit them",
     ],
   },
+  {
+    // How a gate result is reported. Two rules that only work if every skill states them
+    // the same way: report all failures at once, and never let a word that means "we did
+    // not check" read as a word that means "it is fine".
+    id: "gate-reporting",
+    files: "skills/*/references/rules.md",
+    canonical: "skills/xez-auto-create-pr/references/rules.md",
+    minLines: 6,
+    floor: [
+      "collect everything, then report once",
+      "`unknown` is never a pass",
+      "evidence-unavailable",
+      "Only `pass` and `not-applicable` are satisfied",
+      "never report a status you did not derive",
+    ],
+  },
 ];
 
 const marker = (id) => ({

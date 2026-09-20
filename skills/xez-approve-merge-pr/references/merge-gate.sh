@@ -66,7 +66,23 @@
 #      PR carrying `needs-qa` -- and `needs-qa` being ABSENT only counts when
 #      `needs-qa` appears in `labelsDefined`. Otherwise the gate could not be
 #      evaluated: `unknown`.
-#   8. The overall verdict is the worst of the individual gates, in the order
+#   8. VERDICT HEAD. `verdictHead` is the commit the incoming verdict named (the
+#      `Head:` line). Equal to the PR head is `pass`; a different sha is
+#      `findings`, because the verdict certifies a commit that is not the one
+#      being merged. ABSENT is `not-applicable` when `requireVerdictHead` is
+#      false -- and that tolerance is permanent, keyed to the artifact rather
+#      than to a release: a pull request opened before the line existed must not
+#      be refused two releases later. With `requireVerdictHead: true` (which
+#      fresh setups get) an absent line is `unknown` and refuses.
+#   9. EVERY gate is evaluated before anything is reported. The `Blocking=` line
+#      names every gate that is not pass or not-applicable, in one list, so the
+#      report leads with all of them instead of whichever one was checked first.
+#      Reporting the first failure teaches a caller to fix one thing, re-run, and
+#      discover the next -- which costs a full cycle per problem.
+#  10. `gates.failClosed` is deliberately NOT read here. This gate already refuses
+#      on `unknown`; the switch exists for the stages that do not, and reading it
+#      here would suggest the merge gate's behaviour depends on it. It does not.
+#  11. The overall verdict is the worst of the individual gates, in the order
 #      pass < not-applicable < findings < unknown. Anything but pass or
 #      not-applicable refuses.
 #
@@ -209,10 +225,19 @@ OUT=$(printf '%s' "$INPUT" | jq -r '
      elif ($labels | index("qa-approved")) then "pass"
      else "findings" end) as $qa
 
+  # --- verdict head --------------------------------------------------------
+  # Does the incoming verdict name the commit it certifies, and is it THIS commit?
+  | (.verdictHead // null) as $vhead
+  | (if .requireVerdictHead == true then true else false end) as $vreq
+  | (if $vhead == null then
+       (if $vreq then "unknown" else "not-applicable" end)
+     elif $vhead == $head then "pass"
+     else "findings" end) as $vh
+
   # --- roll up -------------------------------------------------------------
   | { state: $state, draft: $draft, mergeable: $mergeable, commit: $commit,
       review: $review, checks: $check, config: $config,
-      labelBlocks: $block, qaGate: $qa } as $gates
+      labelBlocks: $block, qaGate: $qa, verdictHead: $vh } as $gates
 
   | ([$gates[]]) as $vals
   | (if ($vals | index("unknown")) then "unknown"
@@ -229,6 +254,11 @@ OUT=$(printf '%s' "$INPUT" | jq -r '
       "config=" + $config,
       "labelBlocks=" + $block,
       "qaGate=" + $qa,
+      "verdictHead=" + $vh,
+      "Blocking=" + (($gates | to_entries
+                     | map(select(.value != "pass" and .value != "not-applicable"))
+                     | map(.key) | join(",")) as $b
+                     | if $b == "" then "none" else $b end),
       "Gate: " + $verdict )
 ') || {
   echo "merge-gate.sh: could not evaluate input; cannot decide" >&2

@@ -33,6 +33,7 @@
     "risk": ["risk-low", "risk-medium", "risk-high"]
   },
   "qaGate": true,
+  "gates": { "failClosed": false, "requireVerdictHead": false },
   "ci": { "maxWaitMinutes": 40 },
   "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "paths": {

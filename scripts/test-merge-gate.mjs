@@ -199,6 +199,60 @@ check("a conflicting PR refuses",
 check("unknown mergeability is unknown",
   { mergeable: null }, REFUSE_UNKNOWN(["mergeable", "unknown"]));
 
+// --- the verdict head: does the verdict name THIS commit? --------------------
+// Absence is legacy permanently. A pull request opened before the `Head:` line existed
+// and merged two releases later must not be refused -- the line is keyed to the
+// artifact, not to a release. So with the switch off, absence is not-applicable.
+check("an absent Head line is tolerated while the switch is off",
+  { verdictHead: undefined },
+  { verdict: "pass", code: 0, gate: ["verdictHead", "not-applicable"] });
+
+check("an absent Head line refuses once the switch is on",
+  { requireVerdictHead: true },
+  { verdict: "unknown", code: 1, gate: ["verdictHead", "unknown"] });
+
+check("a Head line naming this commit passes",
+  { verdictHead: "aaaa111", requireVerdictHead: true },
+  { verdict: "pass", code: 0, gate: ["verdictHead", "pass"] });
+
+// The dangerous case: a verdict that exists but is about something else. It must refuse
+// whether or not the switch is on -- the switch governs ABSENCE, never a mismatch.
+check("a Head line naming a different commit refuses, switch off",
+  { verdictHead: "bbbb222" },
+  { verdict: "findings", code: 1, gate: ["verdictHead", "findings"] });
+check("a Head line naming a different commit refuses, switch on",
+  { verdictHead: "bbbb222", requireVerdictHead: true },
+  { verdict: "findings", code: 1, gate: ["verdictHead", "findings"] });
+
+// --- every failure is reported, not just the first ---------------------------
+// Reporting one failure at a time teaches a caller to fix, re-run, and discover the
+// next -- a full cycle per problem.
+{
+  asserts += 1;
+  const { stdout } = run({
+    ...CLEAN,
+    isDraft: true,
+    reviewDecision: "CHANGES_REQUESTED",
+    labels: ["do-not-merge"],
+  });
+  const { gates } = parse(stdout);
+  const blocking = (gates.Blocking ?? "").split(",");
+  for (const expected of ["draft", "review", "labelBlocks"]) {
+    if (!blocking.includes(expected)) {
+      failures += 1;
+      console.error(`FAIL  Blocking= must name every failing gate; missing ${expected} in "${gates.Blocking}"`);
+    }
+  }
+}
+{
+  asserts += 1;
+  const { gates } = parse(run(CLEAN).stdout);
+  if (gates.Blocking !== "none") {
+    failures += 1;
+    console.error(`FAIL  a clean run must report Blocking=none, got "${gates.Blocking}"`);
+  }
+}
+
 // --- malformed input must never pass ----------------------------------------
 check("empty input cannot decide", "", { verdict: "unknown", code: 3 });
 check("non-JSON input cannot decide", "not json at all", { verdict: "unknown", code: 3 });

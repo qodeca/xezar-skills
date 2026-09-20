@@ -282,6 +282,7 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
     "risk": ["risk-low", "risk-medium", "risk-high"]
   },
   "qaGate": true,
+  "gates": { "failClosed": false, "requireVerdictHead": false },
   "paths": {
     "runs": ".xezar/pipeline/runs",
     "analysis": ".xezar/pipeline/analysis",
