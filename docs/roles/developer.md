@@ -13,6 +13,7 @@ Hand the pipeline a brief, a spec, or an issue number and get back a labeled, re
 | [`xez-auto-fix-issue`](../skills/xez-auto-fix-issue.md) | Take any issue to a PR | `/xez-auto-fix-issue 123` | a finished, fully-labeled PR; bugs get the fix chain (regression tests, clean review), features get spec-then-build — classified and routed automatically |
 | [`xez-auto-create-pr`](../skills/xez-auto-create-pr.md) | Ship an ad-hoc task | `/xez-auto-create-pr "Add rate limiting to the login endpoint"` | a labeled, self-reviewed PR from a free-form brief |
 | [`xez-auto-create-pr-loop`](../skills/xez-auto-create-pr-loop.md) | Force/resume a step-tracked loop run | `/xez-auto-create-pr-loop "Implement the multi-tenant billing spec"` | a resumable, step-tracked PR (continue with [`xez-auto-continue-pr-loop`](../skills/xez-auto-continue-pr-loop.md)) |
+| [`xez-maintain-deps`](../skills/xez-maintain-deps.md) | Dependencies have drifted, or an advisory landed | `/xez-maintain-deps` | an inventory, what is behind, what is vulnerable — and one PR per update group, each with the validation gate already run and the blast radius stated |
 
 ## What happens automatically
 

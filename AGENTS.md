@@ -63,8 +63,11 @@ to an `xez-auto-*` skill.
 |---|---|---|
 | Editing or adding a skill (`skills/<name>/SKILL.md`) | `DECISIONS.md`, `scripts/lint.sh`, the **Cross-skill contract** section below, the skill's own `references/` dir if present | Frontmatter `name` must equal the directory name and `description` must be present (≤500 chars — lint-enforced; aim for ≤350). Content must stay product-agnostic: no product or brand references (README, DECISIONS.md and LICENSE may name Qodeca/Xezar; `skills/**` may not), no hard-coded base branch or package manager (the lint gate greps for these). All tracker state management goes through named tracker operations, never direct `gh` commands (only `references/trackers/` may contain them). Config values (`baseBranch`, paths, labels, validation commands) always come from `.xezar/pipeline/config.json`, never hard-coded. New `xez-auto-*` skills MUST implement the Cross-skill contract. |
 | Cross-skill contracts (tracker operations, config schema, Progress format) | `skills/xez-setup-agent-pipeline/SKILL.md`, `skills/xez-setup-agent-pipeline/references/trackers/TEMPLATE.md`, `BACKWARD_COMPATIBILITY.md` | Multiple skills parse each other's outputs (execution-plan Progress sections, `test-env.json`, tracker descriptors). Changing a shared format requires updating every consumer in the same PR. |
-| Installer / tooling scripts (`scripts/*.sh`, `scripts/*.mjs`) | `package.json`, the script itself, `.github/workflows/` | Keep scripts POSIX-portable where they run in CI (ubuntu) and locally (macOS). `scripts/lint.sh` is the CI gate — changes to it change what every PR must pass. |
-| CI workflows (`.github/workflows/*.yml`) | `scripts/lint.sh`, `scripts/audit-skills.sh` | `lint.yml` runs the frontmatter + product-agnosticism gate on every PR. `skills-audit.yml` is informational (skills.sh third-party audit surfacing). |
+| Installer / tooling scripts (`scripts/*.sh`, `scripts/*.mjs`) | `package.json`, the script itself, `.github/workflows/lint.yml`, `scripts/allowlists.json` | Keep scripts POSIX-portable where they run in CI (ubuntu) and locally (macOS). A new gate command lands in `.xezar/pipeline/config.json`, `.github/workflows/lint.yml`, `SDLC.md` and `package.json` **in the same PR and the same order** — `check-gate-list.mjs` and `test-browser-providers.mjs` bind all four. Every guard needs a deliberate-break case in `scripts/test-guards.mjs`; a guard nothing breaks is a guard nobody knows still fires. |
+| CI workflows (`.github/workflows/*.yml`) | `scripts/lint.sh`, `scripts/audit-skills.sh` | `lint.yml` runs the whole gate — every command in `validation.commands`, not lint alone. `skills-audit.yml` is informational (skills.sh third-party audit surfacing). |
+| Descriptor families (`skills/xez-setup-agent-pipeline/references/{trackers,browsers,toolchains,security}/`) | that family's `TEMPLATE.md`, `BACKWARD_COMPATIBILITY.md`, `scripts/test-toolchain-providers.mjs` | Operation I/O is a frozen surface: adding an operation is additive, changing one is breaking. Name an operation by its **postcondition**, never by a verb one ecosystem happens to use. Output is `NAME=value` parsed after the **first** `=` and never sourced as shell; a status is one of the five words. A second provider is what proves the contract — a family with one is a description of that one. A descriptor a consumer already installed **never auto-updates**, so a fix that must reach existing installs goes in a skill plus an `UPGRADE_NOTES.md` entry. |
+| The label taxonomy (`.xezar/pipeline/labels.json`) | `SDLC.md`, `scripts/check-label-taxonomy.mjs` | The taxonomy is a protected surface: renaming or removing a label is breaking. Every label needs a full-sentence description and every group a colour, and the file must agree with `config.json` — the checker binds them. |
+| Governance documents (`SECURITY.md`, `docs/coverage.md`, `docs/style.md`, `UPGRADE_NOTES.md`) | the document itself, then the **Which document wins** order above | `SECURITY.md` outranks everything, including this file. `docs/coverage.md` states what is checked and what is not, and is never a gate. `docs/style.md` records counted usage, not taste. An `UPGRADE_NOTES.md` entry is keyed by the symptom a user sees, and says plainly what is lost by skipping it. |
 | Process / pipeline configuration | `.xezar/pipeline/config.json`, `SDLC.md`, `.xezar/pipeline/trackers/github.md` | Config and `SDLC.md` describe the same process — change them together. |
 | README, DECISIONS.md, LICENSE | `DECISIONS.md` | These MAY name Qodeca/Xezar; `skills/**` may not (the agnosticism gate is scoped to `skills/**` only). Read `DECISIONS.md` before proposing structural changes — most "obvious" restructurings were already considered and decided. |
 
@@ -132,11 +135,26 @@ points there; **never re-explain the detail here**, or the copy drifts.
 
 ## Validation
 
-Run before every PR (also the full CI gate):
+The full gate is the `validation.commands` list in `.xezar/pipeline/config.json` — eighteen
+commands, the same list `.github/workflows/lint.yml` runs and `SDLC.md` states.
+`scripts/check-gate-list.mjs` keeps the three in step, so read the config rather than a copy
+of the list kept here, which would be a fourth place to drift.
+
+**Run them individually.** A batched shell loop over `npm run` reports false failures: an
+unquoted expansion gives `rc=127` (command not found), which reads as a failing test.
 
 ```bash
 bash scripts/lint.sh
+node scripts/test-merge-gate.mjs
+# …and the rest, one at a time:
+jq -r '.validation.commands[]' .xezar/pipeline/config.json
 ```
+
+Two are worth knowing about before you wait on them. `scripts/test-guards.mjs` breaks each
+guard on purpose to prove it still fires, so it runs `lint.sh` about ten times and takes a
+couple of minutes — and it edits tracked files in place, so it takes a lock and only one copy
+may run at a time. `scripts/sync-shared-blocks.mjs` is a **generator**: when a shared block
+drifts, run it rather than editing 39 copies by hand.
 
 ## Conventions
 

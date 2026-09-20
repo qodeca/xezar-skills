@@ -15,6 +15,8 @@ The pipeline turns your ideas into tracked, well-formed work and — when you wa
 | [`xez-auto-manage-issues`](../skills/xez-auto-manage-issues.md) | Clean up one issue | `/xez-auto-manage-issues 123` | that issue relabeled and clarified in place |
 | [`xez-auto-write-spec`](../skills/xez-auto-write-spec.md) | Review the plan before code | `/xez-auto-write-spec 123` | a spec-first PR; implementation left for a later run |
 | [`xez-spec-writing`](../skills/xez-spec-writing.md) | Draft or review a spec directly | `/xez-spec-writing` | a staff-level spec, skeleton-first with an Open Questions gate |
+| [`xez-issue-create`](../skills/xez-issue-create.md) | File one issue with no pipeline set up at all | `/xez-issue-create "Grid loses the filter on reload"` | one filed issue with duplicate checks and a recovery receipt, using the project's own template — no config required |
+| [`xez-pipeline-retro`](../skills/xez-pipeline-retro.md) | Find out what the pipeline keeps wasting time on | `/xez-pipeline-retro` | finished runs classified by how they went, causes ranked by the hours they cost, top cause handed to `xez-prepare-issue`. Read-only |
 
 ## What happens automatically
 
@@ -30,7 +32,7 @@ The pipeline turns your ideas into tracked, well-formed work and — when you wa
 
 - Start with [`xez-brainstorm`](../skills/xez-brainstorm.md) when the idea is still fuzzy — its brief's resolved-unknowns table replaces the spec's autonomous defaults downstream, so the full-auto path runs on your answers instead of the agent's guesses.
 - Use `xez-auto-write-spec <issue>` when you want to sign off on the approach before any implementation happens — it stops after the spec PR lands; a later [`xez-auto-fix-issue`](../skills/xez-auto-fix-issue.md) run picks the spec up and implements it on the same PR.
-- Specs are **autonomous by default**: `xez-spec-writing --autonomous` posts its Open-Questions assumptions as a comment for you to override, rather than blocking. Pass `--interactive` (on [`xez-auto-fix-issue`](../skills/xez-auto-fix-issue.md) / [`xez-prepare-issue`](../skills/xez-prepare-issue.md)) when you'd rather answer the questions live.
+- Specs written **by the pipeline** are autonomous: an `xez-auto-*` caller runs `xez-spec-writing --autonomous`, which resolves each Open Question itself and posts the assumptions as a comment for you to override, rather than blocking. Run `xez-spec-writing` yourself and the Open Questions gate is a hard stop instead — it waits for your answers. Pass `--interactive` to [`xez-auto-fix-issue`](../skills/xez-auto-fix-issue.md) when you would rather answer live.
 - To override an autonomous assumption, just reply on the PR/issue comment — the defaults are posted precisely so you can correct them.
 - Batch triage defaults to the last ~25 open issues, worst-described first; narrow it by state, label, author, or limit when you want a focused pass.
 - [`xez-prepare-issue`](../skills/xez-prepare-issue.md) files work but never implements it — reach for [`xez-auto-fix-issue`](../skills/xez-auto-fix-issue.md) (or a developer) when you're ready to build.

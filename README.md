@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>🧠 plan · 🔨 implement · 🔍 review · ✅ QA gate · 🚢 merge</b><br/>
-  Thirty-nine agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
+  Forty-one agent skills that run a full PR pipeline. Install them into any repo, with any coding agent.
 </p>
 
 <p align="center">
@@ -167,6 +167,11 @@ Interactive helpers (no `auto` in the name — the other half of the naming conv
 | [`xez-integration-tests`](docs/skills/xez-integration-tests.md) | Creates and runs integration/E2E tests by exploring the running app first — real locators, runtime fixtures, no hardcoded IDs — and reports failures with artifact-based per-test diagnosis. Reuses the shared [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md) instance so QA and tests hit the same booted app. |
 | [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md) | QAs a change's UI in a real browser without merging. Checks the PR's review state first and runs [`xez-auto-review-pr`](docs/skills/xez-auto-review-pr.md) when the PR is still unreviewed, then boots the app via [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md), derives a scenario from the diff, drives the configured browser provider with screenshots, and produces a pass/fail report. Posts evidence as a PR comment when a tracker is configured; otherwise saves screenshots + JSON/Markdown reports. |
 | [`xez-auto-update-changelog`](docs/skills/xez-auto-update-changelog.md) | Drafts a CHANGELOG.md release entry for every PR merged since the last release — emoji categories, contributor credits resolved by the Supersede Credit Rule and verified against commit authorship so carry-forwards and umbrella merges credit the author, not the merger — then delegates to [`xez-auto-create-pr`](docs/skills/xez-auto-create-pr.md) to ship it as a docs PR. |
+| [`xez-onboard`](docs/skills/xez-onboard.md) | Optional first-time project setup, and the re-check after an update. Inspects what is already there, resolves the choices nobody made, previews the minimal set of project files before writing them, and preserves policy you wrote yourself. Ordinary work needs none of it. |
+| [`xez-ux-setup`](docs/skills/xez-ux-setup.md) | One-per-repo. Extracts the repository's own design contract — tokens, component registry, screen archetypes, conventions — into `.uxproof/`, so every UX skill judges against **this** repo's design system rather than a generic one. Re-run after the design system changes. |
+| [`xez-ux-shape`](docs/skills/xez-ux-shape.md) | Turns a vague product or UI idea into a decided direction before anyone draws a screen: what the feature is for, which states exist, whether AI belongs in it at all, how it will be validated, and what engineering is handed. |
+| [`xez-ux-review-pr`](docs/skills/xez-ux-review-pr.md) | Evidence-first design review of a PR's UI. Walks the changed screens in a real browser, performs the user's actual tasks, and ranks findings by user impact — each with evidence, the pattern it breaks, the trade-off, and an acceptance criterion. |
+| [`xez-create-skill`](docs/skills/xez-create-skill.md) | Authors a new pipeline skill from a brief, or splits an oversized `SKILL.md` into layered `references/` files. Knows the layering philosophy, the lint invariants, the tracker abstraction and the cross-skill contract, so what it writes passes the gate and matches house conventions. |
 
 ### 🤝 Skills invoke each other
 
@@ -292,6 +297,8 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
     "scripts": ".xezar/pipeline/scripts",
     "qa": ".local/qa"
   },
+  "ci": { "maxWaitMinutes": 40 },
+  "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "reviewChecklist": null,
   "closeKeywords": []
 }
@@ -333,7 +340,7 @@ Four layers of project fit, no forking:
 
 ### How a skill is laid out
 
-Each skill keeps its numbered main algorithm in `SKILL.md` and factors its repeatable procedures into per-skill `references/<step>.md` files under standard names — `agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `rules.md`. These standard step files are deliberately **duplicated inside every skill that uses them** rather than shared through cross-skill pointers, so each skill installs and runs standalone ([`xez-auto-create-pr`](docs/skills/xez-auto-create-pr.md) holds the canonical copy). The trade-off is intentional: standalone installability over DRY. When you edit a standard step file in one skill, sync the same change into the other skills that carry it — the collection's own contributor rule is to ask whether to propagate before doing so.
+Each skill keeps its numbered main algorithm in `SKILL.md` and factors its repeatable procedures into per-skill `references/<step>.md` files under standard names — `agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `report-templates.md`, `ci-followup.md`, `rules.md`. A skill carries only the ones it performs. These standard step files are deliberately **duplicated inside every skill that uses them** rather than shared through cross-skill pointers, so each skill installs and runs standalone ([`xez-auto-create-pr`](docs/skills/xez-auto-create-pr.md) holds the canonical copy). The trade-off is intentional: standalone installability over DRY. When you edit a standard step file in one skill, sync the same change into the other skills that carry it — the collection's own contributor rule is to ask whether to propagate before doing so.
 
 ### Repo-local skill overrides
 
@@ -383,10 +390,6 @@ Every PR carries at most one pipeline label (`review`, `changes-requested`, `mer
 
 The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until a human adds `qa-approved`, no matter how green the checks are. Automated skills request QA; they never grant it.
 
----
-
-Maintained by [Qodeca](https://github.com/qodeca).
-
 ## What is actually checked
 
 Every gate this repository runs, ranked by what breaking it would cost, with a "runs in CI?" column: [docs/coverage.md](docs/coverage.md). It is an inventory, not a floor — the reasoning for that is in [DECISIONS.md](DECISIONS.md).
@@ -396,3 +399,7 @@ Wording choices, decided by counting what the skills actually say: [docs/style.m
 ## Reporting a security problem
 
 Privately, through the repository host's security advisories — not a public issue. What counts as a vulnerability here, what to include, and the response timeline: [SECURITY.md](SECURITY.md).
+
+---
+
+Maintained by [Qodeca](https://github.com/qodeca).

@@ -12,7 +12,7 @@ Takes a tracker issue (a GitHub issue by default) from a single command all the 
 | `{repo}` | No | `owner/name`; inferred from the current git remote when omitted. |
 | `--interactive` | No | Feature route only: opt into human gates so the spec is written with interactive Open Questions stops instead of autonomous defaults. |
 | `--slug <kebab-case>` | No | Feature route only: override the derived slug (passed through to delegated skills). |
-| `--no-ui` | No | Feature route only: skip end-of-run UI verification. |
+| `--no-ui` | No | Skip UI verification. On the bug route it skips step 10; on the feature route it is passed through. |
 | `--loop` | No | Feature route only: forwarded verbatim to `xez-auto-implement-spec` when the user passed it; the route never adds it on its own. |
 | `--force` | No | Bypass the in-progress concurrency check; use only when intentionally taking over an issue another actor claimed. |
 

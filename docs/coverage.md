@@ -4,7 +4,9 @@ An inventory, not a gate. It exists so a reader can see where the checking is th
 is deliberately **not** enforced: a coverage number that must not go down turns into tests
 written to raise it, and those tests protect the number rather than the behaviour.
 
-Ranked by what breaking it would cost, not by how much code it touches.
+Ranked by what breaking it would cost, not by how much code it touches. Counts measured
+2026-09-20; they move whenever a gate gains a case, so re-read them from the gate's own output
+rather than trusting this table for a precise number.
 
 | # | Behaviour | Checked by | Runs in CI? |
 |---|---|---|---|
@@ -12,12 +14,12 @@ Ranked by what breaking it would cost, not by how much code it touches.
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
 | 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 23 deliberate defects | ✅ |
 | 4 | Skills stay product-agnostic and free of unsafe commands | `lint.sh` — brand, base branch, package manager, `pkill`, credential-shaped values | ✅ |
-| 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 209 assertions, incl. a renamed-label case | ✅ |
+| 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 215 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
 | 7 | A tracker descriptor implements every operation skills name | `test-tracker-providers.mjs` — 46 operations × 4 providers | ✅ |
 | 8 | A toolchain or security provider degrades where it cannot act | `test-toolchain-providers.mjs` — 12 parity cells | ✅ |
 | 9 | A browser provider implements every operation, on every platform | `test-browser-providers.mjs` | ✅ |
-| 10 | Every pointer between documents resolves | `check-links.mjs` — 403 documents | ✅ |
+| 10 | Every pointer between documents resolves | `check-links.mjs` — 404 documents | ✅ |
 | 11 | The gate list means the same thing in all four places | `check-gate-list.mjs` | ✅ |
 | 12 | Every gate exception has an owner and an expiry | `check-allowlists.mjs` | ✅ |
 | 13 | Labels mean the same thing in every repository | `check-label-taxonomy.mjs` | ✅ |
@@ -41,8 +43,8 @@ collection whose deliverable *is* instructions, and it is not the same as knowin
 instructions work. The honest summary is that this repository is well protected against
 saying the wrong thing and lightly protected against the right thing not working.
 
-The gap is recorded rather than papered over, and the one exception is in
-`scripts/allowlists.json` with an owner and a date.
+The gap is recorded rather than papered over, and the one check kept out of CI is
+recorded in `scripts/allowlists.json` with an owner and an expiry date.
 
 ## Why there is no floor
 

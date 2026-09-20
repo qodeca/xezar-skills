@@ -1,8 +1,17 @@
 # Style guide
 
 Written from **counted usage**, not from taste. Every entry below reports what this
-collection actually says today (measured across `skills/**/*.md` on 2026-09-20), and picks
-the majority form. Where the count is close, that is stated rather than hidden.
+collection actually says today, and picks the majority form. Where the count is close, that
+is stated rather than hidden.
+
+Counts were measured on 2026-09-20 with one command per term, so anyone can re-derive them
+rather than trust the table:
+
+```bash
+grep -rohiE "\b<term>s?\b" --include='*.md' skills/ | wc -l
+```
+
+They move with every edit. A stale count is a note about emphasis, never a fact to quote.
 
 Consistency is worth having here for one reason: several of these words are parsed. A
 reader who sees `PR` in one skill and "pull request" in the next has to decide whether they
@@ -12,17 +21,17 @@ mean the same thing, and an agent following the text literally may decide they d
 
 | Use | Not | Count | Note |
 |---|---|---|---|
-| `PR` | "pull request" | 10375 vs 90 | Not close. `PR` is the term; "pull request" is for prose aimed at a first-time reader, like a README paragraph. |
-| `repo` | "repository" | 228 vs 180 | Close. Prefer `repo` in skills, "repository" in prose documents where it reads better. Do not mix inside one paragraph. |
-| `config` | "configuration" | 248 vs 48 | Clear. The file is `config.json`, so the short form matches the thing. |
-| `tracker` | "issue tracker", "GitHub" | 1313 | Never name a host in `skills/**`. The tracker is whatever the descriptor says. |
-| `descriptor` | "provider file", "adapter" | 550 | One word for the committed file that says how to execute operations. |
-| `operation` | "command", "action", "API call" | 556 | Skills *name operations*; descriptors say how to execute them. Using "command" blurs the line the whole design rests on. |
-| `gate` | "check step", "validation" | 1259 | A gate produces one of five statuses. A "check" is one thing a gate looks at. |
-| `claim` | "lock", "reservation" | 1556 | The three-signal ownership protocol. "Lock" suggests something enforced by a machine; this is not. |
+| `PR` | "pull request" | 4504 vs 90 | Not close. `PR` is the term; "pull request" is for prose aimed at a first-time reader, like a README paragraph. |
+| `repo` | "repository" | 859 vs 395 | Roughly two to one. Prefer `repo` in skills, "repository" in prose documents where it reads better. Do not mix inside one paragraph. |
+| `config` | "configuration" | 611 vs 67 | Clear. The file is `config.json`, so the short form matches the thing. |
+| `tracker` | "issue tracker", "GitHub" | 1219 | Never name a host in `skills/**`. The tracker is whatever the descriptor says. |
+| `descriptor` | "provider file", "adapter" | 528 | One word for the committed file that says how to execute operations. |
+| `operation` | "command", "action", "API call" | 550 | Skills *name operations*; descriptors say how to execute them. Using "command" blurs the line the whole design rests on. |
+| `gate` | "check step", "validation" | 952 | A gate produces one of five statuses. A "check" is one thing a gate looks at. |
+| `claim` | "lock", "reservation" | 1373 | The three-signal ownership protocol. "Lock" suggests something enforced by a machine; this is not. |
 | `finding` | "issue", "problem" | 613 | A review produces findings. "Issue" is a tracker item, and using it for both is the one ambiguity that costs real time. |
-| `evidence` | "proof" | 902 | Evidence is something a reader can go and look at. |
-| `worktree` | "working copy", "checkout" | 429 | One word, no space. |
+| `evidence` | "proof" | 889 | Evidence is something a reader can go and look at. |
+| `worktree` | "working copy", "checkout" | 318 | One word, no space. |
 | `base branch` | "main", "master", "develop" | 90 | Never a literal branch name in `skills/**`; the lint gate enforces this. |
 
 ## Words with one meaning, held to it

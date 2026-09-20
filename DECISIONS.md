@@ -24,7 +24,7 @@ A second, permanent ban covers the predecessor collection's brand, its skill pre
 
 ## Standalone installability over DRY
 
-Each skill's repeatable procedures live in per-skill `references/<step>.md` files under standard names (`agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `rules.md`, `report-templates.md`). They are duplicated inside every skill that uses them, never shared through cross-skill pointers, so a skill cherry-picked with `--skill <one>` runs on its own; `xez-auto-create-pr` holds the canonical copy. The cost is drift, handled in two layers. The genuinely invariant part of a standard file — today the untrusted-content boundary — sits between `<!-- shared:<id>:start -->` markers and is **generated** from `xez-auto-create-pr` by `scripts/sync-shared-blocks.mjs`; CI re-runs the generator and fails on a drifted copy, so the fix is a command rather than 37 manual edits, and a clause floor stops anyone making the check pass by emptying the block. Everything outside the markers is legitimately per-skill, and there the contributor rule still holds: when you change a standard file in one skill, ask whether to sync the others. Shipped executables live under `references/` too, because the lint resolves every `references/…` pointer and would catch a broken one.
+Each skill's repeatable procedures live in per-skill `references/<step>.md` files under standard names (`agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `rules.md`, `report-templates.md`, `ci-followup.md`). They are duplicated inside every skill that uses them, never shared through cross-skill pointers, so a skill cherry-picked with `--skill <one>` runs on its own; `xez-auto-create-pr` holds the canonical copy. The cost is drift, handled in two layers. The genuinely invariant part of a standard file — today the untrusted-content boundary — sits between `<!-- shared:<id>:start -->` markers and is **generated** from `xez-auto-create-pr` by `scripts/sync-shared-blocks.mjs`; CI re-runs the generator and fails on a drifted copy, so the fix is a command rather than 39 manual edits, and a clause floor stops anyone making the check pass by emptying the block. Everything outside the markers is legitimately per-skill, and there the contributor rule still holds: when you change a standard file in one skill, ask whether to sync the others. Shipped executables live under `references/` too, because the lint resolves every `references/…` pointer and would catch a broken one.
 
 ## Configuration: one file, `.xezar/pipeline/config.json`
 
@@ -96,7 +96,7 @@ is renamed.
 
 `npm run check:generic-instructions` certifies all files under those four skill
 directories, including references, templates and tracker descriptors. It is not
-a catalog-wide certificate; the other 35 skills are outside this P6 change.
+a catalog-wide certificate; the other 37 skills are outside this P6 change.
 Missing/empty/unreadable inputs and symlinks fail. Taxonomy literals belong only
 in balanced `<!-- example:start -->` / `<!-- example:end -->` blocks; those
 markers never exempt project paths or process-filename requirements. Native
@@ -147,10 +147,11 @@ repository whose labels it did not create is a collection nobody installs. The r
 an absent label read as a satisfied gate – is the real defect, and it is fixed in the
 merge gate, not here.
 
-## Two gate switches, both off, both with an owner and a date
+## Three gate switches, all off, each with an owner and a date
 
-`gates.failClosed` and `gates.requireVerdictHead` default to `false`, and both are
-read from the **base branch's** config rather than the working tree — a pull request
+`gates.failClosed`, `gates.requireVerdictHead` and `gates.designGate` default to
+`false`, and all three are read from the **base branch's** config rather than the
+working tree — a pull request
 must not set the terms of its own merge.
 
 `gates.failClosed` decides what a stage does when a gate could not be evaluated at
@@ -165,7 +166,13 @@ releases later must not be refused. A `Head:` line naming a *different* commit i
 different matter — that refuses whether the switch is on or off, because the switch
 governs absence, never a mismatch.
 
-Both are off so an upgrade is a no-op until somebody opts in. Owner: the collection
+`gates.designGate` decides whether a change somebody marked as needing a design
+answer may pass review before that answer exists. It applies only to what was marked,
+never to every change, and both markers are **meta** labels rather than pipeline ones:
+a change can be in review and waiting on a design answer at the same time, and making
+that a pipeline state would force a false choice.
+
+All three are off so an upgrade is a no-op until somebody opts in. Owner: the collection
 maintainers. Review date: 2027-09-20. An off-by-default switch with no owner and no
 date quietly becomes permanent, which is how a temporary tolerance turns into policy
 nobody remembers choosing.

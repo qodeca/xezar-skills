@@ -23,7 +23,7 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
 
-Two gate switches were added on 2026-09-20, both optional and both defaulting to `false`, so an existing config keeps its behaviour untouched:
+Three gate switches were added on 2026-09-20, all optional and all defaulting to `false`, so an existing config keeps its behaviour untouched:
 
 | Key | Default | Meaning of the default |
 |---|---|---|
@@ -31,7 +31,7 @@ Two gate switches were added on 2026-09-20, both optional and both defaulting to
 | `gates.requireVerdictHead` | `false` | A verdict with no `Head:` line is read as `unknown` and tolerated. Fresh setups get `true`. |
 | `gates.designGate` | `false` | A change marked as needing a design answer passes review without one. |
 
-Flipping either **default** is breaking, because it changes what an unmodified consumer repo does on upgrade. Both are read from the base branch's config on a gate path, never the working tree.
+Flipping any of these **defaults** is breaking, because it changes what an unmodified consumer repo does on upgrade. All three are read from the base branch's config on a gate path, never the working tree.
 
 - **Breaking:** moving the file, removing or renaming a key, changing a key's meaning, value format or default, making a previously optional key required.
 - **Not breaking:** adding a new key with a default in the loading snippet (`jq -r '.newKey // "default"'`).

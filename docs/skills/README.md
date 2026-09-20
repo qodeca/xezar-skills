@@ -2,7 +2,7 @@
 
 One card per skill, with its parameters and the companion skills it works with. Each card links back to the skill's `SKILL.md` source.
 
-**Naming convention:** the `xez-auto-*` prefix marks a skill as 🤖 **autonomous** — hand it a brief, an issue, or nothing at all and it runs end-to-end without supervision (isolated worktree, validation gate, self-review, claim locks). Every other skill is 🧑‍💻 **interactive**: it acts once, may ask you questions, reports, and hands control back.
+**Naming convention:** the `xez-auto-*` prefix — plus [`xez-pr-autopilot`](xez-pr-autopilot.md), which dispatches those skills — marks a skill as 🤖 **autonomous**: hand it a brief, an issue, or nothing at all and it runs end-to-end without supervision (isolated worktree, validation gate, self-review, claim locks). Every other skill is 🧑‍💻 **interactive**: it acts once, may ask you questions, reports, and hands control back.
 
 | Skill | Type | What it does |
 |---|---|---|
