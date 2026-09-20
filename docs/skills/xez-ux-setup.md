@@ -10,7 +10,7 @@ This skill takes no parameters.
 
 ## Works with
 
-Runs the [`uxproof`](https://www.npmjs.com/package/uxproof) extractor (`npx uxproof init --no-skills`; a manual fallback is documented for offline environments). Every UX skill reads the contract it writes: [xez-ux-shape](xez-ux-shape.md) loads it as Known constraints, and [xez-ux-review-pr](xez-ux-review-pr.md) turns it into contract-grounded findings. The same package provides `uxproof audit` and `uxproof sync --check` as CI gates.
+Runs the [`uxproof`](https://www.npmjs.com/package/uxproof) extractor (`npx uxproof@0.3.1 init --no-skills`, pinned; a manual fallback is documented for offline environments). Every UX skill reads the contract it writes: [xez-ux-shape](xez-ux-shape.md) loads it as Known constraints, and [xez-ux-review-pr](xez-ux-review-pr.md) turns it into contract-grounded findings. The same package provides `uxproof audit` and `uxproof sync --check` as CI gates.
 
 ---
 *Source: [`skills/xez-ux-setup/SKILL.md`](../../skills/xez-ux-setup/SKILL.md)*

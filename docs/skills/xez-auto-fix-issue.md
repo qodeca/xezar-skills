@@ -2,13 +2,13 @@
 
 > 🤖 Autonomous — runs end-to-end without supervision
 
-Takes a tracker issue (a GitHub issue by default) from a single command all the way to a labeled, reviewed PR — without disturbing your active worktree. It first classifies the issue: a bug is driven through the autofix chain (verify → root-cause → fix → open PR → review loop), while a feature request takes the spec-then-build route instead. Everything happens in an isolated worktree under the in-progress claim protocol, and the run stops cleanly when the issue is already solved or already claimed by someone else. Use it for "fix issue 123" or "implement issue 123".
+Takes a tracker issue (a GitHub issue by default) — or a plain description of a problem, which it files as an issue first — from a single command all the way to a labeled, reviewed PR — without disturbing your active worktree. It first classifies the issue: a bug is driven through the autofix chain (verify → root-cause → fix → open PR → review loop), while a feature request takes the spec-then-build route instead. Everything happens in an isolated worktree under the in-progress claim protocol, and the run stops cleanly when the issue is already solved or already claimed by someone else. Use it for "fix issue 123" or "implement issue 123".
 
 ## Parameters
 
 | Parameter | Required | Description |
 |---|---|---|
-| `{issueId}` | Yes | The tracker issue number (a GitHub issue number by default), e.g. `1234`. |
+| `{issueId \| brief}` | Yes | A tracker issue reference (a GitHub issue number by default: `1234`, `#1234`, or an issue URL) — **or** a plain description of the problem. In brief mode the skill first files the issue through [xez-prepare-issue](xez-prepare-issue.md), then continues on it. |
 | `{repo}` | No | `owner/name`; inferred from the current git remote when omitted. |
 | `--interactive` | No | Feature route only: opt into human gates so the spec is written with interactive Open Questions stops instead of autonomous defaults. |
 | `--slug <kebab-case>` | No | Feature route only: override the derived slug (passed through to delegated skills). |

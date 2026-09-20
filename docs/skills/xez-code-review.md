@@ -6,7 +6,7 @@ Reviews a diff, branch, or PR against correctness, security, breaking-change, an
 
 ## Parameters
 
-This skill takes no parameters.
+No flags. It takes one review unit as its input: a PR number, a branch, an explicit range or diff, or nothing — which means the current branch's diff.
 
 ## Works with
 

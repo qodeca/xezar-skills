@@ -14,7 +14,7 @@ rather than trusting this table for a precise number.
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
 | 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 30 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values | ✅ |
-| 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 215 assertions, incl. a renamed-label case | ✅ |
+| 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 225 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
 | 7 | A tracker descriptor implements every operation skills name | `test-tracker-providers.mjs` — 47 operations × 4 providers | ✅ |
 | 8 | A toolchain or security provider degrades where it cannot act | `test-toolchain-providers.mjs` — 12 parity cells | ✅ |

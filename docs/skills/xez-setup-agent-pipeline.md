@@ -2,7 +2,7 @@
 
 > 🧑‍💻 Interactive — acts once, may ask questions, hands control back
 
-The one-time configurator for the whole agent PR pipeline, and the first skill to run in a fresh repository. It inspects the repo (default branch, validation scripts, label taxonomy), asks a few questions, then writes `.xezar/pipeline/config.json` — the file every other skill reads — installs the tracker and browser provider descriptors, and generates the missing project docs (SDLC.md, CODE_REVIEW.md, BACKWARD_COMPATIBILITY.md, and an AGENTS.md starter), each derived from the current repository. It also verifies cross-skill coverage and prints the install command for anything missing. Re-run it when the toolchain or label taxonomy changes.
+The one-time configurator for the whole agent PR pipeline, and the first skill to run in a fresh repository. It inspects the repo (default branch, validation scripts, label taxonomy), asks a few questions, then writes `.xezar/pipeline/config.json` — the file every other skill reads — installs the tracker and browser provider descriptors, and can propose project guidance — a process doc, review rules, a compatibility policy, an agent-instructions starter — derived from the current repository. None is required and no filename is imposed: it proposes only what you asked for and the repository shows a need for, shows the content before writing, and never treats a missing document as a reason to create a process. It also verifies cross-skill coverage and prints the install command for anything missing. Re-run it when the toolchain or label taxonomy changes.
 
 ## Parameters
 

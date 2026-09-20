@@ -8,8 +8,11 @@ Counts were measured on 2026-09-20 with one command per term, so anyone can re-d
 rather than trust the table:
 
 ```bash
-grep -rohiE "\b<term>s?\b" --include='*.md' skills/ | wc -l
+grep -rohiE "\b<term>s?\b" --include='*.md' --exclude-dir=kit skills/ | wc -l
 ```
+
+A skill's vendored `kit/` is left out on purpose: it is another project's prose copied in
+whole, and counting it would report that project's habits as this collection's.
 
 They move with every edit. A stale count is a note about emphasis, never a fact to quote.
 
@@ -21,18 +24,18 @@ mean the same thing, and an agent following the text literally may decide they d
 
 | Use | Not | Count | Note |
 |---|---|---|---|
-| `PR` | "pull request" | 4504 vs 90 | Not close. `PR` is the term; "pull request" is for prose aimed at a first-time reader, like a README paragraph. |
-| `repo` | "repository" | 859 vs 395 | Roughly two to one. Prefer `repo` in skills, "repository" in prose documents where it reads better. Do not mix inside one paragraph. |
-| `config` | "configuration" | 611 vs 67 | Clear. The file is `config.json`, so the short form matches the thing. |
-| `tracker` | "issue tracker", "GitHub" | 1219 | Never name a host in `skills/**`. The tracker is whatever the descriptor says. |
-| `descriptor` | "provider file", "adapter" | 528 | One word for the committed file that says how to execute operations. |
-| `operation` | "command", "action", "API call" | 550 | Skills *name operations*; descriptors say how to execute them. Using "command" blurs the line the whole design rests on. |
-| `gate` | "check step", "validation" | 952 | A gate produces one of five statuses. A "check" is one thing a gate looks at. |
-| `claim` | "lock", "reservation" | 1373 | The three-signal ownership protocol. "Lock" suggests something enforced by a machine; this is not. |
-| `finding` | "issue", "problem" | 613 | A review produces findings. "Issue" is a tracker item, and using it for both is the one ambiguity that costs real time. |
-| `evidence` | "proof" | 889 | Evidence is something a reader can go and look at. |
-| `worktree` | "working copy", "checkout" | 318 | One word, no space. |
-| `base branch` | "main", "master", "develop" | 90 | Never a literal branch name in `skills/**`; the lint gate enforces this. |
+| `PR` | "pull request" | 4563 vs 113 | Not close. `PR` is the term; "pull request" is for prose aimed at a first-time reader, like a README paragraph. |
+| `repo` | "repository" | 897 vs 443 | Roughly two to one. Prefer `repo` in skills, "repository" in prose documents where it reads better. Do not mix inside one paragraph. |
+| `config` | "configuration" | 656 vs 91 | Clear. The file is `config.json`, so the short form matches the thing. |
+| `tracker` | "issue tracker", "GitHub" | 1290 | Say `tracker` for the role. Name a host only where the text really is host-specific — a descriptor, or a skill that supports one host. The tracker is whatever the descriptor says. |
+| `descriptor` | "provider file", "adapter" | 534 | One word for the committed file that says how to execute operations. |
+| `operation` | "command", "action", "API call" | 557 | Skills *name operations*; descriptors say how to execute them. Using "command" blurs the line the whole design rests on. |
+| `gate` | "check step", "validation" | 1041 | A gate produces one of five statuses. A "check" is one thing a gate looks at. |
+| `claim` | "lock", "reservation" | 1432 | The three-signal ownership protocol. "Lock" suggests something enforced by a machine; this is not. |
+| `finding` | "issue", "problem" | 655 | A review produces findings. "Issue" is a tracker item, and using it for both is the one ambiguity that costs real time. |
+| `evidence` | "proof" | 935 | Evidence is something a reader can go and look at. |
+| `worktree` | "working copy", "checkout" | 320 | One word, no space. |
+| `base branch` | "main", "master", "develop" | 100 | Never a literal branch name in `skills/**`. The lint gate catches `develop`; `main` and `master` are too common as ordinary words to grep for, so those are a review call. |
 
 ## Words with one meaning, held to it
 

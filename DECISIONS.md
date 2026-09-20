@@ -45,7 +45,7 @@ A second, permanent ban covers the predecessor collection's brand, its skill pre
 
 ## Standalone installability over DRY
 
-Each skill's repeatable procedures live in per-skill `references/<step>.md` files under standard names (`agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `rules.md`, `report-templates.md`, `ci-followup.md`). They are duplicated inside every skill that uses them, never shared through cross-skill pointers, so a skill cherry-picked with `--skill <one>` runs on its own; `xez-auto-create-pr` holds the canonical copy. The cost is drift, handled in two layers. The genuinely invariant part of a standard file — today the untrusted-content boundary — sits between `<!-- shared:<id>:start -->` markers and is **generated** from `xez-auto-create-pr` by `scripts/sync-shared-blocks.mjs`; CI re-runs the generator and fails on a drifted copy, so the fix is a command rather than 39 manual edits, and a clause floor stops anyone making the check pass by emptying the block. Everything outside the markers is legitimately per-skill, and there the contributor rule still holds: when you change a standard file in one skill, ask whether to sync the others. Shipped executables live under `references/` too, because the lint resolves every `references/…` pointer and would catch a broken one.
+Each skill's repeatable procedures live in per-skill `references/<step>.md` files under standard names (`agentic-setup.md`, `worktree-setup.md`, `claim-pr.md`, `pr-finalize.md`, `review-report.md`, `rules.md`, `report-templates.md`, `ci-followup.md`). They are duplicated inside every skill that uses them, never shared through cross-skill pointers, so a skill cherry-picked with `--skill <one>` runs on its own; `xez-auto-create-pr` holds the canonical copy. The cost is drift, handled in two layers. The genuinely invariant part of a standard file — today the untrusted-content boundary — sits between `<!-- shared:<id>:start -->` markers and is **generated** from `xez-auto-create-pr` by `scripts/sync-shared-blocks.mjs`; CI re-runs the generator and fails on a drifted copy, so the fix is a command rather than one manual edit per skill, and a clause floor stops anyone making the check pass by emptying the block. Everything outside the markers is legitimately per-skill, and there the contributor rule still holds: when you change a standard file in one skill, ask whether to sync the others. Shipped executables live under `references/` too, because the lint resolves every `references/…` pointer and would catch a broken one.
 
 ## Configuration: one file, `.xezar/pipeline/config.json`
 
@@ -120,7 +120,7 @@ is renamed.
 
 `npm run check:generic-instructions` certifies all files under those four skill
 directories, including references, templates and tracker descriptors. It is not
-a catalog-wide certificate; the other 37 skills are outside this P6 change.
+a catalog-wide certificate; every other skill is outside this P6 change.
 Missing/empty/unreadable inputs and symlinks fail. Taxonomy literals belong only
 in balanced `<!-- example:start -->` / `<!-- example:end -->` blocks; those
 markers never exempt project paths or process-filename requirements. Native
@@ -259,7 +259,7 @@ Most of all it would be a gate bound to a proxy: every other gate here is bound 
 evidence, and a percentage is bound to line counts. This would be the one place the
 collection did what it tells everyone else not to.
 
-The table's own conclusion is the useful part: nineteen checks read what the skills *say*
+The table's own conclusion is the useful part: twenty-one checks read what the skills *say*
 and one runs a skill and watches what it *does* — and that one cannot run in CI, because it
 needs a full-access sandbox and granting a pull request's own code full access is what CI
 must not do. The collection is well protected against saying the wrong thing and lightly
@@ -630,8 +630,10 @@ every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its
    vendored payload. Nothing else looks at both halves.
-2. **Who decides it worked?** Five deliberate-break cases in `test-guards.mjs`, one per pinned
-   fact, each restoring the real defect that shipped.
+2. **Who decides it worked?** Five deliberate-break cases in `test-guards.mjs`, each restoring
+   a real defect that shipped. They cover four of the six pins — the campaign commit status, the
+   note cap, the loop ceilings and single dispatcher, and the guide headings. The subfolder list
+   and the campaign file kinds have no break case yet, so nothing proves those two still fire.
 3. **What does it cost?** A few hundred milliseconds per gate run, and a deliberate act whenever
    somebody wants a seventh fact pinned.
 4. **What would make us remove it?** The kit ceasing to be vendored, or the pins never firing

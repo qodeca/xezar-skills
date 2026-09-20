@@ -1,6 +1,6 @@
 # xez-review-prs
 
-> 🧑‍💻 Interactive — acts once, may ask questions, hands control back
+> 🤖 Autonomous — runs end-to-end without supervision
 
 A day-start review queue that sweeps every currently unreviewed open pull request and reviews them one at a time, newest first. It fetches open PRs, filters out drafts, already-decided, self-authored, blocked, and claimed PRs, presents the queue, then runs the full `xez-auto-review-pr` workflow on each. It respects `in-progress` claim locks and never force-claims in batch mode, skipping any PR another actor owns. Use it to clear the review backlog in a single pass.
 

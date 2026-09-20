@@ -2,7 +2,7 @@
 
 One card per skill, with its parameters and the companion skills it works with. Each card links back to the skill's `SKILL.md` source.
 
-**Naming convention:** the `xez-auto-*` prefix — plus [`xez-pr-autopilot`](xez-pr-autopilot.md), which dispatches those skills — marks a skill as 🤖 **autonomous**: hand it a brief, an issue, or nothing at all and it runs end-to-end without supervision (isolated worktree, validation gate, self-review, claim locks). Every other skill is 🧑‍💻 **interactive**: it acts once, may ask you questions, reports, and hands control back.
+**Naming convention:** the `xez-auto-*` prefix marks a skill as 🤖 **autonomous** — as do three recorded exceptions without it: [`xez-pr-autopilot`](xez-pr-autopilot.md), which dispatches those skills, and the two sweeps that ask nothing, [`xez-review-prs`](xez-review-prs.md) and [`xez-close-fixed-issues`](xez-close-fixed-issues.md): hand it a brief, an issue, or nothing at all and it runs end-to-end without supervision (isolated worktree, validation gate, self-review, claim locks). Every other skill is 🧑‍💻 **interactive**: it acts once, may ask you questions, reports, and hands control back.
 
 | Skill | Type | What it does |
 |---|---|---|
@@ -19,8 +19,8 @@ One card per skill, with its parameters and the companion skills it works with. 
 | [xez-auto-manage-issues](xez-auto-manage-issues.md) | 🤖 | Brings existing issues up to standard: label sync, screenshot analysis, spec-coverage checks. |
 | [xez-auto-update-changelog](xez-auto-update-changelog.md) | 🤖 | Drafts a CHANGELOG release entry for merged PRs and ships it as a docs PR. |
 | [xez-pr-autopilot](xez-pr-autopilot.md) | 🤖 | Diagnoses what state one open PR is really in, then runs the matching chain of the skills above. Dispatch only. |
-| [xez-review-prs](xez-review-prs.md) | 🧑‍💻 | Sweeps every unreviewed open PR, newest first, through the review skill. |
-| [xez-close-fixed-issues](xez-close-fixed-issues.md) | 🧑‍💻 | Post-merge housekeeping: closes issues merged PRs fixed, comments on closed-unmerged PRs. |
+| [xez-review-prs](xez-review-prs.md) | 🤖 | Sweeps every unreviewed open PR, newest first, through the review skill. |
+| [xez-close-fixed-issues](xez-close-fixed-issues.md) | 🤖 | Post-merge housekeeping: closes issues merged PRs fixed, comments on closed-unmerged PRs. |
 | [xez-merge-buddy](xez-merge-buddy.md) | 🧑‍💻 | Reports which open PRs can merge now and which are close but blocked. |
 | [xez-maintain-deps](xez-maintain-deps.md) | 🧑‍💻 | Inventories dependencies, lists what is behind and what is vulnerable, proposes grouped updates. |
 | [xez-release](xez-release.md) | 🧑‍💻 | Folds the changelog, writes the version, tags a commit that already merged. Never publishes. |

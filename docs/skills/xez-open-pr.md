@@ -2,7 +2,7 @@
 
 > 🧑‍💻 Interactive — acts once, may ask questions, hands control back
 
-The shared PR-opening step of the agent pipeline. It commits the worktree, pushes the branch, and either reuses an existing PR or opens a ready (non-draft) one against the configured base branch using the unified body template. It applies the full SDLC label set — pipeline, category, QA meta, one priority, one risk — with a rationale comment per label, and for issue-driven runs it hands the issue back to its author and releases the in-progress lock. It always ends by emitting the `PR: #<number> (link: <url>)` reference line (plus `Issue:` when issue-driven) so the next step can reference the PR.
+The shared PR-opening step of the agent pipeline. It commits the worktree, pushes the branch, and either reuses an existing PR or opens a ready (non-draft) one against the configured base branch using the unified body template. It applies the full SDLC label set — pipeline, category, QA meta, one priority, one risk — with one consolidated rationale comment covering every label, never one comment per label, and for issue-driven runs it hands the issue back to its author and releases the in-progress lock. It always ends by emitting the `PR: #<number> (link: <url>)` reference line (plus `Issue:` when issue-driven) so the next step can reference the PR.
 
 ## Parameters
 

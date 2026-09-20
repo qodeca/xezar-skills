@@ -69,7 +69,7 @@ to an `xez-auto-*` skill.
 | The label taxonomy (`.xezar/pipeline/labels.json`) | `SDLC.md`, `scripts/check-label-taxonomy.mjs` | The taxonomy is a protected surface: renaming or removing a label is breaking. Every label needs a full-sentence description and every group a colour, and the file must agree with `config.json` — the checker binds them. |
 | Governance documents (`SECURITY.md`, `docs/coverage.md`, `docs/style.md`, `UPGRADE_NOTES.md`) | the document itself, then the **Which document wins** order above | `SECURITY.md` outranks everything, including this file. `docs/coverage.md` states what is checked and what is not, and is never a gate. `docs/style.md` records counted usage, not taste. An `UPGRADE_NOTES.md` entry is keyed by the symptom a user sees, and says plainly what is lost by skipping it. |
 | Process / pipeline configuration | `.xezar/pipeline/config.json`, `SDLC.md`, `.xezar/pipeline/trackers/github.md` | Config and `SDLC.md` describe the same process — change them together. |
-| README, DECISIONS.md, LICENSE | `DECISIONS.md` | Nothing automated keeps these or `skills/**` free of product names since the brand rule was removed; neutrality where it still matters is a review call. Read `DECISIONS.md` before proposing structural changes — most "obvious" restructurings were already considered and decided. |
+| README, DECISIONS.md, LICENSE | `DECISIONS.md` | Nothing automated keeps these or `skills/**` free of product names; neutrality where it still matters is a review call (`DECISIONS.md` → "The brand rule, removed"). Read `DECISIONS.md` before proposing structural changes — most "obvious" restructurings were already considered and decided. |
 
 ## Cross-skill contract (rules for every skill — binding for `xez-auto-*`)
 
@@ -154,7 +154,7 @@ Two are worth knowing about before you wait on them. `scripts/test-guards.mjs` b
 guard on purpose to prove it still fires, so it runs `lint.sh` about ten times and takes a
 couple of minutes — and it edits tracked files in place, so it takes a lock and only one copy
 may run at a time. `scripts/sync-shared-blocks.mjs` is a **generator**: when a shared block
-drifts, run it rather than editing 39 copies by hand.
+drifts, run it rather than editing one copy per skill by hand.
 
 ## Conventions
 
@@ -163,10 +163,3 @@ drifts, run it rather than editing 39 copies by hand.
 - **The `xez-auto-*` prefix is a behavioral contract, not decoration:** an `xez-auto-*` skill is autonomous and non-interactive — it runs end-to-end without a user in the loop, makes the recommended most-reversible call itself (documented for override) instead of stopping to ask, and is safe for schedules/CI (full contract: Cross-skill contract §1). A skill **without** the `auto` prefix is interactive: it acts once, may ask the user questions, reports, and hands control back. Name new skills accordingly, and never add mid-run questions to an `xez-auto-*` skill.
 - Shell snippets inside skills must be POSIX-ish bash and platform-portable; they run on whatever machine the installing user has.
 - Cross-references between skills use the skill name (e.g. "the `xez-code-review` skill"), and the name must be one this collection actually ships — `scripts/lint.sh` fails on an `xez-` name left behind by a rename or a merge, since a stale name reads as an optional dependency and simply never fires at run time. Paths into another skill's `references/` directory are not allowed (Cross-skill contract §4–5); the sole exception is `xez-apply-upgrade-notes` reading `xez-setup-agent-pipeline`'s shipped descriptor templates.
-
-## Process documents
-
-- `SDLC.md` — the ticket flow the skills automate (stages, labels, QA gate, claim protocol).
-- `CODE_REVIEW.md` — review rules applied by `xez-code-review` / `xez-auto-review-pr`.
-- `BACKWARD_COMPATIBILITY.md` — the protected contract surfaces of this collection.
-- `.xezar/pipeline/config.json` — machine-readable pipeline settings; `.xezar/pipeline/trackers/github.md` — tracker operation implementations.
