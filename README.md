@@ -390,3 +390,7 @@ The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until a h
 ---
 
 Maintained by [Qodeca](https://github.com/qodeca).
+
+## What is actually checked
+
+Every gate this repository runs, ranked by what breaking it would cost, with a "runs in CI?" column: [docs/coverage.md](docs/coverage.md). It is an inventory, not a floor — the reasoning for that is in [DECISIONS.md](DECISIONS.md).

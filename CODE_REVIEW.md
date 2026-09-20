@@ -68,6 +68,32 @@ none is still open, whatever else changed.
   a no-op: `jq`'s `//` operator, for one, treats `false` as empty, so `.flag // true`
   turns an explicit `false` into `true`.
 
+## Four rules for the reviewer
+
+These are about how a finding is arrived at, not what it is about. Each one exists because
+the opposite is easy, comfortable and wrong.
+
+- **Name the falsifiable experiment before running it.** Decide what result would prove you
+  wrong, and write it down first. Otherwise the reading adapts to whatever comes back, and
+  a run that found nothing gets reported as a run that confirmed something. "If the guard
+  works, adding X to file Y makes it fail with message Z" is an experiment. "Let me check
+  whether the guard works" is a browse.
+- **A finding from reading only is a claim until it is reproduced on the base branch.** Code
+  that looks broken very often is not: the caller validates, the path is unreachable, the
+  value cannot be what you assumed. Reproduce it against the base branch — not against the
+  change — so the result says whether the defect is real and whether it is new. A claim that
+  could not be reproduced is still worth reporting, labelled as what it is: "this reads as
+  broken; I could not reproduce it, here is what I tried."
+- **Keep the owner's words separate from your reading of them.** Quote what the author,
+  the issue or the spec actually says, then give your interpretation as yours. Merging the
+  two produces a finding that appears to cite a requirement and is really citing you — and
+  the author cannot tell which part to argue with.
+- **Prove the test fails without the fix.** A regression test that passes on the unfixed
+  code tests nothing, and it is the most common way a fix ships with no protection at all.
+  Run it against the base branch, watch it fail, then apply the fix and watch it pass. Say
+  in the finding that you did, because "added a regression test" without that is a claim
+  about a test nobody ran backwards.
+
 ## Severity guidance
 
 - **Critical** — a skill instructs something unsafe or broken: a command that fails or damages state, a safety-rule relaxation, a broken cross-skill contract, a `BACKWARD_COMPATIBILITY.md` violation without a migration path.

@@ -214,3 +214,41 @@ self-verified marker *alongside* the approval, so a reader can tell independent 
 from a self-check at a glance. Outside it, a run that wrote a change reports what it found
 and hands the verdict to someone else. "I reviewed it and it is fine" from the author is a
 status report, not a review.
+
+
+## A coverage inventory, and deliberately no coverage floor
+
+`docs/coverage.md` lists what is actually checked, ranked by what breaking it would cost.
+It is an inventory, never a gate.
+
+A floor would be satisfiable by the wrong work — the cheapest way to raise a coverage
+number is to test something already covered — and the number cannot tell the merge-gate
+test apart from the onboarding-content test, since losing either moves it identically.
+Most of all it would be a gate bound to a proxy: every other gate here is bound to captured
+evidence, and a percentage is bound to line counts. This would be the one place the
+collection did what it tells everyone else not to.
+
+The table's own conclusion is the useful part: nineteen checks read what the skills *say*
+and one runs a skill and watches what it *does* — and that one cannot run in CI, because it
+needs a full-access sandbox and granting a pull request's own code full access is what CI
+must not do. The collection is well protected against saying the wrong thing and lightly
+protected against the right thing not working. Recorded, not papered over.
+
+## `xez-analyze-request` stays deferred
+
+Proposed as a front door that classifies an incoming request and routes it. Deferred, with
+the reason written down rather than left as silence on a list.
+
+It overlaps three skills that already ship. `xez-brainstorm` takes an unshaped idea and
+emits a routing line. `xez-prepare-issue` turns a request into a filed, ready ticket.
+`xez-pr-autopilot` diagnoses the state of an existing pull request and dispatches. Between
+them, the cases a request-analyser would handle are handled — by skills that also do the
+next step, rather than handing back a classification.
+
+The cost of adding it is not the skill: it is a fourth entry point users have to choose
+between, in a collection whose main usability problem is already that there are forty-one
+skills. A router that saves one decision and adds one is not a router.
+
+Revisit if a real run shows a request that none of the three accepts, or if routing between
+them is repeatedly got wrong. Neither has happened yet, and "it would be tidy" is not a
+trigger.
