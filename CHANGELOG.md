@@ -1,3 +1,15 @@
+# Unreleased
+
+## Fixed
+
+- **The gates can be run by hand again.** `.xezar/checks/repo-gates.sh` refused to start without
+  an engine run id, so the one command the leader guide and the kit's twenty role skills tell an
+  agent to run exited 1 in every onboarded project — and tier 2 of the onboarding smoke test could
+  not pass. A run with no run id is now a **standalone attempt**: it records under
+  `.local/xezar/scratch/standalone-gates/`, prints a real verdict, and can never be sealed or
+  certified, because it lives outside the evidence roots and its producer is `author`. Pinned as
+  kit fact 11, with two deliberate-break cases.
+
 # 1.3.0 (2026-09-21)
 
 ## Highlights

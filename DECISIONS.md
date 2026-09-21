@@ -259,7 +259,7 @@ Most of all it would be a gate bound to a proxy: every other gate here is bound 
 evidence, and a percentage is bound to line counts. This would be the one place the
 collection did what it tells everyone else not to.
 
-The table's own conclusion is the useful part: twenty-one checks read what the skills *say*
+The table's own conclusion is the useful part: twenty-two checks read what the skills *say*
 and one runs a skill and watches what it *does* — and that one cannot run in CI, because it
 needs a full-access sandbox and granting a pull request's own code full access is what CI
 must not do. The collection is well protected against saying the wrong thing and lightly
@@ -692,26 +692,57 @@ beside it said they never were, and prose promising `decisions.md` is never cut 
 script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
 no gate found one.
 
-`scripts/test-kit-facts.mjs` pins ten facts that have already caused a contradiction, asserted in
+`scripts/test-kit-facts.mjs` pins eleven facts that have already caused a contradiction, asserted in
 every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its
    vendored payload. Nothing else looks at both halves.
-2. **Who decides it worked?** Seven deliberate-break cases in `test-guards.mjs`: one per pinned
-   fact, plus a second for the single-dispatcher half of the ceilings pin. Each restores a defect
+2. **Who decides it worked?** A deliberate-break case in `test-guards.mjs` for every pinned
+   fact, and a second one wherever a fact has two halves that can fail apart — the
+   single-dispatcher half of the ceilings pin, and the "a hand run is never evidence" half of the
+   standalone-gates pin. Each restores a defect
    that shipped or the nearest one that could.
 3. **What does it cost?** A few hundred milliseconds per gate run, and a deliberate act whenever
-   somebody wants a seventh fact pinned.
+   somebody wants one more fact pinned.
 4. **What would make us remove it?** The kit ceasing to be vendored, or the pins never firing
    across a year of changes to both halves.
 
 **It deliberately does not compare meaning.** Deciding whether two English sentences agree is the
 actual problem and no grep does it. A check that pretended otherwise would pass forever and catch
 nothing, which is worse than the gap it replaced, because green would stop meaning anything here.
-So the scope is stated in `docs/coverage.md` in the same words: these six cannot silently drift
-again; a fact nobody pinned is still unchecked.
+So the scope is stated in `docs/coverage.md` in the same words: these eleven cannot silently
+drift again; a fact nobody pinned is still unchecked.
 
 The pins are also narrow on purpose. The first draft searched for the word "runtime" near
 "campaign" and flagged the sentences saying campaigns are *not* gitignored — the correct ones. A
 check that cries wolf gets relaxed, and a relaxed check is a hole with a green tick over it, so
 each pin matches the exact shape that shipped wrong rather than the topic it belongs to.
+
+## A hand gate run gives a verdict, never evidence
+
+The kit's gate runner refused to start without an engine run id. The reasoning was sound as far as
+it went: evidence lives in a run's directory, and a gate run nobody can record is not a gate run
+anyone may seal. The consequence was not. The primary checkout has no run id, so the one command
+the kit's twenty role skills tell an agent to run — "in a standalone run with no `gates` step, run
+it once at the end" — exited 1 in every onboarded project, and the onboarding smoke test's second
+tier could not pass. A rule that makes the documented action impossible is a wrong rule, not a
+strict one.
+
+So a run without a run id is now a **standalone attempt**. It writes under
+`.local/xezar/scratch/standalone-gates/`, records `runId: null`, and prints the same pass or fail
+as any other run.
+
+**What keeps it honest is that nothing was relaxed.** The two refusals that already existed do the
+work, and they do it structurally rather than by intention:
+
+- Its producer is `author`, and `lib/gate-results.mjs` refuses to seal an author attempt — a tree
+  proving itself is not proof.
+- It does not live under an evidence root, and verification derives the run id from the directory
+  a manifest sits in and refuses anything outside this repository's canonical evidence paths. A
+  standalone attempt has no manifest at all, so there is nothing for a merge gate to find.
+
+The alternative was to keep the refusal and rewrite the twenty role skills plus the smoke test to
+say the gates cannot be run by hand. That is a much larger diff in prose, it removes the owner's
+only way to see a gate verdict without dispatching a task, and it buys no safety the two refusals
+above were not already providing. Recorded because the refusal reads like the careful choice, and
+for one release everybody believed it was.

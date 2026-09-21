@@ -31,7 +31,9 @@ login**. This proves dispatch, the worktree, the account, the permission file, a
 task changes state — one pushed event (`references/verify.md` §2).
 
 **Tier 2 — the gates and the tracker flow work.** No agent. On a scratch branch with a one-line
-change: run `.xezar/checks/repo-gates.sh` as a plain command, open a draft pull request through
+change: run `.xezar/checks/repo-gates.sh` as a plain command — it prints `run id none — standalone
+attempt`, which is the expected shape here and not a fault: the primary checkout has no engine run
+id, so the attempt is a verdict rather than sealable evidence — open a draft pull request through
 **create-pr**, apply the full label set through the descriptor's guards — one pipeline label, a
 category, a QA label, a priority, a risk — read them back, and wait for CI. A setup whose labels
 do not exist fails **here**, not on the first real task.

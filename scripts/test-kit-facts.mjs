@@ -287,6 +287,41 @@ const fail = (fact, where, detail) =>
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 11 -- the gates run by hand, and a hand run is never evidence.
+//
+// The kit's role skills say "in a standalone run with no `gates` step, run it once at the end",
+// and the skill's own smoke test runs `.xezar/checks/repo-gates.sh` as a plain command. For one
+// release neither was possible: `gate_attempt_begin` refused without an engine run id, so the
+// one command the owner is told to run always exited 1 in every onboarded project, and tier 2 of
+// the documented smoke test could not pass. The fix is a throwaway attempt under
+// `.local/xezar/scratch/`, which must stay OUTSIDE the evidence roots -- a hand run that could be
+// sealed would be a tree proving itself. Both halves of that are pinned here: it runs, and it
+// cannot certify.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 11: the gates run standalone, and a standalone attempt cannot be certified";
+  const common = read(`${SKILL}/kit/checks/lib/common.sh`);
+  const record = read(`${SKILL}/kit/checks/lib/gate-record.sh`);
+  const smoke = read(`${SKILL}/references/smoke-test.md`);
+
+  if (!/standalone_gates_dir\(\)\s*\{/.test(common))
+    fail(fact, "kit/checks/lib/common.sh", "has no standalone_gates_dir -- a hand gate run has nowhere to write");
+  else if (!/standalone_gates_dir\(\)\s*\{[^}]*\.local\/xezar\/scratch\//.test(common))
+    fail(fact, "kit/checks/lib/common.sh", "standalone_gates_dir does not point under .local/xezar/scratch/, so a hand run could land in an evidence root");
+
+  if (/no run id — cannot locate the evidence directory/.test(record))
+    fail(fact, "kit/checks/lib/gate-record.sh", "still refuses an attempt without a run id -- `repo-gates.sh` run by hand exits 1");
+  if (!/standalone_gates_dir/.test(record))
+    fail(fact, "kit/checks/lib/gate-record.sh", "never reaches standalone_gates_dir, so there is no standalone attempt");
+  if (!/never sealable evidence/.test(record))
+    fail(fact, "kit/checks/lib/gate-record.sh", "does not tell the reader a standalone attempt is not evidence");
+
+  if (!/repo-gates\.sh/.test(smoke))
+    fail(fact, "references/smoke-test.md", "no longer runs repo-gates.sh, so nothing proves the standalone path");
+  checked.push(fact);
+}
+
 function walk(rel, match) {
   const out = [];
   const rec = (d) => {

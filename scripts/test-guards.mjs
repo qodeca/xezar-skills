@@ -261,6 +261,26 @@ breaks(
 );
 
 breaks(
+  "restoring the refusal that made a hand gate run impossible is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-record.sh",
+  (s) =>
+    s.replace(
+      '  if [ -n "${TASK_ID:-}" ]; then',
+      "  [ -n \"${TASK_ID:-}\" ] || { printf 'gate-record: no run id — cannot locate the evidence directory\\n' >&2; return 1; }\n  if [ -n \"${TASK_ID:-}\" ]; then",
+    ),
+  () => script("test-kit-facts.mjs"),
+  "run by hand exits 1",
+);
+
+breaks(
+  "moving a standalone gate attempt into an evidence root is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(".local/xezar/scratch/standalone-gates", ".local/xezar/tasks/standalone-gates"),
+  () => script("test-kit-facts.mjs"),
+  "could land in an evidence root",
+);
+
+breaks(
   "a preflight that demands a different engine version than the prompt installs is rejected",
   "skills/xez-onboard-opinionated/references/preflight.md",
   (s) => s.replace("0.16.0 or later", "0.17.0 or later"),

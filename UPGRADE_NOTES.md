@@ -17,6 +17,38 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – `.xezar/checks/repo-gates.sh` exits 1 with "no run id"
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.2.0 or 1.3.0.
+
+**Symptom – you run the gates by hand, as the kit's own role skills tell you to, and nothing
+runs.** The output is:
+
+```
+gate-record: no run id — cannot locate the evidence directory
+GATES ABORTED: the attempt could not be recorded, so nothing here could become evidence.
+```
+
+An engine-dispatched task sets a run id; you, in the primary checkout, do not. So the gates
+refused before running a single command. The same fault is why an onboarding smoke test could
+never finish its second tier.
+
+**What to do.** Copy the two fixed library files over the installed ones:
+
+```bash
+cp .claude/skills/xez-onboard-opinionated/kit/checks/lib/common.sh .xezar/checks/lib/common.sh
+cp .claude/skills/xez-onboard-opinionated/kit/checks/lib/gate-record.sh .xezar/checks/lib/gate-record.sh
+bash .xezar/checks/repo-gates.sh --fast
+```
+
+The run now prints `run id none — standalone attempt` and gives you a pass or fail. Its log lands
+under `.local/xezar/scratch/standalone-gates/`, which is gitignored.
+
+**What you lose by skipping it.** Nothing breaks, but you have no way to run the gates yourself:
+the only way to see a gate verdict stays "dispatch a task and wait". **Nothing is made less
+strict.** A standalone attempt is outside the evidence roots and its producer is `author`, so a
+merge can never be certified by one — the same two refusals that were already there.
+
 ## 2026-09-21 – every Claude Code session in an onboarded project acts as the leader
 
 Applies only to a repository onboarded by `xez-onboard-opinionated` 1.2.0.
