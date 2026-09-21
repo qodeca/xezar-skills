@@ -249,6 +249,24 @@ breaks(
   "failedJobsAreKnownLoadFlakes",
 );
 
+// FACT 15's three properties. Each breaks QUIETLY -- the gates still run and nothing goes red --
+// which is exactly the kind of regression a mutation case exists to catch.
+breaks(
+  "a gate lease re-exec without its re-entry guard is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace('if [ -z "${XEZ_GATE_LEASE:-}" ]; then', 'if true; then'),
+  () => script("test-kit-facts.mjs"),
+  "XEZ_GATE_LEASE",
+);
+
+breaks(
+  "resolving the gate lease engine through npx is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace('elif command -v xez >/dev/null 2>&1; then', 'elif command -v npx >/dev/null 2>&1; then'),
+  () => script("test-kit-facts.mjs"),
+  "npx",
+);
+
 breaks(
   "a launcher that stops marking its session as the leader is rejected",
   "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",

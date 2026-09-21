@@ -523,6 +523,39 @@ function walk(rel, match) {
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 15 -- the gate lease cannot become a way for a working gate to fail.
+//
+// The lease re-executes repo-gates.sh under `xezar lease gates`. Three properties make that
+// safe, and each fails QUIETLY if broken -- the gates still run, so nothing goes red:
+//
+//   * the re-entry guard. Without it the script re-executes itself forever.
+//   * `--list` exits BEFORE the lease. It runs nothing and must stay instant; leasing it would
+//     make the command-list id wait behind somebody else's test suite.
+//   * never `npx`. It would fetch an arbitrary build from the registry and lease against a
+//     different build's idea of the slots -- the one mistake the engine's own wrapper calls out.
+{
+  const fact = "FACT 15: the gate lease re-exec is guarded, skips --list, and never resolves through npx";
+  const where = `${SKILL}/kit/checks/repo-gates.sh`;
+  const gates = read(where);
+  const listExit = gates.indexOf('if [ "$LIST" -eq 1 ]');
+  const leaseAt = gates.indexOf('if [ -z "${XEZ_GATE_LEASE:-}" ]');
+  if (leaseAt === -1)
+    fail(fact, where, "no lease block guarded by XEZ_GATE_LEASE -- an unguarded re-exec loops forever");
+  else if (listExit === -1)
+    fail(fact, where, "no --list early exit found, so the lease's position relative to it cannot be checked");
+  else if (leaseAt < listExit)
+    fail(fact, where, "the lease block runs BEFORE the --list exit -- `--list` runs nothing and must never wait for a slot");
+  // Code lines only: the block's own comment says "NEVER `npx`", and banning the warning along
+  // with the thing it warns about is how a pin teaches people to delete the explanation.
+  const code = gates.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  if (/\bnpx\b/.test(code))
+    fail(fact, where, "resolves the engine through npx -- that fetches another build and leases against a different build's idea of the slots");
+  if (leaseAt !== -1 && !gates.includes("lease gates --"))
+    fail(fact, where, "the lease block no longer invokes `lease gates --`");
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

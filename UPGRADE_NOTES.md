@@ -17,6 +17,43 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – my gate run says it is waiting for a slot, and two tasks no longer run their gates at once
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier, **once you copy
+the new `repo-gates.sh`**. Until then nothing changes.
+
+**Symptom – a gate run prints `xezar lease: waiting for a gate slot` and sits there.** That is the
+new behaviour working, not a hang. Two full gate runs on one machine starve each other badly
+enough that the failures show up in suites your change never touched — which reads as flaky tests
+rather than as contention, so it usually gets blamed on the change. `repo-gates.sh` now holds one
+of the machine's gate slots for the length of its run, and a second run waits.
+
+Every run says what happened: `gate slot 1 of 1 taken`, or `waiting for a gate slot (all 1 busy,
+waited 30s)`, or one line saying it could not take a lease and is running anyway.
+
+**Symptom 2 – fanning out several tasks feels slower.** The gate tail is now a queue. The agent
+step, which is the large share of a run's clock, is still parallel.
+
+**What to do.** Copy the check:
+
+```bash
+cp .claude/skills/xez-onboard-opinionated/kit/checks/repo-gates.sh .xezar/checks/
+```
+
+Nothing else. It needs no configuration: how many gate runs go together is the engine's own
+`resources.gateSlots`, default 1, and the wait is bounded at 20 minutes. It **fails open** — no
+engine on your PATH, an engine older than 0.17.0, or an unwritable slot folder each print one line
+and run the gates anyway, so it cannot turn a working gate red.
+
+If the queue costs you more than the contention does on your machine, raise `resources.gateSlots`
+in the cockpit (Settings → Resources, 1–16). Raise it deliberately: the default comes from a
+measurement on one machine with one test suite, where four to five concurrent runs failed nine
+times in ten.
+
+**What you lose by skipping it.** Nothing breaks. You keep the failure mode: a busy machine
+produces gate failures in code you did not touch, and the natural reading of those is that your
+change broke something, or that your tests are flaky. Both readings cost more than the wait does.
+
 ## 2026-09-21 – my release task folds notes into a `dogfooding.md` I do not have
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.

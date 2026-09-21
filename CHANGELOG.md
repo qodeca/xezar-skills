@@ -27,6 +27,19 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
 
 ## Added
 
+- **One gate run per machine, by default.** `repo-gates.sh` re-executes itself once under
+  `xezar lease gates`, so a second full gate run waits instead of starting. Two concurrent runs
+  starve each other, and the failures land **in suites the change under test never touched** —
+  which reads as flaky tests rather than as contention, so it gets blamed on the change. This kit
+  reaches that point sooner than most: one gate run already fans out to three lanes, so two runs
+  is six processes. How many go together is the engine's own `resources.gateSlots`, default 1;
+  the wait is bounded at 20 minutes and every run prints the slot it got or the wait it is paying.
+  **It fails open** — no engine, an engine older than 0.17.0, or an unwritable slot folder each
+  print one line and run the gates anyway. It is a re-exec rather than a lock around the phases so
+  the slot is released when the run ends by *any* path, including a kill; proven by running it,
+  a run killed mid-flight released its slot in under 0.2 seconds. Resolution is the project's own
+  `node_modules` first, then PATH — **never `npx`**, which would lease against a different build's
+  idea of the slots.
 - **`SECURITY.md` is generated during onboarding.** Six places in the kit pointed at it and
   nothing wrote it, including the issue template that routes a security reporter. Two of the
   six are roles that read it as *input*, not reporters: `xezar-security-review` is told to
