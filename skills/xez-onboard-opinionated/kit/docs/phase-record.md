@@ -130,4 +130,4 @@ Depth, maturity, capability inventory and the counters are facts about **one tas
 
 Distinguish **observed**, **fixture-tested**, **live-verified** and **unknown** in anything you report from these files. Historical validity, reuse in this run and current eligibility are three different questions: a green attempt from an earlier head does not cover new candidate bytes, and a newer failure is never hidden behind an older pass. Cross-task reading is read-only, inside a trusted path.
 
-Related: `.xezar/docs/recovery.md` for reconciling a snapshot against current policy, `.xezar/docs/ui-operations.md` for delivery, takeover and readiness records, and `.xezar/docs/dogfooding.md` for what a real task taught.
+Related: `.xezar/docs/recovery.md` for reconciling a snapshot against current policy, and `.xezar/docs/ui-operations.md` for delivery, takeover and readiness records.

@@ -2,8 +2,8 @@
 # Fast checks against the actual repository, run as the last gate command.
 #
 # Each check below is SKIPPED, loudly, when the thing it inspects is not part of this project.
-# That matters because this file is vendored into projects that do not all carry a changelog, a
-# dogfooding ledger or a contract test. Under `set -e` an unconditional call to a missing file
+# That matters because this file is vendored into projects that do not all carry a changelog or a
+# contract test. Under `set -e` an unconditional call to a missing file
 # aborts the whole gate on the first one, and every check after it silently never runs - which
 # reads as "the gate passed" to anyone watching the exit code.
 set -euo pipefail
@@ -30,14 +30,6 @@ elif [ -f "$REPO_ROOT/CHANGELOG.md" ]; then
     --fragments "$REPO_ROOT/changelog.d"
 else
   skip changelog-check "no CHANGELOG.md in this project"
-fi
-
-# The dogfooding ledger has the same fragment shape, and a malformed entry would only surface at
-# the next release fold. Catch it here.
-if [ -d "$REPO_ROOT/.xezar/docs/dogfooding.d" ]; then
-  node "$SCRIPT_DIR/dogfooding-fragments.mjs" --check "$REPO_ROOT/.xezar/docs/dogfooding.d"
-else
-  skip dogfooding-fragments "no .xezar/docs/dogfooding.d ledger in this project"
 fi
 
 # Marked fenced quotes are exact copies of maintained repository files. A missing source is a

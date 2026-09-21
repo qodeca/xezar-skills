@@ -144,9 +144,9 @@ gate_attempt_begin() {
   # recorded null is worth more than a guessed name. A standalone attempt has no manifest at all,
   # so it does not go looking for one.
   if [ "$GATE_STANDALONE" -eq 1 ]; then
-    GATE_WORKFLOW="${DOGFOOD_WORKFLOW:-}"
+    GATE_WORKFLOW="${KIT_TEST_WORKFLOW:-}"
   else
-    GATE_WORKFLOW="${DOGFOOD_WORKFLOW:-$(node "$GATE_LIB_DIR/manifest.mjs" "$(task_manifest_path)" --get workflow 2>/dev/null)}"
+    GATE_WORKFLOW="${KIT_TEST_WORKFLOW:-$(node "$GATE_LIB_DIR/manifest.mjs" "$(task_manifest_path)" --get workflow 2>/dev/null)}"
   fi
   # Reserve the sequence and the attempt directory in ONE atomic step. Asking for the next free
   # number and then writing the attempt is a race: two gate runs sharing this run id that cross
@@ -261,7 +261,7 @@ gate_run() {
   # what makes the log-integrity rule testable with a real gate rather than a hand-built
   # record: a command that exits 0 while destroying its log must NOT be certifiable.
   if printf '%s\n' "$header" > "$log_path" 2>/dev/null; then
-    { DOGFOOD_GATE_LOG="$log_path" "$@"; status=$?; ran=1; } >> "$log_path" 2>&1
+    { KIT_TEST_GATE_LOG="$log_path" "$@"; status=$?; ran=1; } >> "$log_path" 2>&1
   fi
   ended="$(_gate_iso_now)"
 

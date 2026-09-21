@@ -55,7 +55,10 @@ Group the entries the way the owner thinks about them, not by directory:
 - **The engine kit** — workflows, check scripts, role skills. Copied, with the gate script's
   command array generated from the confirmed answers.
 - **Process and config** — the two config files, the label taxonomy, the tracker descriptor, the
-  generated process documents.
+  generated process documents. `SECURITY.md` is one of these and is worth naming on its own line:
+  it is the only generated document that makes a **promise to people outside the project**, and
+  two role skills read it as input. Show its four parts, and show the "not a vulnerability" list in
+  full — an over-stated promise there is the one generated line an owner should read word by word.
 - **The leader** — the guide (a shipped half and a generated half), the one `SessionStart` hook
   and its context-loader script, the loops file.
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the

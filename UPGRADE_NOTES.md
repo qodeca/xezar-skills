@@ -17,6 +17,98 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – my release task folds notes into a `dogfooding.md` I do not have
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.
+
+**Symptom 1 – every role tells tasks to write a fragment nobody ever folds.** The shipped role
+skills ended with "record relevant dogfooding observations as a fragment in
+`.xezar/docs/dogfooding.d/<runId8>.md`", and the release role's step 5 folded those fragments into
+`.xezar/docs/dogfooding.md`. The kit never shipped that ledger, so the fold had nothing to write
+into and the fragments accumulated. You may have a `.xezar/docs/dogfooding.d/` folder with files in
+it that nothing has ever read.
+
+**Symptom 2 – `bash .xezar/checks/repository-checks.sh` runs a check you did not ask for.** If that
+folder exists, the gate's last command validated the fragments in it.
+
+**What to do.** This was one project's record-keeping habit shipped to every other project, and it
+is removed rather than completed. Copy the new files over the installed ones:
+
+```bash
+rm -f .xezar/checks/dogfooding-fragments.mjs
+cp .claude/skills/xez-onboard-opinionated/kit/checks/repository-checks.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/lib/common.sh .xezar/checks/lib/
+cp -R .claude/skills/xez-onboard-opinionated/kit/skills/. .xezar/skills/
+cp .claude/skills/xez-onboard-opinionated/kit/docs/phase-record.md .xezar/docs/
+cp .claude/skills/xez-onboard-opinionated/kit/docs/close-out.md .xezar/docs/
+```
+
+That rewrites all 37 role skills — the sentence lived in their shared contract — and removes the
+release role's fold step, which is why `xezar-release-changelog.md` must be among them. Then decide
+what to do with `.xezar/docs/dogfooding.d/`: the notes in it are yours. Fold them into a document
+of your own once, or delete the folder. Nothing reads it after this.
+
+**What you lose by skipping it.** Your release task keeps trying to fold fragments into a file that
+does not exist, and every writing task keeps producing fragments for it. Nothing fails loudly; the
+folder simply grows.
+
+**What you lose by applying it.** Honestly: the kit no longer asks any role to record what a task
+taught it. Campaign notes stay, but they are the leader's record of decisions, not a per-task
+record of lessons. If you had been using the fragments, keep doing it in your own words — nothing
+stops you, the kit just no longer asks.
+
+## 2026-09-21 – CI re-runs a failed job by itself, and my integration role reads fields that are gone
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.
+
+**Symptom 1 – your integration role reads `outcome.json` for fields that no longer exist.** This is
+the one that bites: `.xezar/checks/ci-watch.sh` no longer writes `knownLoadFlakes` or
+`failedJobsAreKnownLoadFlakes`. If you copy the new check without the new role skill, the role
+looks for `failedJobsAreKnownLoadFlakes`, finds nothing, and has no rule to follow.
+
+**Symptom 2 – a red CI job is re-run instead of reported.** The old role applied a "one rerun" rule
+whenever every failed job was named in `ci.knownLoadFlakes`. That list, and the rerun, are removed.
+A job that fails under machine load rather than because of the change is a flaky test, and a flaky
+test is rebuilt onto a mechanism that cannot fail on timing — never retried, never waited out,
+never excused by a list of names.
+
+**What to do.** Copy the check and the role **in the same pass**, never one without the other:
+
+```bash
+cp .claude/skills/xez-onboard-opinionated/kit/checks/ci-watch.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/skills/xezar-integration.md .xezar/skills/
+cp .claude/skills/xez-onboard-opinionated/kit/workflows/integration.yaml .xezar/workflows/
+```
+
+Then delete `ci.knownLoadFlakes` from `.xezar/pipeline/config.json`. Nothing reads it; leaving it
+is harmless but misleading.
+
+**What you lose by skipping it.** A real failure of a job whose name is on your list is still
+offered as a candidate for a rerun — which is exactly how a genuine defect reaches your base
+branch wearing a green tick.
+
+## 2026-09-21 – my check no longer picks up the fake command I set
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier **that has copied
+kit check files since this note** — until you copy them, your installed checks keep the old names
+and there is nothing to fix.
+
+**Symptom – a `DOGFOOD_*` environment variable you set is silently ignored.** Four variables were
+renamed. They fail quietly: no error, the check simply uses its default instead.
+
+| Old | New | What it does |
+|---|---|---|
+| `DOGFOOD_GH` | `KIT_TEST_GH` | the command used to reach GitHub, default `gh` |
+| `DOGFOOD_WORKFLOW` | `KIT_TEST_WORKFLOW` | the workflow name on a gate record |
+| `DOGFOOD_GATE_LOG` | `KIT_TEST_GATE_LOG` | exported to the gate command so it can find its own log |
+| `DOGFOOD_ALLOW_ROOT_BOOTSTRAP` | `KIT_TEST_ALLOW_ROOT_BOOTSTRAP` | the named-run exception in the worktree preflight |
+
+**What to do.** Search your own scripts, CI configuration and shell profiles for `DOGFOOD_` and use
+the new name. The behaviour is unchanged.
+
+**What you lose by skipping it.** Whatever the variable was doing stops happening, without a
+message. If you set `DOGFOOD_GH` to a wrapper, the check goes back to calling `gh` directly.
+
 ## 2026-09-21 – a whole lane is marked out of budget when one login runs out
 
 Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or earlier.
@@ -209,9 +301,14 @@ a CI job named after somebody else's pipeline. Two of those are not just confusi
 exactly as GitHub reports them, an empty flake list, and your design-system folder if you have one:
 
 ```json
-"ci": { "requiredChecks": ["<your check name>"], "knownLoadFlakes": [] },
+"ci": { "requiredChecks": ["<your check name>"] },
 "paths": { "designSystem": "" }
 ```
+
+> **Later change, if you are reading this today.** This entry originally also told you to add
+> `"knownLoadFlakes": []`. That key was removed from the kit on 2026-09-21 — see the entry keyed
+> "CI re-runs a failed job by itself, and my integration role reads fields that are gone". Do not
+> add it. If your config already carries it, nothing reads it any more and it is safe to delete.
 
 Then copy the fixed scripts over the installed ones:
 

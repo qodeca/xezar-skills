@@ -178,8 +178,9 @@ breaks(
 // `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
 // kit it ships. Those two halves are checked by different gates -- the kit is excluded from
 // three of them by path -- so a contradiction between them passed everything until people read
-// both. One break per pinned fact, plus a second for the dispatcher half of the ceilings pin --
-// seven in all. A pin nothing breaks is a pin nobody knows still fires.
+// both. One break per pinned fact, plus a second for the dispatcher half of the ceilings pin and
+// a second for FACT 14's other banned concept. A pin nothing breaks is a pin nobody knows still
+// fires.
 breaks(
   "the 8 KB note cap the decisions file must be exempt from is rejected",
   "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
@@ -226,6 +227,26 @@ breaks(
   (s) => s.replace('note_tail "${campaign}parked.md"', 'note_tail "${campaign}merges.md"'),
   () => script("test-kit-facts.mjs"),
   "merges.md",
+);
+
+// The two below guard FACT 14. They are the only thing standing between a removed practice and
+// a new project relearning it: lint.sh's reference gate matches only `references/...` tokens, so
+// a `.xezar/docs/dogfooding.md` pointer never matched it -- which is how that dead pointer shipped
+// in 46 kit files and passed every gate for four releases.
+breaks(
+  "a kit document that points at the removed dogfooding ledger is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => `${s}\nSee dogfooding.md for the observation loop.\n`,
+  () => script("test-kit-facts.mjs"),
+  "dogfood",
+);
+
+breaks(
+  "a kit role that reads the removed known-flake record field is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-integration.md",
+  (s) => `${s}\nWhen failedJobsAreKnownLoadFlakes is true, rerun the failed jobs once.\n`,
+  () => script("test-kit-facts.mjs"),
+  "failedJobsAreKnownLoadFlakes",
 );
 
 breaks(

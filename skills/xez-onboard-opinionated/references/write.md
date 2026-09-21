@@ -103,7 +103,7 @@ Never copied, because each depends on an answer:
   artifact belongs in the one tree, and the tidiness check only looks inside it. This is a config
   value, set per project — the shipped default is unchanged, so nothing breaks for anyone else.
 
-  Three more keys the kit's checks read, and none of them may be left to a script's own default:
+  Two more keys the kit's checks read, and neither may be left to a script's own default:
 
   - **`ci.requiredChecks`** — the required CI check names, spelled exactly as the check-runs API
     reports them, which is not always the job id. The integration gate compares against this list;
@@ -111,9 +111,6 @@ Never copied, because each depends on an answer:
     CI would block every merge. A project with no CI gets `[]`, and the gate then compares only
     what the branch rules enforce. Take the names from the confirmed gate answers, and read them
     back from a real head rather than from the workflow file.
-  - **`ci.knownLoadFlakes`** — job names this project has watched fail under machine load rather
-    than because of the change. `[]` on a new project, always: it is the honest answer, and a name
-    copied in from somewhere else would excuse a real failure here.
   - **`paths.designSystem`** — the folder holding this project's design system. A project that
     already has one gets **its** path. A project with none gets `docs/design-system`: nothing is
     created there by this skill, the design workflows find no `README.md` in it, judge a mockup
@@ -266,6 +263,31 @@ Never copied, because each depends on an answer:
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
   output, a library's exports, a config format), one honest line each. It is in the preview like
   every other generated file.
+- **`SECURITY.md`** — six places in the kit point at it, so a project without one gets a dead
+  reference on its most sensitive path. Two of the six are roles that read it as **input**, not
+  reporters: `xezar-security-review` is told to read it "so you know what this project has
+  promised" before it opens the diff, and `xezar-architecture` weighs a change against it. A file
+  holding only reporter instructions makes the security review's first read a no-op. So four
+  things, each one or two sentences:
+
+  1. **Where to report privately, and which versions are covered.** The private address is already
+     decided: `.github/ISSUE_TEMPLATE/config.yml` routes a reporter to this repository's own
+     security advisories. Name that same route — never invent a second address, or the two
+     documents disagree and the reporter picks one. Say which versions get a fix; "the latest
+     release" is a real answer.
+  2. **What this project does not treat as a vulnerability.** From the interview. A report that
+     names designed behaviour costs a reviewer a day; a project that never writes this down gets
+     that report more than once.
+  3. **What happens if nobody answers.** Blank issues are enabled in the kit's templates *because*
+     this escalation fallback exists (`xezar-issue-create` says so), so the fallback has to be
+     real: who to reach, and after how long.
+  4. **What this project has promised** — its trust boundaries and the surfaces it will not weaken,
+     from the same analysis answers that generate `CODE_REVIEW.md` and `BACKWARD_COMPATIBILITY.md`.
+     This is the half the security-review role actually consumes.
+
+  Write what analysis found and nothing more. A promise this project has not made is worse than a
+  missing line: the review role will spend its verdict defending a boundary nobody built. It is in
+  the preview like every other generated file.
 - **`<paths.designs>/README.md`** — the designs index, written **always**: the design half installs
   whatever the design gate's answer (`references/analysis.md` §3), and the design skill takes every
   feature README's headings from this file, so a project without it has a design workflow with

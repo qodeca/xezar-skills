@@ -142,12 +142,12 @@ fi
 # The legacy `CEZ_ALLOW_ROOT_BOOTSTRAP` name is NOT honoured. A stale Cezar-era export
 # unlocks nothing here.
 ROOT_BOOTSTRAP=0
-if [ -n "${DOGFOOD_ALLOW_ROOT_BOOTSTRAP:-}" ]; then
-  if [ -n "${XEZ_TASK_ID:-}" ] && [ "$DOGFOOD_ALLOW_ROOT_BOOTSTRAP" = "$XEZ_TASK_ID" ]; then
+if [ -n "${KIT_TEST_ALLOW_ROOT_BOOTSTRAP:-}" ]; then
+  if [ -n "${XEZ_TASK_ID:-}" ] && [ "$KIT_TEST_ALLOW_ROOT_BOOTSTRAP" = "$XEZ_TASK_ID" ]; then
     ROOT_BOOTSTRAP=1
     info "root bootstrap exception ACTIVE for task $XEZ_TASK_ID"
   else
-    fail identity.bootstrap-names-this-run "DOGFOOD_ALLOW_ROOT_BOOTSTRAP is set but does not equal this run's XEZ_TASK_ID — the exception must name the run it applies to."
+    fail identity.bootstrap-names-this-run "KIT_TEST_ALLOW_ROOT_BOOTSTRAP is set but does not equal this run's XEZ_TASK_ID — the exception must name the run it applies to."
   fi
 fi
 
