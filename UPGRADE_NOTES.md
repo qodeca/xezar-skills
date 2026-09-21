@@ -17,6 +17,49 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – my repository has no CONTRIBUTING.md, SECURITY.md or docs index, and a new setup would have written them
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.
+
+**Read the preamble table above before this one.** `SDLC.md`, `CODE_REVIEW.md`,
+`BACKWARD_COMPATIBILITY.md` and the `AGENTS.md` starter are *"regenerated only when missing"* —
+and the three documents below are generated the same way. So **nothing in an upgrade writes them
+into your repository.** They arrive on a fresh setup only. This entry exists because that is easy
+to miss, and one of the three closes a pointer you already ship.
+
+**Symptom 1 – your issue template routes a security reporter to a `SECURITY.md` you do not have.**
+`.github/ISSUE_TEMPLATE/config.yml` says "Report privately… see SECURITY.md". If that file is
+missing, the most sensitive path in your repository ends nowhere. This is the one worth fixing by
+hand today.
+
+**Symptom 2 – `docs/` has up to seven folders and no index.** The `paths.*` keys name them and
+nothing says which is which.
+
+**Symptom 3 – 37 workflows, a label taxonomy, and no page telling a person how to contribute.** A
+first-time contributor opens a pull request, sees none of the 37 workflows run, and reasonably
+concludes the CI is broken.
+
+**What to do.** Write the three by hand, or re-run the setup on a scratch branch and copy them
+across. What each needs is in
+`.claude/skills/xez-onboard-opinionated/references/write.md` §2 — in short:
+
+- **`SECURITY.md`**, four parts: where to report privately (use the same private-advisory route
+  your `config.yml` already names, not a second address) and which versions get a fix; what this
+  project does **not** treat as a vulnerability; what happens if nobody answers; and what this
+  project has promised — its trust boundaries. That last part is not decoration: your
+  `xezar-security-review` role is told to read this file before it opens a diff, so what it says
+  you promised is what that review defends.
+- **`docs/README.md`**, three columns — path, what lands there, who it is for — with the paths
+  read from **your** `.xezar/pipeline/config.json`, not from any default list, and one line saying
+  a folder appears when its first document does.
+- **`CONTRIBUTING.md`**, one page, whose load-bearing sentence is that a contributor triggers none
+  of the 37 workflows and that the checks gating their pull request are `ci.requiredChecks` — not
+  the gate list in `repo-gates.sh`, which is the agent gate list and never runs on a human's PR.
+
+**What you lose by skipping it.** The security pointer stays dead — that is the real cost. The
+other two are conveniences, and nothing in the kit reads them, so nothing will ever tell you they
+are missing.
+
 ## 2026-09-21 – my gate run says it is waiting for a slot, and two tasks no longer run their gates at once
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier, **once you copy
