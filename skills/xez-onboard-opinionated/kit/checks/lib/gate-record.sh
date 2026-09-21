@@ -29,6 +29,9 @@
 #   gate_attempt_begin <requiredNamesJson> <commandListId>
 #     Records `producer` from `GATE_PRODUCER` (set by `repo-gates.sh --producer`), defaulting to
 #     `author`. An author-produced attempt is refused at sealing (#676 PR 2).
+#     With no run id the attempt is STANDALONE: it records under
+#     `.local/xezar/scratch/standalone-gates/` with `runId: null`, prints a real verdict, and can
+#     never be sealed or certified. That is the owner running the gates by hand.
 #   gate_run <name> <command> [args…]
 #   gate_note_skip <name> <reason>
 #   gate_attempt_complete            # prints "passed" or "failed", exits non-zero on failed
@@ -103,8 +106,13 @@ gate_resolve_producer() {
   printf 'author'
 }
 
-# Start an attempt. Fails closed: without a run id there is no evidence directory to write to,
-# and a gate run nobody can record is not a gate run anyone may seal.
+# Start an attempt. A run id gives the attempt an evidence directory; WITHOUT one the attempt is
+# standalone — the owner running the gates by hand, or an onboarding smoke test in the primary
+# checkout — and it records to `standalone_gates_dir` instead, with `runId: null`. It still fails
+# closed on the things that make a record readable at all: a HEAD to bind to, and a writable log.
+# A standalone attempt is uncertifiable by construction, twice over: its producer is `author`,
+# which sealing refuses, and it does not live under an evidence root, which verification refuses.
+# So the owner gets a verdict they can act on and nobody gets evidence they did not earn.
 _gate_claim_field() {
   printf '%s' "$1" | node -e '
     let raw = "";
@@ -119,17 +127,27 @@ gate_attempt_begin() {
 
   GATE_RESULTS_MJS="$GATE_LIB_DIR/gate-results.mjs"
 
-  [ -n "${TASK_ID:-}" ] || { printf 'gate-record: no run id — cannot locate the evidence directory\n' >&2; return 1; }
   [ -n "${HEAD_SHA:-}" ] || { printf 'gate-record: no HEAD — cannot bind evidence to a revision\n' >&2; return 1; }
   case "$HEAD_SHA" in
     *[!0-9a-f]* | "") printf 'gate-record: HEAD "%s" is not a plain SHA\n' "$HEAD_SHA" >&2; return 1 ;;
   esac
 
-  gates_root="$(task_gates_dir)" || return 1
+  if [ -n "${TASK_ID:-}" ]; then
+    GATE_STANDALONE=0
+    gates_root="$(task_gates_dir)" || return 1
+  else
+    GATE_STANDALONE=1
+    gates_root="$(standalone_gates_dir)" || return 1
+  fi
   # The workflow name, if anything ever recorded it. A check step is spawned with the manager's
   # own environment, which carries no workflow identity, so this is normally null — and a
-  # recorded null is worth more than a guessed name.
-  GATE_WORKFLOW="${DOGFOOD_WORKFLOW:-$(node "$GATE_LIB_DIR/manifest.mjs" "$(task_manifest_path)" --get workflow 2>/dev/null)}"
+  # recorded null is worth more than a guessed name. A standalone attempt has no manifest at all,
+  # so it does not go looking for one.
+  if [ "$GATE_STANDALONE" -eq 1 ]; then
+    GATE_WORKFLOW="${DOGFOOD_WORKFLOW:-}"
+  else
+    GATE_WORKFLOW="${DOGFOOD_WORKFLOW:-$(node "$GATE_LIB_DIR/manifest.mjs" "$(task_manifest_path)" --get workflow 2>/dev/null)}"
+  fi
   # Reserve the sequence and the attempt directory in ONE atomic step. Asking for the next free
   # number and then writing the attempt is a race: two gate runs sharing this run id that cross
   # that window both get the same number, the selector ties, and directory order decides which
@@ -151,7 +169,7 @@ gate_attempt_begin() {
   node "$GATE_RESULTS_MJS" begin --dir "$GATE_ATTEMPT_DIR" --json "$(_gate_json \
     "attemptId=$GATE_ATTEMPT_ID" \
     "sequence:n=$seq" \
-    "runId=$TASK_ID" \
+    "runId=${TASK_ID:-}" \
     "runIdSource=${TASK_ID_SOURCE:-}" \
     "workflow=$GATE_WORKFLOW" \
     "producer=${GATE_PRODUCER:-author}" \
@@ -170,6 +188,9 @@ gate_attempt_begin() {
     "startedAt=$GATE_STARTED_AT")" || return 1
 
   printf 'gate attempt   %s\n' "$GATE_ATTEMPT_ID"
+  if [ "${GATE_STANDALONE:-0}" -eq 1 ]; then
+    printf 'run id         none — standalone attempt, a verdict only, never sealable evidence\n'
+  fi
   printf 'evidence to    %s\n' "$GATE_ATTEMPT_DIR"
   printf 'full logs      %s/\n' "$GATE_LOG_DIR"
 }

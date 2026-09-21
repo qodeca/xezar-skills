@@ -209,6 +209,17 @@ task_gates_dir() {
   printf '%s/gates' "$dir"
 }
 
+# Where a gate run with NO engine run id puts its output — the owner running the gates by hand,
+# and the second tier of an onboarding smoke test, both of which happen in the primary checkout
+# before any task exists. It is deliberately NOT under an evidence root: `gate-results.mjs`
+# derives the run id from the directory a manifest sits in and refuses anything outside this
+# repository's canonical evidence paths, so a hand run yields a real verdict and can never be
+# sealed, certified, or mistaken for somebody's merge evidence. `scratch` is one of the six
+# allowed `.local/xezar/` subfolders, so nothing here disturbs the tidiness check.
+standalone_gates_dir() {
+  printf '%s/.local/xezar/scratch/standalone-gates' "$MAIN_ROOT"
+}
+
 # Repository identity that works offline and leaks nothing.
 #
 # The root commit is the stable, fetch-free answer to "is this the same repository". The origin
