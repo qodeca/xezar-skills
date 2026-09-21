@@ -60,6 +60,9 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | A second long-lived branch, or "none found" | the branch list |
 | The branching model | **inferred** from the two above — one long-lived branch is trunk-based, two is a two-branch flow — and shown as an inference, not a reading |
 | The design gate, on or off | the UI signals analysis found, quoted |
+| The browser tool design review and UI tests drive | which of the kit's browser descriptors this machine already has the tool for; asked only when it has both |
+| Deploy and rollback workflows, locales, or "none found" | workflow file names, each shown with whether it has a manual trigger and a `sha` input, and locale folders — readings, each confirmed; performance budgets are never proposed and start empty |
+| Where committed documents go | the `docs/` folders analysis found, or the defaults in `references/write.md` §2 — one line, all of them under `docs/` |
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |
@@ -112,6 +115,11 @@ Two rules that are not negotiable and are stated on the screen:
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
+**OpenCode accounts are not offered as task lanes.** The setup switches that provider off for this
+project (`references/verify.md` §3 has the four reasons and the one call that undoes it), so a lane
+on it would be a lane whose every dispatch is refused. Say so on the screen in one line when the
+registry holds such an account, rather than leaving the owner to wonder where it went.
+
 Unlimited lanes are exempt from budget tracking, so they are marked here rather than discovered
 from a rate limit that never arrives.
 
@@ -119,10 +127,11 @@ With a single login there is nothing to choose: say so, carry the warning into t
 the screen. The answer is *set*, not only recorded — `references/verify.md` does it once the
 engine's tools are there, and reports what the default was before.
 
-### 4. `routing` — five classes, one screen
+### 4. `routing` — eight classes, one screen
 
-Handled in `references/routing-interview.md`: a proposed chain per task class, all five classes
-confirmed or reordered together.
+Handled in `references/routing-interview.md`: a proposed chain per task class, all eight classes
+confirmed or reordered together — mechanical, writing, design, visuals, implementation, testing, review,
+security and release.
 
 ### 5. `table` — the expanded rows
 
@@ -146,5 +155,5 @@ report that no day-one preferences were seeded.
   would answer them in the same breath.
 - **Never imply a decision is already made.** Every detected fact is shown with the evidence behind
   it and can be changed before anything is written, and a confirmation screen says so in as many
-  words. Confirming eight facts at once is still confirming them; what it is not is eight
-  interrogations.
+  words. Confirming every fact on one screen is still confirming them; what it is not is one
+  interrogation per fact.

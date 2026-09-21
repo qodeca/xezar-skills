@@ -1,9 +1,9 @@
-# Reviews a designs/<feature>/ folder or a PR's UI against this project's design system.
+# Reviews a <designs>/<feature>/ folder (paths.designs) or a PR's UI against this project's design system.
 # Read-only like code-review: no setup, no gates, no commits. The verdict is posted with
 # `gh` as a PR comment headed "## Design review", never written into the tree. There is
 # no readiness step, so `branch.has-own-commits` never applies to this role.
 name: design-review
-description: "Review a designs/<feature>/ mockup or a PR's UI against the design system and the accessibility bar. Verdict PASS / PASS WITH FOLLOW-UPS / FAIL. Read-only."
+description: "Review a mockup under the folder paths.designs names, or a PR's UI against the design system and the accessibility bar. Verdict PASS / PASS WITH FOLLOW-UPS / FAIL. Read-only."
 steps:
   - id: kit
     name: Snapshot the local project kit

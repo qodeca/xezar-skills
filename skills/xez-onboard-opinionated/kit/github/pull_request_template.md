@@ -13,9 +13,9 @@
 
 ## Design
 
-<!-- UI in scope = {{UI_SCOPE}}, or anything under designs/. SDLC.md § The design gate. -->
+<!-- UI in scope = {{UI_SCOPE}}, or anything under {{DESIGNS_DIR}}/. SDLC.md § The design gate. -->
 - [ ] Not UI in scope
-- [ ] UI in scope – `needs-design` applied (outside contributors: a maintainer applies it). Design: `designs/<feature>/` or "fix-sized"
+- [ ] UI in scope – `needs-design` applied (outside contributors: a maintainer applies it). Design: `{{DESIGNS_DIR}}/<feature>/` or "fix-sized"
 - [ ] `skip-design`, because: <rendered output unchanged – say why>
 
 Design review evidence: <link to the "## Design review" comment or the design README section>

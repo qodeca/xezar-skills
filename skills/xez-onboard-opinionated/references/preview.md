@@ -3,17 +3,24 @@
 Called from step 5. The preview is the last thing this half produces, and in the full skill it is
 the gate the writing half passes through.
 
-## Three groups, always all three
+## Four groups, always all four
 
 | group | meaning |
 |---|---|
 | **create** | The file does not exist. The setup will write it. |
-| **leave alone** | The file exists and is untouched engine-init output, or is outside the setup's scope. |
+| **delete** | The file exists, is untouched engine-init output, and nothing in the kit takes its place. |
+| **leave alone** | The file exists and is outside the setup's scope. |
 | **needs your decision** | The file exists and the setup has content for that path. |
 
-Under `.xezar/` the third group holds one legitimate case: untouched engine-init output that is
+Under `.xezar/` the fourth group holds one legitimate case: untouched engine-init output that is
 being replaced. Show what is there and what replaces it, so "replaced without asking" is at
 least *seen* without asking.
+
+**The delete group is short and it is never empty after `xezar init`.** It holds
+`.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`: the two files
+init writes, which the kit does not overwrite because it ships nothing by either name
+(`references/write.md` §1). A deletion is the one preview entry an owner cannot infer from the
+others, so it is listed by path and by reason rather than folded into "replaced".
 
 Outside `.xezar/` it is rarely empty, and preflight check 3 already listed what is there: a
 `CLAUDE.md`, an `AGENTS.md`, a pull request template, issue templates, an `.mcp.json`. One rule
@@ -61,7 +68,8 @@ what it is for. A preview nobody reads is a preview that approved everything.
 
 ## Say what the preview does not cover
 
-Four things, named explicitly, because they are the ones that surprise people:
+Five things that are not files in the pull request, named explicitly, because they are the ones
+that surprise people:
 
 - **The label taxonomy is created on the tracker**, before the setup pull request opens, so that
   pull request can carry its labels. List the labels by name and group, and mark which already
@@ -70,6 +78,16 @@ Four things, named explicitly, because they are the ones that surprise people:
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the
   owner. Say whether this login can apply it, which the preflight already determined.
+- **Three engine settings are changed for this project**, each read first, recorded with what it
+  was, and read back (`references/verify.md` §3): the **default task account** becomes the lane
+  chosen in the interview; **skill auto-update is switched off**, so skills change when the owner
+  updates them and not at an engine start; and **OpenCode is switched off**. For the last, say why
+  in one line — it can stall silently after a denied permission and does not enforce a step's tool
+  limits — and give the one call that turns it back on. Say where all three live: git-ignored
+  engine files **in this project** (`.xezar/workspace.json`, `.xezar/agent-accounts.json`), so no
+  other project on this machine is touched — and that the provider switch is skipped, and
+  reported, when the engine says it is not in single-project mode or when an existing routing
+  table still uses OpenCode.
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
 - **The interview state file** under `.local/xezar/runtime/` was already written, before this preview.
   It is the only thing written so far, and the owner should know it exists.

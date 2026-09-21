@@ -9,6 +9,16 @@ This is the workflow's only writing step: read run/history evidence first, repro
 
 Inputs: original trigger, affected release and predecessor evidence. Output: reproduced cause, minimal repair and red-without-fix proof distinguished from passing controls. If reproduction is unavailable, report unconfirmed hardening rather than claiming the original incident fixed.
 
+## Hotfix mode
+
+The `hotfix` workflow runs this skill when the fault is **live**: people are hitting it now, and waiting for the full fix costs more than shipping a narrow one. Everything above still holds — reproduce, red test first, the smallest fix, the proof it fails without it. Hotfix mode changes three things and relaxes none.
+
+1. **The fix is the narrowest change that stops the harm**, even when it is not the right fix. Guard the bad input, turn the feature off behind its existing switch, restore the previous behaviour. Say plainly which of those you did. Anything wider — the refactor that would have prevented it, the second bug you noticed on the way — is not in this change.
+2. **A follow-up issue is part of done, and it is filed once.** Your step can run up to three times — a failed gate returns to it — so before anything else read `<evidence>/hotfix/follow-up.json` in the task's evidence directory (`.xezar/checks/lib/common.sh`, `task_evidence_dir`). Where it exists, the issue is filed: use its number and file nothing. Where it does not, file the issue through the tracker's **create-issue** operation — what the narrow fix leaves unsolved and the full fix as you understand it — and write the receipt at once, atomically, as `{"number":<n>,"url":"<full issue URL>"}`, before you touch the code. The PR does not exist yet, so the issue carries no PR link: the workflow's handoff step, which opens the PR, puts the issue's number in the PR body and adds the PR link to the issue as one comment. A hotfix with no follow-up is a workaround nobody will ever revisit.
+3. **Nothing is skipped to go faster.** The gates run. Cold review still applies, and security review where the diff touches a trust boundary. If the owner decides a review may follow the merge and not precede it, that is the owner's decision: quote their words in the follow-up issue, by name. You never grant yourself that, and urgency is not authority.
+
+This kit forks every task from the configured base branch, so hotfix mode serves a project that releases from that branch. Where the live fault is on a separate release branch, write the `BLOCKED` file the shared contract describes, saying so, and end the turn — your step is not the last one and cannot ask: carrying a fix across branches is the owner's call and the `integration` role's work, not something to improvise under pressure.
+
 ## Shared contract
 
 Before reading kit files in a standalone skill run, if `.xezar/checks/bootstrap.sh` is absent, run `bash "$(git rev-parse --path-format=absolute --git-common-dir)/../.xezar/checks/bootstrap.sh"`. If unavailable or refused, stop with that specific blocker. Never fabricate commands or copy runtime. Workflow launches already perform this step.

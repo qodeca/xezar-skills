@@ -1,10 +1,10 @@
-# A design run produces a mockup in designs/<feature>/ – static HTML on
+# A design run produces a mockup in <designs>/<feature>/ (paths.designs) – static HTML on
 # the design system's stylesheet plus a README.md handoff – commits it and drafts a PR.
 # It writes no application code. The gates still run because this project's test
 # command may carry a design-system drift test and a designs handoff lint, and a mockup that
 # breaks either is not ready for review.
 name: design
-description: "Design a user-facing surface – mockup in designs/<feature>/ on the design system, README handoff, every state – then gates and a draft PR into the base branch. No application code."
+description: "Design a user-facing surface – mockup in the folder paths.designs names, on the design system, README handoff, every state – then gates and a draft PR into the base branch. No application code."
 steps:
   - id: kit
     name: Snapshot the local project kit

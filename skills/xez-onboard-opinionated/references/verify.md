@@ -48,6 +48,30 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 
 ## 3. The remaining steps, in order
 
+**Three engine settings change here, and all three follow one rule: read, record, write, read back.**
+They are the default task account, the OpenCode switch and the skill auto-update switch. None of
+them is a file in the pull request, so the preview names each (`references/preview.md`) and the
+report says what each was before.
+
+- **Where the record goes.** `.local/xezar/runtime/onboarding-engine-settings.json` — git-ignored,
+  beside the saved interview, one entry per setting: `{ "setting": "<name>", "previous": <what you
+  read>, "now": <what you wrote>, "undo": "<the call>", "when": "<ISO-8601>" }`. **Never
+  `.xezar/onboarding.json`**: that file is committed, this step runs after the merge, and a write
+  there leaves the tree dirty under a rule that says it must be clean — and puts a fact about one
+  machine into git.
+- **Which mode the engine is in is read from the engine, not from a file.** `project_config`,
+  action `get_capabilities`: `capabilities.singleProjectRoot` is `true` when this folder owns its
+  engine state, and only then do these settings land in this project (`.xezar/workspace.json`,
+  git-ignored). The file existing proves nothing — the engine creates it either way. Absent or
+  false → the provider switch and the skill-update switch are the machine's, shared by every
+  project on it: **change neither**, and report each as "left as it was, the engine is not in
+  single-project mode". The default task account is keyed by this checkout's path in either mode,
+  so it is always set.
+- **A successful call is not the evidence; the read-back is.** Each write is followed by the read
+  that shows the new value, and a read-back that disagrees is a finding, reported as one.
+
+In order:
+
 - **The default task account.** Engine tool `project_config`, action `select_account`, with the
   lane the owner chose in the interview; read it back with `get_account`. It must not be the
   leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
@@ -58,10 +82,37 @@ Setup results use four words, and none implies the next: **files prepared**, **c
   contain — a second test found `selections: {}` and a default naming a login absent from the
   account list, which is a task that fails at dispatch with nothing to point at. State what the
   default was, in one line, before saying what it is now. Setting it silently hides the finding.
-- **Skill updates are the owner's, not the engine's start-up.** Engine tool
-  `set_workspace_config` with `skillsAutoUpdate: false`. The engine otherwise updates installed
-  skills at every start under a thirty-second limit, and the first test found fifteen of
-  forty-five updated and the rest not — invisible once the skill folders are ignored.
+- **OpenCode is switched off for this project.** It is a provider the engine supports and this
+  setup does not route to, for recorded reasons (`DECISIONS.md` → "OpenCode is off by default"):
+  after a denied permission request its session can go silent for minutes with no event and no
+  error, it does not enforce a step's tool allowlist — which is the only thing that makes a
+  read-only role read-only — a resumed session loses its role and its tool limits, and it cannot
+  attach itself as leader. Four moves, in this order, and the order is the point:
+
+  1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
+     and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
+  2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
+     `capabilities.singleProjectRoot` is `true` (above). And `.xezar/docs/model-routing.md` names
+     no OpenCode lane in any chain — a setup written before this rule may, and switching the
+     provider off under it turns those dispatches into refusals. Either condition false → **leave
+     it on**, report "found, left on" with which condition failed, and keep it out of any chain
+     this run writes. Never reach for a machine-wide setting from a per-project setup.
+  3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
+     then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
+     fresh `operationId`.
+  4. **Read back.** `get_capabilities` again; `enabled` must now be false.
+
+  Put the one call that undoes it in the report, word for word: `set_provider_enabled` with
+  `provider: "opencode"`, `enabled: true`. Reverting the setup pull request does **not** undo this —
+  the state lives outside git — and an engine started later without `--single-project` reads the
+  machine's own settings instead, where this switch was never made.
+- **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action
+  `get_limits` → `workspace.skillsAutoUpdate.effective`; already `false` → say so and write
+  nothing. Otherwise record the entry (`"setting": "skillsAutoUpdate"`), call
+  `set_workspace_config` with `skillsAutoUpdate: false`, and read `get_limits` again. The engine
+  otherwise updates installed skills at every start under a thirty-second limit, and the first
+  test found fifteen of forty-five updated and the rest not — invisible once the skill folders are
+  ignored. Undo: the same call with `true`.
 - **The labels exist.** Tracker operation **list-labels** against `.xezar/pipeline/labels.json`.
   Anything missing → **ensure-label-taxonomy**, which creates only what is absent and never
   recolours. They were approved in the preview; this is the read-back.
@@ -77,7 +128,7 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
-on the base branch · labels · default task account · protection read back · connection state
+on the base branch · labels · default task account · OpenCode off, or left on and why · protection read back · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 

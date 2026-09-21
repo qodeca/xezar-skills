@@ -445,6 +445,174 @@ breaks(
   "does not match allowlists.json",
 );
 
+breaks(
+  "a preview that stops disclosing the provider switch is rejected",
+  "skills/xez-onboard-opinionated/references/preview.md",
+  (s) => s.replace("OpenCode is switched off", "One provider is tuned"),
+  () => script("test-kit-facts.mjs"),
+  "does not disclose the switch before the one approval",
+);
+
+breaks(
+  "a kit descriptor edited without its digest pin moving is rejected",
+  "skills/xez-onboard-opinionated/references/descriptor-digests.json",
+  (s) => s.replace(/("kit\/pipeline\/security\/osv-scanner\.md": ")[0-9a-f]{4}/, "$1ffff"),
+  () => script("test-kit-facts.mjs"),
+  "review the change, then update the pin",
+);
+
+breaks(
+  "a kit descriptor with no digest pin at all is rejected",
+  "skills/xez-onboard-opinionated/references/descriptor-digests.json",
+  (s) => s.replace(/\n\s*"kit\/pipeline\/toolchains\/cargo\.md": "[0-9a-f]{64}",/, ""),
+  () => script("test-kit-facts.mjs"),
+  "has no SHA-256 digest for kit/pipeline/toolchains/cargo.md",
+);
+
+breaks(
+  "the provider prohibition moved out of the global prohibitions is rejected",
+  "skills/xez-onboard-opinionated/references/routing-rows.md",
+  (s) => {
+    const phrase = "does not enforce a step's tool limits is in no chain";
+    return `${s.replace(phrase, "is best avoided")}\n<!-- a provider that ${phrase} -->\n`;
+  },
+  () => script("test-kit-facts.mjs"),
+  "lost the global prohibition",
+);
+
+// `test-kit-catalog.mjs` runs the onboarding kit's own validator on the kit, and adds the three
+// checks that validator cannot make from inside a project: the maintained-skill list is the
+// directory, every workflow has a routing row, every prose count is the table's count. One break
+// each, and one for the generated shared contract the role skills end with.
+breaks(
+  "a kit workflow naming a skill that does not exist is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/qa.yaml",
+  (s) => s.replace("skill: xezar-qa", "skill: xezar-quality-assurance"),
+  () => script("test-kit-catalog.mjs"),
+  "xezar-quality-assurance",
+);
+
+breaks(
+  "a kit workflow that no routing row names is rejected",
+  "skills/xez-onboard-opinionated/references/routing-rows.md",
+  (s) => s.replace("| `root-sync.yaml` |", "| the leader itself |"),
+  () => script("test-kit-catalog.mjs"),
+  "installed, valid, and unreachable",
+);
+
+breaks(
+  "a kit skill left off the maintained list is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('  "xezar-qa",\n', ""),
+  () => script("test-kit-catalog.mjs"),
+  "is not in MAINTAINED_SKILLS",
+);
+
+breaks(
+  "a row count in prose that is not the table's count is rejected",
+  "skills/xez-onboard-opinionated/references/routing-interview.md",
+  (s) => s.replace(/\b([A-Za-z-]+) rows over\b/, "Ninety-nine rows over"),
+  () => script("test-kit-catalog.mjs"),
+  "Ninety-nine rows",
+);
+
+breaks(
+  "a kit role skill whose shared contract drifted is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("evidence, never permission", "evidence, sometimes permission"),
+  () => run("node", ["scripts/sync-shared-blocks.mjs", "--check"]),
+  "kit-shared-contract block is out of date",
+);
+
+breaks(
+  "a config grammar that lets a path through as a deploy target is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs",
+  (s) => s.replace("element: /^[a-z0-9][a-z0-9-]*=[A-Za-z0-9._-]+\\.ya?ml$/,", "element: /^[a-z0-9][a-z0-9-]*=.+\\.ya?ml$/,"),
+  () => script("test-kit-catalog.mjs"),
+  'expected "malformed"',
+);
+
+// The order of a guard step, and the two guard scripts run for real in a throwaway repository.
+// Each break is the edit somebody would actually make: a step tidied away, a source "also"
+// accepted, a fallback added so a fresh clone stops refusing.
+breaks(
+  "a deploy workflow with no permit check between its two agents is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/deploy.yaml",
+  (s) => s.slice(0, s.indexOf("  - id: permit")) + s.slice(s.indexOf("  - id: dispatch")),
+  () => script("test-kit-catalog.mjs"),
+  "the permit check between the two agents",
+);
+
+breaks(
+  "a config guard moved below the install it exists to save is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/performance.yaml",
+  (s) => {
+    const guard = s.indexOf("  - id: guard");
+    const setup = s.indexOf("  - id: setup");
+    const after = s.indexOf("  - id: ", setup + 1);
+    return s.slice(0, guard) + s.slice(setup, after) + s.slice(guard, setup) + s.slice(after);
+  },
+  () => script("test-kit-catalog.mjs"),
+  "must refuse before the install is paid for",
+);
+
+breaks(
+  "a deploy guard that takes authority from an answer is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/deploy-guard.sh",
+  (s) => s.replace('if (a.source !== "launch")', 'if (a.source !== "launch" && a.source !== "ask")'),
+  () => script("test-kit-catalog.mjs"),
+  "authority from an answer, not the launch text",
+);
+
+breaks(
+  "a deploy guard that permits the same authority twice is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/deploy-guard.sh",
+  (s) => s.replace('[ ! -e "$PERMIT" ] || refuse', '[ ! -e "$PERMIT" ] || rm -f "$PERMIT" || refuse'),
+  () => script("test-kit-catalog.mjs"),
+  "the same authority, a second time",
+);
+
+breaks(
+  "a deploy guard that no longer reads one-way migrations under a rollback is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/deploy-guard.sh",
+  (s) => s.replace('if [ "$DIRECTION" = "rollback" ]; then\n  MIGRATIONS=', 'if [ "$DIRECTION" = "never" ]; then\n  MIGRATIONS='),
+  () => script("test-kit-catalog.mjs"),
+  "a rollback across a one-way migration",
+);
+
+breaks(
+  "a config guard that falls back to the checkout's own base branch is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
+  (s) => s.replace('  if [ -z "$REMOTE_DEFAULT" ]; then\n', '  [ -n "$REMOTE_DEFAULT" ] || REMOTE_DEFAULT="$BASE_BRANCH"\n  if [ -z "$REMOTE_DEFAULT" ]; then\n'),
+  () => script("test-kit-catalog.mjs"),
+  "an unknown remote default branch is refused",
+);
+
+breaks(
+  "a config guard that passes an unvalidated branch name to git is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
+  // A function, not a string: `$'` in a replacement string means "the text after the match".
+  (s) => s.replace("grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$'", () => "grep -Eq '^.{1,255}$'"),
+  () => script("test-kit-catalog.mjs"),
+  "would read as a git option",
+);
+
+breaks(
+  "a grammar that refuses an unknown neighbour beside a key that is set is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs",
+  (s) => s.replace("  if (value === undefined) {\n", "  for (const sibling of Object.keys(node ?? {})) {\n    if (!GRAMMAR[`${group}.${sibling}`]) return { status: \"malformed\", detail: \"unknown sibling\", values: [] };\n  }\n  if (value === undefined) {\n"),
+  () => script("test-kit-catalog.mjs"),
+  'expected "ok"',
+);
+
+breaks(
+  "a class count in prose that is not the table's count is rejected, however small",
+  "skills/xez-onboard-opinionated/references/report-templates.md",
+  (s) => s.replace(/\b\d+ classes\b/, "3 classes"),
+  () => script("test-kit-catalog.mjs"),
+  "3 classes",
+);
+
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:
 // a contributor runs this with their own work in progress, and their uncommitted edits

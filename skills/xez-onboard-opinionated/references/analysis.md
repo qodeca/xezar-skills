@@ -56,13 +56,36 @@ know whether a UI is coming.
 designs directory, the design skill and the design review workflow. A backend can gain a UI
 later and the configuration should already be complete.
 
+**Where documents live is read here too.** Every document the setup or its workflows commit goes
+under `docs/` — the design system, the designs, architecture, spikes, runbooks, deprecations,
+performance notes. Look for folders the project already uses for any of these, at the root as well
+as under `docs/`, and propose what was found; where nothing was, propose the default from
+`references/write.md` §2. An existing folder is never moved by this skill: the key records where
+it is, and moving it is the owner's change.
+
 The accepted cost is real and is handled by writing, not by omission: on a UI-less project part
 of the setup sits inert, and inert configuration invites the belief that it is enforcing
 something. So the generated process document states the position in one plain sentence, says all
 the parts are installed regardless, and gives the one line that flips it. Nobody should be able
 to read a sleeping rule as an active one.
 
-## 4. Agent tools, accounts and models
+## 4. What wakes the sleeping workflows
+
+Four readings, each a proposal for the facts screen and nothing more. Finding none is ordinary and
+is written down as `[]` or as the default, never as a guess.
+
+- **The browser tool.** Probe for each tool the kit ships a browser descriptor for
+  (`kit/pipeline/browsers/`). One found → propose it. Both → the owner picks. None → say so: design
+  review and the browser half of UI-test authoring will report "not verifiable here" on this machine.
+- **Deploy and rollback workflows.** File **names** in `.github/workflows/` that say deploy,
+  release-to or rollback. Beside each name, two mechanical facts: whether it declares
+  `workflow_dispatch`, and whether that trigger has a `sha` input (`references/write.md` §2 says
+  why the guard needs both). Nothing else in the file is evidence of anything.
+- **Locales.** Locale folders or files the project already has (`locales/`, `i18n/`, `*.po`,
+  `messages.<tag>.json`). Propose the tags found; never a tag the project does not have.
+- **Documents.** Covered in §3. Performance budgets are never read off anything: they start `[]`.
+
+## 5. Agent tools, accounts and models
 
 Three steps, in order:
 
@@ -76,6 +99,10 @@ Three steps, in order:
    owner type it. Read the engine's account registry for ids and providers. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
+   **OpenCode is recorded and not proposed.** When the probe or the registry finds it, note that
+   it is there; it is never offered as a lane or put in a chain, and `references/verify.md`
+   switches it off for this project. The report says "found, switched off" with the call that
+   turns it back on, so the owner meets a decision and not a disappearance.
 3. **Nothing is read from a credential store.** Which profiles exist and which models they
    support is configuration; what is inside them is not. Record ids, providers and model names,
    and no value from either.
@@ -84,7 +111,7 @@ The routing table is then **generated from the owner's answers** rather than cop
 anywhere. Shipping a table naming accounts that exist on one machine guarantees a first dispatch
 to an account that does not exist on this one.
 
-## 5. The state the setup lands on
+## 6. The state the setup lands on
 
 Four read-only looks at the project as it is today. Each one is a finding for the preview, and
 each was found the hard way in the first test:
@@ -103,7 +130,7 @@ each was found the hard way in the first test:
 - **Does an update bot target the default branch while work lands on another?** Note it; the
   owner decides.
 
-## 6. What analysis must not do
+## 7. What analysis must not do
 
 - **No writes.** Not a directory, not a placeholder, not a `.gitkeep`.
 - **No network calls** beyond reading the repository's own remote.

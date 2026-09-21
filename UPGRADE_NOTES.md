@@ -17,6 +17,116 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – the leader has no workflow for a deploy, a UI test suite, an architecture decision…
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.4.0 or earlier.
+
+**Symptom – a kind of work the leader cannot route**: a deploy or a rollback, automated UI or
+integration tests, the regression suite, a performance check, a hotfix, a refactor, a migration,
+a spike, observability, a deprecation plan, localisation, acceptance verification, a security
+review of its own, the design system, the visual layer of a design, a figure, or an architecture
+decision and its review. Release 1.5.0 added a workflow for each. A workflow already installed
+into your repository never updates itself, so an older project has none of them.
+
+**What to do, in this order — the order matters, and half of it is worse than none.** A workflow
+file that no routing row names is installed, valid and unreachable: the leader picks work by a
+row's trigger sentence.
+
+1. Copy the new files. Name the check files; **do not copy the whole `checks/` folder**, because
+   `.xezar/checks/repo-gates.sh` holds *your* gate commands:
+
+   ```bash
+   K=.claude/skills/xez-onboard-opinionated/kit
+   for f in catalog-check.mjs config-guard.sh deploy-guard.sh ci-watch.sh lib/config-grammar.mjs lib/security-scan.mjs; do cp "$K/checks/$f" ".xezar/checks/$f"; done
+   cp -R "$K/skills/." .xezar/skills/
+   cp -R "$K/workflows/." .xezar/workflows/
+   mkdir -p .xezar/pipeline/browsers .xezar/pipeline/security
+   cp "$K/pipeline/security/osv-scanner.md" .xezar/pipeline/security/
+   cp "$K/pipeline/browsers/<the one whose tool you have>.md" .xezar/pipeline/browsers/
+   node .xezar/checks/catalog-check.mjs .        # must print CATALOG OK
+   ```
+
+2. Add the new keys to `.xezar/pipeline/config.json`. `[]` is a real answer — "this project has
+   none" — and the guarded workflows refuse on it with a sentence that says so:
+
+   ```json
+   "paths": { "designs": "designs", "architecture": "docs/architecture", "spikes": "docs/spikes",
+              "runbooks": "docs/runbooks", "deprecations": "docs/deprecations", "performance": "docs/performance",
+              "migrations": "docs/migrations" },
+   "deploy": { "environments": [], "rollback": [] },
+   "performance": { "budgets": [] },
+   "localisation": { "locales": [] }
+   ```
+
+3. Add the rows to `.xezar/docs/model-routing.md`: one line per new row of
+   `references/routing-rows.md`, **with its workflow file**, under a chain you choose. There are three
+   new classes — `design`, `visuals` and `testing`. The security-sensitive review row (row 24 in
+   1.4.0, row 41 now) changed its workflow from `code-review.yaml` to `security-review.yaml`, and the two visuals rows now run `visual-asset.yaml`. Copy the fifth
+   global prohibition and the look-alike pairs as well.
+4. Add the headings the new roles cite to your `SDLC.md`, a sentence or two each: Security review ·
+   Architecture review · Acceptance · Deploy authority.
+
+**What you lose by skipping it.** Nothing breaks: the workflows you have keep working. You lose
+the new ones — and if you do step 1 alone, you have thirty-seven workflows of which the leader can
+start eighteen, which looks like a complete setup and is not.
+
+## 2026-09-21 – your designs are in `designs/`, and new documents go under `docs/`
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.4.0 or earlier.
+
+**Symptom – after updating the kit's role skills, the design role talks about a folder named by
+`paths.designs`**, and your designs are in a root-level `designs/`. From 1.5.0 every document the
+setup or its workflows commit lives under `docs/`, and the kit reads a `paths.*` key, never a
+literal folder.
+
+**What to do.** Nothing has to move. Set `"paths": { "designs": "designs" }` in
+`.xezar/pipeline/config.json` and everything keeps working where it is. To follow the new layout,
+`git mv designs docs/designs`, change the key, and fix the links inside the moved pages in the same
+commit. The `.xezar/checks/fenced-quotes.mjs` check reads both places.
+
+**What you lose by skipping it.** With the key unset, the updated design role has no folder to
+write to and says so. Your existing designs are not touched either way.
+
+## 2026-09-21 – a task sent to OpenCode is refused: "OpenCode is disabled"
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or later.
+
+**Symptom – a dispatch that names the OpenCode runner comes back refused.** The setup switched
+that provider off for this project, on purpose: after a denied permission request its session can
+go silent for minutes, it does not enforce a step's tool allowlist — which is the only thing that
+makes a read-only role read-only — and a resumed session loses its role. `DECISIONS.md` →
+"OpenCode is off by default" has the full reasons.
+
+**What to do, if you want it back.** Engine tool `project_config`, action `set_provider_enabled`,
+`provider: "opencode"`, `enabled: true`. The state is in `.xezar/workspace.json`, which is
+git-ignored; `.local/xezar/runtime/onboarding-engine-settings.json` records what it was before. **Reverting
+the setup pull request does not undo it.** Keep it out of read-only and release chains even then:
+the fifth global routing prohibition says why.
+
+**A project onboarded earlier is switched only when nothing uses the provider.** Re-running
+`--verify` on it switches OpenCode off unless the existing routing table still names an OpenCode
+lane, or the engine is not in single-project mode; in both cases it leaves the provider on and
+reports that it did.
+
+**What you lose by leaving it off.** One provider's lanes. Nothing else changes.
+
+## 2026-09-21 – a fix to a browser or security descriptor never reached your project
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or later.
+
+**Symptom – `.xezar/pipeline/browsers/<name>.md` or `.xezar/pipeline/security/<name>.md` differs
+from the one this release ships.** Like every installed descriptor, it never updates itself.
+`.xezar/onboarding.json` → `descriptors` records the SHA-256 of each file as installed, and
+`references/descriptor-digests.json` in the skill holds the digests of the current release, so you
+can tell "the file that shipped" from "somebody edited it" before you overwrite anything.
+
+**What to do.** Compare the digests; where the installed file is unedited, copy the new one over
+it and update the recorded digest. Where it was edited, merge by hand.
+
+**What you lose by skipping it.** Whatever the fix fixed. A descriptor is literal shell whose exit
+status becomes a gate result, so this is the one kind of installed file worth checking on every
+upgrade.
+
 ## 2026-09-21 – `--section leader` says there is no such screen
 
 Applies to anyone who learned this skill's arguments before the interview was shortened.
@@ -66,6 +176,14 @@ done
 cp -R .claude/skills/xez-onboard-opinionated/kit/skills/. .xezar/skills/
 cp -R .claude/skills/xez-onboard-opinionated/kit/workflows/. .xezar/workflows/
 ```
+
+**From 1.5.0 those last two lines bring more than fixes.** They now also copy nineteen new
+workflows, three of which call a check this list does not copy, and none of which your routing
+table names. Follow the entry "the leader has no workflow for a deploy…" above instead: it copies
+the two extra check files and adds the routing rows, the config keys and the `SDLC.md` headings
+that make the new workflows reachable. It also replaces `ci-watch.sh` and `lib/security-scan.mjs`,
+which the deploy workflow and the deploy trust boundary need. `node .xezar/checks/catalog-check.mjs .` tells you at once
+whether the copy was complete.
 
 **What you lose by skipping it.** The integration gate keeps refusing merges on check names that
 do not exist in your repository, and a genuinely failed job may be excused as a known flake.

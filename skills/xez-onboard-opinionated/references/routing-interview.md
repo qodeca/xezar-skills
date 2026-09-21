@@ -15,16 +15,17 @@ step actually found.
 
 ## What is shipped
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Twenty-six rows over
-  roughly two dozen task kinds, each carrying the workflow it runs and a written trigger: one
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Forty-five rows over
+  eight classes, each carrying the workflow it runs and a written trigger: one
   sentence saying how the leader recognises that this row is the one. A row without a trigger is
   a row the leader guesses at.
 - **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
   never the authoring model for its own review; a locally hosted model never touches a branch; a
   cloud-lane write needs another vendor's review; a high-risk change needs a different account
-  *and* a different vendor.
+  *and* a different vendor; a provider that does not enforce a step's tool limits is in no
+  read-only or security-and-release chain, and one the setup switched off is in no chain at all.
 - **The Never column**, which carries only row-specific bans, plus the precedence rule for the
-  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated twenty-six times.
+  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated on every row.
 
 ## What is built with the owner
 
@@ -46,28 +47,43 @@ consequences worth stating in the interview:
   login.
 - **Adding an account later changes the lane list, never the table's shape.**
 
-## How to ask without twenty-six questions
+## How to ask without a question per row
 
-**One screen, five classes, then expand.** Each class gets a proposed chain — strongest to cheapest
+**One screen, eight classes, then expand.** Each class gets a proposed chain — strongest to cheapest
 among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
-and the owner confirms or reorders all five together. Five separate screens was the old shape and
+and the owner confirms or reorders all of them together. One screen per class was the old shape and
 bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
 for having answered the third.
 
-Five classes cover the rows:
+Eight classes cover the rows:
 
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
-| mechanical | tracker-only work, evidence passes, mechanical docs edits, root-sync | the cheapest lane that can be trusted with it |
-| writing | docs with real writing, analysis, specs, research | quality of prose over cost |
-| implementation | bounded fixes, multi-file work, UI work, kit refactors | the working horse of the project |
-| review | scoped re-checks, full cold reviews, review responses | who is allowed to judge whose work |
-| security and release | security-sensitive review, verifying a strong claim, the release role | the strongest lane, and never the author's |
+| mechanical | tracker-only work, evidence passes, mechanical docs edits (root-sync sits in this class and takes no chain: the leader does it) | the cheapest lane that can be trusted with it |
+| writing | docs with real writing, analysis, specs, research, business analysis, architecture decisions, spikes, deprecation plans | quality of judgement and prose over cost |
+| design | designing a surface, its visual layer, the design system, and reviewing a design | a lane that can actually **see** a screen |
+| visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |
+| implementation | bounded fixes and hotfixes, multi-file work, UI work, refactors, migrations, observability, localisation, conflicts, merge chains, dependencies | the working horse of the project |
+| testing | automated UI tests, integration tests, the regression suite, performance and load | who can be trusted to write a test that fails for the right reason |
+| review | scoped re-checks, full cold reviews, review responses, browser QA, architecture review, acceptance verification | who is allowed to judge whose work |
+| security and release | security-sensitive review, verifying a strong claim, the release role, deploy and rollback | the strongest lane, and never the author's |
+
+**Why design and visuals are their own classes.** They were rows inside `writing` and `review`, and
+that made the wrong lane look acceptable. Design work needs a lane that can look at a screen, which
+is nothing to do with how well a lane writes prose; and a picture that must be *invented* needs a
+different capability from a figure that must be *correct*. Folding either into a prose class means
+one ranking decides both, and the one that loses is the one nobody checks.
+
+**Why testing is a class, and where it bends.** Writing a test that fails for the right reason is a
+different skill from writing the feature, and a lane that is good at one is often careless at the
+other. One row inside the class needs more than that: automated UI tests need a lane that can see a
+screen and drive a browser. That is a row-level ban in the table, not an eighth-and-a-half class —
+the ranking still holds for the row, minus the lanes that cannot do it.
 
 The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
 expansion is a lookup rather than a judgement.
 
-The owner confirms or reorders the five proposed chains on that one screen. The skill then expands
+The owner confirms or reorders the proposed chains on that one screen. The skill then expands
 them into the full row set, applies the global prohibitions, and **shows the whole table for
 row-level edits** — the last screen of the interview. Most rows will be right; the two or three
 that are not are exactly the ones worth a minute.

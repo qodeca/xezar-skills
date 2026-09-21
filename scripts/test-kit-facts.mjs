@@ -26,6 +26,7 @@
 // Run: node scripts/test-kit-facts.mjs
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -269,12 +270,43 @@ const fail = (fact, where, detail) =>
   // out of `xez-setup-agent-pipeline/references/`, which Cross-skill contract 4-5 forbids: it
   // works only where that skill happens to be installed, and it installs whichever version is on
   // the machine rather than the one this release ships.
-  for (const name of ["npm.md", "cargo.md"]) {
-    const kit = `${SKILL}/kit/pipeline/toolchains/${name}`;
-    const src = `skills/xez-setup-agent-pipeline/references/toolchains/${name}`;
-    if (!has(kit)) fail(fact, kit, "the kit ships no toolchain descriptor, so a run must reach into another skill for one");
-    else if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
+  //
+  // Then the browser and security descriptors, for the same reason and a sharper one: the design
+  // review and the browser-test role both read `.xezar/pipeline/browsers/`, which no run ever
+  // installed, and a descriptor is literal shell whose exit status becomes a gate result.
+  //
+  // The list is the directory, not a list kept here: a descriptor added to the kit and left out
+  // of a hand-written array would be installed into every project and held to nothing.
+  const kitPipeline = `${SKILL}/kit/pipeline`;
+  const descriptors = walk(kitPipeline, /\.md$/).map((file) => file.slice(kitPipeline.length + 1)).sort();
+  if (descriptors.length === 0) fail(fact, kitPipeline, "holds no descriptor at all, so a run must reach into another skill for one");
+  for (const family of ["toolchains", "browsers", "security"]) {
+    if (!descriptors.some((name) => name.startsWith(`${family}/`)))
+      fail(fact, `${kitPipeline}/${family}`, "the kit ships no descriptor of this family, and a role in the kit reads one");
   }
+  // Byte-identity proves two copies agree. The digest pin adds CHANGE VISIBILITY and nothing
+  // more: a descriptor cannot change without a second, deliberate edit to the pin file, so the
+  // change shows up in a diff under its own name. It does not prove anybody reviewed it -- a
+  // bump script moves the pin in the same commit -- and nothing here claims that it does.
+  const lockPath = `${SKILL}/references/descriptor-digests.json`;
+  const pinned = has(lockPath) ? JSON.parse(read(lockPath)).digests ?? {} : {};
+  if (!has(lockPath)) fail(fact, lockPath, "the descriptor digests are not recorded");
+  for (const name of descriptors) {
+    const kit = `${SKILL}/kit/pipeline/${name}`;
+    const src = `skills/xez-setup-agent-pipeline/references/${name}`;
+    if (!has(src)) { fail(fact, kit, `has no canonical sibling at ${src} -- a kit descriptor is a copy of the collection's, never an original`); continue; }
+    if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
+    const digest = createHash("sha256").update(readFileSync(join(root, kit))).digest("hex");
+    if (pinned[`kit/pipeline/${name}`] !== digest)
+      fail(fact, lockPath, `pins ${pinned[`kit/pipeline/${name}`] ?? "nothing"} for kit/pipeline/${name}, and the file is ${digest} -- review the change, then update the pin`);
+    if (!/^[0-9a-f]{64}$/.test(pinned[`kit/pipeline/${name}`] ?? ""))
+      fail(fact, lockPath, `has no SHA-256 digest for kit/pipeline/${name}`);
+  }
+  for (const key of Object.keys(pinned)) {
+    if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, and the kit ships no such descriptor`);
+  }
+  if (!/descriptor-digests\.json/.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, `${SKILL}/references/write.md`, "never tells the write step to record the installed descriptor digests");
   checked.push(fact);
 }
 
@@ -330,6 +362,74 @@ const fail = (fact, where, detail) =>
 
   if (!/repo-gates\.sh/.test(smoke))
     fail(fact, "references/smoke-test.md", "no longer runs repo-gates.sh, so nothing proves the standalone path");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 12 -- OpenCode is switched off the same way everywhere it is mentioned.
+//
+// The setup changes one engine setting on the owner's behalf. That is only acceptable while four
+// places say the same thing: the step that does it, the preview that discloses it before approval,
+// the report that tells the owner how to undo it, and the routing rules that keep the provider
+// out of every chain. A preview that discloses less than the step does is a consent the owner
+// never gave. This is a STATIC pin: it proves the prose agrees. That the engine honours the call
+// is proved on a live engine, and `docs/coverage.md` says so.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 12: the OpenCode switch, its disclosure, its undo and its routing ban agree";
+  // Each pattern is looked for in the SECTION it is a claim about. Over the whole file, the word
+  // `get_capabilities` in an unrelated step, or "OpenCode" in a changelog-style aside, would keep
+  // this green after the section that matters lost it.
+  // A `#` line inside a code fence is a shell comment or a template's own heading, not the end
+  // of the section, so fences are tracked while looking for the next heading.
+  const sectionOf = (file, heading) => {
+    const lines = read(`${SKILL}/references/${file}`).split("\n");
+    let start = -1;
+    let fenced = false;
+    for (let i = 0; i < lines.length && start === -1; i += 1) {
+      if (/^\s*```/.test(lines[i])) fenced = !fenced;
+      else if (!fenced && heading.test(lines[i])) start = i;
+    }
+    if (start === -1) { fail(fact, `references/${file}`, `has no section matching ${heading} -- this fact reads that section and nothing else`); return ""; }
+    const level = /^#+/.exec(lines[start])[0].length;
+    const next = new RegExp(`^#{1,${level}} `);
+    let end = lines.length;
+    fenced = false;
+    for (let i = start + 1; i < lines.length; i += 1) {
+      if (/^\s*```/.test(lines[i])) fenced = !fenced;
+      else if (!fenced && next.test(lines[i])) { end = i; break; }
+    }
+    return lines.slice(start, end).join("\n");
+  };
+  const verify = sectionOf("verify.md", /^## 3\. /);
+  const preview = sectionOf("preview.md", /^## Say what the preview does not cover/);
+  const report = sectionOf("report-templates.md", /^## Setup complete/);
+  const rows = sectionOf("routing-rows.md", /^## Global prohibitions/);
+  const interview = sectionOf("interview.md", /^### 3\. `lanes`/);
+
+  const callRx = /set_provider_enabled/;
+  if (!callRx.test(verify)) fail(fact, "references/verify.md", "no longer switches the provider off through set_provider_enabled");
+  if (!/get_capabilities[\s\S]*set_provider_enabled[\s\S]*get_capabilities/.test(verify))
+    fail(fact, "references/verify.md", "does not read the state before the switch and read it back after");
+  // Prose wraps, so a phrase is matched across any whitespace.
+  if (!/"previous"|previousEnabled/.test(verify)) fail(fact, "references/verify.md", "does not record what the setting was before changing it");
+  // The record is a fact about one machine, written after the merge. In a committed file it
+  // dirties a tree the same step requires to be clean, and puts that machine into git.
+  if (!/\.local\/xezar\/runtime\//.test(verify))
+    fail(fact, "references/verify.md", "does not keep the record of the switch under the git-ignored .local/xezar/runtime/");
+  if (!/leave\s+it\s+on/i.test(verify)) fail(fact, "references/verify.md", "has no case in which the provider is left on -- an older routing table that uses it would start refusing dispatches");
+  for (const [name, text] of [["verify.md", verify], ["preview.md", preview], ["report-templates.md", report]]) {
+    if (!/\.xezar\/workspace\.json/.test(text)) fail(fact, `references/${name}`, "does not name .xezar/workspace.json as the file the switch lives in");
+  }
+  for (const [name, text] of [["verify.md", verify], ["report-templates.md", report]]) {
+    if (!/enabled: true/.test(text)) fail(fact, `references/${name}`, "does not give the call that turns the provider back on");
+  }
+  if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
+  if (!/does not enforce a step's tool limits is in no chain/.test(rows))
+    fail(fact, "references/routing-rows.md", "lost the global prohibition that keeps such a provider out of read-only and release chains");
+  if (!/OpenCode accounts are not offered/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode accounts as task lanes again");
+  if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
+    fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
   checked.push(fact);
 }
 

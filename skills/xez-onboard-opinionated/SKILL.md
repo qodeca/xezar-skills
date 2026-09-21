@@ -56,7 +56,7 @@ rest.
    that no gate covers, and which linters or licence checks scan the folders it will add.
 
 3. **Interview the owner** — follow `references/interview.md`. **Five screens**: confirm the
-   detected facts in one screen, the gate commands alone, the lane table, the five routing classes
+   detected facts in one screen, the gate commands alone, the lane table, the eight routing classes
    together, the expanded rows. Every answer is saved to
    `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
    resumes rather than restarting. Detected facts are shown as proposals to confirm or correct,
@@ -68,7 +68,7 @@ rest.
    the first dispatch.
 
 5. **Preview everything, bound to digests** — follow `references/preview.md`. Every file the
-   setup will write, grouped create / leave alone / needs-your-decision, each bound to the
+   setup will write, grouped create / delete / leave alone / needs-your-decision, each bound to the
    content digest it was computed against. **Approve the whole set or nothing.** A file that
    changed underneath invalidates the preview rather than being silently overwritten.
 
@@ -79,6 +79,9 @@ rest.
    skill never merges its own setup unasked and never merges over a red or pending check without a
    second answer — but it does ask, because steps 7 to 10 cannot run before the merge and an owner
    who comes back for them usually comes back without the engine's tools loaded.
+
+**Steps 7 to 9 run from `references/verify.md` §3**, after the merge and after the engine settings
+there, whether this session carries on or a later `--verify` run resumes.
 
 7. **Protect the base branch** — follow `references/protection.md`. Tracker operation
    **branch-protected** with the confirmed gate commands as required checks, administrators
@@ -106,6 +109,14 @@ rest.
   approved.** Before that the only file written is the interview state under `.local/xezar/runtime/`,
   which is working state rather than configuration — and the clean-project check deliberately
   never looks at it, or a resumed run would refuse itself.
+- **Every document this setup or its workflows commit lives under `docs/`.** The kit reads a
+  `paths.*` key and never a literal folder; the defaults are in `references/write.md` §2, and a
+  folder the project already uses is recorded where it is, never moved.
+- **An engine setting is changed only for this project, and only after it was disclosed.** The
+  default task account, the skill-update switch and the OpenCode provider switch are read, recorded,
+  written and read back in `references/verify.md` §3. The two switches are left alone when the
+  engine is not in single-project mode, where the same call would reach every project on the
+  machine; the task account is keyed by this checkout and is always set.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
   smoke test runs before the final report. A setup whose gates cannot stop anything is not the
   "ready to work immediately" result this skill promises.

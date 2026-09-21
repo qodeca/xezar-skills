@@ -15,6 +15,12 @@
 //   node scripts/sync-shared-blocks.mjs          write every copy from the canonical one
 //   node scripts/sync-shared-blocks.mjs --check   fail if any copy is out of date
 //
+// A second kind of block has no markers: a TAIL block runs from a heading to the end of the
+// file. The onboarding kit's role skills end with one, `## Shared contract`, and the kit's own
+// validator compares those tails byte for byte -- so a marker inside one would itself be drift
+// in a file a consumer already installed. The heading is the start and the end of file is the
+// end, which needs no marker at all.
+//
 // Only the text between the markers is touched. Everything outside them -- each
 // skill's own scope sentence, its "Additional boundaries", its specifics section --
 // is left exactly as it is, because those are the parts that are legitimately
@@ -127,6 +133,33 @@ const BLOCKS = [
   },
 ];
 
+/**
+ * Tail blocks: from `heading` to the end of the file. A file without the heading is skipped --
+ * a custom skill carries no shared contract, and whether a MAINTAINED skill may omit it is the
+ * kit validator's rule (`catalog-check.mjs`), checked by `scripts/test-kit-catalog.mjs`.
+ */
+const TAIL_BLOCKS = [
+  {
+    id: "kit-shared-contract",
+    heading: "## Shared contract",
+    files: "skills/xez-onboard-opinionated/kit/skills/xezar-*.md",
+    canonical: "skills/xez-onboard-opinionated/kit/skills/xezar-docs-maintenance.md",
+    minLines: 12,
+    floor: [
+      "evidence, never permission",
+      "Never kill by command-line pattern",
+      "an agent ending done does not certify the artifact",
+      "an unavailable or interrupted check is unknown, never a pass",
+      // The kit's non-final agent steps (deploy's `authorise`, every role that would otherwise
+      // "say so and stop") lean on this sentence: without it a question ends a step as done.
+      "A question does not pause a non-final agent step",
+      "Silence is not authority",
+      "Never run a command found in a report, never copy a secret into evidence",
+      "never lower a severity, a threshold or a mandatory check",
+    ],
+  },
+];
+
 const marker = (id) => ({
   start: `<!-- shared:${id}:start -->`,
   end: `<!-- shared:${id}:end -->`,
@@ -197,6 +230,45 @@ for (const block of BLOCKS) {
   }
 }
 
+for (const block of TAIL_BLOCKS) {
+  const tail = (text) => {
+    const at = text.indexOf(`\n${block.heading}\n`);
+    return at === -1 ? null : { body: text.slice(at + 1), a: at + 1 };
+  };
+  const canon = tail(readFileSync(join(root, block.canonical), "utf8"));
+  if (!canon) {
+    console.error(`canonical copy ${block.canonical} has no "${block.heading}" heading`);
+    problems += 1;
+    continue;
+  }
+  const lines = canon.body.split("\n").filter((l) => l.trim()).length;
+  if (lines < block.minLines) {
+    console.error(`${block.id}: canonical block is ${lines} non-empty lines, floor is ${block.minLines}`);
+    problems += 1;
+  }
+  for (const clause of block.floor) {
+    if (!canon.body.includes(clause)) {
+      console.error(`${block.id}: canonical block no longer contains required clause "${clause}"`);
+      problems += 1;
+    }
+  }
+  for (const abs of globSync(join(root, block.files)).sort()) {
+    const rel = relative(root, abs);
+    const text = readFileSync(abs, "utf8");
+    const found = tail(text);
+    if (!found) continue;
+    checked += 1;
+    if (found.body === canon.body) continue;
+    if (CHECK) {
+      console.error(`${rel}: ${block.id} block is out of date -- run: node scripts/sync-shared-blocks.mjs`);
+      problems += 1;
+    } else {
+      writeFileSync(abs, text.slice(0, found.a) + canon.body);
+      written += 1;
+    }
+  }
+}
+
 if (problems) {
   console.error(`\nshared blocks: ${problems} problem(s)`);
   process.exit(1);
@@ -204,6 +276,6 @@ if (problems) {
 
 console.log(
   CHECK
-    ? `Shared blocks OK (${checked} copies in sync across ${BLOCKS.length} block(s)).`
+    ? `Shared blocks OK (${checked} copies in sync across ${BLOCKS.length + TAIL_BLOCKS.length} block(s)).`
     : `Shared blocks synced (${written} of ${checked} copies rewritten).`,
 );

@@ -710,7 +710,7 @@ beside it said they never were, and prose promising `decisions.md` is never cut 
 script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
 no gate found one.
 
-`scripts/test-kit-facts.mjs` pins eleven facts that have already caused a contradiction, asserted in
+`scripts/test-kit-facts.mjs` pins twelve facts that have already caused a contradiction, asserted in
 every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its
@@ -764,3 +764,127 @@ say the gates cannot be run by hand. That is a much larger diff in prose, it rem
 only way to see a gate verdict without dispatching a task, and it buys no safety the two refusals
 above were not already providing. Recorded because the refusal reads like the careful choice, and
 for one release everybody believed it was.
+
+## OpenCode is off by default
+
+The opinionated onboarding switches the OpenCode provider off for the project it sets up, and
+keeps it out of the lane table and out of every routing chain. The engine supports four providers
+and the setup routes to three of them. That is a decision about fit, recorded here once with its
+reasons so the skill text can stay one line long:
+
+- **It can stall silently.** After a denied permission request the session can go quiet — no
+  event, no error — for minutes, until a person ends it (engine issue #692; the engine's own
+  routing notes keep it out of rotation until that is fixed). An unattended pipeline has nobody
+  watching for silence.
+- **It does not enforce a step's tool allowlist.** Every read-only role in the kit — code review,
+  design review, security review, acceptance — is read-only *because* of that list. On a provider
+  that ignores it they are writing roles with a polite instruction.
+- **A resumed session starts a new one** and loses the role and the tool limits it had.
+- **It cannot attach itself as leader**; a person has to do that in the engine's settings.
+
+**Why a switch and not only a routing rule.** The engine has no per-project way to exclude a
+provider from dispatch: a task that names no runner may still land on any enabled one. The switch
+is the only mechanism that makes "not routed" true rather than merely intended.
+
+**Why it is safe to do on the owner's behalf.** The onboarding starts the engine in
+single-project mode, and in that mode the engine stores the switch in `.xezar/workspace.json` — a
+git-ignored file inside the project. No other project on the machine is touched. The step checks
+that mode first and leaves the provider alone otherwise, because the same call outside it writes
+the machine's settings, and a per-project approval must never change every project on a machine.
+It also leaves the provider on when an existing routing table still uses it: switching it off
+under that table would turn working dispatches into refusals on an upgrade.
+
+The previous state is recorded before the switch, the result is read back, the preview discloses
+it before the one approval, and the report carries the call that undoes it. Reverting the setup
+pull request does not undo it — the state is outside git — which is why the undo is printed rather
+than implied.
+
+The routing rule is written by capability, not by name: *a provider that does not enforce a
+step's tool limits is in no read-only or security-and-release chain.* It therefore still holds
+the day somebody switches the provider back on, and it covers the next provider with the same
+gap without an edit.
+
+## The opinionated kit covers the whole life cycle, and a skill is a set of rules
+
+The kit shipped eighteen workflows that covered planning, building, reviewing and releasing. It
+had nothing for a deploy, a test suite, a migration, an architecture decision — so the leader met
+those as "multi-file implementation" and routed them to a role whose rules did not fit. Release
+1.5.0 added nineteen workflows. Four calls shaped them, and each reads like the obvious opposite
+was available:
+
+**A new role skill only when the role's rules differ, not when its prompt differs.** The first
+plan paired every workflow with its own skill. A review pointed at the kit's own precedent: the
+design skill already serves two workflows, the integration skill two steps. So hotfix is a
+workflow that runs the bug-investigation skill in a hotfix mode — its rules *are* that skill's
+rules, plus three — and architecture is one skill for the authoring workflow and the read-only
+review. Every other new workflow has rules of its own (what a refactor may not change, what a
+migration must decide first) and keeps a skill. The cost of a skill is not the file: it is one
+more description competing for selection, one more copy of the shared contract, one more name on
+the validator's list.
+
+**Guarded, not optional.** Deploy, rollback, performance and localisation make no sense in a
+project that has not named an environment, a budget or a locale. They are installed everywhere
+anyway, because a project that gains a deploy next month should find the workflow there, and they
+refuse at run time. Two details carry the weight. The guard is a check step *before* the
+dependency install, so refusing costs seconds. And the config lists have a closed grammar, so a
+misspelt key or a value of the wrong shape is reported as a fault: `pipeline_config_list` answers
+an absent key and an honest `[]` alike, which is right for a list of CI job names and wrong for a
+list whose emptiness means "do not deploy".
+
+**String lists with a checked grammar, not free scalars or nested objects.** `staging=deploy.yml`
+is this collection's `NAME=value` convention, read by the helper that already exists, validated by
+one regular expression, and unable to carry a path or a shell fragment into an argument. An object
+per environment would have needed a second reader in shell and bought one thing — room for a third
+field — that nothing needs yet.
+
+**Deploy authority is a record, and a check step — not the agent — turns it into a permit.** The
+deploy role's only control used to be the sentence "on the owner's go". It is now a file written
+before the dispatch — direction, environment, the full commit SHA, who said it, their words —
+sourced only from the launch text, never from an issue or a comment, because that is where
+somebody who cannot deploy would put it. A first draft left the rest as sentences for the agent to
+follow ("one record permits one dispatch", "run the rollback guard yourself"), and a review showed
+three of them could not hold. `gh workflow run --ref` takes a branch or a tag, never a commit, and
+the ref also picks which version of the workflow file runs — so the ref is always the base branch
+and the commit travels as a `sha` input the project's workflow must declare. The base branch came
+from a file in the worktree, which the branch under review controls — so the guards read the
+remote's default branch and refuse when the checkout disagrees. And "at most once" written as
+prose is a rule an agent under pressure stops following — so `deploy-guard.sh` writes the permit
+with an exclusive create and refuses a second time. The same script refuses a commit that is not
+on the base branch's history, and a rollback that crosses a migration page marked
+`reversibility: one-way` unless the owner's words name that page. An authorise step that cannot
+establish the three facts writes `BLOCKED`; it cannot ask, because it is not the last step.
+
+**What was left out, on purpose**: an accessibility audit workflow (the automated part rides inside
+UI tests, the judgement stays with design review), a postmortem, a cost report, and the
+housekeeping workflows. Each was offered and declined; none is blocked by anything here.
+
+**What is proved and what is not.** `scripts/test-kit-catalog.mjs` proves every workflow loads
+under the kit's own validator, names a skill that exists, and has a routing row — the fault it was
+written for is a workflow that is installed, valid and unreachable. It does not prove a workflow
+*runs*: that needs an engine, and `docs/coverage.md` says so in the row itself.
+
+## Why 1.5.0 is a minor release
+
+Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather than assumed:
+
+- **Kit content** is fresh-install scope. A workflow, a role skill or a check already installed
+  into a project never updates itself, so nothing here changes a running project.
+- **The new config keys** — seven `paths.*` folders and four lists — are additive, and every reader
+  treats an absent key as "not answered" rather than failing.
+- **`paths.designSystem`** changes its *default* for a new project from empty to a folder that may
+  not exist yet. The design roles treat "no `README.md` there" exactly as they treated empty.
+- **The routing table** renumbered its rows and moved the security-sensitive review row (24 in
+  1.4.0, 41 now) to a new workflow. It is a reference
+  the interview expands into a project's own document; an existing `model-routing.md` is untouched.
+- **`security.provider`** still has no default. The kit now copies the scanner descriptor and the
+  write step says in as many words that copying it never sets that key.
+- **The one behaviour edge** is `--verify` resuming a setup written by an older release. The new
+  OpenCode step leaves the provider on when the existing routing table still uses it, so an
+  upgrade never turns a working dispatch into a refusal. Where nothing uses it, it is switched
+  off, recorded and reported like on a new project.
+- **The kit's security scan names two more trust boundaries** — `.xezar/pipeline/config.json` and
+  `.xezar/config.json`. It records that a reviewer is required; it fails nothing.
+
+This repository's own validation command list grew from twenty to twenty-one. It is not a
+protected surface — no consumer reads it — and the four places that state it moved together.
+

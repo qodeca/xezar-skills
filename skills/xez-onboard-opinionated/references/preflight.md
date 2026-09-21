@@ -130,7 +130,9 @@ Say three things with that line, because each one cost a run when it went unsaid
 - **The first start asks one question** — whether to copy the owner's global setup in. It asks
   only in a real terminal and only once. Answered from a background process, or never answered,
   the project starts with no agent accounts and the lanes interview has nothing to offer.
-- **`xezar init` is not needed.** Its two example files are harmless (check 3) and are replaced.
+- **`xezar init` is not needed.** Its two example files are harmless (check 3) and the write step
+  **deletes** them — nothing in the kit is named after either one, so they are removed, not
+  overwritten (`references/write.md` §1).
 
 **Then read `.xezar/agent-accounts.json` and count the accounts**, rather than trusting that the
 question was answered. None or one is not a stop, and it is not a fault either — it may simply be

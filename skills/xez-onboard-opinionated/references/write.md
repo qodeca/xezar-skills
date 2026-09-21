@@ -44,6 +44,22 @@ file that ships in the kit is not that. If the copy of the launcher is still ref
 around it: finish the rest, list it under "not written" with the path to the kit file, and let
 the owner copy it.
 
+**Delete the engine's two example files before copying.** `xezar init` writes
+`.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`, and preflight
+check 3 accepts them as a clean start. They are **not** overwritten by the copy: no workflow and no
+skill in the kit carries either name. So remove both, by path, before the copy — and say in the
+report that you did.
+
+Left in place, each one is a small lie the project then lives with. `fix-and-verify.yaml` is a
+workflow the leader can legitimately dispatch, generated before any gate command was confirmed, so
+it validates against whatever init guessed rather than what the owner settled; and
+`project-conventions.md` is an extra skill in a folder where every other skill is a named pipeline
+role, which is the kind of thing a reader assumes somebody meant.
+
+Delete only these two, only when their content is still the generated content check 3 recognised.
+An **edited** `fix-and-verify.yaml` is somebody's configuration, which is a preflight stop, not
+something this step may quietly remove.
+
 **Every file comes from the kit and the answers — never from this repository's git history.** A
 project that was onboarded before, and then had the setup removed, still has the old configuration
 in its history, and restoring it looks like a shortcut that cannot go wrong. It can: the answers
@@ -61,11 +77,12 @@ note cannot tell what it is looking at.
 **The kit is an adapted copy, not a mirror.** It began as the engine project's own `.xezar/`
 folder, and that project's module paths, release names and tracker links do not belong in
 somebody else's repository. They are fixed in the kit, once, rather than by every run rewriting
-them by hand. `.github/` templates carry four placeholders: `{{REPO_SLUG}}` and `{{PRODUCT}}`
+them by hand. `.github/` templates carry five placeholders: `{{REPO_SLUG}}` and `{{PRODUCT}}`
 from the tracker's **repo-info**; `{{UI_SCOPE}}` — what counts as a user-visible surface here, from
 the design answer (for a CLI: command names, flags, help text, output shapes); `{{RISK_SURFACES}}`
-— the two or three areas analysis found most dangerous to change. No placeholder survives into a
-written file. **An issue template the project already has is never overwritten** —
+— the two or three areas analysis found most dangerous to change; `{{DESIGNS_DIR}}` — the value
+of `paths.designs`, so a contributor's template names the folder this project really uses. No
+placeholder survives into a written file. **An issue template the project already has is never overwritten** —
 offer only the pull request template's Design and Risk parts, as an addition.
 
 ## 2. Generate what is generated
@@ -97,10 +114,74 @@ Never copied, because each depends on an answer:
   - **`ci.knownLoadFlakes`** — job names this project has watched fail under machine load rather
     than because of the change. `[]` on a new project, always: it is the honest answer, and a name
     copied in from somewhere else would excuse a real failure here.
-  - **`paths.designSystem`** — the folder holding this project's design system, when it has one.
-    Empty is the normal answer for a new project, and the design workflows then judge a mockup
-    against the screens that already exist and say so, instead of following a path to a tree that
-    is not there. The design gate itself is a separate answer and is unaffected.
+  - **`paths.designSystem`** — the folder holding this project's design system. A project that
+    already has one gets **its** path. A project with none gets `docs/design-system`: nothing is
+    created there by this skill, the design workflows find no `README.md` in it, judge a mockup
+    against the screens that already exist and say so, and the `design-system` workflow is what
+    fills it. The design gate itself is a separate answer and is unaffected.
+
+  **Every document this setup or its workflows commit lives under `docs/`.** A project's root
+  belongs to its code. So the remaining `paths.*` keys name a folder each, the kit reads the key
+  and never a literal path, and the defaults are:
+
+  | key | default | what lands there |
+  |---|---|---|
+  | `paths.designs` | `docs/designs` | one folder per designed feature, and the index `README.md` |
+  | `paths.architecture` | `docs/architecture` | decision records, architecture pages, structure diagrams |
+  | `paths.spikes` | `docs/spikes` | the findings page of a spike; never its prototype code |
+  | `paths.runbooks` | `docs/runbooks` | what to do when an alert fires, how a deploy is rolled back |
+  | `paths.deprecations` | `docs/deprecations` | what goes, its replacement, the dates |
+  | `paths.performance` | `docs/performance` | how a number was measured, and the baselines |
+  | `paths.migrations` | `docs/migrations` | one page per schema, data or format move, each with a `reversibility:` line the rollback guard reads |
+
+  A project that already keeps one of these somewhere else keeps it: analysis proposes the folder
+  it found, on the facts screen, and the key records the owner's answer. A project onboarded
+  before these keys existed keeps its root-level `designs/` the same way — point `paths.designs`
+  at it, or move the folder and then the key. None of them is created empty; a workflow creates
+  its folder with its first document. (The designs folder is the one this skill writes into
+  itself: its index is a document, written below.) **Write every key in this table explicitly.** A kit role never
+  guesses a folder: with its key unset it says which key is missing and stops, which is what a
+  project onboarded before the key existed sees until its owner adds it (`UPGRADE_NOTES.md`).
+
+  Two honest limits on "under `docs/`". The root process documents — `AGENTS.md`, `SDLC.md`,
+  `CODE_REVIEW.md` and their siblings — stay at the root, because that is where agents and people
+  look for them. And feature specifications stay where `plan-and-spec` has always put them.
+
+  **Four lists wake a workflow up.** Deploy, rollback, performance and localisation are installed
+  everywhere and run only where the owner has said something first. Each reads a list, its first
+  step after the preflight is `.xezar/checks/config-guard.sh <key>`, and that guard refuses
+  **before the dependency install** with one of three different sentences: the list is `[]`, the
+  key is absent, or the config is malformed. A typo must never read as "none configured", so the
+  grammar is closed — an unknown key beside these, a value that is not a list, or an element of the
+  wrong shape is a fault, not an empty answer (`kit/checks/lib/config-grammar.mjs`).
+
+  | key | one element | the honest answer for a new project |
+  |---|---|---|
+  | `deploy.environments` | `<environment>=<workflow file>` — `staging=deploy.yml`; a file name, never a path | `[]` unless the project already has a deploy workflow the owner confirms (it needs a `workflow_dispatch` trigger **and a `sha` input** — see below). Never a name copied from another project: it would dispatch something here |
+  | `deploy.rollback` | the same shape, naming the workflow that rolls back | `[]` unless such a workflow exists. An empty list means rollback refuses and says so; it does not mean "use the deploy workflow" |
+  | `performance.budgets` | `<metric>=p<percentile><<limit>@n=<runs>` — `cold-start-ms=p95<400@n=20`; at least five runs | `[]`, always. A budget is a promise the owner makes about their product; this skill never proposes a number |
+  | `localisation.locales` | a locale tag — `pl`, `pt-BR` | the locale folders analysis found, or `[]` |
+
+  Write all four keys explicitly, `[]` included: `[]` is the owner's recorded "this project has
+  none", and an absent key is "nobody has answered". Propose `deploy.*` only from workflow **file
+  names** read in `.github/workflows/` — `deploy*.yml`, `release-to-*.yml`, `rollback*.yml` — and
+  show each as a reading the owner confirms. The proposal never rests on what a file's contents
+  *say* (a comment, a job name, a description). Two mechanical facts are read and shown beside the
+  name, because the deploy guard will refuse without them and the owner should hear it now: does
+  the file declare `workflow_dispatch`, and does that trigger declare an input named `sha`.
+
+  **`deploy.*` is a trust boundary.** The deploy workflow reads both keys from the **remote's
+  default branch** (`origin/HEAD`), never from the branch under review and never from the branch
+  the checkout's own `.xezar/config.json` names — that file is in the worktree, so a branch could
+  repoint it; the guard refuses when the two disagree. It requires each named file to exist there
+  with a `workflow_dispatch` trigger and a `sha` input: `gh workflow run --ref` takes a branch or a
+  tag and never a commit, so the reviewed workflow always runs from the base branch and the commit
+  to deploy travels as that input. A project whose deploy workflow has no `sha` input adds one
+  (`inputs: sha:` and `actions/checkout` with `ref: ${{ inputs.sha }}`) before listing it. The kit's
+  security scan names `.xezar/pipeline/config.json`, `.xezar/config.json` and `.github/workflows/`
+  as trust boundaries, so a change to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated `CODE_REVIEW.md`, beside the hook and its
+  loader: a change to `deploy.*`, to the base branch, or to a workflow file is routed to the
+  security-review row.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.
@@ -111,6 +192,19 @@ Never copied, because each depends on an answer:
   that tried it produced a project whose descriptor came from whatever version was on the machine.
   No descriptor for this stack → write none and say so, rather than installing one that describes
   a different package manager.
+- **`.xezar/pipeline/browsers/<name>.md`** and **`.xezar/pipeline/security/<name>.md`** — copied
+  from `kit/pipeline/browsers/` and `kit/pipeline/security/` under the same rule. The design
+  review and the browser-test role both read the browser descriptor, and a project without one
+  has a review that cannot look at a screen. Install **one** browser descriptor — the one whose
+  tool this machine already has, asked on the facts screen when both are there — and the security
+  descriptor as shipped. **Copying the security descriptor never sets `security.provider`**: that
+  key has no default, permanently, and choosing a scanner is the owner's act.
+- **The digests of what was installed.** `references/descriptor-digests.json` holds the SHA-256 of
+  every descriptor this release ships. Record the digest of each descriptor actually copied in
+  `.xezar/onboarding.json` under `descriptors`, as `{ "<path>": "<sha256>" }`. A descriptor is
+  literal shell whose exit status becomes a gate result, and an installed one never updates itself
+  — so the record is how anybody later tells "this is the file that shipped" from "somebody edited
+  it", and which release it came from.
 - **`.xezar/docs/leader-guide.md`** — built from `kit/leader-guide.template.md`. Everything
   outside a `{{...}}` placeholder ships **verbatim and is never reworded**: who the leader is and
   is not · session start, re-attach and compaction recovery · standing loops · owner-only
@@ -138,17 +232,37 @@ Never copied, because each depends on an answer:
   A section with nothing true to say gets one honest line — "this project has no release process
   yet" — not invented content. The guide is read after every compaction, so a padded section costs
   tokens forever.
-- **`.xezar/docs/model-routing.md`** — from the routing interview.
+- **`.xezar/docs/model-routing.md`** — from the routing interview. One line per row of
+  `references/routing-rows.md`, and **every column of the row survives**: the task kind, the
+  **workflow file**, the trigger sentence, the class, the row's own bans, and the chain the owner
+  confirmed. The leader picks a workflow by matching a trigger in this document, so a row written
+  without its workflow is a kind of work the leader can recognise and cannot start. Carry over the
+  global prohibitions, the rule for two matching triggers and the look-alike pairs as well — they
+  are how the leader chooses between rows, not commentary.
 - **`SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`** — generated together from the confirmed gate list
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
   boundary** in plain words, and the routing table sends any diff touching them to the
   security-review row: the risk is not removed, it is made visible and routed.
+
+  The kit's workflows and role skills cite `SDLC.md` sections **by name**, so the generated file
+  carries each of these headings, with this project's position under it in a sentence or two:
+  The QA gate · The design gate · Review loop · Self-review inside the author phase, and the
+  repair counters · The QA and design self-verification exceptions · Security review ·
+  Architecture review · Acceptance · Deploy authority. A heading the kit cites and the file lacks
+  is a dead reference in every run that reaches it. Under each conditional one — the design gate,
+  deploy, performance, localisation — say in one plain sentence whether it is awake in this
+  project, that its parts are installed either way, and the one line that flips it
+  (`references/analysis.md` §3 has the reason).
 - **`BACKWARD_COMPATIBILITY.md`** — the kit's checks, workflows and role skills point at it from
   twenty-odd places, so a project without one gets dead references in every review. Generate it
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
   output, a library's exports, a config format), one honest line each. It is in the preview like
   every other generated file.
-- **`designs/README.md`** — only when the design gate is on; the design workflow writes there.
+- **`<paths.designs>/README.md`** — the designs index, written **always**: the design half installs
+  whatever the design gate's answer (`references/analysis.md` §3), and the design skill takes every
+  feature README's headings from this file, so a project without it has a design workflow with
+  nothing to follow. Headings: Purpose · Screens · States · Open decisions · Developer handoff ·
+  Design review. The `design-system` workflow owns the list from then on.
 - **`CLAUDE.md`** at the root, **`.xezar/CLAUDE.md`**, and the gitignored **`.claude/CLAUDE.md`**
   with this project's path and campaign name. An `@`-import of a missing file is a real failure,
   so seed every file it imports in the same step.

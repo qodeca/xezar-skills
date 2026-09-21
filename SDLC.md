@@ -187,6 +187,7 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/check-gate-list.mjs`
 - `node scripts/check-label-taxonomy.mjs`
 - `node scripts/test-kit-facts.mjs`
+- `node scripts/test-kit-catalog.mjs`
 - `node scripts/test-compat-pins.mjs`
 - `node scripts/check-allowlists.mjs`
 - `node scripts/test-guards.mjs`

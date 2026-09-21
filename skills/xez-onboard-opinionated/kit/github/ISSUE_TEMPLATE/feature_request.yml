@@ -27,7 +27,7 @@ body:
     id: surface
     attributes:
       label: Does this change what a user sees?
-      description: Yes means the maintainer applies `needs-design` at triage and the work starts with a proposal in `designs/<feature>/`.
+      description: Yes means the maintainer applies `needs-design` at triage and the work starts with a proposal in `{{DESIGNS_DIR}}/<feature>/`.
       options:
         - 'Yes'
         - 'No'

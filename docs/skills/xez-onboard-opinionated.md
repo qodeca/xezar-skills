@@ -10,6 +10,25 @@ It analyses the repository read-only (the real branching model, the gate command
 
 Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch and opens a pull request for you to merge, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
+## What the leader can route afterwards
+
+A workflow for every kind of work a project meets, each with a role skill that says what it owns and what it never does, and a routing row that says how the leader recognises it:
+
+| Stage | Workflows |
+|---|---|
+| Decide | business analysis · research · plan and spec · **architecture** and **architecture review** · **spike** · **deprecation plan** |
+| Design | UX design · **UI design** · **design system** · design review · **visual asset** |
+| Build | feature implementation · bug fix · **hotfix** · **refactor** · **migration** · **observability** · **localisation** · dependency maintenance · docs maintenance |
+| Test | testing and verification · **UI tests** · **integration tests** · **regression suite** · **performance** · QA · **acceptance verification** |
+| Review | code review · **security review** · address review findings |
+| Ship | integration · root-sync · release prep · release · **deploy and rollback** · issue triage |
+
+The ones in bold arrived in 1.5.0. Four of them — deploy, rollback, performance, localisation — are installed everywhere and run only where you have said something first: a deploy environment, a budget, a locale. With an empty list they refuse in their first seconds and say why, before any dependency is installed.
+
+**Every document the setup or a workflow commits lives under `docs/`** — the design system, the designs, architecture, spikes, runbooks, deprecations, performance notes. The kit reads a `paths.*` key and never a literal folder, so a project that already keeps one of these elsewhere keeps it.
+
+**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it.
+
 ## Before you run it
 
 Three things, each of which otherwise stops the run in its first minute:

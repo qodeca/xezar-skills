@@ -93,6 +93,8 @@ const TRUST_BOUNDARIES = [
   { pattern: /^packages\/xezar\/src\/mcp\//, why: "the tools a project leader calls" },
   { pattern: /^packages\/xezar\/src\/workspace\//, why: "per-user state and the project registry" },
   { pattern: /^\.github\/workflows\//, why: "what CI is allowed to do with the repository's credentials" },
+  { pattern: /^\.xezar\/pipeline\/config\.json$/, why: "the deploy and rollback targets, and the commands every gate run trusts" },
+  { pattern: /^\.xezar\/config\.json$/, why: "the base branch every run forks from and merges into" },
   { pattern: /(^|\/)\.env\.example$/, why: "the env contract" },
 ];
 
