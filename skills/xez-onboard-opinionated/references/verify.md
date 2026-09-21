@@ -25,7 +25,11 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 1. **Are the engine's MCP tools in this session at all?** Not there → this session started before
    the registration existed, or the owner has not approved the server. Print the launcher line
    and the sentence "start a new session with it, then run `/xez-onboard-opinionated --verify`".
-   That is the whole answer; do not improvise a smoke test without the tools.
+   That is the whole answer; do not improvise a smoke test without the tools. A session started
+   from the bootstrap prompt has the server registered at **local scope** (the owner's own
+   settings) as well as in the committed `.mcp.json`; both name the same package, so either one
+   serving the tools is fine. Say which one it is, and leave the local entry for the owner to
+   remove — it is their setting, not the project's.
 2. **Call `health`.** Read the status word, not the prose:
    - `not-registered` — the engine has not run in this folder, *or* the tools started before it
      first did and are still looking in the old place. After the owner starts the engine, they

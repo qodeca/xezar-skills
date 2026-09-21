@@ -135,7 +135,7 @@ points there; **never re-explain the detail here**, or the copy drifts.
 
 ## Validation
 
-The full gate is the `validation.commands` list in `.xezar/pipeline/config.json` — nineteen
+The full gate is the `validation.commands` list in `.xezar/pipeline/config.json` — twenty
 commands, the same list `.github/workflows/lint.yml` runs and `SDLC.md` states.
 `scripts/check-gate-list.mjs` keeps the three in step, so read the config rather than a copy
 of the list kept here, which would be a fourth place to drift.

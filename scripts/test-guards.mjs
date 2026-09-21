@@ -261,6 +261,22 @@ breaks(
 );
 
 breaks(
+  "a preflight that demands a different engine version than the prompt installs is rejected",
+  "skills/xez-onboard-opinionated/references/preflight.md",
+  (s) => s.replace("0.16.0 or later", "0.17.0 or later"),
+  () => script("test-compat-pins.mjs"),
+  "compat.json says",
+);
+
+breaks(
+  "a bootstrap prompt that loses its no-sudo rule is rejected",
+  "docs/bootstrap-prompt.md",
+  (s) => s.replace("Never use sudo. ", ""),
+  () => script("test-compat-pins.mjs"),
+  "the prompt lost the rule",
+);
+
+breaks(
   "rewording a guide heading xez-add-rule routes into is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
   (s) => s.replace("## Review discipline", "## Reviewing"),
