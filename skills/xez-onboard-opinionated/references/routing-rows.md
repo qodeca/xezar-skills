@@ -14,7 +14,7 @@ repository, and a shipped lane name is a first dispatch to something that is not
 | **Task kind** | the row's identity; several kinds may share a workflow |
 | **Workflow** | the shipped workflow file the leader runs for this kind |
 | **Trigger** | one sentence saying how the leader recognises that this row is the one |
-| **Class** | which of the seven interview questions sets this row's chain |
+| **Class** | which class question on the routing screen sets this row's chain |
 | **Never** | row-specific bans only — a prohibition that holds everywhere is stated once above, not repeated per row |
 
 A row without a trigger is a row the leader guesses at, so every row carries one.
@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The twenty-seven rows
+## The thirty-one rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -46,8 +46,8 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 8 | Business analysis | `business-analysis.yaml` | The question is about what to build or why, not how. | writing | the cheapest lanes |
 | 9 | UX / UI design: a surface proposed, with every state | `design.yaml` | A surface has to be designed before anything is implemented — the flow, what is seen first, every state. | design | a lane that cannot see pictures |
 | 10 | Design review: judging screens and pictures | `design-review.yaml` | The verdict depends on looking at a rendered screen or a mockup. | design | any lane that cannot see pictures; **the lane that authored the design** |
-| 11 | Generated images and illustrations | `design.yaml` | Documentation or a design needs a picture that does not exist yet and has to be **invented**. A deterministic screenshot capture is tooling, **not** this row. | visuals | every lane without image generation |
-| 12 | Diagrams and charts | `docs-maintenance.yaml`, `design.yaml` | Structure or data has to be **drawn**: an architecture diagram, a sequence, a chart from real numbers. Usually authored as text — Mermaid, SVG, a plotting script — so a lane with no image generation can still do it, and the figure has to be *correct* before it is handsome. The workflow follows where the figure lands: a documentation figure is a docs change, a figure inside a design is part of that design. | visuals | a lane that cannot read the data it is charting |
+| 11 | Generated images and illustrations | `visual-asset.yaml` | Documentation or a design needs a picture that does not exist yet and has to be **invented**. A deterministic screenshot capture is tooling, **not** this row. | visuals | every lane without image generation |
+| 12 | Diagrams and charts | `visual-asset.yaml` | Structure or data has to be **drawn**: an architecture diagram, a sequence, a chart from real numbers. Usually authored as text — Mermaid, SVG, a plotting script — so a lane with no image generation can still do it, and the figure has to be *correct* before it is handsome. | visuals | a lane that cannot read the data it is charting |
 | 13 | Bounded bug fix: one file, tests named | `bug-fix.yaml` | The failing test and the file are both already known. | implementation | a lane with a known weakness on small precise edits |
 | 14 | Multi-file implementation, not UI | `feature-implementation.yaml` | The change spans files and the design is settled. | implementation | a locally hosted lane; a single mid lane with no review |
 | 15 | UI implementation | `feature-implementation.yaml` | The change alters what a person sees on a screen. | implementation | a locally hosted lane; any lane that cannot see pictures |
@@ -63,6 +63,10 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 25 | Security-sensitive review | `code-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane |
 | 26 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
 | 27 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
+| 28 | Architecture decision: something that outlives a feature | `architecture.yaml` | The question is how the system is cut, what owns what, or a quality the whole must hold — and the answer will bind work beyond this one feature. | writing | the cheapest lanes — a wrong decision is inherited by everything built after it |
+| 29 | Architecture review | `architecture-review.yaml` | A plan, a spec or a diff has to be judged against the recorded architecture decisions. | review | the cheapest lanes; **the lane that wrote the design** |
+| 30 | Design system: created, extended or corrected | `design-system.yaml` | The change is to what every design is built from — a token, a component, a page of the system — not to one feature. | design | a lane that cannot see pictures |
+| 31 | UI design: the visual layer of a designed surface | `ui-design.yaml` | The flow has already landed and the surface now needs its look: components, tokens, layout, every state in both themes. | design | a lane that cannot see pictures |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of
@@ -83,8 +87,8 @@ Three pairs need saying out loud, because their triggers read alike:
 
 ## Filling the chain column
 
-The owner ranks the available lanes **once per class**, not once per row. Seven questions cover all
-twenty-seven rows. Expand the answers down the table, apply the global prohibitions above, then show
+The owner ranks the available lanes **once per class**, not once per row. One question per class covers every
+row. Expand the answers down the table, apply the global prohibitions above, then show
 the whole table for row-level edits — most rows will be right, and the two or three that are not
 are exactly the ones worth a minute.
 

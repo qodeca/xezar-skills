@@ -76,10 +76,12 @@ const FILE_KEYS = new Set(["name", "description", "steps", "skills"]);
 
 // Maintained project roles require the shared contract; custom skills remain standalone.
 const MAINTAINED_SKILLS = new Set([
+  "xezar-architecture",
   "xezar-bug-investigation",
   "xezar-business-analysis",
   "xezar-code-review",
   "xezar-dependency-maintenance",
+  "xezar-design-system",
   "xezar-docs-maintenance",
   "xezar-handoff-draft-pr",
   "xezar-implementation",
@@ -95,7 +97,9 @@ const MAINTAINED_SKILLS = new Set([
   "xezar-research",
   "xezar-review-response",
   "xezar-testing",
+  "xezar-ui-design",
   "xezar-ux-design",
+  "xezar-visual-asset",
 ]);
 
 // The only skills that may keep `interactive: true` in frontmatter. It is a composer

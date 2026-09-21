@@ -15,7 +15,7 @@ step actually found.
 
 ## What is shipped
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Twenty-seven rows over
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Thirty-one rows over
   seven classes, each carrying the workflow it runs and a written trigger: one
   sentence saying how the leader recognises that this row is the one. A row without a trigger is
   a row the leader guesses at.
@@ -24,7 +24,7 @@ step actually found.
   cloud-lane write needs another vendor's review; a high-risk change needs a different account
   *and* a different vendor.
 - **The Never column**, which carries only row-specific bans, plus the precedence rule for the
-  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated twenty-seven times.
+  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated on every row.
 
 ## What is built with the owner
 
@@ -46,11 +46,11 @@ consequences worth stating in the interview:
   login.
 - **Adding an account later changes the lane list, never the table's shape.**
 
-## How to ask without twenty-seven questions
+## How to ask without a question per row
 
 **One screen, seven classes, then expand.** Each class gets a proposed chain — strongest to cheapest
 among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
-and the owner confirms or reorders all seven together. One screen per class was the old shape and
+and the owner confirms or reorders all of them together. One screen per class was the old shape and
 bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
 for having answered the third.
 
@@ -75,7 +75,7 @@ one ranking decides both, and the one that loses is the one nobody checks.
 The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
 expansion is a lookup rather than a judgement.
 
-The owner confirms or reorders the seven proposed chains on that one screen. The skill then expands
+The owner confirms or reorders the proposed chains on that one screen. The skill then expands
 them into the full row set, applies the global prohibitions, and **shows the whole table for
 row-level edits** — the last screen of the interview. Most rows will be right; the two or three
 that are not are exactly the ones worth a minute.
