@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The forty rows
+## The forty-three rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -60,7 +60,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 22 | Review response, one verdict | `address-review-findings.yaml` | One verdict has to be answered or fixed. | review | — |
 | 23 | Review response folding several verdicts | `address-review-findings.yaml` | Several verdicts disagree, or they interact. | review | the cheapest lanes; a locally hosted lane |
 | 24 | Browser / manual QA | `qa.yaml` | The check needs a live multi-step run in a browser. | review | a locally hosted lane |
-| 25 | Security-sensitive review | `code-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane |
+| 25 | Security-sensitive review | `security-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane; **the lane that wrote the change** |
 | 26 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
 | 27 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
 | 28 | Architecture decision: something that outlives a feature | `architecture.yaml` | The question is how the system is cut, what owns what, or a quality the whole must hold — and the answer will bind work beyond this one feature. | writing | the cheapest lanes — a wrong decision is inherited by everything built after it |
@@ -76,6 +76,9 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 38 | Migration: data, a schema or a format changes shape | `migration.yaml` | Something that already exists outside the code — rows, files, a config people wrote by hand — has to move to a new shape. | implementation | a locally hosted lane; the cheapest lanes — it cannot be reverted the way code can |
 | 39 | Observability: logs, metrics, alerts, runbooks | `observability.yaml` | People cannot tell what a part of the system is doing, and the change adds signals and changes no behaviour. | implementation | a locally hosted lane |
 | 40 | Localisation: translatable text, a listed locale | `localisation.yaml` | Text has to become translatable, or a language the owner has listed has to be added or brought up to date. | implementation | a lane that cannot see pictures — a translated layout has to be looked at |
+| 41 | Spike: one open technical question, answered by trying | `spike.yaml` | Somebody cannot decide until they know whether something is possible, how hard it is or how it behaves, and the way to find out is to try it. | writing | the cheapest lanes — an over-confident answer is worse than none |
+| 42 | Deprecation plan | `deprecation-plan.yaml` | Something people depend on has to be retired, and nothing may be removed until who is affected, the replacement and the dates are written down. | writing | the cheapest lanes |
+| 43 | Acceptance verification | `acceptance-verification.yaml` | A finished change has to be checked against each accepted criterion of its issue, one by one, by running it. | review | the cheapest lanes; **the lane that wrote the change** |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of

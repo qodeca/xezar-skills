@@ -76,11 +76,13 @@ const FILE_KEYS = new Set(["name", "description", "steps", "skills"]);
 
 // Maintained project roles require the shared contract; custom skills remain standalone.
 const MAINTAINED_SKILLS = new Set([
+  "xezar-acceptance",
   "xezar-architecture",
   "xezar-bug-investigation",
   "xezar-business-analysis",
   "xezar-code-review",
   "xezar-dependency-maintenance",
+  "xezar-deprecation-plan",
   "xezar-design-system",
   "xezar-docs-maintenance",
   "xezar-handoff-draft-pr",
@@ -103,6 +105,8 @@ const MAINTAINED_SKILLS = new Set([
   "xezar-release-publish",
   "xezar-research",
   "xezar-review-response",
+  "xezar-security-review",
+  "xezar-spike",
   "xezar-testing",
   "xezar-ui-design",
   "xezar-ui-tests",
@@ -114,7 +118,12 @@ const MAINTAINED_SKILLS = new Set([
 // SEED, not a lock: it pre-ticks Worktree OFF and Autonomous OFF. That is right for a
 // read-only run, which writes nothing and needs no isolated checkout, and wrong for
 // everything else now that Xezar owns the worktree.
-const READ_ONLY_SKILLS = new Set(["xezar-code-review", "xezar-issue-triage"]);
+const READ_ONLY_SKILLS = new Set([
+  "xezar-acceptance",
+  "xezar-code-review",
+  "xezar-issue-triage",
+  "xezar-security-review",
+]);
 
 // the engine's `configSchema`.
 const CONFIG_KEYS = new Set([
