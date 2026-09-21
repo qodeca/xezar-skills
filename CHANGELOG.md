@@ -1,3 +1,23 @@
+# Unreleased
+
+## Changed
+
+- **Routing has seven task classes, not five, and twenty-seven rows, not twenty-six.** Design and
+  visual work were rows inside `writing` and `review`, which made the wrong lane look acceptable:
+  one prose ranking decided who designs a screen, and one review ranking decided who judges it.
+  - **`design`** — designing a surface, and reviewing a design. What matters is a lane that can
+    actually **see** a screen, which has nothing to do with how well a lane writes prose. The
+    design review row moved here from `review`; the "never the authoring model for its own review"
+    ban still applies, and the row now names the design's author explicitly.
+  - **`visuals`** — generated images and illustrations, and **diagrams and charts** as a new row of
+    their own. A picture that must be *invented* needs image generation; a figure that must be
+    *correct* — an architecture diagram, a chart of real numbers — is usually authored as text
+    (Mermaid, SVG, a plotting script) and wants the lane that reads the data best. Routing a chart
+    as an image gets a handsome picture of the wrong numbers.
+
+  The routing screen still asks once per class, so this is seven items on one screen rather than
+  five. Row numbers in the precedence rules moved with the table.
+
 # 1.4.0 (2026-09-21)
 
 ## Highlights

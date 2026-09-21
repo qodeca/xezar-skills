@@ -14,7 +14,7 @@ repository, and a shipped lane name is a first dispatch to something that is not
 | **Task kind** | the row's identity; several kinds may share a workflow |
 | **Workflow** | the shipped workflow file the leader runs for this kind |
 | **Trigger** | one sentence saying how the leader recognises that this row is the one |
-| **Class** | which of the five interview questions sets this row's chain |
+| **Class** | which of the seven interview questions sets this row's chain |
 | **Never** | row-specific bans only — a prohibition that holds everywhere is stated once above, not repeated per row |
 
 A row without a trigger is a row the leader guesses at, so every row carries one.
@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The twenty-six rows
+## The twenty-seven rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -44,42 +44,47 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 6 | Docs PR with real writing | `docs-maintenance.yaml` | Someone has to decide what the paragraph says, not just where it points. | writing | — |
 | 7 | Analysis, specs, research | `research.yaml`, `plan-and-spec.yaml` | The output is a judgement or a design, and the work is larger than one file. | writing | the cheapest lanes — the failure is invisible and expensive |
 | 8 | Business analysis | `business-analysis.yaml` | The question is about what to build or why, not how. | writing | the cheapest lanes |
-| 9 | UX mockups | `design.yaml` | A screen has to be proposed before anything is implemented. | writing | a lane that cannot see pictures |
-| 10 | Generated images | `design.yaml` | Documentation or a design needs an image that does not exist yet. A deterministic screenshot capture is tooling, **not** this row. | writing | every lane without image generation |
-| 11 | Bounded bug fix: one file, tests named | `bug-fix.yaml` | The failing test and the file are both already known. | implementation | a lane with a known weakness on small precise edits |
-| 12 | Multi-file implementation, not UI | `feature-implementation.yaml` | The change spans files and the design is settled. | implementation | a locally hosted lane; a single mid lane with no review |
-| 13 | UI implementation | `feature-implementation.yaml` | The change alters what a person sees on a screen. | implementation | a locally hosted lane; any lane that cannot see pictures |
-| 14 | Kit / checks refactor | `feature-implementation.yaml` | The change is to the pipeline's own tooling rather than the product. | implementation | a locally hosted lane |
-| 15 | Conflict repair | `integration.yaml` | A merge stopped on a conflict and the resolution needs judgement. | implementation | an image-only lane |
-| 16 | Merge chain (integration) | `integration.yaml` | Several approved PRs must land in order. | implementation | the strongest lanes; a locally hosted lane |
-| 17 | Dependency maintenance | `dependency-maintenance.yaml` | A dependency bump, with the gate as the judge. | implementation | — |
-| 18 | Scoped code re-check | `code-review.yaml` | One earlier finding is being re-checked, not the whole diff. | review | the cheapest lanes; **whichever lane authored the change** |
-| 19 | Full cold code review | `code-review.yaml` | The reviewer opens the diff with no prior context. | review | the cheapest lanes; a locally hosted lane; **the lane that wrote the change** |
-| 20 | Review response, one verdict | `address-review-findings.yaml` | One verdict has to be answered or fixed. | review | — |
-| 21 | Review response folding several verdicts | `address-review-findings.yaml` | Several verdicts disagree, or they interact. | review | the cheapest lanes; a locally hosted lane |
-| 22 | Design review: judging screens and pictures | `design-review.yaml` | The verdict depends on looking at a rendered screen. | review | any lane that cannot see pictures |
-| 23 | Browser / manual QA | `qa.yaml` | The check needs a live multi-step run in a browser. | review | a locally hosted lane |
-| 24 | Security-sensitive review | `code-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane |
-| 25 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
-| 26 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
+| 9 | UX / UI design: a surface proposed, with every state | `design.yaml` | A surface has to be designed before anything is implemented — the flow, what is seen first, every state. | design | a lane that cannot see pictures |
+| 10 | Design review: judging screens and pictures | `design-review.yaml` | The verdict depends on looking at a rendered screen or a mockup. | design | any lane that cannot see pictures; **the lane that authored the design** |
+| 11 | Generated images and illustrations | `design.yaml` | Documentation or a design needs a picture that does not exist yet and has to be **invented**. A deterministic screenshot capture is tooling, **not** this row. | visuals | every lane without image generation |
+| 12 | Diagrams and charts | `docs-maintenance.yaml`, `design.yaml` | Structure or data has to be **drawn**: an architecture diagram, a sequence, a chart from real numbers. Usually authored as text — Mermaid, SVG, a plotting script — so a lane with no image generation can still do it, and the figure has to be *correct* before it is handsome. The workflow follows where the figure lands: a documentation figure is a docs change, a figure inside a design is part of that design. | visuals | a lane that cannot read the data it is charting |
+| 13 | Bounded bug fix: one file, tests named | `bug-fix.yaml` | The failing test and the file are both already known. | implementation | a lane with a known weakness on small precise edits |
+| 14 | Multi-file implementation, not UI | `feature-implementation.yaml` | The change spans files and the design is settled. | implementation | a locally hosted lane; a single mid lane with no review |
+| 15 | UI implementation | `feature-implementation.yaml` | The change alters what a person sees on a screen. | implementation | a locally hosted lane; any lane that cannot see pictures |
+| 16 | Kit / checks refactor | `feature-implementation.yaml` | The change is to the pipeline's own tooling rather than the product. | implementation | a locally hosted lane |
+| 17 | Conflict repair | `integration.yaml` | A merge stopped on a conflict and the resolution needs judgement. | implementation | an image-only lane |
+| 18 | Merge chain (integration) | `integration.yaml` | Several approved PRs must land in order. | implementation | the strongest lanes; a locally hosted lane |
+| 19 | Dependency maintenance | `dependency-maintenance.yaml` | A dependency bump, with the gate as the judge. | implementation | — |
+| 20 | Scoped code re-check | `code-review.yaml` | One earlier finding is being re-checked, not the whole diff. | review | the cheapest lanes; **whichever lane authored the change** |
+| 21 | Full cold code review | `code-review.yaml` | The reviewer opens the diff with no prior context. | review | the cheapest lanes; a locally hosted lane; **the lane that wrote the change** |
+| 22 | Review response, one verdict | `address-review-findings.yaml` | One verdict has to be answered or fixed. | review | — |
+| 23 | Review response folding several verdicts | `address-review-findings.yaml` | Several verdicts disagree, or they interact. | review | the cheapest lanes; a locally hosted lane |
+| 24 | Browser / manual QA | `qa.yaml` | The check needs a live multi-step run in a browser. | review | a locally hosted lane |
+| 25 | Security-sensitive review | `code-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane |
+| 26 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
+| 27 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
-row 24 (security-sensitive) is a *subset* of row 19 (full cold review), and row 25 is a subset of
-row 24. Without this rule a cold review of an authentication diff routes to row 19 and quietly
+row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of
+row 25. Without this rule a cold review of an authentication diff routes to row 21 and quietly
 loses the security chain. When two rows are equally specific, take the later one.
 
-Two pairs need saying out loud, because their triggers read alike:
+Three pairs need saying out loud, because their triggers read alike:
 
-- **18 vs 20.** Row 18 *judges* — is this earlier finding actually fixed? Row 20 *changes code* to
+- **20 vs 22.** Row 20 *judges* — is this earlier finding actually fixed? Row 22 *changes code* to
   answer a verdict. Judging goes to the review workflow, fixing goes to the response workflow.
-- **15 vs 16.** A merge chain that hits a conflict is row 15, not row 16, for as long as the
-  conflict is open. Row 16 bans the strongest lanes; a conflict needs judgement, so routing it as
-  16 bans exactly the lane the work requires.
+- **17 vs 18.** A merge chain that hits a conflict is row 17, not row 18, for as long as the
+  conflict is open. Row 18 bans the strongest lanes; a conflict needs judgement, so routing it as
+  18 bans exactly the lane the work requires.
+- **11 vs 12.** A picture that has to be *invented* is row 11 and needs a lane that can generate
+  images. A figure that has to be *correct* — a diagram of what exists, a chart of real numbers —
+  is row 12, and the lane that draws it best is usually the one that reads the data best, not the
+  one with an image model. Routing a chart as row 11 gets a handsome picture of the wrong numbers.
 
 ## Filling the chain column
 
-The owner ranks the available lanes **once per class**, not once per row. Five questions cover all
-twenty-six rows. Expand the answers down the table, apply the global prohibitions above, then show
+The owner ranks the available lanes **once per class**, not once per row. Seven questions cover all
+twenty-seven rows. Expand the answers down the table, apply the global prohibitions above, then show
 the whole table for row-level edits — most rows will be right, and the two or three that are not
 are exactly the ones worth a minute.
 

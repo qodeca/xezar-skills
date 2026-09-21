@@ -15,8 +15,8 @@ step actually found.
 
 ## What is shipped
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Twenty-six rows over
-  roughly two dozen task kinds, each carrying the workflow it runs and a written trigger: one
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Twenty-seven rows over
+  seven classes, each carrying the workflow it runs and a written trigger: one
   sentence saying how the leader recognises that this row is the one. A row without a trigger is
   a row the leader guesses at.
 - **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
@@ -24,7 +24,7 @@ step actually found.
   cloud-lane write needs another vendor's review; a high-risk change needs a different account
   *and* a different vendor.
 - **The Never column**, which carries only row-specific bans, plus the precedence rule for the
-  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated twenty-six times.
+  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated twenty-seven times.
 
 ## What is built with the owner
 
@@ -46,28 +46,36 @@ consequences worth stating in the interview:
   login.
 - **Adding an account later changes the lane list, never the table's shape.**
 
-## How to ask without twenty-six questions
+## How to ask without twenty-seven questions
 
-**One screen, five classes, then expand.** Each class gets a proposed chain — strongest to cheapest
+**One screen, seven classes, then expand.** Each class gets a proposed chain — strongest to cheapest
 among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
-and the owner confirms or reorders all five together. Five separate screens was the old shape and
+and the owner confirms or reorders all seven together. One screen per class was the old shape and
 bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
 for having answered the third.
 
-Five classes cover the rows:
+Seven classes cover the rows:
 
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
 | mechanical | tracker-only work, evidence passes, mechanical docs edits, root-sync | the cheapest lane that can be trusted with it |
-| writing | docs with real writing, analysis, specs, research | quality of prose over cost |
-| implementation | bounded fixes, multi-file work, UI work, kit refactors | the working horse of the project |
-| review | scoped re-checks, full cold reviews, review responses | who is allowed to judge whose work |
+| writing | docs with real writing, analysis, specs, research, business analysis | quality of prose over cost |
+| design | designing a surface, and reviewing a design | a lane that can actually **see** a screen |
+| visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |
+| implementation | bounded fixes, multi-file work, UI work, kit refactors, conflicts, merge chains, dependencies | the working horse of the project |
+| review | scoped re-checks, full cold reviews, review responses, browser QA | who is allowed to judge whose work |
 | security and release | security-sensitive review, verifying a strong claim, the release role | the strongest lane, and never the author's |
+
+**Why design and visuals are their own classes.** They were rows inside `writing` and `review`, and
+that made the wrong lane look acceptable. Design work needs a lane that can look at a screen, which
+is nothing to do with how well a lane writes prose; and a picture that must be *invented* needs a
+different capability from a figure that must be *correct*. Folding either into a prose class means
+one ranking decides both, and the one that loses is the one nobody checks.
 
 The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
 expansion is a lookup rather than a judgement.
 
-The owner confirms or reorders the five proposed chains on that one screen. The skill then expands
+The owner confirms or reorders the seven proposed chains on that one screen. The skill then expands
 them into the full row set, applies the global prohibitions, and **shows the whole table for
 row-level edits** — the last screen of the interview. Most rows will be right; the two or three
 that are not are exactly the ones worth a minute.
