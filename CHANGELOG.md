@@ -1,6 +1,32 @@
 # Unreleased
 
+## Added
+
+- **The run now offers the merge instead of stopping at it.** With the engine's tools loaded and
+  every required check green, the skill asks once — merge and finish here, or read the diff first?
+  On yes it merges, pulls, and goes straight into `references/verify.md` in the same session. On a
+  red or pending check it does not offer at all: it names the check and hands back. This is what
+  made a 17-minute test end with protection unread, the smoke test unrun and the default task
+  account still pointing at an account the registry did not contain.
+- **The bootstrap prompt covers a project Xezar was removed from.** Step 0 knew only "onboarded" and
+  "clean", so a repository whose setup had just been reverted produced an unscripted "install it
+  again?" question. It now names three states, including a stale `.xezar/onboarding.json` with no
+  `.xezar/checks/` beside it.
+- **The account import is proved, not assumed.** The prompt and preflight read
+  `.xezar/agent-accounts.json` and report the count, so "answer y in that window" is checked rather
+  than narrated. None or one is reported with what it probably means.
+- **`--verify` states the previous default task account before changing it.** A default naming an
+  account the registry does not hold is a finding, not something to overwrite in silence.
+
 ## Changed
+
+- **The `/mcp` reconnect is an instruction, never a question.** The prompt now says so, and says not
+  to poll `health` before reconnecting — a real run called it three times, then wrapped the
+  reconnect in a question the owner had to dismiss.
+- **"Show me each command before you run it" is narrowed to what matters** — anything global,
+  anything that writes to GitHub, anything that deletes, and the command that opens a terminal
+  window — and is now one of the pinned prompt rules (eight, was seven). A run honoured the broad
+  version for three of about forty-eight commands, so the broad version was not a promise.
 
 - **The kit no longer ships the engine repository's own facts into your project.** Twenty-three
   strings named its module paths, its CI job names, one of its commit hashes, its mutation-test

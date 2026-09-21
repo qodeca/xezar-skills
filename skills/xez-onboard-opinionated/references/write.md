@@ -235,7 +235,7 @@ to carry — do not invent one, and do not tell the owner to run one.
 - The drift check, which compares the installed setup against the current one and **reports**.
   It never auto-updates: a file installed into a consumer repository never updates itself.
 
-## 6. Commit, and let the owner merge
+## 6. Commit, open the pull request, and offer the merge
 
 **Labels first, so the setup pull request can carry them.** Tracker operation
 **ensure-label-taxonomy** from the `labels.json` just written, then **list-labels** to read back.
@@ -245,12 +245,12 @@ and description. `.xezar/pipeline/labels.json` is this skill's own `references/l
 which carries the three design labels the kit's policy needs; the tracker descriptor is this
 skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
 
-Commit on a setup branch, open a pull request, and stop. The pull request carries the full label
+Commit on a setup branch and open a pull request. The pull request carries the full label
 set the pipeline itself demands — one pipeline label, a category, a QA label, one priority, one
 risk — through the descriptor's guards. This skill does not merge its own
 setup — a change this large to how a project works is reviewed by the person who will live with
-it. Protection (step 7) is applied after the merge, because protecting a branch the setup has
-not landed on yet only blocks the setup.
+it, and the offer below is how that person is asked. Protection (step 7) is applied after the
+merge, because protecting a branch the setup has not landed on yet only blocks the setup.
 
 **Leave the way back in.** Steps 7 to 10 run after the merge, and often in a later session: the
 MCP registration this step wrote is read by Claude Code only when a session starts, so a session
@@ -260,6 +260,23 @@ the time — and end the step with the exact lines from `references/report-templ
 "Setup pull request open". Without the file a second run finds `.xezar/onboarding.json`, reads it
 as a finished onboarding, and refuses; the first test of this skill ended exactly there.
 
-**When the owner says "merge it".** That is their call and this skill carries it out, with one
-condition: read the pull request's checks first. Green → merge. Red or still running → say which
-check and why, and merge only on a second, explicit answer. Never merge red silently.
+**Then offer the merge — once, and only on green.** Write the pending file first, so a declined
+offer resumes cleanly, then read the pull request's checks through tracker operations and act on
+what they say:
+
+- **Every required check green** → ask one question: merge now and finish here, or leave it for
+  the owner to review? On yes, merge, `git switch <base> && git pull`, and continue into
+  `references/verify.md` in this session. That is the whole point of asking: steps 7 to 10 cannot
+  run before the merge, and an owner who has to come back for them usually comes back without the
+  engine's tools loaded, which is a second session and a `--verify` run.
+- **Any check red, or still running** → do **not** offer. Name the check, say whether it is failing
+  or pending, and hand back. A question whose honest answer is "not yet" is noise.
+- **No CI at all** → say the pull request has nothing to wait for, and offer the merge on that
+  basis, naming it.
+
+The offer is an offer. This skill never merges its own setup unasked — a change this large to how
+a project works is reviewed by the person who will live with it — and it **never merges red**: if
+the owner asks for a merge over a red or pending check, say which check and why, and merge only on
+a second, explicit answer.
+
+The same condition applies whenever the owner says "merge it" later, in this session or another.

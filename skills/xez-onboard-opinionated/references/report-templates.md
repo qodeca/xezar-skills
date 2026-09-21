@@ -63,8 +63,14 @@ Ends step 6. Not a completion report: say what is still owed and give the exact 
 
 Protection and the smoke test come after the merge. <One of:>
 
-<the engine's tools are loaded in this session:>
-**Next:** merge <PR> — or tell me to, and I check its CI first — and I carry on here.
+<the engine's tools are loaded in this session AND every required check is green — ask, do not
+wait; this is the one question that decides whether the setup finishes today:>
+**<PR> is green: <n> required checks passed.** Shall I merge it and finish here — protection, the
+smoke test and the checklist, about five more minutes — or do you want to read the diff first?
+
+<the tools are loaded but a check is red or still running — name it and do not offer:>
+**Next:** <PR> is waiting on `<check>` (<failing / still running>). Tell me when it is green and I
+merge and carry on here, or merge it yourself.
 
 <they are not — this session started before the MCP registration existed:>
 **Next, in this order:**

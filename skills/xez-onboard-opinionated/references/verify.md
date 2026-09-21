@@ -52,6 +52,12 @@ Setup results use four words, and none implies the next: **files prepared**, **c
   lane the owner chose in the interview; read it back with `get_account`. It must not be the
   leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
   checkout's absolute path, which is why the kit's ignore file lists it.
+
+  **Read what was there before you write, and report it.** Until this step runs, the project falls
+  back to the engine's own default, and that default can name an account the registry does not
+  contain — a second test found `selections: {}` and a default naming a login absent from the
+  account list, which is a task that fails at dispatch with nothing to point at. State what the
+  default was, in one line, before saying what it is now. Setting it silently hides the finding.
 - **Skill updates are the owner's, not the engine's start-up.** Engine tool
   `set_workspace_config` with `skillsAutoUpdate: false`. The engine otherwise updates installed
   skills at every start under a thirty-second limit, and the first test found fifteen of

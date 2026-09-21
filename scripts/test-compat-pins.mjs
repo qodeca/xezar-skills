@@ -43,6 +43,7 @@ for (const place of places) {
 const prompt = read("docs/bootstrap-prompt.md").split("<!-- prompt:start -->")[1]?.split("<!-- prompt:end -->")[0] ?? "";
 if (!prompt) problems.push("docs/bootstrap-prompt.md: the prompt:start / prompt:end markers are missing");
 const promised = [
+  ["Show me the command first for anything global", "shows the commands that matter before running them"],
   ["Never use sudo", "never escalates"],
   ["Never pipe a download into a shell", "never runs a fetched script"],
   ["Never change my permission mode", "never loosens the harness"],
