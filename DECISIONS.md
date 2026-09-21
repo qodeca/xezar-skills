@@ -516,6 +516,31 @@ refusing the rest. The difference: the tracker decisions were never designed for
 tracker, while the gate mechanism is stack-neutral by construction and only its testing is
 narrow.
 
+**A finished run stops; an unfinished one resumes — a reversal, recorded as one.** The first
+version stopped on any `.xezar/onboarding.json` and said so flatly: no merge mode, no partial
+install. The first real test showed the stop was aimed at the wrong thing. The smoke test needs
+the engine's MCP tools; Claude Code reads an MCP registration only when a session starts; the
+registration is written in step 6. So the session that writes the setup can never prove it, and
+the next session was refused as "already onboarded" — the skill had no door back into its own
+run. Now the writing half leaves `.local/xezar/runtime/onboarding-pending.json`, and a run that
+finds it goes to `references/verify.md` (also reachable as `--verify`). The original rule
+survives where it mattered: verify writes no setup file, a *finished* onboarding still stops,
+and the marker lives under `.local/` so the committed manifest — which three other skills read —
+never grows a progress key.
+
+**A stop the owner can fix in a minute is re-checked, not ended.** The same test cost three
+invocations before the interview began, each reloading the skill to re-check one line: the
+engine marker, then the socket, then the process. Preflight now separates hard stops from
+fixable ones, names the literal command for each fixable one, and re-runs only what failed. It
+still never installs the engine. It names `npm install -g @qodeca/xezar`; naming is not
+installing, and the owner reads the line before they run it.
+
+**Engine-made files are clean.** The first single-project start writes `workspace.json`,
+`workspace-ui.json`, `agent-accounts.json` and an empty `config.json`. The clean-project check
+called `config.json` configuration while the engine check required the start that writes it — two
+checks that could not both pass, settled in the test by the agent's own judgment. They are listed
+as clean now, and an empty `config.json` is told apart from one with settings in it.
+
 **Naming, settled deliberately.** They were nearly `xez-autopilot-on` / `-off`. Three reasons
 against: `xez-pr-autopilot` already ships and means something else entirely; the `xez-auto-*`
 prefix is a behavioural contract meaning *never asks mid-run*, which is the opposite of what

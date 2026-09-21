@@ -153,3 +153,15 @@ Commit on a setup branch, open a pull request, and stop. This skill does not mer
 setup — a change this large to how a project works is reviewed by the person who will live with
 it. Protection (step 7) is applied after the merge, because protecting a branch the setup has
 not landed on yet only blocks the setup.
+
+**Leave the way back in.** Steps 7 to 10 run after the merge, and often in a later session: the
+MCP registration this step wrote is read by Claude Code only when a session starts, so a session
+that began before it existed has no engine tools and cannot run the smoke test. Write
+`.local/xezar/runtime/onboarding-pending.json` — the pull request number, the base branch, and
+the time — and end the step with the exact lines from `references/report-templates.md` →
+"Setup pull request open". Without the file a second run finds `.xezar/onboarding.json`, reads it
+as a finished onboarding, and refuses; the first test of this skill ended exactly there.
+
+**When the owner says "merge it".** That is their call and this skill carries it out, with one
+condition: read the pull request's checks first. Green → merge. Red or still running → say which
+check and why, and merge only on a second, explicit answer. Never merge red silently.

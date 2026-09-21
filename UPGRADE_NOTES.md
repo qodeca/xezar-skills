@@ -17,6 +17,38 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – a project onboarded with 1.2.0: skills out of git, labels on the tracker
+
+Applies only to a repository onboarded by `xez-onboard-opinionated` 1.2.0. Everything it installed is
+yours and never auto-updates.
+
+**Symptom – `git status` is dirty after the engine starts, and the format check fails on `.agents/`.**
+The skills collection was committed as copies under `.claude/skills/xez-*`. The engine updates installed
+skills when it starts, and its updater writes the link layout: real files in `.agents/skills/`, links in
+`.claude/skills/`. Committed copies and the updater fight, and an untracked, un-ignored `.agents/`
+appears.
+
+**Symptom – pull requests carry no pipeline labels.** `.xezar/pipeline/labels.json` lists the taxonomy,
+and the tracker has almost none of it. Nothing in 1.2.0 created the labels.
+
+**What is lost by skipping this.** Every engine start dirties the tree again, the local gate stays red,
+and every label step in every skill logs a skip – so the QA and design gates are advice, not gates.
+
+**How to apply.**
+1. Put the skills in the link layout: `npx -y skills add qodeca/xezar-skills --skill '*' --agent claude-code --agent codex --yes`.
+2. Take them out of git: `git rm -r --cached .claude/skills/xez-*` and `git rm --cached skills-lock.json`.
+3. Ignore them – in `.gitignore`: `/.agents/skills/xez-*`, `/.claude/skills/xez-*`, `/skills-lock.json`,
+   `/.xezar/agent-accounts.json`. No trailing slash: a slash pattern does not match a link. Add `.agents`
+   to the ignore file of every formatter and linter that scans the repository.
+4. Tell the next clone how to get them: one line in `AGENTS.md` with the command from step 1.
+5. Create the labels: run the tracker operation **ensure-label-taxonomy** from `labels.json`, then
+   **list-labels** to read back. Existing names keep their colour.
+6. Refresh the digest of every edited file in `.xezar/onboarding.json`.
+7. If the repository checks licences (a `REUSE.toml`): the kit folders are MIT – add `LICENSES/MIT.txt`
+   and an override annotation for `.xezar/checks`, `workflows`, `skills`, `docs`, `loops.json`,
+   `pipeline/trackers`, `pipeline/toolchains`.
+After the merge, pull and check that the skills are still on disk; repeat step 1 if they are not.
+
 ## 2026-09-21 – the leader's context loader, corrected
 
 Applies only to a repository onboarded by `xez-onboard-opinionated`. Everything it installed is
