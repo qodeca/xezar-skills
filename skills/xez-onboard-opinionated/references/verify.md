@@ -16,6 +16,9 @@ setup pull request it names:
 - **Merged** — make sure the working tree is on the base branch and up to date. A session still
   sitting on the setup branch verifies the wrong files.
 - **Closed unmerged** — stop. The setup was rejected; removing the pending file is the owner's call.
+  Report with `references/report-templates.md` → "Setup rejected": it lists what this setup made
+  **outside git** — the labels, any recorded engine change — with the undo for each, and does none
+  of it unasked.
 
 ## 2. The engine tools, and which state they are in
 
@@ -73,7 +76,8 @@ report says what each was before.
 In order:
 
 - **The default task account.** Engine tool `project_config`, action `select_account`, with the
-  lane the owner chose in the interview; read it back with `get_account`. It must not be the
+  **login** the owner chose on screen 3 — an account handle, never a lane, which is a tool and a
+  model; read it back with `get_account`. It must not be the
   leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
   checkout's absolute path, which is why the kit's ignore file lists it.
 
@@ -96,14 +100,21 @@ In order:
      no OpenCode lane in any chain — a setup written before this rule may, and switching the
      provider off under it turns those dispatches into refusals. Either condition false → **leave
      it on**, report "found, left on" with which condition failed, and keep it out of any chain
-     this run writes. Never reach for a machine-wide setting from a per-project setup.
+     this run writes. Never reach for a machine-wide setting from a per-project setup — the one
+     exception is the owner naming that change themselves, under
+     `references/engine-refusals.md`, where these same two conditions still hold.
   3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
      then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
-     fresh `operationId`.
+     fresh `operationId` — the argument names engine 0.17.0 documents for that action. **Check them
+     against the tool's own description before you send them**, because a shape written down in a
+     skill ages into being wrong about one: a first run met `Unrecognized keys: "provider",
+     "enabled"` on an older engine. An "Unrecognized key" answer is the description telling you
+     the names; read it, correct once, and never guess a third
+     (`references/engine-refusals.md`).
   4. **Read back.** `get_capabilities` again; `enabled` must now be false.
 
   Put the one call that undoes it in the report, word for word: `set_provider_enabled` with
-  `provider: "opencode"`, `enabled: true`. Reverting the setup pull request does **not** undo this —
+  `provider: "opencode"`, `enabled: true` — the same argument names you just used. Reverting the setup pull request does **not** undo this —
   the state lives outside git — and an engine started later without `--single-project` reads the
   machine's own settings instead, where this switch was never made.
 - **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action

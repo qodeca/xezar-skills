@@ -17,9 +17,9 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🎯 Base branch | `<name>`, protected — <n> required checks, administrators **not** enforced |
 | 🧪 Gates | `<command>`, … — run by the smoke test, not only written down |
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
-| 📋 Routing | <n> rows, chains ending in `wait`; tasks that name no account run on `<lane>`, not the leader's login |
+| 📋 Routing | <n> rows, chains ending in `wait`; tasks that name no account run on `<login>`, not the leader's login |
 | 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
-| 🤖 Task account, skill updates | default account `<before>` → `<lane>` · skill auto-update `<before>` → off; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
+| 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update `<before>` → off; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
 | ⛔ OpenCode | <not installed · already off · found, switched off for this project in `.xezar/workspace.json` — undo: `project_config` `set_provider_enabled`, `provider: "opencode"`, `enabled: true` · found, **left on** because <the engine is not in single-project mode · the existing routing table still uses it>> |
 | 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
@@ -74,7 +74,19 @@ smoke test and the checklist, about five more minutes — or do you want to read
 **Next:** <PR> is waiting on `<check>` (<failing / still running>). Tell me when it is green and I
 merge and carry on here, or merge it yourself.
 
-<they are not — this session started before the MCP registration existed:>
+<the owner was offered the merge and wants to read the pull request first — a normal answer.
+End the run cleanly; do not ask again:>
+**Stopping here, as you asked. Nothing else happens until you merge.** The body of <PR> sorts the
+files by where they came from, so you can see which <n> are unchanged kit copies and which <m> were
+written for this project — those are the ones to read.
+**Still owed after the merge:** protection on `<base>`, the smoke test, the control-skills check,
+the final checklist — about five minutes. **To finish, in this order:** the four lines below.
+**Already outside git, whatever you decide:** the <n> labels created on the tracker<, and the
+engine change(s) recorded in `.local/xezar/runtime/onboarding-engine-settings.json`>. Closing <PR>
+unmerged does not remove them; the undo for each is in that record and under "Setup rejected".
+
+<the tools are not loaded — this session started before the MCP registration existed — or the
+owner deferred:>
 **Next, in this order:**
 1. Merge <PR>.
 2. `git switch <base> && git pull`
@@ -87,6 +99,59 @@ Keep the engine running in its own terminal the whole time. Closing this session
 stop it; closing that terminal does.
 
 PR: #<number> (link: <full PR URL>)
+```
+
+## Setup pull request body
+
+Written by `references/write.md` §6. Sorted by origin, because origin decides how much reading a
+file needs. Omit a group that is empty. Counts are counted, never estimated.
+
+```markdown
+## 🎯 What this does
+
+Sets this repository up to be run by a project leader on the xezar engine: <one sentence on what
+changes for a contributor tomorrow>. No file under <the project's source folders> is touched.
+
+## 🔍 How to review <n> files
+
+| Origin | Files | How much reading |
+|---|---|---|
+| Copied unchanged from the kit | <count> — `.xezar/workflows/` <n>, `.xezar/skills/` <n>, and the copied files under `.xezar/checks/` and `.xezar/docs/` | None needed. Every file's origin and digest is in `.xezar/onboarding.json`; compare a file against the digest recorded there. `diff -r <installed skill>/kit/workflows .xezar/workflows` and the same for `kit/skills` print nothing — the other two folders also hold generated files, listed in the next row. |
+| Adapted during the copy | <each path> | The changed lines only: <what was rewritten and why, one line each> |
+| **Written for this project** | <each path> | **Read these.** They state how *this* project works: the gate list, the branches, the routing shape, the process documents. |
+| Your files, edited | <each path> | One line each: <what was added and why — e.g. four folders added to the formatter's ignore file> |
+
+## 🏷️ Outside this diff
+
+- <n> labels were created on the tracker before this pull request opened (<m> already existed and
+  kept their colour). **They stay if this pull request is closed unmerged.**
+- <engine changes, if any, each with its undo as a call — never a path under the owner's home folder, which carries their username; a backup path belongs in the session report only. Or omit the bullet.>
+- Not done yet, on purpose: branch protection and the smoke test. Both run after the merge.
+
+## ⚠️ Worth a second look
+
+<the trust boundary: the session-start hook, its loader script and the launcher's
+`--dangerously-load-development-channels` flag, in plain words — and anything the run reported as a
+cross>
+```
+
+## Setup rejected
+
+When `references/verify.md` finds the setup pull request **closed unmerged**. Stop; clean nothing
+up unasked.
+
+```markdown
+## ⛔ Setup pull request closed without merging — I have stopped
+
+Nothing from it is on `<base>`. Three things were made **outside git** and are still there:
+
+| What | Undo |
+|---|---|
+| <n> labels on the tracker | delete them on the tracker's label page — only the ones this run created, which the pending file records: <names> |
+| <engine setting, per entry in `.local/xezar/runtime/onboarding-engine-settings.json`> | <the one call; the backup path only if there is no call> |
+| `.local/xezar/runtime/onboarding-pending.json` | delete it when you are sure; while it exists a new run resumes instead of starting over |
+
+Say the word and I do any of these for you. I do none of them unasked.
 ```
 
 ## Protection could not be applied
@@ -123,7 +188,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 | 🧪 Gates | `<command>`, `<command>`, … |
 | 📝 Design gate | on / off — <the UI evidence behind it>; the whole design half installs either way |
 | 🤖 Leader | <model>, second login: yes / **none — its own limit ends the night** |
-| 🔀 Lanes | <n> task lanes, <n> unlimited; leader's login reserved and never dispatched to |
+| 🔀 Lanes | <n> task logins, <n> unlimited; leader's login reserved and never dispatched to |
 | 📋 Routing | <n> rows across 8 classes, each chain ending in `wait` |
 | 📝 Documents | under `docs/` — <the folders that differ from the default, or "all defaults"> |
 | 📸 Browser tool | `<descriptor>` <only when the machine had both and the owner chose> |

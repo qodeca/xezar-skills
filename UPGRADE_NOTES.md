@@ -17,6 +17,53 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – a whole lane is marked out of budget when one login runs out
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or earlier.
+
+**Symptom – work waits although a model is still available.** The shipped hourly budget loop (L2
+in `.xezar/loops.json`) treated a *lane* as the thing that runs out of tokens. A lane is a tool
+plus a model; the thing that runs out is a **login**, and a lane is only out while every login in
+its tool's rotation is. With the old wording, one exhausted login parks every lane on that tool.
+
+Fix: open `.xezar/loops.json`, replace the L2 prompt with the one in
+`.claude/skills/xez-onboard-opinionated/kit/loops.json`, then start a new leader session so the
+loop is re-created from the new text (the leader compares both fields at every start).
+
+Skipping it costs throughput, not correctness: nothing runs on an exhausted login either way.
+
+## 2026-09-21 – the leader guide is over 200 lines, or the routing table ranks logins
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or earlier.
+
+**Symptom 1 – `.xezar/docs/leader-guide.md` is longer than 200 lines.** Count it:
+`wc -l .xezar/docs/leader-guide.md`. The shipped template was too long for its own limit, so every
+guide written from it is. The guide loads in full at every session start, resume, clear and
+compaction, so the extra lines are paid for again and again. An installed guide never updates
+itself.
+
+Fix, by hand, because the guide may carry rules you added:
+
+1. Copy the new reasoning document in:
+   `cp .claude/skills/xez-onboard-opinionated/kit/docs/leader-guide-detail.md .xezar/docs/`
+2. Open `.claude/skills/xez-onboard-opinionated/kit/leader-guide.template.md` beside your guide and
+   replace each shipped section with the shorter one, **keeping every heading as it is** and
+   keeping every line that ends `(owner <date>)` — those are yours.
+3. Leave your four project sections at the end alone.
+4. `wc -l .xezar/docs/leader-guide.md` again — it should now be at or under 200, plus whatever
+   rules you have added yourself since.
+
+Skipping it loses nothing but tokens: the long guide says the same rules.
+
+**Symptom 2 – the chains in `.xezar/docs/model-routing.md` name logins or accounts** rather than
+`<tool>/<model>` entries. A lane is a tool plus a model; logins are only the order a tool's accounts
+are tried in when one runs out. A table written the old way still dispatches, so nothing breaks —
+but it cannot say "this model is for hard work only" or "this one only makes pictures", and a
+login that runs out looks like a lane that is gone.
+
+Fix: run `/xez-onboard-opinionated --section routing` and answer the routing screen again; it now
+asks what each model is for before it proposes a ranking.
+
 ## 2026-09-21 – the leader has no workflow for a deploy, a UI test suite, an architecture decision…
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.4.0 or earlier.

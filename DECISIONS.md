@@ -888,3 +888,75 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 This repository's own validation command list grew from twenty to twenty-one. It is not a
 protected surface — no consumer reads it — and the four places that state it moved together.
 
+## A lane is a tool plus a model
+
+Until 1.5.0 the routing interview defined a lane as "a vendor, an account and a model class". The
+first audited fresh-repo run (2026-09-21, `qodeca/8cli`) followed that sentence and proposed
+preference chains made of **logins**. The owner stopped it: a chain ranks what does the work — a
+tool running a model — and logins are only the order a tool's accounts are tried in when one runs
+out of tokens. One screen took four takes.
+
+So a lane is `<tool>/<model>`, a chain never names a login, and the login **rotation** is one
+line per tool beside the table. Two things the old shape had no words for came with it: an
+**escalation-only** lane (a model the owner keeps for unusually hard work, never picked by
+budget) and a **single-purpose** lane (generated pictures, say). The routing screen now asks what
+each model is *for* before it proposes a ranking, because "strongest first" is wrong for an owner
+who saves the strongest model.
+
+Global prohibition 4 lost its "different account" half on purpose: a different vendor is always a
+different login, and rotating to another login of the same vendor never satisfied it. Budget is
+still tracked per tool × login. A routing table written the old way still dispatches — the leader
+reads whatever chain it is given — so this is a change to what the interview writes, not a
+breaking change to a protected surface; `UPGRADE_NOTES.md` says how to rebuild one.
+
+## A consented edit when the engine says no
+
+The engine keeps some actions for a person and refuses them to an agent. The skill had no rule
+for that moment. In the audited run the agent guessed four argument shapes, met the refusal on the
+fourth, and then — with the owner's go-ahead, improvised on the spot — copied the machine's
+account registry into the project and edited `~/.xezar/config.json` by hand.
+
+The owner's decision: keep that path, because sending a first-time user into a settings page in
+the middle of an interview is the less friendly answer, and because a path that **asks first**
+leaves the decision where the engine's guard put it — with a person. `SECURITY.md` lists "touches
+files outside the repository" as a vulnerability, and it outranks everything here, so the path is
+a **recorded exception there**, not a reading of it: two named files, one question that shows the
+exact change, a backup first, never a secret, a read-back through the engine, and a line in the
+report with the undo.
+
+What it gives away: an agent now has a documented way to write a file that belongs to the
+machine, and the only thing between a confused run and that file is one question. What bounds it:
+the skill never *proposes* the machine-wide case — `references/verify.md` still says never reach
+for a machine-wide setting from a per-project setup — and the common case writes inside the
+project. The engine's own tool always comes first; engine 0.17.0 already allows both actions the
+run was refused on 0.16.0, so on a current engine this path should rarely be walked at all.
+
+## The leader guide's budget is checked, because it was impossible
+
+`references/write.md` told the agent to keep the generated leader guide under 200 lines while the
+shipped template's fixed part was 186 and the four generated sections were budgeted at 65. No run
+could comply; the audited one reported 227 lines as a cross it could do nothing about. The guide
+is injected in full at every session start, resume, clear and compaction, so the limit is worth
+keeping — the fixed part was cut to fit, with the reasoning moved to
+`kit/docs/leader-guide-detail.md`, which the leader opens on demand. `test-kit-facts.mjs` now adds
+the fixed lines to the stated budgets and fails above 200, so the two numbers cannot drift apart
+again. Every heading kept its name: `xez-add-rule` routes owner rules into them.
+
+## The clock rule is every skill's, not one skill's
+
+An audited onboarding run invented every timestamp it wrote — interview state, the resume marker,
+both halves of the manifest — some of them an hour into the future. A session has no sense of the
+time, so a date it types is a plausible-looking guess, and the files it lands in are exactly the
+ones a later run or a later person trusts to say when something happened.
+
+The rule is one sentence: read the time with `date -u`, never type it. A review pass found eight
+other skills that write a date the same way — `xez-add-rule`, `xez-auto-update-changelog`,
+`xez-auto-write-spec`, `xez-brainstorm`, `xez-close-fixed-issues`, `xez-followup-issue-from-pr`,
+`xez-pipeline-retro`, `xez-spec-writing` — and the owner chose to sync all nine at once rather
+than leave eight skills dating their own output by guess.
+
+It lives in each skill's own "specifics" section rather than in a generated shared block. The
+block generator is for text that must be byte-identical everywhere; this rule names what each
+skill actually writes, so it reads differently in a changelog skill and in a spec skill. If it
+ever needs to be identical, that is the moment to promote it to a shared block, not before.
+

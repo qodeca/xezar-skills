@@ -68,19 +68,21 @@ what it is for. A preview nobody reads is a preview that approved everything.
 
 ## Say what the preview does not cover
 
-Five things that are not files in the pull request, named explicitly, because they are the ones
+Six things that are not files in the pull request, named explicitly, because they are the ones
 that surprise people:
 
 - **The label taxonomy is created on the tracker**, before the setup pull request opens, so that
   pull request can carry its labels. List the labels by name and group, and mark which already
-  exist: those keep their colour and description. Approving the preview approves this.
+  exist: those keep their colour and description. Approving the preview approves this — and say in
+  the same breath that labels live on the tracker, not in the pull request: **closing the setup
+  pull request unmerged does not remove them.**
 
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the
   owner. Say whether this login can apply it, which the preflight already determined.
 - **Three engine settings are changed for this project**, each read first, recorded with what it
-  was, and read back (`references/verify.md` §3): the **default task account** becomes the lane
-  chosen in the interview; **skill auto-update is switched off**, so skills change when the owner
+  was, and read back (`references/verify.md` §3): the **default task account** becomes the **login**
+  chosen on screen 3; **skill auto-update is switched off**, so skills change when the owner
   updates them and not at an engine start; and **OpenCode is switched off**. For the last, say why
   in one line — it can stall silently after a denied permission and does not enforce a step's tool
   limits — and give the one call that turns it back on. Say where all three live: git-ignored
@@ -88,9 +90,14 @@ that surprise people:
   other project on this machine is touched — and that the provider switch is skipped, and
   reported, when the engine says it is not in single-project mode or when an existing routing
   table still uses OpenCode.
+- **A machine-wide engine change is possible later, and this preview does not cover it.** This
+  skill never proposes one. If the owner later names such a change themselves, it is asked in its
+  own question that shows the file and the exact values
+  (`references/engine-refusals.md`), and it is reported on its own line with its undo.
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
 - **The interview state file** under `.local/xezar/runtime/` was already written, before this preview.
-  It is the only thing written so far, and the owner should know it exists.
+  It is the only thing written so far, and the owner should know it exists — unless the owner
+  accepted the consented account-registry copy earlier, which is then named here as the second.
 
 ## One approval, over the whole set
 

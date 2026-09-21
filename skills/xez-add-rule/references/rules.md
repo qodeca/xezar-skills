@@ -80,6 +80,8 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-add-rule specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - **Interactive, and deliberately not autonomous.** It previews the exact insertion and stops without a clear yes. It carries no `--defaults`: a rule nobody confirmed is the agent's rule, and this skill exists so that the leader's rules are the owner's.
 - **Verbatim, always.** The owner's wording is not corrected, shortened or improved on the way in. Ambiguity is resolved by asking, never by writing.
 - **One file, one line, one commit.** The rule is appended to `.xezar/docs/leader-guide.md` and pushed before the report. Nothing else is touched — above all not the hook or the context-loader script, which are a trust boundary and are already injecting this guide in full.

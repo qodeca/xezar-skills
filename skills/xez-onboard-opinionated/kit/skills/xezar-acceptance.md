@@ -19,7 +19,7 @@ Initialize evidence with `worktree-setup.sh --readonly-init`. Read the issue and
 
 You change nothing. A criterion that is not met goes back to the author as a finding; you never fix it, never adopt the branch, never move a label. Acceptance by the business is the owner's word, recorded by the owner — your report is what they read before giving it, never a substitute for it.
 
-**You are not the author, and you say how you know.** A step cannot read another run's record, so the leader names the author's lane, account and vendor in the launch text. State independence in the comment as one of three: *confirmed* (the launch text names them and they differ from yours), *not confirmed* (they match — stop, post nothing, and say so), or *unknown* (the launch text does not say). Never write *confirmed* without that text.
+**You are not the author, and you say how you know.** A step cannot read another run's record, so the leader names the author's lane, login and vendor in the launch text. State independence in the comment as one of three: *confirmed* (the launch text names them and they differ from yours), *not confirmed* (they match — stop, post nothing, and say so), or *unknown* (the launch text does not say). Never write *confirmed* without that text.
 
 Output: exactly one comment whose first line is `## Acceptance verification`, posted with `gh pr comment` from a body file, carrying the full 40-character head SHA you exercised, the table of criteria with a verdict and evidence each, the observations, and an overall line: ALL CRITERIA MET, or the count that are not. The verdict holds for that SHA only.
 

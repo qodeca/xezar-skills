@@ -427,7 +427,7 @@ const fail = (fact, where, detail) =>
   if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
   if (!/does not enforce a step's tool limits is in no chain/.test(rows))
     fail(fact, "references/routing-rows.md", "lost the global prohibition that keeps such a provider out of read-only and release chains");
-  if (!/OpenCode accounts are not offered/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode accounts as task lanes again");
+  if (!/OpenCode logins are not offered as task logins/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode logins as task logins again");
   if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
     fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
   checked.push(fact);
@@ -444,6 +444,34 @@ function walk(rel, match) {
   };
   rec(rel);
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// FACT 13 -- the leader guide's line limit can actually be met.
+// write.md tells the agent to keep the generated guide at or under 200 lines. For one release the
+// template's fixed part (186) plus the four section budgets (65) made that impossible, and the
+// first audited run reported a 227-line guide as a cross it could do nothing about. So the two
+// numbers are added up here: fixed lines of the template + the budgets stated in write.md.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
+  const LIMIT = 200;
+  const tpl = read(`${SKILL}/kit/leader-guide.template.md`)
+    .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
+    .replace(/^---\n+/m, "");                       // and the rule above the generated half
+  const fixed = tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  const write = read(`${SKILL}/references/write.md`);
+  const budgets = [...write.matchAll(/^\s*\| `\{\{[A-Z_]+\}\}` \|.*\| ≤ (\d+) \|\s*$/gm)].map((m) => Number(m[1]));
+  if (budgets.length !== 4)
+    fail(fact, "references/write.md", `expected four placeholder budgets ("≤ N"), found ${budgets.length}`);
+  else {
+    const total = fixed + budgets.reduce((a, b) => a + b, 0);
+    if (total > LIMIT)
+      fail(fact, "kit/leader-guide.template.md", `${fixed} fixed lines + ${budgets.join(" + ")} budgeted = ${total}, over the ${LIMIT}-line limit write.md states -- no run can comply`);
+  }
+  if (!new RegExp(`\\*\\*${LIMIT} lines\\*\\*`).test(write))
+    fail(fact, "references/write.md", `no longer states the **${LIMIT} lines** limit this fact adds up to`);
+  checked.push(fact);
 }
 
 if (problems.length) {

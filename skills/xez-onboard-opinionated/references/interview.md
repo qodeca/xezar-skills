@@ -27,6 +27,10 @@ under `.local/xezar/`, and a skill that breaks its own rule on its first run is 
 }
 ```
 
+`startedAt` and `updatedAt` are **read from the clock** (`date -u +%Y-%m-%dT%H:%M:%SZ`), never
+typed: a session has no sense of the time, and the first audited run invented every timestamp it
+wrote (`references/rules.md` → the clock rule).
+
 `answers.facts` holds one key per fact on screen 1, each with the value and whether the owner
 changed it — a corrected fact and a confirmed one are not the same evidence, and the report says
 which is which.
@@ -66,7 +70,8 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |
-| The task lanes available | the account registry, minus the reserved login |
+| The task logins available | the account registry, minus the reserved login |
+| The lanes available | every `<tool>/<model>` analysis found, each marked cloud or local, and whether it can see a picture |
 
 Four of these carry a consequence the owner cannot see from the fact alone, so state it beside the
 fact rather than in a question of its own:
@@ -98,11 +103,27 @@ one most likely to be wrong on a stack nobody has tested here.
 "No validation command found" is a legitimate state and is asked, never filled with a placeholder.
 A placeholder that echoes a suggestion looks like a configured gate and enforces nothing.
 
-### 3. `lanes` — one table: what runs what
+### 3. `lanes` — one table: which logins run tasks
 
-The accounts from screen 1, as a table the owner marks up in one pass: which are task lanes, which
-are unlimited, and which single lane is the engine's default for a task that names no account.
-These are three columns of one decision, not three topics.
+**A lane is a tool plus a model; a login is not a lane** (`references/routing-interview.md`). This
+screen is about the logins *under* the lanes: the task logins from screen 1, as a table the owner
+marks up in one pass — which may run tasks, in which **rotation order** per tool, which are
+unlimited, and which single login is the engine's default for a task that names none. These are
+columns of one decision, not separate topics.
+
+**The registry can be emptier than the machine**, and that was settled before this screen.
+`references/preflight.md` check 5 owns the question: the engine copies the owner's global logins
+in only when its one-time first-start question is answered `y`, and the default is No. By the time
+this table is drawn the answer is in the interview state — imported, declined, or "meant to be
+empty". Read it; do not ask again. If it says the import is still owed, this screen cannot be
+drawn honestly: go back to check 5's offer rather than building a routing table on a registry the
+owner did not mean to be empty.
+
+**A default that names nothing.** The built-in login of a tool — for Claude Code, the `~/.claude`
+folder, handle `default` — has **no record in the registry**. So a registry default naming an id
+with no record is most likely that built-in login under a name the owner gave it, not a typo. Ask
+**once** what it is, and until this screen is answered **leave it alone**: the first audited run
+rewrote that one value three times in four minutes.
 
 Two rules that are not negotiable and are stated on the screen:
 
@@ -110,18 +131,18 @@ Two rules that are not negotiable and are stated on the screen:
   dispatched to it — and why the unnamed-task default may not be it either. The engine's own
   default out of the box is whatever the owner logged in with first, usually exactly that login,
   which breaks this rule on the first task dispatched without an explicit account. So the default
-  is **validated on this screen, not asked**: offer only lanes that are not the reserved one.
+  is **validated on this screen, not asked**: offer only logins that are not the reserved one.
 - **A missing login is a hard stop at dispatch, never a fallback to the reserved one.** Offer only
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
-**OpenCode accounts are not offered as task lanes.** The setup switches that provider off for this
-project (`references/verify.md` §3 has the four reasons and the one call that undoes it), so a lane
-on it would be a lane whose every dispatch is refused. Say so on the screen in one line when the
+**OpenCode logins are not offered as task logins, and no `opencode/<model>` lane is offered
+either.** The setup switches that provider off for this project (`references/verify.md` §3 has the
+four reasons and the one call that undoes it), so every dispatch on it would be refused. Say so on the screen in one line when the
 registry holds such an account, rather than leaving the owner to wonder where it went.
 
-Unlimited lanes are exempt from budget tracking, so they are marked here rather than discovered
-from a rate limit that never arrives.
+Unlimited **logins** are exempt from budget tracking, so they are marked here rather than
+discovered from a rate limit that never arrives.
 
 With a single login there is nothing to choose: say so, carry the warning into the report, and skip
 the screen. The answer is *set*, not only recorded — `references/verify.md` does it once the
@@ -129,7 +150,8 @@ engine's tools are there, and reports what the default was before.
 
 ### 4. `routing` — eight classes, one screen
 
-Handled in `references/routing-interview.md`: a proposed chain per task class, all eight classes
+Handled in `references/routing-interview.md`: first what each model is *for* (daily, escalation
+only, single purpose, unused), then a proposed `<tool>/<model>` chain per task class, all eight classes
 confirmed or reordered together — mechanical, writing, design, visuals, implementation, testing, review,
 security and release.
 
@@ -145,6 +167,12 @@ from the routing answers, and the leader asks about anything it does not find th
 report that no day-one preferences were seeded.
 
 ## How to ask
+
+- **Screens 1 to 3 may go out as one call.** They do not depend on each other's answers, and a run
+  that asked them together lost nothing. Screen 4 waits for screen 3.
+- **A third take of one screen is a defect, not diligence.** Two takes is a correction; three
+  means the proposal was built on a wrong idea. Stop proposing, ask the owner the one open
+  question behind it in plain words, and name the screen and the reason in the run report.
 
 - **Proposals carry their evidence.** "The remote says the default branch is X" — so the owner can
   tell a reading from a guess.

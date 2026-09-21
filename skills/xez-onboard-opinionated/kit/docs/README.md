@@ -13,8 +13,9 @@ ship as they are.
 |---|---|
 | `leader-guide.md` | Who the leader is, what only the owner may decide, how a session starts and recovers, what gets logged where. **Generated during onboarding.** |
 | `leader-context-loading.md` | How the guide gets reloaded at every session start and compaction, the guard that keeps it out of task agents, and the three standing loops. |
+| `leader-guide-detail.md` | The reasoning behind each rule in the leader guide. The guide loads at every session start, so it carries rules only; open this when a rule looks wrong. |
 | `campaign-notes.md` | What a campaign folder is, its seven file kinds, and which of them load at session start. |
-| `model-routing.md` | Which lane and model the leader dispatches for each task kind. **Built with the owner during onboarding**, because lanes exist on a machine, not in a repository. |
+| `model-routing.md` | Which lane — a tool plus a model — the leader dispatches for each task kind, and the login rotation under each tool. **Built with the owner during onboarding**, because lanes exist on a machine, not in a repository. |
 
 ## Running the work
 

@@ -81,5 +81,7 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-followup-issue-from-pr specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - **User in the loop.** This is a companion to interactive code review, not an autonomous pipeline stage: ambiguous comment selection, modified-only design documents, and non-actionable comments are confirmed with the user instead of guessed. Never invent a task the reviewer did not ask for.
 - Labels applied on issue creation come from the config's category taxonomy (category labels are additive: `bug`, `feature`, `refactor`, `security`, …) and only if they already exist in the target repo (**list-labels** scoped to that repo); when `labels.enabled` is `false`, skip labels entirely and note it in the report.

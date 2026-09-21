@@ -36,15 +36,7 @@ carries: the account registry and the two workspace state files. They are machin
 set once per operator — the registry keys its selections by the checkout's absolute path — and
 onboarding must never fabricate them either.
 
-**Copy these files with a plain copy, one file per command.** The launcher carries a flag whose
-name begins `--dangerously`, and a harness that screens shell commands refuses a command that
-*types* such a script — the first test lost the launcher, the permission file and the MCP
-registration in one refused heredoc, and the launcher became a second pull request. A copy of a
-file that ships in the kit is not that. If the copy of the launcher is still refused, do not work
-around it: finish the rest, list it under "not written" with the path to the kit file, and let
-the owner copy it.
-
-**Delete the engine's two example files before copying.** `xezar init` writes
+**First, before any copy: delete the engine's two example files.** `xezar init` writes
 `.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`, and preflight
 check 3 accepts them as a clean start. They are **not** overwritten by the copy: no workflow and no
 skill in the kit carries either name. So remove both, by path, before the copy — and say in the
@@ -59,6 +51,14 @@ role, which is the kind of thing a reader assumes somebody meant.
 Delete only these two, only when their content is still the generated content check 3 recognised.
 An **edited** `fix-and-verify.yaml` is somebody's configuration, which is a preflight stop, not
 something this step may quietly remove.
+
+**Copy these files with a plain copy, one file per command.** The launcher carries a flag whose
+name begins `--dangerously`, and a harness that screens shell commands refuses a command that
+*types* such a script — the first test lost the launcher, the permission file and the MCP
+registration in one refused heredoc, and the launcher became a second pull request. A copy of a
+file that ships in the kit is not that. If the copy of the launcher is still refused, do not work
+around it: finish the rest, list it under "not written" with the path to the kit file, and let
+the owner copy it.
 
 **Every file comes from the kit and the answers — never from this repository's git history.** A
 project that was onboarded before, and then had the setup removed, still has the old configuration
@@ -219,15 +219,21 @@ Never copied, because each depends on an answer:
   an account name into the result — both are gitignored runtime facts.
 
   The guide is injected **in full** at every start, resume, clear and compaction, so its size is
-  paid on every one of those events. Keep the whole file under **200 lines**; the shipped template
-  is about 190, which leaves roughly 60 for the four sections together. Budget them:
+  paid on every one of those events. Keep the whole file at or under **200 lines**, as you write it; the
+  shipped template's fixed part is 145, which leaves 51 for the four sections together and about
+  four lines spare. Those numbers are counted, not estimated — `scripts/test-kit-facts.mjs` adds
+  the template's fixed lines to the four budgets below and fails above 200, because for one
+  release the limit was arithmetically impossible and every run reported a cross it could do
+  nothing about. **The limit is about what this skill writes, not a cap forever**: a rule the
+  owner later adds with `xez-add-rule` grows the guide, and that is the product working. Budget
+  them:
 
   | Placeholder | Must state | Lines |
   |---|---|---|
-  | `{{REPOSITORY_SETUP}}` | the base branch; the gate command list; where source, tests and docs live; the one command that runs the gate | ≤ 15 |
-  | `{{TASK_LIFECYCLE}}` | the stages a task passes through, in order, and which of them a label marks | ≤ 15 |
-  | `{{ROUTING_ACCOUNTS_LIMITS}}` | the path to `.xezar/docs/model-routing.md`; **which login is the reserved leader login and that it runs no tasks**; how a lane being out is recorded | ≤ 20 |
-  | `{{RELEASE_RUNBOOK}}` | who authorises a release, the steps in order, and what proves each one | ≤ 15 |
+  | `{{REPOSITORY_SETUP}}` | the base branch; the gate command list; where source, tests and docs live; the one command that runs the gate | ≤ 12 |
+  | `{{TASK_LIFECYCLE}}` | the stages a task passes through, in order, and which of them a label marks | ≤ 12 |
+  | `{{ROUTING_ACCOUNTS_LIMITS}}` | the path to `.xezar/docs/model-routing.md`; **which login is the reserved leader login and that it runs no tasks**; how a lane being out is recorded | ≤ 15 |
+  | `{{RELEASE_RUNBOOK}}` | who authorises a release, the steps in order, and what proves each one | ≤ 12 |
 
   A section with nothing true to say gets one honest line — "this project has no release process
   yet" — not invented content. The guide is read after every compaction, so a padded section costs
@@ -235,7 +241,9 @@ Never copied, because each depends on an answer:
 - **`.xezar/docs/model-routing.md`** — from the routing interview. One line per row of
   `references/routing-rows.md`, and **every column of the row survives**: the task kind, the
   **workflow file**, the trigger sentence, the class, the row's own bans, and the chain the owner
-  confirmed. The leader picks a workflow by matching a trigger in this document, so a row written
+  confirmed. Every chain entry is `<tool>/<model>` and never a login; the login rotation per tool,
+  the escalation-only lanes and the single-purpose lanes are each written once, above the rows —
+  the rotation as *positions* only, because login names belong to the gitignored half. The leader picks a workflow by matching a trigger in this document, so a row written
   without its workflow is a kind of work the leader can recognise and cannot start. Carry over the
   global prohibitions, the rule for two matching triggers and the look-alike pairs as well — they
   are how the leader chooses between rows, not commentary.
@@ -326,8 +334,11 @@ to carry — do not invent one, and do not tell the owner to run one.
   will otherwise commit scratch, runtime state and the gitignored identity half of the manifest
   into the first branch it touches. `kit/xezar.gitignore` lands at `.xezar/.gitignore` and its
   paths are rooted there, so it **cannot** cover a repo-root path — this is a separate write.
-- `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`), each
-  with a stated meaning, plus `kit/checks/local-tree.sh` — which reports a missing subfolder or
+- `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`).
+  **Create the folders and nothing else — no README beside them.** What each one is for is printed
+  by `kit/checks/local-tree.sh` itself, and that check reports any file at the top level as loose,
+  a README included: the first audited run wrote one and failed its own gate on it. Beside them,
+  `kit/checks/local-tree.sh` — which reports a missing subfolder or
   anything loose at the top level, and deletes nothing. It is a check rather than a line in a
   document because a rule about tidiness is exactly the kind that gets skimmed and ignored.
 - **Where this collection's skills live.** They are installed per machine and **never
@@ -336,12 +347,18 @@ to carry — do not invent one, and do not tell the owner to run one.
   dirty the tree at every start. Write three lines to the root `.gitignore` —
   `/.agents/skills/xez-*`, `/.claude/skills/xez-*`, `/skills-lock.json` — **without a trailing
   slash**, because a slash pattern does not match a link. `.claude/skills/` itself stays
-  tracked: a project's own skills belong in git. Add `.agents` to every formatter and linter
-  ignore file analysis found. Put one "get the skills" section in the generated `AGENTS.md` with
+  tracked: a project's own skills belong in git. Add **all four** folders the setup brings — `.xezar`,
+  `.claude`, `.agents` and `.local` — to every formatter and linter ignore file analysis found
+  (`references/analysis.md` §6); naming only one of them leaves the project's own format check
+  red on day one. Then **run the project's own formatter over the root files this step generated
+  or edited** (`AGENTS.md`, `CLAUDE.md`, the ignore files, any config it touched) before the gate:
+  they are the project's files now and answer to its style, and the first audited run failed its
+  format check on exactly those. Put one "get the skills" section in the generated `AGENTS.md` with
   the install command and **two** `--agent` values (`claude-code` and `codex`): one value makes
   copies, two make the link layout. This skill **names** that command and never runs it; when
   the skills are not installed in the project, say so in the report.
-- **Both halves of the manifest.** Committed `.xezar/onboarding.json`: version, date, stack,
+- **Both halves of the manifest.** Every date and time in them comes from
+  `date -u +%Y-%m-%dT%H:%M:%SZ`, run at that moment — never typed. Committed `.xezar/onboarding.json`: version, date, stack,
   detected facts, the *shape* of the answers, per-file digest and origin. Gitignored
   `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
   teammate cloning the repository gets the first and not the second, and a future migration
@@ -355,7 +372,9 @@ to carry — do not invent one, and do not tell the owner to run one.
 **ensure-label-taxonomy** from the `labels.json` just written, then **list-labels** to read back.
 The owner approved this in the preview, where the taxonomy is listed by name — it is a change to
 the repository, not to a file, and it is never made unasked. Existing labels keep their colour
-and description. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
+and description. **Write down which labels this run created and which already existed**, in the
+pending file below: a later session cannot tell them apart, and the report for a rejected setup
+has to name the ones it would be undoing. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
 which carries the three design labels the kit's policy needs; the tracker descriptor is this
 skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
 
@@ -363,15 +382,27 @@ Commit on a setup branch and open a pull request. The pull request carries the f
 set the pipeline itself demands — one pipeline label, a category, a QA label, one priority, one
 risk — through the descriptor's guards. This skill does not merge its own
 setup — a change this large to how a project works is reviewed by the person who will live with
-it, and the offer below is how that person is asked. Protection (step 7) is applied after the
+it, and the offer below is how that person is asked.
+
+**Write the pull request body for the person who has to review a hundred files.** Use
+`references/report-templates.md` → "Setup pull request body". It sorts every file by **origin**,
+because origin decides how much reading a file needs: copied unchanged from the kit (a count per
+folder, and the one `diff -r` line that proves it), adapted during the copy (each named, with what
+changed), **written for this project** (the short list to actually read), and the owner's own
+files that were edited (each with its one-line reason). A flat list of 114 paths is a review
+nobody does, and an unreviewed setup pull request is how the first audited run ended. Protection (step 7) is applied after the
 merge, because protecting a branch the setup has not landed on yet only blocks the setup.
 
 **Leave the way back in.** Steps 7 to 10 run after the merge, and often in a later session: the
 MCP registration this step wrote is read by Claude Code only when a session starts, so a session
 that began before it existed has no engine tools and cannot run the smoke test. Write
-`.local/xezar/runtime/onboarding-pending.json` — the pull request number, the base branch, and
-the time — and end the step with the exact lines from `references/report-templates.md` →
-"Setup pull request open". Without the file a second run finds `.xezar/onboarding.json`, reads it
+`.local/xezar/runtime/onboarding-pending.json` — the pull request number, the base branch, the
+labels this run created and the ones that already existed, and the time from
+`date -u +%Y-%m-%dT%H:%M:%SZ` — and end the step with the exact lines from
+`references/report-templates.md` →
+"Setup pull request open". It is also the only marker on a base branch where the setup has not merged, which is why
+preflight check 4 looks for it even when `.xezar/onboarding.json` is absent. Without the file a
+second run finds `.xezar/onboarding.json`, reads it
 as a finished onboarding, and refuses; the first test of this skill ended exactly there.
 
 **Then offer the merge — once, and only on green.** Write the pending file first, so a declined
@@ -379,7 +410,8 @@ offer resumes cleanly, then read the pull request's checks through tracker opera
 what they say:
 
 - **Every required check green** → ask one question: merge now and finish here, or leave it for
-  the owner to review? On yes, merge, `git switch <base> && git pull`, and continue into
+  the owner to review? **"I will read it first" is a normal answer, not a failure**: end with the
+  *owner defers* branch of the report, once, and do not ask again in this run. On yes, merge, `git switch <base> && git pull`, and continue into
   `references/verify.md` in this session. That is the whole point of asking: steps 7 to 10 cannot
   run before the merge, and an owner who has to come back for them usually comes back without the
   engine's tools loaded, which is a second session and a `--verify` run.

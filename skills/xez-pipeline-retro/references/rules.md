@@ -81,6 +81,8 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-pipeline-retro specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - **No claim of its own.** This skill is read-only, so it never claims, never releases, and ships no claim procedure at all. A request still carrying the in-progress label belongs to a run that has not finished: the classifier reports it separately and counts it nowhere.
 
 - **Read-only reporting skill — not an autonomous pipeline run.** It classifies finished runs and reports what they cost, and never merges, edits, comments on, or labels anything; the autonomous-run contract of the `xez-auto-*` skills does not apply. When the user picks a cause to act on, hand off to `xez-prepare-issue`, which re-derives its own deduplication against existing issues and applies labels on creation.

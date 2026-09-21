@@ -82,5 +82,7 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-auto-update-changelog specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - This skill claims nothing and mutates no labels itself: worktree, branch, commit, claim/lock, PR opening, label normalization, and the review pass are all delegated to the `xez-auto-create-pr` invocation, which runs the full claim procedure and label guards under its own rules.
 - The chaining reference lines are emitted by `xez-auto-create-pr`; this skill surfaces the resulting PR URL in its own report.

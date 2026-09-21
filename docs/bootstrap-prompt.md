@@ -28,6 +28,7 @@ Ground rules
 - Every step is: check, act only if the check fails, then verify. Running this prompt again
   must be safe: keep progress in .local/xezar/runtime/bootstrap.json (step, status, time). If
   that file exists, show it and continue from the first step that is not done.
+  Every time you write down comes from the clock (`date -u +%Y-%m-%dT%H:%M:%SZ`). Never type one.
 - Show me the command first for anything global, anything that writes to GitHub, anything that
   deletes, and the command that opens a terminal window.
   Never use sudo. Never change my permission mode or settings to avoid a prompt.
@@ -72,20 +73,31 @@ Do not ignore .claude/skills/ as a whole - my own skills may live there. Do not 
 
 Step 3 - The engine runs here
 a) Run `xezar init`. It asks nothing, leaves existing files alone, and is safe to repeat.
+   It does NOT bring my agent accounts in. Only the question in (c) does that.
 b) Call the xezar `health` tool. If it says running for this project, go to step 4.
 c) Otherwise the engine must be started in a REAL terminal window of its own, because its first
    start asks one question that it only asks in a terminal, and because it must keep running
-   after this session ends. On macOS, open one for me:
+   after this session ends.
+   BEFORE you open the window: check whether `xezar --help` lists --import-global. If it does,
+   add that flag to the line below and tell me it replaces the question - nothing to type.
+   If it does not, tell me this and wait for my ok, because a window that is already asking
+   cannot be warned about:
+     "A Terminal window will open and ask: Copy your global setup ... [y/N]. The default is No.
+      Type y, then Enter - that copies your agent accounts in. It asks only once. Leave the
+      window open afterwards."
+   On macOS, open the window for me:
      osascript -e 'tell application "Terminal" to do script "cd \"<absolute path of this repo>\" && xezar --single-project --no-open"'
    If that is refused or this is not macOS, print the line for me to run myself:
      xezar --single-project --no-open
    Never start the engine as a background process of this session.
-   Tell me: "Answer y in that window - it copies your agent accounts in - and leave it open."
 d) Wait until .xezar/workspace.json and .local/xezar/ipc/<folder name>.sock both exist. Check
    every few seconds for up to two minutes, then ask me what the window shows.
-   Then read .xezar/agent-accounts.json and tell me how many accounts it lists. None or one means
-   the import did not run, or this machine has one login: say which you think it is, and that the
-   lanes and the routing table will be thin. Do not stop for it.
+   Then read .xezar/agent-accounts.json and tell me how many accounts it lists. If it lists none
+   and ~/.xezar/agent-accounts.json lists some, the question was answered No and will not be
+   asked again: say exactly that, and tell the skill in step 5, which offers to bring them in
+   (its references/engine-refusals.md) - the engine's own tool first, a copy I approve second.
+   Do not copy anything yourself in this step. None in both places means one login on this
+   machine: say the routing table will be thin, and do not stop for it.
 e) If `health` said not-registered in (b), the tools started before the engine had ever run here
    and are still looking in the old place. Calling `health` again does not fix that, so do not
    poll it: tell me "Run /mcp, choose xezar, reconnect.", wait for me to say it is done, and only
@@ -110,7 +122,9 @@ creates the labels I approve, and opens ONE pull request.
 
 Step 6 - Prove it, in this same session
 The skill offers me the merge as soon as the pull request's required checks are green, so expect
-one question here rather than a stop. When the pull request is merged - by me, or by you after I
+one question here rather than a stop. If I say I want to read the pull request first, that is a
+normal answer, not a failure: keep .local/xezar/runtime/bootstrap.json, print the skill's resume
+lines once, and end the run there without asking again. When the pull request is merged - by me, or by you after I
 accept that offer - run `git switch <base branch> && git pull`, then follow the skill's
 references/verify.md (the same as /xez-onboard-opinionated --verify). Finish with its checklist: a tick or a cross per
 line, with the evidence. Any cross: name the one next action. All ticks: delete

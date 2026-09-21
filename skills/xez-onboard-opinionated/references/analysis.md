@@ -48,9 +48,11 @@ bound by convention across roughly eight files, and convention drifts.
 
 ## 3. The design gate's starting position
 
-Look for signs of a user interface: web routes, components, a stylesheet, a frontend build step.
-Propose the design gate on or off accordingly — then let the owner confirm, because only they
-know whether a UI is coming.
+Look for signs of a user interface: web routes, components, a stylesheet, a frontend build step —
+**and a command line**. A CLI's command names, flags, help text, output shape and exit codes are
+the surface its users touch, and they are designed or they are accidents. So a project that ships
+a CLI proposes the gate **on**, the same as one that ships screens. Then let the owner confirm,
+because only they know what is coming.
 
 **The whole design half is installed regardless of the answer**: the gate, its four labels, the
 designs directory, the design skill and the design review workflow. A backend can gain a UI
@@ -92,11 +94,20 @@ Three steps, in order:
 1. **Which agent tools are installed** — probe each candidate for its version. Absent is
    ordinary; record it and move on.
 2. **Which accounts or profiles each tool has**, and **which models each supports** — ask each
-   tool to **list its models**, not only for its version and its default. The first test classed
+   tool to **list its models**, not only for its version and its default. Seen working:
+   `opencode models` and `pi --list-models`. Claude Code and Codex had **no** list command when
+   this was written — for those, read the model names the tool's own `--help` and config file
+   mention, and put them on the facts screen marked "read from config, please confirm". Never run
+   a bare subcommand to find out: on one tool `models` was not a command and opened a chat
+   instead. Record each result as `<tool>/<model>`, cloud or local, sees pictures or not — that
+   list is what the routing screen ranks. The first test classed
    two tools as "local, advice only" from their default model; both also reached a cloud model,
    and the routing question had to be asked twice. Note **which login this session itself runs
    on**: it is the likeliest leader login, and a list of candidates that leaves it out makes the
-   owner type it. Read the engine's account registry for ids and providers. Note that not every tool can hold multiple
+   owner type it. Read the engine's account registry for ids and providers — the project's **and** the machine's
+   global one, because the first can be empty while the second is not (`references/interview.md`
+   screen 3). A tool's built-in login has no registry record, so an id with no record is a
+   question for the owner, not an error. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
    **OpenCode is recorded and not proposed.** When the probe or the registry finds it, note that

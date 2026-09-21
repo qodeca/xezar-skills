@@ -81,5 +81,7 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-brainstorm specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - **Interactive — user in the loop.** This skill is a conversation: open questions go one at a time, and only trivially closed questions may be batched. It has no autonomous mode and must never be driven by an `xez-auto-*` skill; the "Autonomous run — no user in the loop" rule of the `xez-auto-*` skills does not apply here.
 - **Additional markers.** Besides the shared chaining lines, this skill emits `Next:` and `Brief:` (exact shapes in the skill body's Output contract) — same exactness rules as `PR:`/`Issue:`/`Spec:`: line-anchored, never renamed, translated, or decorated.
