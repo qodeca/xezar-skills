@@ -32,13 +32,12 @@ steps:
   # anything was authored, and it is gone because a nearly four-hour measurement whose only
   # repair — a stronger test — lives in somebody else's pull request must not stand between a
   # finished, approved release and publication. Its first end-to-end exercise arrived at release
-  # time, which is when failure costs most: the 0.14.0 attempt died in Stryker's own dry run on a
-  # config mismatch (#375) and found zero product defects.
+  # time, which is when failure costs most: one release attempt died in the mutation runner's own
+  # dry run on a config mismatch and found zero product defects.
   #
-  # **Its home is now the nightly `.github/workflows/mutation.yml` (#377)**, against `main`, and a
+  # **Its home is a nightly workflow of its own**, against the base branch, and a
   # release does not wait on it. Do not add it back here. The gate itself is unchanged: same scope,
-  # same `thresholds.break` of 80 (packages/xezar/stryker.config.mjs). See
-  # docs/testing/coverage-gaps.md § 10.8.
+  # the same break threshold this project's mutation config states.
   - id: changelog
     name: Write the changelog entry from merged PRs
     prompt: "{{task}}"

@@ -2,7 +2,7 @@
 // project config, and every skill a workflow names.
 //
 // Why this exists at all. Xezar parses a workflow step with a Zod object that is NOT
-// `.strict()` (`packages/xezar/src/workflows/types.ts:13-44` — a plain `z.object`, so the
+// `.strict()` (the engine's workflow schema is a plain `z.object`, so the
 // inferred type strips), so an unknown key is SILENTLY DROPPED. A typo'd `commmand:`, or
 // an invented `when:` / `env:` / `cwd:` that does not exist in the schema, loads clean and
 // then does nothing.
@@ -38,7 +38,7 @@ const notes = [];
 const err = (where, message) => errors.push(`${where}: ${message}`);
 
 // --- The schemas, transcribed from the Xezar source ----------------------------------
-// `packages/xezar/src/workflows/types.ts:52-96` (`workflowStepSchema`) and `:103-112`
+// the engine's `workflowStepSchema` and its step-kind union
 // (`workflowFileSchema`), re-read 2026-09-10 at 761c3535ba0a71977da23c3d170b767831016115
 // (`@qodeca/xezar` 0.11.2). The previous transcription was taken at
 // 6cd4aaa3605e8bcddf7bafd8f05ac96881ee35cc (0.10.1) and cited `:13-44` / `:51-60`; those
@@ -104,7 +104,7 @@ const MAINTAINED_SKILLS = new Set([
 // everything else now that Xezar owns the worktree.
 const READ_ONLY_SKILLS = new Set(["xezar-code-review", "xezar-issue-triage"]);
 
-// `packages/xezar/src/config.ts:33-107`.
+// the engine's `configSchema`.
 const CONFIG_KEYS = new Set([
   "skillsRepos",
   "maxParallel",
@@ -526,7 +526,7 @@ if (!singleProjectMode) {
       // The ranges are VALIDATION, not host reconciliation: they are the same on every machine,
       // so refusing an out-of-range value costs a clone nothing and tells the author now instead
       // of after a run behaved unlike the file. Keep them equal to the schema in
-      // `packages/xezar/src/workspace/config.ts` (`maxParallel` :213, `memoryLimitMb` :280).
+      // the engine's workspace config schema (`maxParallel`, `memoryLimitMb`).
       const RANGES = {
         maxParallel: { min: 1, max: 16, nullable: false },
         memoryLimitMb: { min: 0, max: 1_048_576, nullable: true },

@@ -18,7 +18,7 @@
 # observation's own repair budget lives in `report`, which may re-dispatch `ci-watch.sh` in its own
 # turn — once, for the two known load flakes.
 #
-# A check step still runs inside the run's own slot (`packages/xezar/src/workflows/run.ts:3735`).
+# A check step still runs inside the run's own slot.
 # What this split saves is tokens, a parked session and an unbounded wait — NOT a workspace slot.
 name: integration
 description: Verify one explicitly authorized pull request and merge it into main, then observe merge CI without spending an agent turn on the wait.
