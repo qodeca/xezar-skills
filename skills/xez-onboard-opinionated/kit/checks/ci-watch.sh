@@ -4,7 +4,7 @@
 # WHAT THIS IS FOR. The integration role used to do this waiting inside its agent turn: the
 # session stayed open, tokens were spent on a loop that needs no judgement, and nothing bounded
 # it. The observation itself is a command that ends when CI ends, so it belongs in a check step —
-# `packages/xezar/src/workflows/run.ts` (`runCheckStep`) spawns a check with no agent session and
+# The engine's `runCheckStep` spawns a check with no agent session and
 # no tokens. It still runs inside the run's own slot (`run.ts:3735`), so what is saved is tokens,
 # a parked session and an unbounded wait; a workspace slot is NOT freed.
 #
@@ -118,11 +118,13 @@ OUT_STATUS="" OUT_CONCLUSION="" OUT_HEAD_SHA="" OUT_URL=""
 OUT_FAILED_JOBS="" OUT_SUPERSEDED_SHA="" OUT_SUPERSEDED_RUN=""
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# The two jobs this repository has observed failing under machine load rather than because of the
-# change under test. Named here so the record says which failed jobs are candidates for the ONE
-# rerun the integration recipe allows; the rerun itself is the agent's call, never this script's.
-KNOWN_LOAD_FLAKES="Cockpit browser e2e
-MCP per-file coverage"
+# The jobs this project has observed failing under machine load rather than because of the change
+# under test, from `ci.knownLoadFlakes` in `.xezar/pipeline/config.json`. Named so the record says
+# which failed jobs are candidates for the ONE rerun the integration recipe allows; the rerun
+# itself is the agent's call, never this script's. Empty is the honest default: a project that has
+# not watched a job flake yet has no such list, and a name inherited from somebody else's CI would
+# excuse a real failure here.
+KNOWN_LOAD_FLAKES="$(pipeline_config_list ci.knownLoadFlakes 2>/dev/null || printf '')"
 
 record_outcome() {
   local outcome="$1" detail="$2"

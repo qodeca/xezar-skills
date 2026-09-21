@@ -2,7 +2,7 @@
 # Make a fresh Xezar task worktree usable, and record what the task is working on.
 #
 # Xezar checks out tracked files and nothing else: a new worktree has no node_modules,
-# no dist, no coverage. The project config schema (`packages/xezar/src/config.ts`, `configSchema`)
+# no dist, no coverage. The project config schema (the engine's `configSchema`)
 # has no `setup` / `postCreate` key and the migration compatibility record is explicit
 # that no setup hook may be invented, so a check step is the supported way to bootstrap.
 # Check steps run in the same cwd as the agent steps, i.e. the worktree
@@ -162,7 +162,7 @@ printf '  npm          %s\n' "$(npm --version)"
 
 # --- Base freshness ------------------------------------------------------------------
 # Xezar resolves the fork point without fetching — "agents fetch, they never pull"
-# (`packages/xezar/src/git-worktree.ts`, `createWorktree`) — so the worktree is only as current as the
+# (the engine's `createWorktree`) — so the worktree is only as current as the
 # primary checkout's origin ref was at creation time. Report the gap; never rewrite
 # history to close it. Rebasing is a human decision.
 if git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null; then

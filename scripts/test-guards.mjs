@@ -261,6 +261,14 @@ breaks(
 );
 
 breaks(
+  "a module path from the engine's own repository in the vendored kit is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("the engine's `RunManager.agentEnv`", "`packages/xezar/src/workflows/run.ts`"),
+  lint,
+  "packages/(web|xezar)",
+);
+
+breaks(
   "restoring the refusal that made a hand gate run impossible is rejected",
   "skills/xez-onboard-opinionated/kit/checks/lib/gate-record.sh",
   (s) =>

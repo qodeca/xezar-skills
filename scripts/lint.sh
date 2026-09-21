@@ -193,6 +193,13 @@ patterns=(
   '(^|[^[:alnum:]-])develop($|[^[:alnum:]-])'
   '(^|[^[:alnum:]])yarn '
   'findWithDecryption'
+  # A vendored kit is an ADAPTED copy, not a mirror. These are facts about the engine's own
+  # repository — its module paths, its mutation-test config, its design-system tree — and they
+  # shipped into every onboarded project, where the path names nothing and the reader cannot
+  # follow it. Name the symbol, or read the value from `.xezar/pipeline/config.json`.
+  'packages/(web|xezar)'
+  '[Ss]tryker'
+  'docs/design-system'
 )
 
 skill_files=$(find skills -type f | sort)

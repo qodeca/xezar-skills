@@ -502,6 +502,24 @@ either pinned in `scripts/test-kit-facts.mjs` or listed in `references/write.md`
 cost is a manual merge whenever the kit is refreshed from the engine project, and the drift check
 reports rather than resolves, as before.
 
+**Extended, 2026-09-21, after the second onboarding.** The first pass fixed what stopped a run.
+The second test showed what merely *misleads* one: twenty-three strings in the kit that name the
+engine's own repository — its module paths, its CI job names, one of its commit hashes, its
+mutation-test config and its design-system tree — shipped into the consumer's `.xezar/`, where the
+path names nothing and the reader cannot follow it. So the portability gate now also bans
+`packages/(web|xezar)`, `[Ss]tryker` and `docs/design-system` inside a kit, with a break case.
+
+Three of those strings were not prose but **behaviour**, and rewording them would have been the
+wrong fix: the required CI check names, the known load-flake job names and the design-system root
+decided what the integration gate demanded, what a rerun was excused for, and which files a design
+review read. A list baked into a script is a fact about one repository shipped to every other one,
+so they became `ci.requiredChecks`, `ci.knownLoadFlakes` and `paths.designSystem` in
+`.xezar/pipeline/config.json`, each defaulting to empty. Empty is deliberately the honest answer
+rather than a convenient one: no required checks means the gate compares only what the branch
+rules enforce, no known flakes means no failure is excused, and no design system means a mockup is
+judged against the screens the project already has. A default that guessed would be worse than a
+gap, because it would look configured.
+
 ### A prompt may install what a skill may not
 
 `xez-onboard-opinionated` never installs the engine, and that stands: a setup skill that quietly

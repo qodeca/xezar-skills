@@ -1,5 +1,21 @@
 # Unreleased
 
+## Changed
+
+- **The kit no longer ships the engine repository's own facts into your project.** Twenty-three
+  strings named its module paths, its CI job names, one of its commit hashes, its mutation-test
+  config and its design-system tree. Three of them were behaviour, not prose, and are now config:
+  `ci.requiredChecks`, `ci.knownLoadFlakes` and `paths.designSystem` in
+  `.xezar/pipeline/config.json`, each defaulting to empty. The rest name the engine's symbol
+  instead of a path you cannot follow. The portability gate bans them coming back.
+- **The kit carries its own toolchain descriptors** (`kit/pipeline/toolchains/`). A run that found
+  none copied one out of `xez-setup-agent-pipeline/references/`, which the cross-skill contract
+  forbids and which installs whatever version happens to be on the machine.
+- **`references/write.md` forbids two shortcuts a real run took**: restoring a generated file from
+  the repository's git history instead of generating it, and patching the copied gate script in
+  place instead of filling its arrays. Both worked only because that project had been onboarded
+  before.
+
 ## Fixed
 
 - **The gates can be run by hand again.** `.xezar/checks/repo-gates.sh` refused to start without

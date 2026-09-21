@@ -39,8 +39,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 GH="${DOGFOOD_GH:-gh}"
 
-# This project's delivery contract: every job in .github/workflows/ci.yml, named EXACTLY as the
-# check-runs API reports it.
+# This project's delivery contract: every required CI check, named EXACTLY as the check-runs API
+# reports it. The list is `ci.requiredChecks` in `.xezar/pipeline/config.json` — a project fact,
+# never baked into this script, which ships into every onboarded repository. An empty list means
+# this project states no required checks, and only GitHub's enforced subset is compared.
 #
 # F-A1, 2026-09-09 (#116 review). These are check-RUN names, which are not always the job id. The
 # `integration` job is reported as **`integration / integration`** — a reusable/nested workflow
@@ -57,24 +59,20 @@ GH="${DOGFOOD_GH:-gh}"
 # skipping internally, or `skipped` outright — both are legitimate, and `skipped` is reported as
 # its own fourth word, never folded into "all green".
 #
-# F-A2, 2026-09-10 (#147, folded into #128). `ci.yml` used to be ONE job named `Unit, build, E2E,
-# and package`. #128 (issue #60) splits it in two: `verify` is renamed to `Typecheck, unit tests,
-# build, and package` (it never ran a browser, so the old name over-promised) and a new `ui-e2e`
-# job named `Cockpit browser e2e` runs the 35 cockpit browser specs. Both are top-level jobs of
-# `ci.yml`, so neither renders as `<caller> / <job>`.
+# F-A2. RENAMING A CI JOB BREAKS THIS GATE UNTIL THE CONFIG FOLLOWS, and the sequencing has no
+# safe gap: state the new name first and it names a check no run produces yet; state it afterwards
+# and there is a window where the old name exists on no run at all. Either way every merge through
+# this gate is refused, because a name that no run reports is `checks.absent` and absent is a
+# refusal — correctly so, and that refusal is deliberately NOT relaxed. No fallback, no wildcard,
+# no override: the only fix for a renamed check is to state its new real name in
+# `ci.requiredChecks`, in the same change as the rename.
 #
-# This list HAD to move in the same commit as that rename, which is why #147 never got a pull
-# request of its own. The sequencing has no safe gap: landing the list first would require two
-# checks `main` does not yet produce, and landing it afterwards leaves a window in which the old
-# name exists on no run at all. Either way every merge through this gate is refused, because a
-# name that no run reports is `checks.absent` and absent is a refusal — correctly so, and that
-# refusal is deliberately NOT relaxed here. No fallback, no wildcard, no override: the only fix
-# for a renamed check is to state its new real name.
+# Read every name from the check-runs API on a real head, never from the workflow file, for the
+# reason F-A1 records above.
 #
-# Both names were read from the check-runs API on #128's own rebased head, never from `ci.yml`,
-# for the reason F-A1 records above.
-# The fixture split adds a third unconditional check; old task snapshots must reconcile it.
-PROJECT_CHECKS=("Typecheck, unit tests, build, and package" "Cockpit browser e2e" "Xezar infrastructure fixtures")
+# Declared empty here and filled from the config once this checkout's identity is resolved, in
+# section 2 — the config is read relative to the checkout, so it cannot be read before that.
+PROJECT_CHECKS=()
 SKIP_ALLOWED=()
 
 usage() {
@@ -157,6 +155,20 @@ fi
 # belong to this repository is caught before a single API call is spent.
 if resolve_task_paths >/dev/null 2>&1; then
   observe "checkout: $TASK_CWD on $BRANCH"
+  # This project's required check names. A plain `while read`, not `mapfile`: this script runs on
+  # whatever bash the installing machine has, and macOS still ships 3.2 as /bin/bash.
+  if ! project_checks_raw="$(pipeline_config_list ci.requiredChecks)"; then
+    unavail checks.config 'the pipeline config could not be read; required check names unknown'
+  else
+    while IFS= read -r want; do
+      [ -n "$want" ] && PROJECT_CHECKS+=("$want")
+    done <<CHECKS
+$project_checks_raw
+CHECKS
+  fi
+  if [ ${#PROJECT_CHECKS[@]} -eq 0 ]; then
+    observe "required checks: none configured (ci.requiredChecks) — only enforced rules are compared"
+  fi
 else
   unavail checkout.unresolved "could not resolve this checkout's identity; repository binding not verified"
 fi
@@ -394,8 +406,8 @@ fi
 # FALSE PASS, the one direction this file exists to prevent, and unlike F-A1's false refusal it is
 # invisible: the gate simply prints `check <name>: success` and the merge proceeds.
 #
-# Observed on `46553b9151f9e916a219e38534b0085b07608642`: six runs, three named `Cockpit browser
-# e2e`, started 13:23:14 (failure), 13:32:07 (success) and 13:39:16 (success) UTC.
+# Observed in the wild: one commit with six runs, three of them sharing a name, started 13:23:14
+# (failure), 13:32:07 (success) and 13:39:16 (success) UTC.
 #
 # THE RULE: per required NAME, the NEWEST run by `started_at` decides — but only once every run of
 # that name has finished.
@@ -552,7 +564,7 @@ if [ -n "$EXPECTED_HEAD" ]; then
     elif [ "$summary" = "TRUNCATED" ]; then
       unavail checks.unreadable "the check runs at $EXPECTED_HEAD did not all fit in one page, so the newest run of a required name may not have been read at all. A partial list is not a pass."
     else
-    for want in "${PROJECT_CHECKS[@]}"; do
+    for want in ${PROJECT_CHECKS[@]+"${PROJECT_CHECKS[@]}"}; do
       line="$(check_line "$want")"
       if [ -z "$line" ]; then
         refuse checks.absent "the project's required check \"$want\" has no run at $EXPECTED_HEAD"
@@ -580,7 +592,7 @@ if [ -n "$EXPECTED_HEAD" ]; then
         # A credential-gated skip is a fourth word, reported as itself. It is never folded into
         # "all green", and it is never silently accepted for a check that is not allowed to skip.
         allowed=0
-        for s in "${SKIP_ALLOWED[@]}"; do [ "$s" = "$want" ] && allowed=1; done
+        for s in ${SKIP_ALLOWED[@]+"${SKIP_ALLOWED[@]}"}; do [ "$s" = "$want" ] && allowed=1; done
         if [ "$allowed" = 1 ]; then
           observe "check $want: SKIPPED (credential-gated; explicitly not a pass and not a failure)$many$where"
         else
@@ -597,7 +609,7 @@ if [ -n "$EXPECTED_HEAD" ]; then
       while IFS= read -r ctx; do
         [ -n "$ctx" ] || continue
         known=0
-        for want in "${PROJECT_CHECKS[@]}"; do [ "$want" = "$ctx" ] && known=1; done
+        for want in ${PROJECT_CHECKS[@]+"${PROJECT_CHECKS[@]}"}; do [ "$want" = "$ctx" ] && known=1; done
         [ "$known" = 1 ] && continue
         line="$(check_line "$ctx")"
         if [ -z "$line" ] \

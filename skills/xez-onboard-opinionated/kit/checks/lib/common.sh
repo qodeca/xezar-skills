@@ -20,24 +20,23 @@
 #
 # ENVIRONMENT WARNING — the reason TASK_ID is derived, not read.
 # Xezar exports XEZ_TASK_ID only to the spawned AGENT (agent step environment,
-# `packages/xezar/src/workflows/run.ts`, `RunManager.agentEnv`, alongside XEZ_HANDOFF_FILE and
+# the engine's `RunManager.agentEnv`, alongside XEZ_HANDOFF_FILE and
 # XEZ_TODOS_FILE). A workflow `command:` step is still spawned with the manager
-# process's own environment (`src/workflows/run.ts`, `runCheckStep`), which has no XEZ_TASK_ID.
+# process's own environment (the engine's `runCheckStep`), which has no XEZ_TASK_ID.
 # Every check step here must therefore work with XEZ_TASK_ID unset. The authoritative
 # identity is the worktree directory name, because Xezar names it after the run id.
 #
-# Xezar source facts encoded here, from the migration compatibility record (the Xezar
-# original checkout at 6cd4aaa3605e8bcddf7bafd8f05ac96881ee35cc, package `@qodeca/xezar` 0.10.1;
-# directory paths updated for the .xezar/.local layout;
-# paths are relative to `packages/xezar/`):
-#   - src/git-worktree.ts  worktrees directory = '.local/xezar/worktrees'
-#   - src/git-worktree.ts  branchFor() = `xez/${runId.slice(0, 8)}`
-#   - src/config.ts  configSchema: the project config schema, read from .xezar/config.json
+# Engine facts encoded here, read from `@qodeca/xezar` 0.10.1 and unchanged since. Named by the
+# symbol rather than by a path, because a path into the engine's own repository is a pointer the
+# reader of an onboarded project cannot follow:
+#   - `worktreesDir`  worktrees directory = '.local/xezar/worktrees'
+#   - `branchFor()`   = `xez/${runId.slice(0, 8)}`
+#   - `configSchema`  the project config schema, read from .xezar/config.json
 # There is no XEZ_RUN_ID. Do not invent one.
 #
 # Source references name files and nearby symbols rather than unstable line numbers.
 # These are code observations, not records of a live run: the actual Xezar lifecycle
-# is qualified separately in docs/installation.md and docs/dogfooding.md.
+# is qualified separately in this project's installation and dogfooding records.
 
 # Xezar's worktree parent, relative to the primary checkout.
 XEZAR_WORKTREES_RELDIR=".local/xezar/worktrees"
@@ -154,6 +153,29 @@ xezar_base_branch() {
     if git -C "$TASK_CWD" show-ref --verify --quiet "refs/heads/$selected"; then printf '%s' "$selected"; return; fi
   done
   printf 'main'
+}
+
+# A list of strings from `.xezar/pipeline/config.json`, one per line, for a dotted key such as
+# `ci.requiredChecks`. Absent, empty or not an array gives an empty list and exit 0 — a project
+# that has not stated its CI job names has none, which is a fact rather than a fault. Malformed
+# JSON is refused, because a config nobody can parse is not a config with no entries. Every
+# project-specific name a check needs comes through here: a list baked into a script is a fact
+# about one repository shipped to every other one.
+pipeline_config_list() {
+  local key="${1:-}" cfg="$TASK_CWD/.xezar/pipeline/config.json"
+  [ -n "$key" ] || return 1
+  [ -r "$cfg" ] || return 0
+  node -e '
+    const [file, key] = process.argv.slice(1);
+    const cfg = JSON.parse(require("fs").readFileSync(file, "utf8"));
+    let node = cfg;
+    for (const part of key.split(".")) node = node?.[part];
+    if (node == null) process.exit(0);
+    if (!Array.isArray(node)) process.exit(0);
+    for (const v of node) if (typeof v === "string" && v.trim() !== "") process.stdout.write(`${v}\n`);
+  ' "$cfg" "$key" 2>/dev/null || {
+    printf 'pipeline_config_list: %s is not valid JSON\n' "$cfg" >&2; return 1;
+  }
 }
 
 # The per-task evidence directory in the PRIMARY checkout. Worktree-local .local/xezar/ is

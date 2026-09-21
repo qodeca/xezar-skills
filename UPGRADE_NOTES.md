@@ -17,6 +17,44 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – your `.xezar/` names the engine project's own files
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.2.0 or 1.3.0.
+
+**Symptom – a comment or a prompt in `.xezar/` points at a path your repository does not have**,
+for example a module path under `packages/xezar/`, a design system under `docs/design-system/`, or
+a CI job named after somebody else's pipeline. Two of those are not just confusing:
+
+- `.xezar/checks/integration-preflight.sh` carried a hard-coded list of required CI check names.
+  Yours are different, so every merge through that gate is refused with `checks.absent`.
+- `.xezar/checks/ci-watch.sh` carried two job names as "known load flakes". A real failure of a
+  job with one of those names would have been offered as a candidate for a rerun.
+
+**What to do.** Add the three keys to `.xezar/pipeline/config.json` — your required check names
+exactly as GitHub reports them, an empty flake list, and your design-system folder if you have one:
+
+```json
+"ci": { "requiredChecks": ["<your check name>"], "knownLoadFlakes": [] },
+"paths": { "designSystem": "" }
+```
+
+Then copy the fixed scripts over the installed ones:
+
+```bash
+for f in integration-preflight.sh ci-watch.sh worktree-preflight.sh worktree-setup.sh \
+         catalog-check.mjs lib/common.sh; do
+  cp ".claude/skills/xez-onboard-opinionated/kit/checks/$f" ".xezar/checks/$f"
+done
+cp -R .claude/skills/xez-onboard-opinionated/kit/skills/. .xezar/skills/
+cp -R .claude/skills/xez-onboard-opinionated/kit/workflows/. .xezar/workflows/
+```
+
+**What you lose by skipping it.** The integration gate keeps refusing merges on check names that
+do not exist in your repository, and a genuinely failed job may be excused as a known flake.
+Reviewers and agents keep reading paths that lead nowhere. Nothing becomes less strict by applying
+it: an empty required-check list means the gate still compares everything your branch rules
+enforce.
+
 ## 2026-09-21 – `.xezar/checks/repo-gates.sh` exits 1 with "no run id"
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.2.0 or 1.3.0.

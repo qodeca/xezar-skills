@@ -10,14 +10,14 @@
 # The refusal that matters most: a legacy resume with no remaining isolation identity
 # can reach the PRIMARY checkout. Current recorded isolated runs fail closed first;
 # the remaining cwd fallback is in
-# `packages/xezar/src/workflows/run.ts`:
+# the engine's run manager:
 #   const cwd = record?.worktreePath && existsSync(record.worktreePath)
 #     ? record.worktreePath : this.repoRoot;
 # A run that quietly landed there would edit the human's working tree. This check turns
 # that silent fallback into a stopped run.
 #
 # It relies on NO cockpit environment variable. A workflow `command:` step is spawned with
-# the manager process's own environment (`packages/xezar/src/workflows/run.ts`, `runCheckStep`),
+# the manager process's own environment (the engine's `runCheckStep`),
 # while `XEZ_TASK_ID` is exported only to the spawned agent (`RunManager.agentEnv`). Identity is
 # therefore derived from the worktree path.
 #
@@ -297,7 +297,7 @@ fi
 
 # --- Ignore hygiene -------------------------------------------------------------------
 # The cockpit autosaves with `git add -A` and `--no-verify` at every turn end, at run
-# finalize and before a draft PR (`packages/xezar/src/git-worktree.ts`, `autosaveCommit`, called by
+# finalize and before a draft PR (the engine's `autosaveCommit`, called by
 # `src/workflows/run.ts`; only the `periodic` timer is opt-in). Everything
 # that must not be committed has to be ignored BEFORE the first turn ends, and .local/xezar/ must
 # never become tracked — otherwise scratch evidence lands in the branch and in the PR.
@@ -326,7 +326,7 @@ done
 # An intermediate `XEZ:ASK` does NOT park the run: only the last agent step of a workflow
 # is interactive. Until #317 a question raised while implementing printed as text and the
 # workflow marched on into the gates; an engine with #317 fails a non-final step that ends
-# without `XEZ:DONE` (`unfinishedStepReason` in `packages/xezar/src/workflows/run.ts`), but a
+# without `XEZ:DONE` (the engine's `unfinishedStepReason`), but a
 # task on an older build does not get that stop. This is the explicit stop that does not
 # depend on the engine: a task that could not resolve its own scope writes a BLOCKED file,
 # and the workflow goes no further.

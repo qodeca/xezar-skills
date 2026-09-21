@@ -264,6 +264,17 @@ const fail = (fact, where, detail) =>
   if (!has(own)) fail(fact, own, "the skill ships no descriptor of its own to install");
   else if (read(own) !== read(canonical))
     fail(fact, own, `differs from ${canonical} -- copy the canonical file over it`);
+
+  // The same argument, for the toolchain descriptors. A run that found none in the kit copied one
+  // out of `xez-setup-agent-pipeline/references/`, which Cross-skill contract 4-5 forbids: it
+  // works only where that skill happens to be installed, and it installs whichever version is on
+  // the machine rather than the one this release ships.
+  for (const name of ["npm.md", "cargo.md"]) {
+    const kit = `${SKILL}/kit/pipeline/toolchains/${name}`;
+    const src = `skills/xez-setup-agent-pipeline/references/toolchains/${name}`;
+    if (!has(kit)) fail(fact, kit, "the kit ships no toolchain descriptor, so a run must reach into another skill for one");
+    else if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
+  }
   checked.push(fact);
 }
 
