@@ -50,7 +50,7 @@
 # OBSERVED (exit 0, outcome `failure`) and judged by the agent; unobservable and out-of-time are
 # the failures, because those are the states in which there is nothing to report.
 #
-# GitHub is reached through one indirection, `$DOGFOOD_GH` (default `gh`), so the boundary can be
+# GitHub is reached through one indirection, `$KIT_TEST_GH` (default `gh`), so the boundary can be
 # driven by a stub in `infra-tests.sh`. There is no other network call in this file.
 
 set -uo pipefail
@@ -59,7 +59,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 
-GH="${DOGFOOD_GH:-gh}"
+GH="${KIT_TEST_GH:-gh}"
 
 # 45 minutes. The campaign's median `main` CI run was 12 minutes and its longest observed wait 47;
 # the point of a bound is not to be generous, it is to end.
@@ -118,25 +118,16 @@ OUT_STATUS="" OUT_CONCLUSION="" OUT_HEAD_SHA="" OUT_URL=""
 OUT_FAILED_JOBS="" OUT_SUPERSEDED_SHA="" OUT_SUPERSEDED_RUN=""
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# The jobs this project has observed failing under machine load rather than because of the change
-# under test, from `ci.knownLoadFlakes` in `.xezar/pipeline/config.json`. Named so the record says
-# which failed jobs are candidates for the ONE rerun the integration recipe allows; the rerun
-# itself is the agent's call, never this script's. Empty is the honest default: a project that has
-# not watched a job flake yet has no such list, and a name inherited from somebody else's CI would
-# excuse a real failure here.
-KNOWN_LOAD_FLAKES="$(pipeline_config_list ci.knownLoadFlakes 2>/dev/null || printf '')"
-
 record_outcome() {
   local outcome="$1" detail="$2"
   mkdir -p "$WATCH_DIR" 2>/dev/null
   OUTCOME_JSON_OK=1
   node -e '
     const [file, outcome, detail, runId, repo, base, mergeSha, pr, status, conclusion,
-           headSha, url, failedJobs, supersededSha, supersededRun, startedAt, deadline,
-           flakes] = process.argv.slice(1);
+           headSha, url, failedJobs, supersededSha, supersededRun, startedAt,
+           deadline] = process.argv.slice(1);
     const list = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
     const failed = list(failedJobs);
-    const known = list(flakes);
     const body = {
       outcome,
       detail,
@@ -150,10 +141,6 @@ record_outcome() {
       headSha: headSha || null,
       url: url || null,
       failedJobs: failed,
-      // "Every failed job is one of the two known load flakes" is a DIFFERENT statement from
-      // "nothing failed", and an empty list must never read as the first one.
-      failedJobsAreKnownLoadFlakes: failed.length > 0 && failed.every((j) => known.includes(j)),
-      knownLoadFlakes: known,
       supersededBy: supersededSha ? { headSha: supersededSha, runId: supersededRun || null } : null,
       observedFrom: startedAt,
       observedTo: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
@@ -162,8 +149,8 @@ record_outcome() {
     require("node:fs").writeFileSync(file, JSON.stringify(body, null, 2) + "\n");
   ' "$OUTCOME" "$outcome" "$detail" "$OUT_RUN_ID" "$OUT_REPO" "$OUT_BASE" "$OUT_MERGE_SHA" \
     "$OUT_PR" "$OUT_STATUS" "$OUT_CONCLUSION" "$OUT_HEAD_SHA" "$OUT_URL" "$OUT_FAILED_JOBS" \
-    "$OUT_SUPERSEDED_SHA" "$OUT_SUPERSEDED_RUN" "$STARTED_AT" "$DEADLINE_SECONDS" \
-    "$KNOWN_LOAD_FLAKES" 2>/dev/null || OUTCOME_JSON_OK=0
+    "$OUT_SUPERSEDED_SHA" "$OUT_SUPERSEDED_RUN" "$STARTED_AT" \
+    "$DEADLINE_SECONDS" 2>/dev/null || OUTCOME_JSON_OK=0
   if [ "$OUTCOME_JSON_OK" -eq 0 ]; then
     printf 'ci-watch: WARNING — could not write %s; the verdict below is the only record\n' "$OUTCOME" >&2
   fi
@@ -211,14 +198,14 @@ OUT_BASE="$(printf '%s' "$TARGET_FIELDS" | sed -n '3p')"
 OUT_MERGE_SHA="$(printf '%s' "$TARGET_FIELDS" | sed -n '4p')"
 OUT_PR="$(printf '%s' "$TARGET_FIELDS" | sed -n '5p')"
 # `kind` is absent for the run a merge produced. "deploy" is a run the deploy role dispatched,
-# and three things that are true of a CI run are false of it: a newer push to the base branch
-# does not "supersede" a deploy somebody cancelled; a failed deploy job is never a known load
-# flake to be rerun; and running out of time must still reach the report step, because a deploy
-# still in flight with nobody told is the worst way for this window to end.
+# and two things that are true of a CI run are false of it: a newer push to the base branch
+# does not "supersede" a deploy somebody cancelled; and running out of time must still reach the
+# report step, because a deploy still in flight with nobody told is the worst way for this window
+# to end.
 TARGET_KIND="$(printf '%s' "$TARGET_FIELDS" | sed -n '6p')"
 case "$TARGET_KIND" in
   ''|integration) TARGET_KIND="integration" ;;
-  deploy) KNOWN_LOAD_FLAKES="" ;;
+  deploy) ;;
   *) finish "target.invalid" "kind \"$TARGET_KIND\" is neither integration nor deploy" ;;
 esac
 

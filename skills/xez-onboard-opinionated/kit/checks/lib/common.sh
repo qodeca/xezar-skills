@@ -36,7 +36,7 @@
 #
 # Source references name files and nearby symbols rather than unstable line numbers.
 # These are code observations, not records of a live run: the actual Xezar lifecycle
-# is qualified separately in this project's installation and dogfooding records.
+# is qualified separately in this project's own installation records.
 
 # Xezar's worktree parent, relative to the primary checkout.
 XEZAR_WORKTREES_RELDIR=".local/xezar/worktrees"

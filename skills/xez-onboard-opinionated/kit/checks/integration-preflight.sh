@@ -28,7 +28,7 @@
 # Branch-enforced contexts and this project's delivery contract are DIFFERENT requirements. GitHub
 # enforces a subset; passing only that subset does not waive the rest. Both are checked.
 #
-# GitHub is reached through one indirection, `$DOGFOOD_GH` (default `gh`), so the boundary can be
+# GitHub is reached through one indirection, `$KIT_TEST_GH` (default `gh`), so the boundary can be
 # driven by a stub in the test suite. There is no other network call in this file.
 
 set -uo pipefail
@@ -37,7 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 
-GH="${DOGFOOD_GH:-gh}"
+GH="${KIT_TEST_GH:-gh}"
 
 # This project's delivery contract: every required CI check, named EXACTLY as the check-runs API
 # reports it. The list is `ci.requiredChecks` in `.xezar/pipeline/config.json` — a project fact,

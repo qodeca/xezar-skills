@@ -209,9 +209,14 @@ a CI job named after somebody else's pipeline. Two of those are not just confusi
 exactly as GitHub reports them, an empty flake list, and your design-system folder if you have one:
 
 ```json
-"ci": { "requiredChecks": ["<your check name>"], "knownLoadFlakes": [] },
+"ci": { "requiredChecks": ["<your check name>"] },
 "paths": { "designSystem": "" }
 ```
+
+> **Later change, if you are reading this today.** This entry originally also told you to add
+> `"knownLoadFlakes": []`. That key was removed from the kit on 2026-09-21 — see the entry keyed
+> "CI re-runs a failed job by itself, and my integration role reads fields that are gone". Do not
+> add it. If your config already carries it, nothing reads it any more and it is safe to delete.
 
 Then copy the fixed scripts over the installed ones:
 

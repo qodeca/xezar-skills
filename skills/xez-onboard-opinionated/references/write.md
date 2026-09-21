@@ -103,7 +103,7 @@ Never copied, because each depends on an answer:
   artifact belongs in the one tree, and the tidiness check only looks inside it. This is a config
   value, set per project — the shipped default is unchanged, so nothing breaks for anyone else.
 
-  Three more keys the kit's checks read, and none of them may be left to a script's own default:
+  Two more keys the kit's checks read, and neither may be left to a script's own default:
 
   - **`ci.requiredChecks`** — the required CI check names, spelled exactly as the check-runs API
     reports them, which is not always the job id. The integration gate compares against this list;
@@ -111,9 +111,6 @@ Never copied, because each depends on an answer:
     CI would block every merge. A project with no CI gets `[]`, and the gate then compares only
     what the branch rules enforce. Take the names from the confirmed gate answers, and read them
     back from a real head rather than from the workflow file.
-  - **`ci.knownLoadFlakes`** — job names this project has watched fail under machine load rather
-    than because of the change. `[]` on a new project, always: it is the honest answer, and a name
-    copied in from somewhere else would excuse a real failure here.
   - **`paths.designSystem`** — the folder holding this project's design system. A project that
     already has one gets **its** path. A project with none gets `docs/design-system`: nothing is
     created there by this skill, the design workflows find no `README.md` in it, judge a mockup
