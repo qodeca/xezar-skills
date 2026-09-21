@@ -27,6 +27,10 @@ under `.local/xezar/`, and a skill that breaks its own rule on its first run is 
 }
 ```
 
+`startedAt` and `updatedAt` are **read from the clock** (`date -u +%Y-%m-%dT%H:%M:%SZ`), never
+typed: a session has no sense of the time, and the first audited run invented every timestamp it
+wrote (`references/rules.md` → the clock rule).
+
 `answers.facts` holds one key per fact on screen 1, each with the value and whether the owner
 changed it — a corrected fact and a confirmed one are not the same evidence, and the report says
 which is which.
@@ -66,7 +70,8 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |
-| The task lanes available | the account registry, minus the reserved login |
+| The task logins available | the account registry, minus the reserved login |
+| The lanes available | every `<tool>/<model>` analysis found, each marked cloud or local, and whether it can see a picture |
 
 Four of these carry a consequence the owner cannot see from the fact alone, so state it beside the
 fact rather than in a question of its own:
@@ -98,11 +103,27 @@ one most likely to be wrong on a stack nobody has tested here.
 "No validation command found" is a legitimate state and is asked, never filled with a placeholder.
 A placeholder that echoes a suggestion looks like a configured gate and enforces nothing.
 
-### 3. `lanes` — one table: what runs what
+### 3. `lanes` — one table: which logins run tasks
 
-The accounts from screen 1, as a table the owner marks up in one pass: which are task lanes, which
-are unlimited, and which single lane is the engine's default for a task that names no account.
-These are three columns of one decision, not three topics.
+**A lane is a tool plus a model; a login is not a lane** (`references/routing-interview.md`). This
+screen is about the logins *under* the lanes: the task logins from screen 1, as a table the owner
+marks up in one pass — which may run tasks, in which **rotation order** per tool, which are
+unlimited, and which single login is the engine's default for a task that names none. These are
+columns of one decision, not separate topics.
+
+**The registry can be emptier than the machine.** The engine copies the owner's global logins into
+a project only when its one-time first-start question is answered `y`, and the default answer is
+No (`references/preflight.md` check 5). So before drawing this table, compare the project's
+registry with what the machine holds. Project registry empty or defaults-only while the machine's
+global registry lists more → say exactly that, and offer to bring them in through
+`references/engine-refusals.md` — the engine's own account tool first, the consented copy second.
+Do not build a routing table on a registry the owner did not mean to be empty.
+
+**A default that names nothing.** The built-in login of a tool — for Claude Code, the `~/.claude`
+folder, handle `default` — has **no record in the registry**. So a registry default naming an id
+with no record is most likely that built-in login under a name the owner gave it, not a typo. Ask
+**once** what it is, and until this screen is answered **leave it alone**: the first audited run
+rewrote that one value three times in four minutes.
 
 Two rules that are not negotiable and are stated on the screen:
 
@@ -129,7 +150,8 @@ engine's tools are there, and reports what the default was before.
 
 ### 4. `routing` — eight classes, one screen
 
-Handled in `references/routing-interview.md`: a proposed chain per task class, all eight classes
+Handled in `references/routing-interview.md`: first what each model is *for* (daily, escalation
+only, single purpose, unused), then a proposed `<tool>/<model>` chain per task class, all eight classes
 confirmed or reordered together — mechanical, writing, design, visuals, implementation, testing, review,
 security and release.
 
@@ -145,6 +167,12 @@ from the routing answers, and the leader asks about anything it does not find th
 report that no day-one preferences were seeded.
 
 ## How to ask
+
+- **Screens 1 to 3 may go out as one call.** They do not depend on each other's answers, and a run
+  that asked them together lost nothing. Screen 4 waits for screen 3.
+- **A third take of one screen is a defect, not diligence.** Two takes is a correction; three
+  means the proposal was built on a wrong idea. Stop proposing, ask the owner the one open
+  question behind it in plain words, and name the screen and the reason in the run report.
 
 - **Proposals carry their evidence.** "The remote says the default branch is X" — so the owner can
   tell a reading from a guess.

@@ -74,7 +74,19 @@ smoke test and the checklist, about five more minutes — or do you want to read
 **Next:** <PR> is waiting on `<check>` (<failing / still running>). Tell me when it is green and I
 merge and carry on here, or merge it yourself.
 
-<they are not — this session started before the MCP registration existed:>
+<the owner was offered the merge and wants to read the pull request first — a normal answer.
+End the run cleanly; do not ask again:>
+**Stopping here, as you asked. Nothing else happens until you merge.** The body of <PR> sorts the
+files by where they came from, so you can see which <n> are unchanged kit copies and which <m> were
+written for this project — those are the ones to read.
+**Still owed after the merge:** protection on `<base>`, the smoke test, the control-skills check,
+the final checklist — about five minutes. **To finish, in this order:** the four lines below.
+**Already outside git, whatever you decide:** the <n> labels created on the tracker<, and the
+engine change(s) recorded in `.local/xezar/runtime/onboarding-engine-settings.json`>. Closing <PR>
+unmerged does not remove them; the undo for each is in that record and under "Setup rejected".
+
+<the tools are not loaded — this session started before the MCP registration existed — or the
+owner deferred:>
 **Next, in this order:**
 1. Merge <PR>.
 2. `git switch <base> && git pull`
@@ -87,6 +99,59 @@ Keep the engine running in its own terminal the whole time. Closing this session
 stop it; closing that terminal does.
 
 PR: #<number> (link: <full PR URL>)
+```
+
+## Setup pull request body
+
+Written by `references/write.md` §6. Sorted by origin, because origin decides how much reading a
+file needs. Omit a group that is empty. Counts are counted, never estimated.
+
+```markdown
+## 🎯 What this does
+
+Sets this repository up to be run by a project leader on the xezar engine: <one sentence on what
+changes for a contributor tomorrow>. No file under <the project's source folders> is touched.
+
+## 🔍 How to review <n> files
+
+| Origin | Files | How much reading |
+|---|---|---|
+| Copied unchanged from the kit | <count> — `.xezar/workflows/` <n>, `.xezar/checks/` <n>, `.xezar/skills/` <n>, `.xezar/docs/` <n> | None needed. Prove it: `diff -r <installed skill>/kit/<folder> .xezar/<folder>` prints nothing. Each file's digest is in `.xezar/onboarding.json`. |
+| Adapted during the copy | <each path> | The changed lines only: <what was rewritten and why, one line each> |
+| **Written for this project** | <each path> | **Read these.** They state how *this* project works: the gate list, the branches, the routing shape, the process documents. |
+| Your files, edited | <each path> | One line each: <what was added and why — e.g. four folders added to the formatter's ignore file> |
+
+## 🏷️ Outside this diff
+
+- <n> labels were created on the tracker before this pull request opened (<m> already existed and
+  kept their colour). **They stay if this pull request is closed unmerged.**
+- <engine changes, if any, each with its undo — or omit the bullet>
+- Not done yet, on purpose: branch protection and the smoke test. Both run after the merge.
+
+## ⚠️ Worth a second look
+
+<the trust boundary: the session-start hook, its loader script and the launcher's
+`--dangerously-load-development-channels` flag, in plain words — and anything the run reported as a
+cross>
+```
+
+## Setup rejected
+
+When `references/verify.md` finds the setup pull request **closed unmerged**. Stop; clean nothing
+up unasked.
+
+```markdown
+## ⛔ Setup pull request closed without merging — I have stopped
+
+Nothing from it is on `<base>`. Three things were made **outside git** and are still there:
+
+| What | Undo |
+|---|---|
+| <n> labels on the tracker | delete them on the tracker's label page — only the ones this setup created: <names> |
+| <engine setting, per entry in `.local/xezar/runtime/onboarding-engine-settings.json`> | <the one call, or the backup path> |
+| `.local/xezar/runtime/onboarding-pending.json` | delete it when you are sure; while it exists a new run resumes instead of starting over |
+
+Say the word and I do any of these for you. I do none of them unasked.
 ```
 
 ## Protection could not be applied

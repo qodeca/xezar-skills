@@ -4,8 +4,10 @@ Loaded by `routing-interview.md`. These are the **rows** — the part of the rou
 the same in every project. The chain column is empty on purpose: it is built with the owner from
 the lanes the analysis step found on this machine.
 
-Never write a model or an account name into this file. A lane exists on a machine, not in a
-repository, and a shipped lane name is a first dispatch to something that is not there.
+Never write a model or an account name into this file. A lane is a tool plus a model
+(`<tool>/<model>`), it exists on a machine, not in a repository, and a shipped lane name is a
+first dispatch to something that is not there. Logins are not lanes: they are the rotation under
+a tool (`routing-interview.md`).
 
 ## How to read a row
 
@@ -30,7 +32,8 @@ Stated once here, never repeated per row. They apply to every row and they overr
 1. **Never the authoring model for its own review.** A model does not judge what it wrote.
 2. **A locally hosted model never touches a branch.** It may read and advise; it may not write.
 3. **A cloud-lane write needs another vendor's review** before it can merge.
-4. **A high-risk change needs a different account *and* a different vendor** from the author.
+4. **A high-risk change needs a different vendor** from the author — which is always a different
+   login as well. Rotating to another login of the *same* vendor never satisfies this.
 5. **A provider that does not enforce a step's tool limits is in no chain for a read-only or a
    security-and-release row** — a tool allowlist is the only thing that makes a read-only role
    read-only, and a deploy step's two permitted writers the only thing that bounds it. This holds
@@ -103,7 +106,7 @@ is not a code review that passed.
 class ranking is not expanded into it.
 
 **Rows 13, 39, 40 and 41 judge somebody else's work, and the judge cannot look the author up.** A
-step agent cannot read another run's record. So the leader names the author's lane, account and
+step agent cannot read another run's record. So the leader names the author's lane, login and
 vendor in the launch text of these four, and the role reports independence as confirmed, not
 confirmed or unknown. A launch that leaves them out gets "unknown", never a silent pass.
 

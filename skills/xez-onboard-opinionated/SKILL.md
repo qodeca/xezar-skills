@@ -64,8 +64,8 @@ rest.
 
 4. **Build the routing table with the owner** — follow `references/routing-interview.md`. The
    table is *not* shipped as a fixed file: preference chains are built from the lanes this
-   machine actually has. Shipping a table naming accounts that do not exist here would fail on
-   the first dispatch.
+   machine actually has. A lane is a tool plus a model; logins are only the rotation under a
+   tool. Shipping a table naming lanes that do not exist here would fail on the first dispatch.
 
 5. **Preview everything, bound to digests** — follow `references/preview.md`. Every file the
    setup will write, grouped create / delete / leave alone / needs-your-decision, each bound to the
@@ -117,6 +117,12 @@ there, whether this session carries on or a later `--verify` run resumes.
   written and read back in `references/verify.md` §3. The two switches are left alone when the
   engine is not in single-project mode, where the same call would reach every project on the
   machine; the task account is keyed by this checkout and is always set.
+- **When the engine refuses, stop calling and read `references/engine-refusals.md`.** A refusal
+  is a finding, not an error to retry, and argument shapes are never guessed. The order is the
+  engine's own tool, then the person's way, then — only on the owner's yes to one question that
+  shows the file and the exact change — a backed-up edit of one of the two files that reference
+  names. This skill never *proposes* a machine-wide change; it carries one out only when the
+  owner asks for it in their own words.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
   smoke test runs before the final report. A setup whose gates cannot stop anything is not the
   "ready to work immediately" result this skill promises.

@@ -73,7 +73,9 @@ that surprise people:
 
 - **The label taxonomy is created on the tracker**, before the setup pull request opens, so that
   pull request can carry its labels. List the labels by name and group, and mark which already
-  exist: those keep their colour and description. Approving the preview approves this.
+  exist: those keep their colour and description. Approving the preview approves this — and say in
+  the same breath that labels live on the tracker, not in the pull request: **closing the setup
+  pull request unmerged does not remove them.**
 
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the

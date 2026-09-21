@@ -128,8 +128,13 @@ Say three things with that line, because each one cost a run when it went unsaid
 - **Run it in its own terminal and leave it open.** An engine started from inside the agent
   session ends when that session ends.
 - **The first start asks one question** — whether to copy the owner's global setup in. It asks
-  only in a real terminal and only once. Answered from a background process, or never answered,
-  the project starts with no agent accounts and the lanes interview has nothing to offer.
+  only in a real terminal and only once, it reads `[y/N]`, and **the default is No**: an owner
+  who presses Enter has declined. Say all of that **before** the window opens, not after — the
+  first audited run sent "answer y" a minute after the question appeared, and it had already been
+  answered No. Answered No, answered from a background process, or never answered, the project
+  starts with no agent accounts and the lanes interview has nothing to offer. Where the engine's
+  `--help` lists `--import-global`, start it with that flag instead and there is no question.
+- **`xezar init` does not import accounts.** Owners expect it to. Say so in one line.
 - **`xezar init` is not needed.** Its two example files are harmless (check 3) and the write step
   **deletes** them — nothing in the kit is named after either one, so they are removed, not
   overwritten (`references/write.md` §1).
@@ -139,6 +144,9 @@ question was answered. None or one is not a stop, and it is not a fault either �
 one login on this machine — but say which you think it is, because the lanes and routing interviews
 are about to offer what that file contains. A run that only *told* the owner to answer `y`, and
 never looked, reaches the routing table before anybody notices the import did not happen.
+**Empty here while the machine's global registry lists accounts is the declined import**, and it
+is never asked twice: offer to bring them in through `references/engine-refusals.md` now, rather
+than at screen 3 of the interview.
 
 Whether the engine is *running right now* is not a preflight fact: nothing before step 8 needs
 it. `references/verify.md` checks it where it matters.

@@ -446,6 +446,34 @@ function walk(rel, match) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// FACT 13 -- the leader guide's line limit can actually be met.
+// write.md tells the agent to keep the generated guide at or under 200 lines. For one release the
+// template's fixed part (186) plus the four section budgets (65) made that impossible, and the
+// first audited run reported a 227-line guide as a cross it could do nothing about. So the two
+// numbers are added up here: fixed lines of the template + the budgets stated in write.md.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
+  const LIMIT = 200;
+  const tpl = read(`${SKILL}/kit/leader-guide.template.md`)
+    .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
+    .replace(/^---\n+/m, "");                       // and the rule above the generated half
+  const fixed = tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  const write = read(`${SKILL}/references/write.md`);
+  const budgets = [...write.matchAll(/^\s*\| `\{\{[A-Z_]+\}\}` \|.*\| ≤ (\d+) \|\s*$/gm)].map((m) => Number(m[1]));
+  if (budgets.length !== 4)
+    fail(fact, "references/write.md", `expected four placeholder budgets ("≤ N"), found ${budgets.length}`);
+  else {
+    const total = fixed + budgets.reduce((a, b) => a + b, 0);
+    if (total > LIMIT)
+      fail(fact, "kit/leader-guide.template.md", `${fixed} fixed lines + ${budgets.join(" + ")} budgeted = ${total}, over the ${LIMIT}-line limit write.md states -- no run can comply`);
+  }
+  if (!new RegExp(`\\*\\*${LIMIT} lines\\*\\*`).test(write))
+    fail(fact, "references/write.md", `no longer states the **${LIMIT} lines** limit this fact adds up to`);
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

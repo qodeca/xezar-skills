@@ -305,6 +305,22 @@ breaks(
 );
 
 breaks(
+  "a bootstrap prompt that stops warning about the engine's default-No question is rejected",
+  "docs/bootstrap-prompt.md",
+  (s) => s.replace("The default is No.", "Answer it."),
+  () => script("test-compat-pins.mjs"),
+  "the prompt lost the rule",
+);
+
+breaks(
+  "a leader guide budget that makes the 200-line limit impossible is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("how a lane being out is recorded | ≤ 15 |", "how a lane being out is recorded | ≤ 40 |"),
+  () => script("test-kit-facts.mjs"),
+  "no run can comply",
+);
+
+breaks(
   "rewording a guide heading xez-add-rule routes into is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
   (s) => s.replace("## Review discipline", "## Reviewing"),

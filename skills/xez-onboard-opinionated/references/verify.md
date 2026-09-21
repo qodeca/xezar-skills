@@ -16,6 +16,9 @@ setup pull request it names:
 - **Merged** — make sure the working tree is on the base branch and up to date. A session still
   sitting on the setup branch verifies the wrong files.
 - **Closed unmerged** — stop. The setup was rejected; removing the pending file is the owner's call.
+  Report with `references/report-templates.md` → "Setup rejected": it lists what this setup made
+  **outside git** — the labels, any recorded engine change — with the undo for each, and does none
+  of it unasked.
 
 ## 2. The engine tools, and which state they are in
 
