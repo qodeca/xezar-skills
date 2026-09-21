@@ -95,7 +95,11 @@ In order:
 
   1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
      and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
-  2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
+  2. **Check it is safe to switch.** Three conditions, all read, none assumed. **The engine is
+     0.17.0 or later** — `health` reports the version. On 0.16.0 the action takes no arguments and
+     is refused outright, whatever it carries, so there is nothing to correct and nothing to
+     consent to: leave the provider on, report "found, left on — this engine cannot switch it",
+     and keep OpenCode out of every chain this run writes. Then:
      `capabilities.singleProjectRoot` is `true` (above). And `.xezar/docs/model-routing.md` names
      no OpenCode lane in any chain — a setup written before this rule may, and switching the
      provider off under it turns those dispatches into refusals. Either condition false → **leave
@@ -105,12 +109,11 @@ In order:
      `references/engine-refusals.md`, where these same two conditions still hold.
   3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
      then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
-     fresh `operationId` — the argument names engine 0.17.0 documents for that action. **Check them
-     against the tool's own description before you send them**, because a shape written down in a
-     skill ages into being wrong about one: a first run met `Unrecognized keys: "provider",
-     "enabled"` on an older engine. An "Unrecognized key" answer is the description telling you
-     the names; read it, correct once, and never guess a third
-     (`references/engine-refusals.md`).
+     fresh `operationId` — the argument names that action takes **from engine 0.17.0 on**, where
+     it gained them. **Check them against the tool's own description before you send them**,
+     because a shape written down in a skill ages into being wrong about one. An "Unrecognized
+     key" answer is the description telling you the names; read it, correct once, and never guess
+     a third (`references/engine-refusals.md`).
   4. **Read back.** `get_capabilities` again; `enabled` must now be false.
 
   Put the one call that undoes it in the report, word for word: `set_provider_enabled` with

@@ -1,3 +1,19 @@
+# Unreleased
+
+## Fixed
+
+- **The OpenCode switch is only attempted on an engine that has it.** `set_provider_enabled`
+  gained its `provider` and `enabled` arguments in engine 0.17.0; on 0.16.0 — which `compat.json`
+  still names as the minimum — the action takes no arguments and is refused outright. 1.6.0 said
+  the shape "engine 0.17.0 documents" without saying that an older engine cannot do this at all,
+  so a run on 0.16.0 would have tried to correct a shape that was never the problem. The step now
+  reads the engine version first and, below 0.17.0, leaves the provider on and says why.
+- **An argument complaint can be hiding a refusal.** Engine 0.16.0 validated arguments before it
+  refused an action, so a call that could never have been allowed came back as `Unrecognized
+  keys`. The refusal rules now say to treat a second argument complaint on the same action as a
+  probable refusal rather than shaping a third call. (Engine 0.18.0 answers the refusal first —
+  `qodeca/xezar#826`.)
+
 # 1.6.0 (2026-09-21)
 
 ## Highlights
