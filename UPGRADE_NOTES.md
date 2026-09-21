@@ -17,6 +17,36 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – the leader guide is over 200 lines, or the routing table ranks logins
+
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or earlier.
+
+**Symptom 1 – `.xezar/docs/leader-guide.md` is longer than 200 lines.** Count it:
+`wc -l .xezar/docs/leader-guide.md`. The shipped template was too long for its own limit, so every
+guide written from it is. The guide loads in full at every session start, resume, clear and
+compaction, so the extra lines are paid for again and again. An installed guide never updates
+itself.
+
+Fix, by hand, because the guide may carry rules you added:
+
+1. Copy the new reasoning document in:
+   `cp .claude/skills/xez-onboard-opinionated/kit/docs/leader-guide-detail.md .xezar/docs/`
+2. Open `.claude/skills/xez-onboard-opinionated/kit/leader-guide.template.md` beside your guide and
+   replace each shipped section with the shorter one, **keeping every heading as it is** and
+   keeping every line that ends `(owner <date>)` — those are yours.
+3. Leave your four project sections at the end alone.
+
+Skipping it loses nothing but tokens: the long guide says the same rules.
+
+**Symptom 2 – the chains in `.xezar/docs/model-routing.md` name logins or accounts** rather than
+`<tool>/<model>` entries. A lane is a tool plus a model; logins are only the order a tool's accounts
+are tried in when one runs out. A table written the old way still dispatches, so nothing breaks —
+but it cannot say "this model is for hard work only" or "this one only makes pictures", and a
+login that runs out looks like a lane that is gone.
+
+Fix: run `/xez-onboard-opinionated --section routing` and answer the routing screen again; it now
+asks what each model is for before it proposes a ranking.
+
 ## 2026-09-21 – the leader has no workflow for a deploy, a UI test suite, an architecture decision…
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.4.0 or earlier.

@@ -1,6 +1,60 @@
 # Unreleased
 
+Everything under "onboarding" below comes from one audited fresh-repository run of the bootstrap
+prompt and `xez-onboard-opinionated` (kit 1.4.0, engine 0.16.0, `qodeca/8cli`, 2026-09-21): 42
+minutes and about twelve question rounds against a target of twenty and six. The engine half is
+`qodeca/xezar#819`.
+
+## Changed
+
+- **A lane is a tool plus a model.** The routing interview defined a lane as "a vendor, an account
+  and a model class", and the audited run followed it into chains made of logins; one screen took
+  four takes. Chains now rank `<tool>/<model>` entries and never name a login; logins are the
+  rotation under a tool, one line beside the table. New: escalation-only and single-purpose lanes,
+  and one question — what is each model *for* — asked before any ranking is proposed. Global
+  prohibition 4 now says "a different vendor", which was always the half that mattered.
+  `DECISIONS.md` → "A lane is a tool plus a model".
+- **The leader guide fits its own limit.** The template's fixed part went from 186 lines to 149
+  with every rule kept; the reasoning moved to the new `kit/docs/leader-guide-detail.md`. The four
+  generated sections are budgeted at 12/12/15/12. `test-kit-facts.mjs` (FACT 13) adds the two up
+  and fails above 200.
+- **A command line is a user interface.** Analysis proposes the design gate **on** for a project
+  that ships a CLI.
+
+## Added
+
+- **`references/engine-refusals.md` — what to do when the engine says no.** A refusal is a finding,
+  not an error to retry; argument shapes are never guessed. Order: the engine's own tool, the
+  person's way, then a backed-up edit of one of two named files on the owner's yes to one question
+  that shows the exact change. Recorded as an accepted exception in `SECURITY.md`, because it
+  reaches outside the repository. `DECISIONS.md` → "A consented edit when the engine says no".
+- **A reviewable setup pull request.** The body sorts files by origin — copied unchanged (with the
+  `diff -r` line that proves it), adapted, written for this project, the owner's files edited — so
+  the dozen files worth reading are not lost among a hundred that are not.
+- **"I will read it first" is a normal answer.** New *owner defers* branch in the report and in the
+  bootstrap prompt: the run ends cleanly, says what is owed and how to resume, and does not ask
+  again. New "Setup rejected" report lists what the setup made outside git, with the undo for each.
+- **The clock rule.** Every time this skill or the prompt writes down is read from `date -u`. The
+  audited run invented all of its timestamps.
+
 ## Fixed
+
+- **The engine's account question is announced before its window opens**, with its real shape:
+  `[y/N]`, default No, asked once. The prompt said "answer y" a minute after the question had
+  appeared and been declined. Where the engine lists `--import-global`, the prompt uses it. The
+  prompt and preflight now say that `xezar init` does not import accounts, and an empty project
+  registry beside a non-empty machine one is named as the declined import and offered a fix on
+  the spot. Pinned as the prompt's ninth rule.
+- **A default that names no account is asked about, not repaired.** A tool's built-in login has no
+  registry record; the run rewrote one such value three times in four minutes.
+- **Ignore files get all four folders** (`.xezar`, `.claude`, `.agents`, `.local`), not `.agents`
+  alone, and the project's formatter runs over the root files the setup generated.
+- **No README under `.local/xezar/`.** "Each with a stated meaning" invited one, and the kit's own
+  `local-tree.sh` then failed on it.
+- **The init examples are deleted first**, in the order the text always said.
+- **A third take of one interview screen is reported as a defect**, and screens 1 to 3 may be
+  asked together.
+- **Labels outlive a rejected pull request** — the preview now says so.
 
 - **`AGENTS.md` stated the document order backwards.** "Later entries override earlier ones" sat
   above a list whose first item says nothing overrides it. It now says earlier entries win, which

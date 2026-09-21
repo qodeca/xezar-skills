@@ -31,6 +31,13 @@ operator did not intend.
   exemption is scope-free, the owner accepted it, and `DECISIONS.md` → "Campaign records are
   committed, and the bypass that costs" states what it gives away. A *second* bypass, or this
   one used for anything but records, is still a finding.
+- **One reach outside the repository is accepted and recorded rather than found:** the
+  opinionated onboarding may read the machine's engine account registry and, on the owner's yes
+  to one question showing the file and the exact change, write one of two named engine files —
+  always after a backup, never a file holding a secret
+  (`skills/xez-onboard-opinionated/references/engine-refusals.md`). The owner accepted it, and
+  `DECISIONS.md` → "A consented edit when the engine says no" states what it gives away. A third
+  file, an edit without the question, or the same path in any other skill is still a finding.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on
