@@ -122,7 +122,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 | 📝 Design gate | on / off — <the UI evidence behind it>; the whole design half installs either way |
 | 🤖 Leader | <model>, second login: yes / **none — its own limit ends the night** |
 | 🔀 Lanes | <n> task lanes, <n> unlimited; leader's login reserved and never dispatched to |
-| 📋 Routing | <n> rows across 7 classes, each chain ending in `wait` |
+| 📋 Routing | <n> rows across 8 classes, each chain ending in `wait` |
 
 **The preview**
 

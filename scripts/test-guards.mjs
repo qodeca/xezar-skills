@@ -497,6 +497,14 @@ breaks(
   "kit-shared-contract block is out of date",
 );
 
+breaks(
+  "a config grammar that lets a path through as a deploy target is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs",
+  (s) => s.replace("element: /^[a-z0-9][a-z0-9-]*=[A-Za-z0-9._-]+\\.ya?ml$/,", "element: /^[a-z0-9][a-z0-9-]*=.+\\.ya?ml$/,"),
+  () => script("test-kit-catalog.mjs"),
+  'expected "malformed"',
+);
+
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:
 // a contributor runs this with their own work in progress, and their uncommitted edits

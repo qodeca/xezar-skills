@@ -121,10 +121,10 @@ With a single login there is nothing to choose: say so, carry the warning into t
 the screen. The answer is *set*, not only recorded — `references/verify.md` does it once the
 engine's tools are there, and reports what the default was before.
 
-### 4. `routing` — seven classes, one screen
+### 4. `routing` — eight classes, one screen
 
-Handled in `references/routing-interview.md`: a proposed chain per task class, all seven classes
-confirmed or reordered together — mechanical, writing, design, visuals, implementation, review,
+Handled in `references/routing-interview.md`: a proposed chain per task class, all eight classes
+confirmed or reordered together — mechanical, writing, design, visuals, implementation, testing, review,
 security and release.
 
 ### 5. `table` — the expanded rows

@@ -56,7 +56,7 @@ rest.
    that no gate covers, and which linters or licence checks scan the folders it will add.
 
 3. **Interview the owner** — follow `references/interview.md`. **Five screens**: confirm the
-   detected facts in one screen, the gate commands alone, the lane table, the seven routing classes
+   detected facts in one screen, the gate commands alone, the lane table, the eight routing classes
    together, the expanded rows. Every answer is saved to
    `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
    resumes rather than restarting. Detected facts are shown as proposals to confirm or correct,

@@ -15,8 +15,8 @@ step actually found.
 
 ## What is shipped
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Thirty-one rows over
-  seven classes, each carrying the workflow it runs and a written trigger: one
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Thirty-five rows over
+  eight classes, each carrying the workflow it runs and a written trigger: one
   sentence saying how the leader recognises that this row is the one. A row without a trigger is
   a row the leader guesses at.
 - **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
@@ -48,13 +48,13 @@ consequences worth stating in the interview:
 
 ## How to ask without a question per row
 
-**One screen, seven classes, then expand.** Each class gets a proposed chain — strongest to cheapest
+**One screen, eight classes, then expand.** Each class gets a proposed chain — strongest to cheapest
 among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
 and the owner confirms or reorders all of them together. One screen per class was the old shape and
 bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
 for having answered the third.
 
-Seven classes cover the rows:
+Eight classes cover the rows:
 
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
@@ -63,6 +63,7 @@ Seven classes cover the rows:
 | design | designing a surface, and reviewing a design | a lane that can actually **see** a screen |
 | visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |
 | implementation | bounded fixes, multi-file work, UI work, kit refactors, conflicts, merge chains, dependencies | the working horse of the project |
+| testing | automated UI tests, integration tests, the regression suite, performance and load | who can be trusted to write a test that fails for the right reason |
 | review | scoped re-checks, full cold reviews, review responses, browser QA | who is allowed to judge whose work |
 | security and release | security-sensitive review, verifying a strong claim, the release role | the strongest lane, and never the author's |
 
@@ -71,6 +72,12 @@ that made the wrong lane look acceptable. Design work needs a lane that can look
 is nothing to do with how well a lane writes prose; and a picture that must be *invented* needs a
 different capability from a figure that must be *correct*. Folding either into a prose class means
 one ranking decides both, and the one that loses is the one nobody checks.
+
+**Why testing is a class, and where it bends.** Writing a test that fails for the right reason is a
+different skill from writing the feature, and a lane that is good at one is often careless at the
+other. One row inside the class needs more than that: automated UI tests need a lane that can see a
+screen and drive a browser. That is a row-level ban in the table, not an eighth-and-a-half class —
+the ranking still holds for the row, minus the lanes that cannot do it.
 
 The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
 expansion is a lookup rather than a judgement.

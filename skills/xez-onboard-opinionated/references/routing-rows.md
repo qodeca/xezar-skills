@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The thirty-one rows
+## The thirty-five rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -67,6 +67,10 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 29 | Architecture review | `architecture-review.yaml` | A plan, a spec or a diff has to be judged against the recorded architecture decisions. | review | the cheapest lanes; **the lane that wrote the design** |
 | 30 | Design system: created, extended or corrected | `design-system.yaml` | The change is to what every design is built from — a token, a component, a page of the system — not to one feature. | design | a lane that cannot see pictures |
 | 31 | UI design: the visual layer of a designed surface | `ui-design.yaml` | The flow has already landed and the surface now needs its look: components, tokens, layout, every state in both themes. | design | a lane that cannot see pictures |
+| 32 | Automated UI tests: built or maintained | `ui-tests.yaml` | A user-visible behaviour has to be protected by a test that drives the real interface in a browser, again and again, with nobody watching. | testing | any lane that cannot see pictures; a lane on a machine with no browser descriptor; a locally hosted lane |
+| 33 | Integration tests: two real parts across a boundary | `integration-tests.yaml` | The thing to prove is that two parts work together — a handler and its database, a client and an API, a command and the file system — not that one part works alone. | testing | a locally hosted lane |
+| 34 | Regression suite: curated | `regression-suite.yaml` | The job is the suite that pins past bugs: fixes with no test that fails without them, tests that guard nothing, or a test to retire. | testing | the cheapest lanes — a test that passes either way looks exactly like a good one |
+| 35 | Performance and load: measured against a budget | `performance.yaml` | The question is whether something is fast enough, and the owner has stated the budget it answers to. | testing | a lane on a shared or noisy machine; a locally hosted lane |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of

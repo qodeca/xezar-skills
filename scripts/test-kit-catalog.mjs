@@ -14,7 +14,8 @@
 //   2. the validator's list of maintained skills IS the set of skill files -- a name left off
 //      that list is not held to the shared contract, and passes in silence;
 //   3. every workflow has a routing row, and every workflow a row names exists;
-//   4. every count of rows and classes written in prose equals the table it describes.
+//   4. every count of rows and classes written in prose equals the table it describes;
+//   5. the grammar of the guarded workflows' config keys tells a typo from an honest empty list.
 //
 // Run: node scripts/test-kit-catalog.mjs
 
@@ -23,6 +24,7 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writ
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = "skills/xez-onboard-opinionated";
@@ -142,6 +144,36 @@ for (const site of COUNT_SITES) {
       }
     }
   });
+}
+
+// --- 5. The config grammar keeps its four answers apart --------------------------------------------
+// A guarded workflow refuses on an empty list, so "empty" is load-bearing. The failure this pins
+// is the quiet one: a misspelt key, or a value of the wrong shape, reading as "none configured".
+const { judge, GRAMMAR } = await import(pathToFileURL(join(KIT, "checks/lib/config-grammar.mjs")).href);
+const CASES = [
+  ["ok", "deploy.environments", { deploy: { environments: ["staging=deploy.yml"] } }],
+  ["empty", "deploy.environments", { deploy: { environments: [] } }],
+  ["absent", "deploy.environments", {}],
+  ["malformed", "deploy.environments", { deploy: { enviroments: ["staging=deploy.yml"] } }],
+  ["malformed", "deploy.environments", { deploy: { environments: ["prod=../other/deploy.yml"] } }],
+  ["malformed", "deploy.environments", { deploy: { environments: ["prod=deploy.yml; rm -rf ."] } }],
+  ["malformed", "deploy.rollback", { deploy: { rollback: "rollback.yml" } }],
+  ["ok", "performance.budgets", { performance: { budgets: ["cold-start-ms=p95<400@n=20"] } }],
+  ["malformed", "performance.budgets", { performance: { budgets: ["cold-start-ms=400"] } }],
+  ["malformed", "performance.budgets", { performance: { budgets: ["cold-start-ms=p95<400@n=1"] } }],
+  ["ok", "localisation.locales", { localisation: { locales: ["pl", "pt-BR"] } }],
+  ["malformed", "localisation.locales", { localisation: { locales: ["../etc"] } }],
+];
+for (const [expected, key, config] of CASES) {
+  const got = judge(config, key).status;
+  if (got !== expected) fail(`config grammar: ${key} on ${JSON.stringify(config)} is "${got}", expected "${expected}"`);
+}
+// Every key a guarded workflow names must be one the grammar knows.
+for (const name of workflowFiles) {
+  const text = readFileSync(join(KIT, "workflows", name), "utf8");
+  for (const match of text.matchAll(/config-guard\.sh ([a-zA-Z.]+)/g)) {
+    if (!GRAMMAR[match[1]]) fail(`kit/workflows/${name} guards on "${match[1]}", and the grammar has no such key`);
+  }
 }
 
 if (problems) {
