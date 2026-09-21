@@ -180,7 +180,7 @@ cp -R .claude/skills/xez-onboard-opinionated/kit/workflows/. .xezar/workflows/
 **From 1.5.0 those last two lines bring more than fixes.** They now also copy nineteen new
 workflows, three of which call a check this list does not copy, and none of which your routing
 table names. Follow the entry "the leader has no workflow for a deploy…" above instead: it copies
-the two extra check files and adds the routing rows, the config keys and the `SDLC.md` headings
+the three new check files and adds the routing rows, the config keys and the `SDLC.md` headings
 that make the new workflows reachable. It also replaces `ci-watch.sh` and `lib/security-scan.mjs`,
 which the deploy workflow and the deploy trust boundary need. `node .xezar/checks/catalog-check.mjs .` tells you at once
 whether the copy was complete.

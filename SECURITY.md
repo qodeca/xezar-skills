@@ -16,7 +16,10 @@ operator did not intend.
   **committed repository content that a privileged session loads for itself** — campaign
   records a session-start hook injects, for one: anyone who can open a pull request can write
   them, so being in the repository does not make text trusted. Any place a skill would follow
-  a directive found inside one of these is a vulnerability, not a bug.
+  a directive found inside one of these is a vulnerability, not a bug. The same holds for
+  configuration that grants authority: a deploy target read from the branch under review is
+  chosen by whoever opened the pull request, so the onboarding kit reads `deploy.*` from the
+  remote's default branch.
 - **A credential leaving its boundary** — a token in model output, in a tracker comment, in
   a log, or passed to a system under test.
 - **A gate that can be made to pass without being satisfied.** A label that was never

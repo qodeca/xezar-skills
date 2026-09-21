@@ -23,11 +23,11 @@ A workflow for every kind of work a project meets, each with a role skill that s
 | Review | code review · **security review** · address review findings |
 | Ship | integration · root-sync · release prep · release · **deploy and rollback** · issue triage |
 
-The ones in bold arrived in 1.5.0. Four of them — deploy, rollback, performance, localisation — are installed everywhere and run only where you have said something first: a deploy environment, a budget, a locale. With an empty list they refuse in their first seconds and say why, before any dependency is installed.
+The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves rollback), performance and localisation — are installed everywhere and run only where you have said something first: a deploy or rollback environment, a budget, a locale. With an empty list they refuse in their first seconds and say why, before any dependency is installed.
 
 **Every document the setup or a workflow commits lives under `docs/`** — the design system, the designs, architecture, spikes, runbooks, deprecations, performance notes. The kit reads a `paths.*` key and never a literal folder, so a project that already keeps one of these elsewhere keeps it.
 
-**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it.
+**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it. It is left on, and reported, when the engine is not in single-project mode or when an existing routing table still uses it.
 
 ## Before you run it
 
