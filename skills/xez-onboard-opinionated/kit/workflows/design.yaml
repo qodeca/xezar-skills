@@ -4,7 +4,7 @@
 # design-system drift test and the designs handoff lint, and a mockup that breaks either
 # is not ready for review.
 name: design
-description: "Design a user-facing surface – mockup in designs/<feature>/ on the design system, README handoff, every state – then gates and a draft PR into main. No application code."
+description: "Design a user-facing surface – mockup in designs/<feature>/ on the design system, README handoff, every state – then gates and a draft PR into the base branch. No application code."
 steps:
   - id: kit
     name: Snapshot the local project kit
@@ -39,6 +39,6 @@ steps:
     command: ".xezar/checks/worktree-preflight.sh --record-gate-evidence"
     resultScope: stage
   - id: handoff
-    name: Draft PR into main
+    name: Draft PR into the base branch
     prompt: "Hand off the design of: {{task}}. Follow docs/design-system/lifecycle.md and docs/design-system/storage.md for ownership and evidence; verify the sealed head and open the draft PR with needs-design. The author already owns the mockup and README handoff; make no content changes here. Independent design review remains pending."
     skill: xezar-handoff-draft-pr

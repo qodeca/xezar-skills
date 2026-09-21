@@ -70,7 +70,7 @@ Order matters: post the comment, then attempt the labels, then write the packet.
     {
       "id": "B-1",
       "severity": "major",
-      "file": "packages/web/src/routes/settings/agents-section.tsx",
+      "file": "designs/settings/agents-section.html",
       "title": "the destructive action has no confirmation step",
       "body": "Removing an account applies on the first click, with no undo and no confirm."
     },
@@ -99,7 +99,7 @@ Bounds the engine enforces: at most 40 KB, a regular file and never a symlink, a
 `findings` is the machine-readable half of the findings your `## Design review` comment already carries. Write it from the SAME working list you wrote the comment from — never by parsing your own comment back, and never into a second file. The comment's `B-n` and `NB-n` numbering IS the `id`, so a person can match the two without a tool.
 
 - `severity` is lower-case `blocker`, `major`, `minor` or `nit`. A blocking `B-n` is `blocker` or `major`; a non-blocking `NB-n` is `minor` or `nit`.
-- `file` is the mockup or view the finding is about (`designs/<feature>/…`, `packages/web/src/routes/…`), absent for a whole-flow finding. A theme or width finding names the view and omits `line`; a `line` without a `file` is refused.
+- `file` is the mockup or view the finding is about (`designs/<feature>/…`, or the source file of the view), absent for a whole-flow finding. A theme or width finding names the view and omits `line`; a `line` without a `file` is refused.
 - `title` is one headline. `body` is ONE sentence — the rule it breaks, the state and the capture stay in the comment, which `evidenceUrl` addresses.
 - `fingerprint` is optional and is stable ACROSS reports for the same defect: derive it from `file`, `severity` and `title`, never from the line.
 - `findings` and `findingsOmitted` are a PAIR — write both or neither. Absent `findings` means you reported none IN THIS FORM; it is not "there were none" and it is not a pass.

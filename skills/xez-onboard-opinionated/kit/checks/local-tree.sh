@@ -21,6 +21,16 @@ LOCAL="$REPO_ROOT/.local/xezar"
 # The six named subfolders. Anything else at the top level is loose.
 ALLOWED="runtime tasks worktrees scratch cache qa"
 
+# Single-project mode (`.xezar/workspace.json` present): the ENGINE keeps its own working files at
+# the top level of `.local/xezar/`. They are the engine's, not loose work, and nothing here may move
+# them. The list is closed and exact on purpose: a name that is not on it is still reported.
+ENGINE_DIRS=""
+ENGINE_FILES=""
+if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
+  ENGINE_DIRS="ipc mcp mcp-owner-claims runs writer-claims tmp campaigns"
+  ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json runs.json.tmp ui-state.json ui-state.json.tmp todos.json todos.json.tmp"
+fi
+
 # Only the primary checkout has the full tree. A task worktree creates the one or two subfolders
 # it needs, so running this there would report four missing folders on every single task.
 git_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
@@ -43,11 +53,14 @@ for entry in "$LOCAL"/* "$LOCAL"/.[!.]* "$LOCAL"/..?*; do
   # A bare .gitignore at the top level is part of the structure, not loose.
   [ "$name" = ".gitignore" ] && continue
   if [ -d "$entry" ]; then
-    case " $ALLOWED " in
+    case " $ALLOWED $ENGINE_DIRS " in
       *" $name "*) continue ;;
     esac
     loose="$loose  $name/ (unexpected directory)"$'\n'
   else
+    case " $ENGINE_FILES " in
+      *" $name "*) continue ;;
+    esac
     loose="$loose  $name (file at the top level)"$'\n'
   fi
 done

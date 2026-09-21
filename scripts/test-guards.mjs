@@ -229,6 +229,22 @@ breaks(
 );
 
 breaks(
+  "a launcher that stops marking its session as the leader is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("export XEZAR_LEADER=1", "export XEZAR_LEADER=0"),
+  () => script("test-kit-facts.mjs"),
+  "does not export XEZAR_LEADER=1",
+);
+
+breaks(
+  "a kit issue template that points at another project's repository is rejected",
+  "skills/xez-onboard-opinionated/kit/github/ISSUE_TEMPLATE/config.yml",
+  (s) => s.replace("github.com/{{REPO_SLUG}}/", "github.com/qodeca/xezar/"),
+  () => script("test-kit-facts.mjs"),
+  "must point at the consumer's repository",
+);
+
+breaks(
   "rewording a guide heading xez-add-rule routes into is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
   (s) => s.replace("## Review discipline", "## Reviewing"),

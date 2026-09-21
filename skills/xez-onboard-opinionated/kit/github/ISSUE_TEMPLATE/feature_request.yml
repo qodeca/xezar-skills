@@ -1,6 +1,6 @@
 name: Feature request
-description: Suggest a change to what xezar does.
-labels: ["enhancement"]
+description: Suggest a change to what {{PRODUCT}} does.
+labels: ['feature']
 body:
   - type: textarea
     id: problem
@@ -13,7 +13,7 @@ body:
     id: proposal
     attributes:
       label: What you would like
-      description: The behaviour you want. A sketch of the cockpit, the CLI or the workflow YAML helps.
+      description: The behaviour you want. An example of what it looks like in use helps.
     validations:
       required: true
   - type: textarea
@@ -24,17 +24,13 @@ body:
     validations:
       required: false
   - type: dropdown
-    id: cockpit
+    id: surface
     attributes:
-      label: Does this change what the cockpit shows?
-      description: Yes means the maintainer applies `needs-design` at triage and the work starts with a mockup in `designs/<feature>/`.
+      label: Does this change what a user sees?
+      description: Yes means the maintainer applies `needs-design` at triage and the work starts with a proposal in `designs/<feature>/`.
       options:
-        - "Yes"
-        - "No"
-        - "Not sure"
+        - 'Yes'
+        - 'No'
+        - 'Not sure'
     validations:
       required: false
-  - type: markdown
-    attributes:
-      value: |
-        xezar is zero config by design: a feature that needs a setting before it works is usually the wrong shape. See "Zero config" in [AGENTS.md](https://github.com/qodeca/xezar/blob/main/AGENTS.md).

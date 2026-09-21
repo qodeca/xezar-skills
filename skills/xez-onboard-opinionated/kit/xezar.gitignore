@@ -33,3 +33,10 @@
 /.kit-stage-*
 /.env
 /.env.local
+
+# Machine-level state, set once per operator – never committed. `agent-accounts.json` keys its
+# selections by the absolute path of the checkout, so committing it hands every clone a path that
+# does not exist there.
+/agent-accounts.json
+/workspace.json
+/workspace-ui.json
