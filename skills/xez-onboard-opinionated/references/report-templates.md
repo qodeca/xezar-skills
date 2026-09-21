@@ -17,7 +17,9 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🎯 Base branch | `<name>`, protected — <n> required checks, administrators **not** enforced |
 | 🧪 Gates | `<command>`, … — run by the smoke test, not only written down |
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
-| 📋 Routing | <n> rows, chains ending in `wait` |
+| 📋 Routing | <n> rows, chains ending in `wait`; tasks that name no account run on `<lane>`, not the leader's login |
+| 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
+| 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
 
 ⚠️ **Three things to know before you rely on it**
@@ -41,7 +43,7 @@ Until you install <names>, the leader keeps its **full** owner-only list and sto
 the six. Nothing is less safe; it is just less useful overnight.
 
 ```bash
-npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule
+npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule --agent claude-code --agent codex
 ```
 
 **Next:** from tomorrow, open the leader with `<launcher>` — the full command, including

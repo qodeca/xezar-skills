@@ -17,13 +17,33 @@ Each of those passes its own check. The first real piece of work fails on them, 
 nobody is watching. So the last thing onboarding does is *be* that first piece of work, while
 the owner is still here.
 
-## What it does
+## What it does — two tiers, because a full workflow is the wrong price
 
-1. **Dispatch one throwaway task** through the leader's MCP server: a trivial change to a
-   scratch file, on the standard workflow, so it exercises the real path rather than a shortcut.
-2. **Watch it** — the workflow steps, the check scripts, the pull request it opens, the gates.
-3. **Clean up**: close that pull request and delete the branch it created.
-4. **Then** report "setup complete". Not before.
+The first test ran the throwaway task on a real delivery workflow: two full agent sessions, five
+and a half minutes, and **287,000 tokens to change one line**. Those workflows are built for real
+work. What needs proving splits cleanly in two, and only one half needs an agent.
+
+**Tier 1 — the engine can run a task here.** `task_create` with **inline steps**, not a named
+workflow: the kit's worktree preflight, then **one** agent step on the cheapest model the routing
+table has, told to append one line to a scratch file under `.local/xezar/scratch/`, then the
+evidence step. Name the `agentProfile` explicitly — **never the default, and never the leader's
+login**. This proves dispatch, the worktree, the account, the permission file, and — when the
+task changes state — one pushed event (`references/verify.md` §2).
+
+**Tier 2 — the gates and the tracker flow work.** No agent. On a scratch branch with a one-line
+change: run `.xezar/checks/repo-gates.sh` as a plain command, open a draft pull request through
+**create-pr**, apply the full label set through the descriptor's guards — one pipeline label, a
+category, a QA label, a priority, a risk — read them back, and wait for CI. A setup whose labels
+do not exist fails **here**, not on the first real task.
+
+Then **clean up, in this order**: the engine's worktree first (through the engine — a branch
+that a worktree still holds cannot be deleted), then close the pull request and delete the
+remote branch, then the local branch. **Then** report "setup complete". Not before. Print what
+tier 1 cost in tokens: it is the owner's first real number for what a task costs.
+
+**One retry, announced, for one reason.** A dispatch refused for a usage limit says nothing
+about the setup. Say so, take the next lane in the routing chain, dispatch once more. Any other
+failure is the result.
 
 ## Cleaning up is not a rule violation
 

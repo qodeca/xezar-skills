@@ -78,6 +78,17 @@ Two rules that are not negotiable and are stated in the question:
 Unlimited lanes are exempt from budget tracking, so ask which they are rather than discovering
 it from a rate limit that never arrives.
 
+Two things the first test got wrong here, both cheap to get right:
+
+- **Put the login this session runs on first in the list of leader candidates.** It is what most
+  owners mean, and a list that leaves it out makes them type "the default one".
+- **Ask which lane is the engine's default for a task that names no account — and it must not be
+  the leader's login.** The engine keeps such a default, and out of the box it is whatever the
+  owner logged in with first: usually the leader's login, which breaks the first rule above on
+  the first task dispatched without an explicit account. The answer is *set*, not only recorded:
+  `references/verify.md` does it once the engine's tools are there. With a single login there is
+  nothing to choose; say so, and carry the warning into the report.
+
 ### 6. `routing`
 Handled in `references/routing-interview.md` — enough questions that it is its own step.
 

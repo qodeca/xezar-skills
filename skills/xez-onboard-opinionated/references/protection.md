@@ -17,7 +17,10 @@ preview, and stated again here.
 
 Tracker operation **branch-protected**, on the branch the owner confirmed, with:
 
-- **required status checks** = the confirmed gate commands' CI job names;
+- **required status checks** = the **CI job names** that run the confirmed gate commands, read
+  from the base branch's latest run with **list-runs** / **get-run** — never the commands
+  themselves, and never a name copied from a workflow file that has not run. No CI at all → no
+  required checks, and the report says "review rules only" rather than pretending;
 - **no direct pushes** for ordinary work;
 - **administrators not enforced.**
 
@@ -31,6 +34,22 @@ bypass to record files: the campaigns directory, the leader guide, the mode file
 **The limit is a written rule, not an enforced one.** Anyone with admin rights can push anything
 directly. That is the accepted cost of keeping the record honest and immediate, and it is stated
 in the report rather than left for someone to discover.
+
+## Never require a check that is red today
+
+Before applying, read each candidate check's latest conclusion **on the base branch**. One that
+is failing there would block every pull request from the moment it is required — including the
+fix for it. In the first test that cost a second pull request and two CI waits.
+
+Red on the base branch → do not require it silently, and do not drop it silently. Tell the owner
+which check, why it fails, and offer: fix it first (recommended), or require the green ones now
+and come back for this one. Whatever is left out is named in the report as not enforced.
+
+## The other long-lived branch
+
+In a two-branch flow the base branch is not the release branch. Ask once whether the release
+branch is already protected, and report what was found by reading it. This skill protects the
+base branch it was asked to; it does not quietly leave `main` open and say "protected".
 
 ## Without admin rights
 

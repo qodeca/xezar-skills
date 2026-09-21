@@ -61,7 +61,11 @@ what it is for. A preview nobody reads is a preview that approved everything.
 
 ## Say what the preview does not cover
 
-Three things, named explicitly, because they are the ones that surprise people:
+Four things, named explicitly, because they are the ones that surprise people:
+
+- **The label taxonomy is created on the tracker**, before the setup pull request opens, so that
+  pull request can carry its labels. List the labels by name and group, and mark which already
+  exist: those keep their colour and description. Approving the preview approves this.
 
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the

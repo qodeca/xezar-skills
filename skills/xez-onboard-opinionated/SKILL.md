@@ -50,7 +50,9 @@ rest.
 2. **Analyse the repository** — follow `references/analysis.md`. Read-only throughout. It
    determines the real branching model (never assuming a default branch name), proposes gate
    commands from the build files it finds, proposes a design-gate position from UI signals, and
-   enumerates which agent tools, accounts and models actually exist on this machine.
+   enumerates which agent tools, accounts and models actually exist on this machine. It also
+   reads the state the setup lands on: whether the base branch is green today, what CI runs
+   that no gate covers, and which linters or licence checks scan the folders it will add.
 
 3. **Interview the owner** — follow `references/interview.md`. Every answer is saved to
    `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
@@ -68,7 +70,8 @@ rest.
    changed underneath invalidates the preview rather than being silently overwritten.
 
 6. **Write** — follow `references/write.md`. Re-check every digest, copy the kit, generate what
-   is generated, then commit on a setup branch and open a pull request. The owner merges it;
+   is generated, create the approved labels, then commit on a setup branch and open a pull
+   request. The owner merges it;
    this skill does not merge its own setup unless the owner says so, and never over a red check
    without a second answer. It leaves a pending marker so steps 7 to 10 can resume — in this
    session when the engine's tools are loaded, otherwise in the next one via `--verify`.
@@ -78,10 +81,10 @@ rest.
    **not** enforced. No admin rights → print the exact command and wait. Either way, re-read
    with **get-required-checks**: this skill does not report success while protection is off.
 
-8. **Prove it works** — follow `references/smoke-test.md`. Dispatch one throwaway task, watch
-   it run the workflow, open a pull request and pass the gates, then close that pull request and
-   delete its branch. Every part of a setup can pass a part-by-part check while the whole still
-   cannot run a task.
+8. **Prove it works** — follow `references/smoke-test.md`. Two tiers: one cheap engine task on
+   an explicit lane, then the real gates and a labelled draft pull request with no agent at all;
+   close that pull request and delete its branch. Every part of a setup can pass a part-by-part
+   check while the whole still cannot run a task.
 
 9. **Check the owner's controls are installed** — follow `references/control-skills.md`. The
    generated guide names `xez-unattended-on`, `xez-unattended-off` and `xez-add-rule` as the

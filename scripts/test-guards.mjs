@@ -245,6 +245,22 @@ breaks(
 );
 
 breaks(
+  "a private tracker descriptor that drifts from the canonical one is rejected",
+  "skills/xez-onboard-opinionated/references/trackers/github.md",
+  (s) => s.replace("#### create-label", "#### make-label"),
+  () => script("test-kit-facts.mjs"),
+  "copy the canonical file over it",
+);
+
+breaks(
+  "a taxonomy that drops a label the kit's design gate reads is rejected",
+  "skills/xez-onboard-opinionated/references/labels.json",
+  (s) => s.replace('"skip-design"', '"skip-the-design"'),
+  () => script("test-kit-facts.mjs"),
+  'has no "skip-design" label',
+);
+
+breaks(
   "rewording a guide heading xez-add-rule routes into is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
   (s) => s.replace("## Review discipline", "## Reviewing"),
