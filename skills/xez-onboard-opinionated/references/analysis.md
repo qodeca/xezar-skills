@@ -56,6 +56,13 @@ know whether a UI is coming.
 designs directory, the design skill and the design review workflow. A backend can gain a UI
 later and the configuration should already be complete.
 
+**Where documents live is read here too.** Every document the setup or its workflows commit goes
+under `docs/` — the design system, the designs, architecture, spikes, runbooks, deprecations,
+performance notes. Look for folders the project already uses for any of these, at the root as well
+as under `docs/`, and propose what was found; where nothing was, propose the default from
+`references/write.md` §2. An existing folder is never moved by this skill: the key records where
+it is, and moving it is the owner's change.
+
 The accepted cost is real and is handled by writing, not by omission: on a UI-less project part
 of the setup sits inert, and inert configuration invites the belief that it is enforcing
 something. So the generated process document states the position in one plain sentence, says all

@@ -193,31 +193,44 @@ patterns=(
   '(^|[^[:alnum:]-])develop($|[^[:alnum:]-])'
   '(^|[^[:alnum:]])yarn '
   'findWithDecryption'
-  # A vendored kit is an ADAPTED copy, not a mirror. These are facts about the engine's own
-  # repository — its module paths, its mutation-test config, its design-system tree — and they
-  # shipped into every onboarded project, where the path names nothing and the reader cannot
-  # follow it. Name the symbol, or read the value from `.xezar/pipeline/config.json`.
+)
+# A vendored kit is an ADAPTED copy, not a mirror. These are facts about the engine's own
+# repository — its module paths, its mutation-test config, its design-system tree — and they
+# shipped into every onboarded project, where the path names nothing and the reader cannot
+# follow it. Name the symbol, or read the value from `.xezar/pipeline/config.json`.
+#
+# Scoped to `skills/<name>/kit/**` and nowhere else. `docs/design-system` is also the DEFAULT
+# a setup skill writes into `paths.designSystem`, so the skill's own references must be able to
+# say it; what must never happen is a kit file that follows the path instead of reading the key.
+kit_patterns=(
   'packages/(web|xezar)'
   '[Ss]tryker'
   'docs/design-system'
 )
 
 skill_files=$(find skills -type f | sort)
-for pattern in "${patterns[@]}"; do
-  hits=""
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
-    [ -n "$file_hits" ] && hits="${hits}${hits:+
+scan_patterns() {
+  # $1: newline-separated file list; the rest: the patterns to refuse in those files.
+  local files="$1" pattern hits f file_hits
+  shift
+  for pattern in "$@"; do
+    hits=""
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
+      [ -n "$file_hits" ] && hits="${hits}${hits:+
 }${file_hits}"
-  done <<EOF
-$skill_files
+    done <<EOF
+$files
 EOF
-  if [ -n "$hits" ]; then
-    err "forbidden pattern '$pattern' found:"
-    printf '%s\n' "$hits" >&2
-  fi
-done
+    if [ -n "$hits" ]; then
+      err "forbidden pattern '$pattern' found:"
+      printf '%s\n' "$hits" >&2
+    fi
+  done
+}
+scan_patterns "$skill_files" "${patterns[@]}"
+scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || true)" "${kit_patterns[@]}"
 
 # Old-brand ban (permanent): the predecessor collection's brand, its `om-` skill
 # prefix and its `.ai/` layout must not reappear in the maintained sources. Lineage

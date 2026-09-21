@@ -77,11 +77,12 @@ note cannot tell what it is looking at.
 **The kit is an adapted copy, not a mirror.** It began as the engine project's own `.xezar/`
 folder, and that project's module paths, release names and tracker links do not belong in
 somebody else's repository. They are fixed in the kit, once, rather than by every run rewriting
-them by hand. `.github/` templates carry four placeholders: `{{REPO_SLUG}}` and `{{PRODUCT}}`
+them by hand. `.github/` templates carry five placeholders: `{{REPO_SLUG}}` and `{{PRODUCT}}`
 from the tracker's **repo-info**; `{{UI_SCOPE}}` — what counts as a user-visible surface here, from
 the design answer (for a CLI: command names, flags, help text, output shapes); `{{RISK_SURFACES}}`
-— the two or three areas analysis found most dangerous to change. No placeholder survives into a
-written file. **An issue template the project already has is never overwritten** —
+— the two or three areas analysis found most dangerous to change; `{{DESIGNS_DIR}}` — the value
+of `paths.designs`, so a contributor's template names the folder this project really uses. No
+placeholder survives into a written file. **An issue template the project already has is never overwritten** —
 offer only the pull request template's Design and Risk parts, as an addition.
 
 ## 2. Generate what is generated
@@ -113,10 +114,30 @@ Never copied, because each depends on an answer:
   - **`ci.knownLoadFlakes`** — job names this project has watched fail under machine load rather
     than because of the change. `[]` on a new project, always: it is the honest answer, and a name
     copied in from somewhere else would excuse a real failure here.
-  - **`paths.designSystem`** — the folder holding this project's design system, when it has one.
-    Empty is the normal answer for a new project, and the design workflows then judge a mockup
-    against the screens that already exist and say so, instead of following a path to a tree that
-    is not there. The design gate itself is a separate answer and is unaffected.
+  - **`paths.designSystem`** — the folder holding this project's design system. A project that
+    already has one gets **its** path. A project with none gets `docs/design-system`: nothing is
+    created there by this skill, the design workflows find no `README.md` in it, judge a mockup
+    against the screens that already exist and say so, and the `design-system` workflow is what
+    fills it. The design gate itself is a separate answer and is unaffected.
+
+  **Every document this setup or its workflows commit lives under `docs/`.** A project's root
+  belongs to its code. So the remaining `paths.*` keys name a folder each, the kit reads the key
+  and never a literal path, and the defaults are:
+
+  | key | default | what lands there |
+  |---|---|---|
+  | `paths.designs` | `docs/designs` | one folder per designed feature, and the index `README.md` |
+  | `paths.architecture` | `docs/architecture` | decision records, architecture pages, structure diagrams |
+  | `paths.spikes` | `docs/spikes` | the findings page of a spike; never its prototype code |
+  | `paths.runbooks` | `docs/runbooks` | what to do when an alert fires, how a deploy is rolled back |
+  | `paths.deprecations` | `docs/deprecations` | what goes, its replacement, the dates |
+  | `paths.performance` | `docs/performance` | how a number was measured, and the baselines |
+
+  A project that already keeps one of these somewhere else keeps it: analysis proposes the folder
+  it found, on the facts screen, and the key records the owner's answer. A project onboarded
+  before these keys existed keeps its root-level `designs/` the same way — point `paths.designs`
+  at it, or move the folder and then the key. None of them is created empty; a workflow creates
+  its folder with its first document.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.
@@ -127,6 +148,19 @@ Never copied, because each depends on an answer:
   that tried it produced a project whose descriptor came from whatever version was on the machine.
   No descriptor for this stack → write none and say so, rather than installing one that describes
   a different package manager.
+- **`.xezar/pipeline/browsers/<name>.md`** and **`.xezar/pipeline/security/<name>.md`** — copied
+  from `kit/pipeline/browsers/` and `kit/pipeline/security/` under the same rule. The design
+  review and the browser-test role both read the browser descriptor, and a project without one
+  has a review that cannot look at a screen. Install **one** browser descriptor — the one whose
+  tool this machine already has, asked on the facts screen when both are there — and the security
+  descriptor as shipped. **Copying the security descriptor never sets `security.provider`**: that
+  key has no default, permanently, and choosing a scanner is the owner's act.
+- **The digests of what was installed.** `references/descriptor-digests.json` holds the SHA-256 of
+  every descriptor this release ships. Record the digest of each descriptor actually copied in
+  `.xezar/onboarding.json` under `descriptors`, as `{ "<path>": "<sha256>" }`. A descriptor is
+  literal shell whose exit status becomes a gate result, and an installed one never updates itself
+  — so the record is how anybody later tells "this is the file that shipped" from "somebody edited
+  it", and which release it came from.
 - **`.xezar/docs/leader-guide.md`** — built from `kit/leader-guide.template.md`. Everything
   outside a `{{...}}` placeholder ships **verbatim and is never reworded**: who the leader is and
   is not · session start, re-attach and compaction recovery · standing loops · owner-only
@@ -164,7 +198,11 @@ Never copied, because each depends on an answer:
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
   output, a library's exports, a config format), one honest line each. It is in the preview like
   every other generated file.
-- **`designs/README.md`** — only when the design gate is on; the design workflow writes there.
+- **`<paths.designs>/README.md`** — the designs index, written **always**: the design half installs
+  whatever the design gate's answer (`references/analysis.md` §3), and the design skill takes every
+  feature README's headings from this file, so a project without it has a design workflow with
+  nothing to follow. Headings: Purpose · Screens · States · Open decisions · Developer handoff ·
+  Design review. The `design-system` workflow owns the list from then on.
 - **`CLAUDE.md`** at the root, **`.xezar/CLAUDE.md`**, and the gitignored **`.claude/CLAUDE.md`**
   with this project's path and campaign name. An `@`-import of a missing file is a real failure,
   so seed every file it imports in the same step.

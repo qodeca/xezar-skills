@@ -60,6 +60,8 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | A second long-lived branch, or "none found" | the branch list |
 | The branching model | **inferred** from the two above — one long-lived branch is trunk-based, two is a two-branch flow — and shown as an inference, not a reading |
 | The design gate, on or off | the UI signals analysis found, quoted |
+| The browser tool design review and UI tests drive | which of the kit's browser descriptors this machine already has the tool for; asked only when it has both |
+| Where committed documents go | the `docs/` folders analysis found, or the defaults in `references/write.md` §2 — one line, all of them under `docs/` |
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |

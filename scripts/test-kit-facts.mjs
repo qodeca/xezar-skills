@@ -26,6 +26,7 @@
 // Run: node scripts/test-kit-facts.mjs
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -269,12 +270,35 @@ const fail = (fact, where, detail) =>
   // out of `xez-setup-agent-pipeline/references/`, which Cross-skill contract 4-5 forbids: it
   // works only where that skill happens to be installed, and it installs whichever version is on
   // the machine rather than the one this release ships.
-  for (const name of ["npm.md", "cargo.md"]) {
-    const kit = `${SKILL}/kit/pipeline/toolchains/${name}`;
-    const src = `skills/xez-setup-agent-pipeline/references/toolchains/${name}`;
-    if (!has(kit)) fail(fact, kit, "the kit ships no toolchain descriptor, so a run must reach into another skill for one");
-    else if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
+  //
+  // Then the browser and security descriptors, for the same reason and a sharper one: the design
+  // review and the browser-test role both read `.xezar/pipeline/browsers/`, which no run ever
+  // installed, and a descriptor is literal shell whose exit status becomes a gate result.
+  const descriptors = [
+    "toolchains/npm.md", "toolchains/cargo.md",
+    "browsers/agent-browser.md", "browsers/playwright.md",
+    "security/osv-scanner.md",
+  ];
+  // Byte-identity proves two copies agree. It does not prove anybody looked: a bad edit to the
+  // canonical file passes as long as it is copied. So each file is also pinned by digest, and a
+  // change cannot land without a deliberate edit to the pin.
+  const lockPath = `${SKILL}/references/descriptor-digests.json`;
+  const pinned = has(lockPath) ? JSON.parse(read(lockPath)).digests ?? {} : {};
+  if (!has(lockPath)) fail(fact, lockPath, "the descriptor digests are not recorded");
+  for (const name of descriptors) {
+    const kit = `${SKILL}/kit/pipeline/${name}`;
+    const src = `skills/xez-setup-agent-pipeline/references/${name}`;
+    if (!has(kit)) { fail(fact, kit, "the kit ships no such descriptor, so a run must reach into another skill for one"); continue; }
+    if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
+    const digest = createHash("sha256").update(readFileSync(join(root, kit))).digest("hex");
+    if (pinned[`kit/pipeline/${name}`] !== digest)
+      fail(fact, lockPath, `pins ${pinned[`kit/pipeline/${name}`] ?? "nothing"} for kit/pipeline/${name}, and the file is ${digest} -- review the change, then update the pin`);
   }
+  for (const key of Object.keys(pinned)) {
+    if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, which this fact does not know`);
+  }
+  if (!/descriptor-digests\.json/.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, `${SKILL}/references/write.md`, "never tells the write step to record the installed descriptor digests");
   checked.push(fact);
 }
 

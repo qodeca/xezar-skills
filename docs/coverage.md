@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 46 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 47 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 225 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |

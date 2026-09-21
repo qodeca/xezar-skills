@@ -445,6 +445,14 @@ breaks(
   "does not match allowlists.json",
 );
 
+breaks(
+  "a kit descriptor edited without its digest pin moving is rejected",
+  "skills/xez-onboard-opinionated/references/descriptor-digests.json",
+  (s) => s.replace(/("kit\/pipeline\/security\/osv-scanner\.md": ")[0-9a-f]{4}/, "$1ffff"),
+  () => script("test-kit-facts.mjs"),
+  "review the change, then update the pin",
+);
+
 // `test-kit-catalog.mjs` runs the onboarding kit's own validator on the kit, and adds the three
 // checks that validator cannot make from inside a project: the maintained-skill list is the
 // directory, every workflow has a routing row, every prose count is the table's count. One break

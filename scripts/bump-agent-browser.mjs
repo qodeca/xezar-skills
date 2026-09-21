@@ -13,6 +13,7 @@
 // source the descriptor's Pinned release section documents for manual bumps.
 
 import { readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 
 const DESCRIPTOR = 'skills/xez-setup-agent-pipeline/references/browsers/agent-browser.md'
 const RELEASES_LATEST = 'https://api.github.com/repos/vercel-labs/agent-browser/releases/latest'
@@ -93,4 +94,14 @@ for (const digest of digests.values()) {
 if (updated.includes(pinned)) fail(`old version ${pinned} still present after rewrite; aborting without writing`)
 
 writeFileSync(DESCRIPTOR, updated)
+
+// The onboarding kit installs its own copy of this descriptor, held byte-identical and pinned by
+// digest (scripts/test-kit-facts.mjs FACT 9). A bump that stopped at the canonical file would
+// leave every newly onboarded project on the old pin, so both move here, in the one command.
+const KIT_COPY = 'skills/xez-onboard-opinionated/kit/pipeline/browsers/agent-browser.md'
+const KIT_DIGESTS = 'skills/xez-onboard-opinionated/references/descriptor-digests.json'
+writeFileSync(KIT_COPY, updated)
+const lock = JSON.parse(readFileSync(KIT_DIGESTS, 'utf8'))
+lock.digests['kit/pipeline/browsers/agent-browser.md'] = createHash('sha256').update(updated).digest('hex')
+writeFileSync(KIT_DIGESTS, `${JSON.stringify(lock, null, 2)}\n`)
 console.log(`bumped agent-browser pin: ${pinned} -> ${tag}`)
