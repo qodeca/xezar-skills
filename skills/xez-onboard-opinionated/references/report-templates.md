@@ -111,7 +111,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 ```markdown
 ## 📋 Setup previewed — nothing written yet
 
-<n> files would be created, <n> left alone, <n> need your decision.
+<n> files would be created, <n> deleted (the engine's two init examples), <n> left alone, <n> need your decision.
 
 **What you settled**
 

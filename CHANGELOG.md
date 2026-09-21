@@ -1,3 +1,18 @@
+# Unreleased
+
+## Fixed
+
+- **The two files `xezar init` writes are deleted, not left behind.** `references/preflight.md` said
+  they "are replaced". Nothing replaced them: no workflow and no skill in the kit carries either
+  name, so `.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`
+  survived into the project. One is a workflow the leader can legitimately dispatch, generated
+  before any gate command was confirmed; the other is a stray skill among twenty named pipeline
+  roles. `references/write.md` §1 now removes both by path, and only while their content is still
+  the generated content preflight recognised — an edited one is somebody's configuration and a
+  preflight stop.
+- **The preview has a fourth group, `delete`.** A deletion is the one preview entry an owner cannot
+  infer from the others, so it is listed by path and reason instead of being folded into "replaced".
+
 # 1.4.0 (2026-09-21)
 
 ## Highlights

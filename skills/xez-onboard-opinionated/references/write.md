@@ -44,6 +44,22 @@ file that ships in the kit is not that. If the copy of the launcher is still ref
 around it: finish the rest, list it under "not written" with the path to the kit file, and let
 the owner copy it.
 
+**Delete the engine's two example files before copying.** `xezar init` writes
+`.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`, and preflight
+check 3 accepts them as a clean start. They are **not** overwritten by the copy: no workflow and no
+skill in the kit carries either name. So remove both, by path, before the copy — and say in the
+report that you did.
+
+Left in place, each one is a small lie the project then lives with. `fix-and-verify.yaml` is a
+workflow the leader can legitimately dispatch, generated before any gate command was confirmed, so
+it validates against whatever init guessed rather than what the owner settled; and
+`project-conventions.md` is an extra skill in a folder where every other skill is a named pipeline
+role, which is the kind of thing a reader assumes somebody meant.
+
+Delete only these two, only when their content is still the generated content check 3 recognised.
+An **edited** `fix-and-verify.yaml` is somebody's configuration, which is a preflight stop, not
+something this step may quietly remove.
+
 **Every file comes from the kit and the answers — never from this repository's git history.** A
 project that was onboarded before, and then had the setup removed, still has the old configuration
 in its history, and restoring it looks like a shortcut that cannot go wrong. It can: the answers
