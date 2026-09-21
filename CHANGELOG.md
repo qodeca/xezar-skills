@@ -1,3 +1,56 @@
+# Unreleased
+
+Two things the kit had no business shipping are gone, and the one document it kept
+pointing at is now written. **Three breaking changes**, the first this project has made
+deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an entry in
+`UPGRADE_NOTES.md` keyed by the symptom a reader sees.
+
+## Removed
+
+- **The dogfooding fragment ledger.** 46 kit files told every writing role to record
+  observations into `.xezar/docs/dogfooding.d/`, and told the release role to fold them into
+  a `.xezar/docs/dogfooding.md` the kit never shipped. It was this project's own
+  record-keeping habit, and `AGENTS.md` forbids a skill assuming a practice only its home
+  project has. Three of those pointers were genuinely broken; the rest was a working,
+  opt-in feature, and it goes too. **Stated plainly because it is a real loss:** nothing in
+  the kit now asks a role to record what a task taught it. Campaign notes remain, but they
+  are the leader's record of decisions, not a per-task record of lessons.
+- **The known-load-flake register**, and the one-rerun rule that read it. A CI job named in
+  `ci.knownLoadFlakes` could be re-run once instead of failing the build. The owner's rule is
+  the opposite — a flaky test is rebuilt onto a mechanism that cannot fail on timing, never
+  retried, never excused by a list — and the engine project had already deleted its own copy
+  and added a test to stop it returning. The kit also shipped this project's own fact, "the
+  two known load flakes", into repositories whose list was empty.
+- **The four `DOGFOOD_*` environment variables**, renamed to `KIT_TEST_*`. They are test
+  seams — a different concept wearing the same word. They fail **silently** if you set an old
+  name, which is the cost of removing them in one step rather than two.
+
+## Added
+
+- **`SECURITY.md` is generated during onboarding.** Six places in the kit pointed at it and
+  nothing wrote it, including the issue template that routes a security reporter. Two of the
+  six are roles that read it as *input*, not reporters: `xezar-security-review` is told to
+  read it before it opens the diff, so what the file says this project promised is what that
+  review defends. It carries four parts, and the private reporting route is not asked — the
+  issue templates already decide it, and a second address would make the two documents
+  disagree.
+
+## Changed
+
+- **One deprecation took one step instead of two**, by owner decision, for the flake list and
+  the variable names. `DECISIONS.md` records the override, dated, with the reasoning and with
+  what is lost — the rule itself is unchanged and no precedent is set.
+- **`BACKWARD_COMPATIBILITY.md` now lists `ci.requiredChecks` and `paths.designSystem`** as
+  protected surfaces. They always were; the table had never named them.
+
+## Fixed
+
+- **A half-removal can no longer ship silently.** `lint.sh`'s reference check matches only
+  tokens containing `references/`, so a kit pointer at `.xezar/docs/dogfooding.md` never
+  matched it — which is how that dead pointer survived four releases in 46 files. A new
+  pinned fact rejects either removed concept reappearing anywhere in the kit, with two
+  deliberate-break cases in the guard harness.
+
 # 1.6.1 (2026-09-21)
 
 A one-day patch on 1.6.0. It corrects a sentence 1.6.0 shipped that would have
