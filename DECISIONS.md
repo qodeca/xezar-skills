@@ -803,3 +803,75 @@ The routing rule is written by capability, not by name: *a provider that does no
 step's tool limits is in no read-only or security-and-release chain.* It therefore still holds
 the day somebody switches the provider back on, and it covers the next provider with the same
 gap without an edit.
+
+## The opinionated kit covers the whole life cycle, and a skill is a set of rules
+
+The kit shipped eighteen workflows that covered planning, building, reviewing and releasing. It
+had nothing for a deploy, a test suite, a migration, an architecture decision — so the leader met
+those as "multi-file implementation" and routed them to a role whose rules did not fit. Release
+1.5.0 added nineteen workflows. Three calls shaped them, and each reads like the obvious opposite
+was available:
+
+**A new role skill only when the role's rules differ, not when its prompt differs.** The first
+plan paired every workflow with its own skill. A review pointed at the kit's own precedent: the
+design skill already serves two workflows, the integration skill two steps. So hotfix is a
+workflow that runs the bug-investigation skill in a hotfix mode — its rules *are* that skill's
+rules, plus three — and architecture is one skill for the authoring workflow and the read-only
+review. Every other new workflow has rules of its own (what a refactor may not change, what a
+migration must decide first) and keeps a skill. The cost of a skill is not the file: it is one
+more description competing for selection, one more copy of the shared contract, one more name on
+the validator's list.
+
+**Guarded, not optional.** Deploy, rollback, performance and localisation make no sense in a
+project that has not named an environment, a budget or a locale. They are installed everywhere
+anyway, because a project that gains a deploy next month should find the workflow there, and they
+refuse at run time. Two details carry the weight. The guard is a check step *before* the
+dependency install, so refusing costs seconds. And the config lists have a closed grammar, so a
+misspelt key or a value of the wrong shape is reported as a fault: `pipeline_config_list` answers
+an absent key and an honest `[]` alike, which is right for a list of CI job names and wrong for a
+list whose emptiness means "do not deploy".
+
+**String lists with a checked grammar, not free scalars or nested objects.** `staging=deploy.yml`
+is this collection's `NAME=value` convention, read by the helper that already exists, validated by
+one regular expression, and unable to carry a path or a shell fragment into an argument. An object
+per environment would have needed a second reader in shell and bought one thing — room for a third
+field — that nothing needs yet.
+
+**Deploy authority is a record.** The deploy role's only control used to be the sentence "on the
+owner's go". It is now a file written before the dispatch — direction, environment, the full
+commit SHA, who said it, their words — sourced only from the launch text or an answered question,
+never from an issue or a comment, because that is where somebody who cannot deploy would put it.
+One record permits one dispatch; the run's head SHA must equal the recorded one; `deploy.*` is
+read from the base branch so a branch under review cannot repoint a target; a rollback needs its
+own record and refuses across a migration marked one-way.
+
+**What was left out, on purpose**: an accessibility audit workflow (the automated part rides inside
+UI tests, the judgement stays with design review), a postmortem, a cost report, and the
+housekeeping workflows. Each was offered and declined; none is blocked by anything here.
+
+**What is proved and what is not.** `scripts/test-kit-catalog.mjs` proves every workflow loads
+under the kit's own validator, names a skill that exists, and has a routing row — the fault it was
+written for is a workflow that is installed, valid and unreachable. It does not prove a workflow
+*runs*: that needs an engine, and `docs/coverage.md` says so in the row itself.
+
+## Why 1.5.0 is a minor release
+
+Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather than assumed:
+
+- **Kit content** is fresh-install scope. A workflow, a role skill or a check already installed
+  into a project never updates itself, so nothing here changes a running project.
+- **The new config keys** — six `paths.*` folders and four lists — are additive, and every reader
+  treats an absent key as "not answered" rather than failing.
+- **`paths.designSystem`** changes its *default* for a new project from empty to a folder that may
+  not exist yet. The design roles treat "no `README.md` there" exactly as they treated empty.
+- **The routing table** renumbered its rows and moved row 25 to a new workflow. It is a reference
+  the interview expands into a project's own document; an existing `model-routing.md` is untouched.
+- **`security.provider`** still has no default. The kit now copies the scanner descriptor and the
+  write step says in as many words that copying it never sets that key.
+- **The one behaviour edge** is `--verify` resuming a setup written by an older release. The new
+  OpenCode step leaves the provider on when the existing routing table still uses it, so an
+  upgrade never turns a working dispatch into a refusal.
+
+One change touches this repository's own protected surface: the validation command list grew from
+twenty to twenty-one. That is additive, and the four places that state it moved together.
+

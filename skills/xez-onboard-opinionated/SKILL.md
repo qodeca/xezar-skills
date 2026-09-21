@@ -106,6 +106,13 @@ rest.
   approved.** Before that the only file written is the interview state under `.local/xezar/runtime/`,
   which is working state rather than configuration — and the clean-project check deliberately
   never looks at it, or a resumed run would refuse itself.
+- **Every document this setup or its workflows commit lives under `docs/`.** The kit reads a
+  `paths.*` key and never a literal folder; the defaults are in `references/write.md` §2, and a
+  folder the project already uses is recorded where it is, never moved.
+- **An engine setting is changed only for this project, and only after it was disclosed.** The
+  default task account, the skill-update switch and the OpenCode provider switch are read, recorded,
+  written and read back in `references/verify.md` §3 — and left alone when the engine is not in
+  single-project mode, where the same call would reach every project on the machine.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
   smoke test runs before the final report. A setup whose gates cannot stop anything is not the
   "ready to work immediately" result this skill promises.

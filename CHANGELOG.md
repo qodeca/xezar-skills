@@ -2,21 +2,72 @@
 
 ## Changed
 
-- **Routing has seven task classes, not five, and twenty-seven rows, not twenty-six.** Design and
-  visual work were rows inside `writing` and `review`, which made the wrong lane look acceptable:
-  one prose ranking decided who designs a screen, and one review ranking decided who judges it.
-  - **`design`** — designing a surface, and reviewing a design. What matters is a lane that can
-    actually **see** a screen, which has nothing to do with how well a lane writes prose. The
-    design review row moved here from `review`; the "never the authoring model for its own review"
-    ban still applies, and the row now names the design's author explicitly.
-  - **`visuals`** — generated images and illustrations, and **diagrams and charts** as a new row of
-    their own. A picture that must be *invented* needs image generation; a figure that must be
-    *correct* — an architecture diagram, a chart of real numbers — is usually authored as text
-    (Mermaid, SVG, a plotting script) and wants the lane that reads the data best. Routing a chart
-    as an image gets a handsome picture of the wrong numbers.
+- **OpenCode is switched off for a newly onboarded project.** The setup calls the engine's own
+  provider switch, keeps the provider out of the lane table, and adds a fifth global routing
+  prohibition written by capability: a provider that does not enforce a step's tool limits is in
+  no read-only or security-and-release chain. The reasons are recorded once, in `DECISIONS.md`: it
+  can stall silently after a denied permission, it ignores the tool allowlist that makes a
+  read-only role read-only, a resumed session loses its role, and it cannot attach as leader. In
+  single-project mode the switch lives in `.xezar/workspace.json` — git-ignored, inside the
+  project, so no other project on the machine is touched. The previous state is recorded first,
+  the result is read back, the preview discloses it before the one approval, and the report prints
+  the call that undoes it. It is **left on**, and reported, when the engine is not in
+  single-project mode or when an existing routing table still uses it.
+- **Every document the setup or a workflow commits lives under `docs/`.** The design system, the
+  designs, architecture, spikes, runbooks, deprecations and performance notes each have a `paths.*`
+  key; the kit reads the key and never a literal folder. A project onboarded earlier keeps its
+  root-level `designs/` by pointing `paths.designs` at it. The designs index is now written
+  always — `write.md` said "only when the design gate is on" while `analysis.md` said the design
+  half installs regardless.
+- **The security-sensitive routing row runs `security-review.yaml`, not `code-review.yaml`**, and a
+  diff that touches a trust boundary gets both: the cold review reads the change for correctness,
+  the security review asks what a scanner cannot decide, and neither replaces the other.
+- **Routing has eight task classes and forty-five rows.** `design` and `visuals` left `writing` and
+  `review`, where one prose ranking decided who designs a screen; `testing` is new, because
+  writing a test that fails for the right reason is a different skill from writing the feature.
+  The two visuals rows now run `visual-asset.yaml`. The table is sorted by class, and the rules for
+  choosing between rows were regenerated against the new numbers — eleven look-alike pairs.
+- **`model-routing.md` keeps every column of a row, the workflow file included.** Nothing said so,
+  and a row written without its workflow is work the leader can recognise and cannot start.
+  `write.md` also now lists the `SDLC.md` sections the kit cites by name, which nothing told the
+  generator to write.
 
-  The routing screen still asks once per class, so this is seven items on one screen rather than
-  five. Row numbers in the precedence rules moved with the table.
+## Added
+
+- **Nineteen workflows, so the leader has a route for the whole life cycle.** Decide:
+  `architecture`, `architecture-review`, `spike`, `deprecation-plan`. Design: `design-system`,
+  `ui-design`, `visual-asset`. Build: `hotfix`, `refactor`, `migration`, `observability`,
+  `localisation`. Test: `ui-tests`, `integration-tests`, `regression-suite`, `performance`,
+  `acceptance-verification`. Review: `security-review`. Ship: `deploy`, which serves deploy and
+  rollback. Each arrives with a role skill that says what it owns and what it never does, and a
+  routing row with a written trigger.
+- **A role skill only where the rules differ.** Hotfix runs the bug-investigation skill in a new
+  hotfix mode; architecture is one skill for the authoring workflow and its read-only review.
+  Seventeen new role skills, thirty-seven in all.
+- **Deploy never deploys, and its authority is a record.** It dispatches the project's own deploy
+  workflow exactly once, for the environment and the full commit SHA the owner authorised in words
+  that are written down *before* the dispatch — from the launch text or an answered question only,
+  never from an issue, a pull request or a comment. The run's head SHA must equal the recorded one.
+  A rollback needs its own record and refuses across a migration marked one-way. A failed deploy
+  is never re-dispatched by a machine, and nothing is copied out of deploy logs.
+- **`config-guard.sh` — a guarded workflow refuses before the dependency install.** Deploy,
+  rollback, performance and localisation are installed everywhere and run only where a list says
+  so. The guard tells an honest `[]` from an absent key from a typo, because for these keys an
+  empty list means "do not run" and a misspelt one must never read that way. `deploy.*` is read
+  from the base branch, so a branch under review cannot repoint a deploy target.
+- **The kit ships browser and security descriptors**, byte-identical to the collection's and
+  pinned by SHA-256, and the write step records the installed digests. The design skill pointed at
+  a browser descriptor folder no run ever installed.
+- 🧪 **A twenty-first gate, `test-kit-catalog.mjs`.** Nothing in this repository ran the kit's own
+  validator against the kit, and no check anywhere caught a workflow that is installed, valid and
+  named by no routing row. The gate stages the kit and runs `catalog-check`, holds the validator's
+  maintained-skill list equal to the skill directory, binds workflows to routing rows, checks every
+  row and class count written in prose against the table, and checks the config grammar. It proves
+  a workflow loads and can be selected — **not** that it runs, and `docs/coverage.md` says so.
+- **The role skills' shared contract is generated.** `sync-shared-blocks.mjs` gained tail blocks,
+  so thirty-seven copies of one text are written from one canonical copy instead of by hand.
+- A twelfth pinned kit fact (the OpenCode switch, its disclosure, its undo and its routing ban
+  agree), and eight more deliberate-break cases — forty-nine in all.
 
 ## Fixed
 
