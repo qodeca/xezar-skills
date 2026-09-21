@@ -1,9 +1,47 @@
-# Unreleased
+# 1.6.0 (2026-09-21)
 
-Everything under "onboarding" below comes from one audited fresh-repository run of the bootstrap
-prompt and `xez-onboard-opinionated` (kit 1.4.0, engine 0.16.0, `qodeca/8cli`, 2026-09-21): 42
-minutes and about twelve question rounds against a target of twenty and six. The engine half is
+## Highlights
+
+The first audited onboarding of a fresh repository took 42 minutes and about twelve question
+rounds against a target of twenty and six, and ended with a 114-file pull request nobody had
+read. This release is the half of that which belongs to the skills. The engine half is
 `qodeca/xezar#819`.
+
+**A lane is a tool plus a model.** The routing interview said "a vendor, an account and a model
+class", and a real run followed it into preference chains made of the owner's logins. Chains now
+rank `<tool>/<model>` entries; logins are the rotation under a tool, used when one runs out. The
+screen asks what each model is *for* — daily, escalation only, single purpose — before it
+proposes any ranking, and it has words for both of the lanes an owner wanted and the skill could
+not express.
+
+**The engine's one-time account question is announced before its window opens**, with its real
+shape and its real default, because the first run sent "answer y" a minute after the question had
+already been declined. **When the engine refuses a call**, the skill now stops calling rather than
+guessing argument shapes, tries the engine's own tool, then points at the place a person does it
+— and only on the owner's answer to one question showing the exact values does it make a
+backed-up edit of one of two named engine files. That reach outside the repository is a recorded
+exception in `SECURITY.md`, narrow by file, by key and by moment.
+
+**"I will read it first" is a normal answer.** The setup pull request's body sorts its files by
+origin, so the dozen worth reading are not lost among a hundred that are not, and a deferred merge
+ends the run cleanly with the one line that resumes it.
+
+**The leader guide fits its own limit.** It asked for 200 lines while shipping 186 fixed plus 65
+budgeted, so no run could comply. The fixed part is 145 with every rule kept, the reasoning moved
+to a document the leader opens on demand, and a gate now adds the two numbers up.
+
+**Reviewed before release.** Five reviewers read the change; four must-fix findings were closed in
+the same pull request, two of them holes the first pass had opened — a consented file copy that
+ran before the ignore entry that hides it, and a refusal recognised by its wording rather than by
+where it came from.
+
+**What is proved and what is not.** Every gate is green and every guard still fires. The
+onboarding has **not** yet been re-run on a fresh repository with this kit, so the twenty-minute
+target is still a target; the honest estimate after review is seven or eight question rounds, not
+six. `docs/coverage.md` says what is checked and what is not.
+
+Forty-five skills, twenty-one gate commands, sixty-two deliberate defects, thirteen pinned kit
+facts, nine pinned prompt rules.
 
 ## Changed
 
