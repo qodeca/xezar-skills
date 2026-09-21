@@ -68,15 +68,17 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | Deploy and rollback workflows, locales, or "none found" | workflow file names, each shown with whether it has a manual trigger and a `sha` input, and locale folders — readings, each confirmed; performance budgets are never proposed and start empty |
 | Where committed documents go | the `docs/` folders analysis found, or the defaults in `references/write.md` §2 — one line, all of them under `docs/` |
 | What is **not** a vulnerability here | the surfaces analysis found, read back as designed behaviour a reporter might mistake for a flaw — for a CLI, that it runs what the caller could run anyway; for a local server, that it binds loopback without auth. Proposed, never assumed: an empty answer is allowed and says so in the file |
-| Who to reach if a private report gets no answer | the repository owner from the remote, and "within a week" — a fallback the owner can replace with a real name or address |
+| Who to reach if a private report gets no answer | the repository owner from the remote, and "within a week" — a fallback the owner can replace with a real name or address. Shown as an escalation of last resort, never as a second place to report |
+| Which versions get a security fix | "the latest release" — a support commitment, so it is the owner's to confirm rather than the setup's to assume |
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |
 | The task logins available | the account registry, minus the reserved login |
 | The lanes available | every `<tool>/<model>` analysis found, each marked cloud or local, and whether it can see a picture |
 
-Five of these carry a consequence the owner cannot see from the fact alone, so state it beside the
-fact rather than in a question of its own:
+Seven consequences below are ones the owner cannot see from the fact alone, so state each beside
+its fact rather than in a question of its own. (Counted as bullets, not as rows: the first covers
+both security answers at once, and two of them are about dispatch rather than a single row.)
 
 - **The two security answers become `SECURITY.md`, which two role skills read as input.** The
   security review is told to read it before it opens the diff; what it says this project promised

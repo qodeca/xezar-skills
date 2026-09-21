@@ -28,10 +28,17 @@ per kind, stated in the preview rather than asked file by file:
 
 - a document the project already has (`CLAUDE.md`, `AGENTS.md`) — **append a marked section**,
   never replace;
-- a `CONTRIBUTING.md`, a `SECURITY.md` or a `docs/README.md` the project already has — **left
-  alone**, and what the setup would have written is offered as an addition instead. These three
-  are addressed to people outside the project, and a maintainer who wrote one already has said
-  more by writing it than any answer in this interview can;
+- a `CONTRIBUTING.md`, a `SECURITY.md` or a `docs/README.md` the project already has — **needs
+  your decision**, which is the group the rule above puts it in: the file exists and the setup has
+  content for that path. It is never silently replaced. The default proposal is **keep theirs**,
+  because these three are addressed to people outside the project and a maintainer who wrote one
+  has already said more than any answer in this interview can. Show what the setup would have
+  written beside it, so the choice is visible rather than described.
+
+  For an existing `SECURITY.md` say one thing more, because it is the case that matters: if it
+  carries no "not a vulnerability" list and no statement of what the project has promised, the
+  security-review role's first read gets nothing — that role reads this file as input. Offer those
+  two parts as an addition to the owner's file, named as parts 2 and 4 (`references/write.md` §2);
 - an issue template — **left alone**, always;
 - a pull request template — offer the Design and Risk parts as an addition;
 - `.mcp.json` — **merge** the one server entry in;
@@ -60,12 +67,11 @@ Group the entries the way the owner thinks about them, not by directory:
   command array generated from the confirmed answers.
 - **Process and config** — the two config files, the label taxonomy, the tracker descriptor, the
   generated process documents. `SECURITY.md` is one of these and is worth naming on its own line:
-  it is the only generated document that makes a **promise to people outside the project**, and
-  two role skills read it as input. Show its four parts, and show the "not a vulnerability" list in
-  full — an over-stated promise there is the one generated line an owner should read word by word.
-  `CONTRIBUTING.md` and `docs/README.md` are generated here too; name them, because they are the
-  two files in the whole set addressed to a **person** rather than to an agent, and an owner who
-  already has a contributing guide will want to say so before one is written.
+  it makes a promise to people **outside** the project, which `BACKWARD_COMPATIBILITY.md` also
+  does, and unlike that one it is read as input by two role skills. Show its four parts, and show
+  the "not a vulnerability" list in full — an over-stated promise there is the one generated line
+  an owner should read word by word. `CONTRIBUTING.md` and `docs/README.md` are generated here too;
+  name them, because an owner who already has either will want to say so before one is written.
 - **The leader** — the guide (a shipped half and a generated half), the one `SessionStart` hook
   and its context-loader script, the loops file.
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the

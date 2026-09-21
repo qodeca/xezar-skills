@@ -69,6 +69,29 @@ receive leader rules. (Observed 2026-09-18: a local `.claude/CLAUDE.md` at the r
 loaded by every worktree session through the parent-folder walk, and there was no per-worktree way
 to mute it.)
 
+**A plain `claude` session in this checkout is a normal session, and that is on purpose.** The
+guard's last rule is `XEZAR_LEADER=1`, so nothing about the leader reaches a session that did not
+ask to be one. You can work in this project with an ordinary Claude Code session — a quick
+question, a review, a refactor — and it gets no guide, no campaign notes and no claim to be
+leading anything.
+
+Two ways to start the leader, and they are equivalent:
+
+```bash
+./scripts/xezar-leader.sh                         # the launcher: checks the engine is up first
+XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # by hand
+```
+
+The launcher is preferred because it fails early and says why — a missing engine socket is a
+one-line message rather than a leader session that quietly cannot reach the engine. The variable is
+the only thing that matters to the hook, and it belongs to the process, so it survives `/clear` and
+a compaction.
+
+One exception, and it is deliberate: **while an onboarding is unfinished, every session in this
+checkout gets one fixed line** saying so, leader or not. That check sits above the `XEZAR_LEADER`
+rule because a session that starts working on an unproved setup should know it, whoever it is. It
+stops once `/xez-onboard-opinionated --verify` completes.
+
 `leader-context.sh` prints nothing when any of these is true, and prints the block only when none is:
 
 1. **Linked worktree** — `git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`.
