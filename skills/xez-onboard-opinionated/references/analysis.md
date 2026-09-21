@@ -16,9 +16,11 @@ Never assume a default branch name. Three things to establish:
   what `baseBranch` means in both config files, which branch gets protected, and where a release
   runs from.
 
-**Ask, do not infer.** A project's branching convention often exists only inside an `if:`
-condition in a release workflow, which is a description of one job rather than a rule. Propose
-what the remote says and let the owner state the model.
+**Infer from the branch set, and show the inference.** One long-lived branch is trunk-based, two is
+a two-branch flow; say which you concluded and from what, on the confirmation screen, so the owner
+corrects a wrong reading in one click. What must **not** happen is inferring the model from an `if:`
+condition in a release workflow: that is a description of one job, not a rule, and it was the
+reason this was an interview question for one release.
 
 Whatever is settled goes into config. It never becomes literal text in a skill or a generated
 instruction, because a hard-coded branch name is exactly what the portability gate rejects.

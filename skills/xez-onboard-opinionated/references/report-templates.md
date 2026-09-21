@@ -163,8 +163,8 @@ whole thing runs, which is exactly what this step exists to find out while you a
 Open with what was found before the rest of the report:
 
 ```markdown
-🔁 **Resumed** an interview started <when>: <n> of 7 sections already answered.
-Changed on this run: <sections, or "nothing — continued from `<section>`">.
+🔁 **Resumed** an interview started <when>: <n> of 5 screens already answered.
+Changed on this run: <screens, or "nothing — continued from `<screen>`">.
 ```
 
 ## Stopped in preflight
