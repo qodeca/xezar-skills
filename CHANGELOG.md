@@ -40,6 +40,22 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
   a run killed mid-flight released its slot in under 0.2 seconds. Resolution is the project's own
   `node_modules` first, then PATH — **never `npx`**, which would lease against a different build's
   idea of the slots.
+- **Two documents written for people, not agents: `CONTRIBUTING.md` and `docs/README.md`.** The
+  setup installs 37 workflows and a label taxonomy; a repository with all that and no human path
+  tells a first-time contributor nothing, and its load-bearing sentence is the one nobody thinks
+  to write — a contributor triggers **none** of the 37 workflows, and the checks gating their pull
+  request are `ci.requiredChecks`, not the agent gate list in `repo-gates.sh`. The docs index has
+  a correctness condition rather than being free: its rows are read from the project's own
+  `paths.*` keys, and it says that a folder appears when its first document does, because none of
+  the seven is created empty. Unlike `SECURITY.md`, neither closes a dead pointer — nothing in the
+  kit reads them, so nothing will notice if they go stale, and that is stated where it is decided.
+- **Two rules into the generated `AGENTS.md` and `SDLC.md`.** *Changing a mechanism that already
+  works* — name what the old one was load-bearing **for**, diff the default path rather than the
+  feature, enumerate the exits from every state you keep. And *naming the break* — a behaviour
+  test names a concrete regression and the author records an actual failing run, because a test
+  written after the diagnosis passes against the bug more often than anyone expects. The technique
+  is copied; the source project's per-file coverage floor deliberately is not, since that file
+  says in the same breath that the number does not generalise.
 - **`SECURITY.md` is generated during onboarding.** Six places in the kit pointed at it and
   nothing wrote it, including the issue template that routes a security reporter. Two of the
   six are roles that read it as *input*, not reporters: `xezar-security-review` is told to

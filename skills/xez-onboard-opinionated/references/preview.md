@@ -28,6 +28,10 @@ per kind, stated in the preview rather than asked file by file:
 
 - a document the project already has (`CLAUDE.md`, `AGENTS.md`) — **append a marked section**,
   never replace;
+- a `CONTRIBUTING.md`, a `SECURITY.md` or a `docs/README.md` the project already has — **left
+  alone**, and what the setup would have written is offered as an addition instead. These three
+  are addressed to people outside the project, and a maintainer who wrote one already has said
+  more by writing it than any answer in this interview can;
 - an issue template — **left alone**, always;
 - a pull request template — offer the Design and Risk parts as an addition;
 - `.mcp.json` — **merge** the one server entry in;
@@ -59,6 +63,9 @@ Group the entries the way the owner thinks about them, not by directory:
   it is the only generated document that makes a **promise to people outside the project**, and
   two role skills read it as input. Show its four parts, and show the "not a vulnerability" list in
   full — an over-stated promise there is the one generated line an owner should read word by word.
+  `CONTRIBUTING.md` and `docs/README.md` are generated here too; name them, because they are the
+  two files in the whole set addressed to a **person** rather than to an agent, and an owner who
+  already has a contributing guide will want to say so before one is written.
 - **The leader** — the guide (a shipped half and a generated half), the one `SessionStart` hook
   and its context-loader script, the loops file.
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the

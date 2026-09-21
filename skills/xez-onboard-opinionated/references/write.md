@@ -258,6 +258,30 @@ Never copied, because each depends on an answer:
   deploy, performance, localisation — say in one plain sentence whether it is awake in this
   project, that its parts are installed either way, and the one line that flips it
   (`references/analysis.md` §3 has the reason).
+
+  **Two rules go in verbatim in substance**, one in each file. They are not about this project, so
+  nothing in the analysis changes them; they are here because both describe a failure that passes
+  every gate a new project has.
+
+  In `AGENTS.md`, **changing a mechanism that already works**: name what the old mechanism was
+  load-bearing **for**, not what it was for, and grep for everything that reaches a terminal state
+  *because* of it. A replacement that ships off is not a replacement — diff the **default path**,
+  not the feature. Enumerate the transitions out of every state you add or keep; "who fires this?"
+  finds the missing ones in one pass. The failure it describes is the one nobody catches: the new
+  mechanism is correct, the tests are green, the spec is thorough, and the default path quietly
+  lost a guarantee nobody had written down.
+
+  In `SDLC.md`, under the review loop, **naming the break**: a new or changed behaviour test names
+  a concrete regression — the file, the line, and the change that would cause it — and the author
+  records an actual failing run, quoting the assertion that failed. A test written after the
+  diagnosis passes against the bug more often than anyone expects, and a green-either-way test is
+  how the same regression ships twice. Guard tests that pass both ways are fine and worth keeping;
+  the record just says which kind each one is.
+
+  **Copy the technique, never a number.** The project this comes from pairs the second rule with a
+  per-file coverage floor and says in the same breath that the technique generalises and the
+  number does not. Do not write a coverage percentage into a generated file for a project whose
+  test suite you have not seen.
 - **`BACKWARD_COMPATIBILITY.md`** — the kit's checks, workflows and role skills point at it from
   twenty-odd places, so a project without one gets dead references in every review. Generate it
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
@@ -288,6 +312,48 @@ Never copied, because each depends on an answer:
   Write what analysis found and nothing more. A promise this project has not made is worse than a
   missing line: the review role will spend its verdict defending a boundary nobody built. It is in
   the preview like every other generated file.
+- **`docs/README.md`** — the index for the seven folders the `paths.*` keys name. Without it a
+  project gets seven document folders and nothing saying which is which.
+
+  It has a correctness condition, so it is not free. **Generate the rows from the `paths.*` values
+  you just wrote into `.xezar/pipeline/config.json`, never from the default table above.** A
+  project that already keeps its designs somewhere else has a key pointing there, and an index
+  built from the defaults would be wrong for exactly the projects those keys exist to serve.
+
+  And say, in one line at the top, that **a folder appears when its first document does**. None of
+  the seven is created empty — a workflow creates its folder with its first page — so on day one
+  this index lists paths that are not there yet. A reader who does not know that reads the index
+  as a description of a broken setup.
+
+  Three columns: the path, what lands there, and who it is for. The "what lands there" column is
+  already written in the table above; the third is the one that earns the file.
+- **`CONTRIBUTING.md`** — one page from idea to merge, for a **person**. Unlike every other file
+  in this list it closes no dead pointer: nothing in the kit references it, so nothing will notice
+  if it goes stale. It is here for one reason — this setup installs 37 workflows and a label state
+  machine, and a repository that has all that and no human path tells a first-time contributor
+  nothing. Read the answers, not the defaults:
+
+  1. **How many of the 37 workflows a contributor can start: none.** They are dispatched by the
+     leader. Say it in the first paragraph, or the first person to open a pull request assumes the
+     CI is broken because none of them ran.
+  2. **Which checks actually gate their pull request** — `ci.requiredChecks`, spelled as the
+     check-runs API reports them. **Not** the gate list in `repo-gates.sh`: that is the agent gate
+     list and it does not run on a human's pull request. Naming the wrong one sends a contributor
+     chasing a command that was never going to run.
+  3. **The label taxonomy, split in two**: which labels a person may set, and which are applied by
+     the pipeline. End it the way the kit's own rules do — you never apply the pipeline's labels
+     yourself.
+  4. **Where a new document goes** — under `docs/`, by `paths.*` key, and a one-line pointer to
+     the index below.
+  5. **Conventional Commits, with the reason attached** — pull requests are squash-merged, so the
+     title becomes the commit on the base branch. A rule with its reason survives; a rule without
+     one gets argued about.
+  6. **A security problem goes to `SECURITY.md`, never a public issue**, matching the issue
+     templates rather than restating them.
+  7. **A closing table: every stage of the process, and what a person does at that stage**, under
+     a heading that says plainly they do not need the kit workflows.
+
+  Keep it to a page. The failure mode here is a second `SDLC.md` written for the wrong reader.
 - **`<paths.designs>/README.md`** — the designs index, written **always**: the design half installs
   whatever the design gate's answer (`references/analysis.md` §3), and the design skill takes every
   feature README's headings from this file, so a project without it has a design workflow with
