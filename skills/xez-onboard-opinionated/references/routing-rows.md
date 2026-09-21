@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The forty-three rows
+## The forty-five rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -79,6 +79,8 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 41 | Spike: one open technical question, answered by trying | `spike.yaml` | Somebody cannot decide until they know whether something is possible, how hard it is or how it behaves, and the way to find out is to try it. | writing | the cheapest lanes — an over-confident answer is worse than none |
 | 42 | Deprecation plan | `deprecation-plan.yaml` | Something people depend on has to be retired, and nothing may be removed until who is affected, the replacement and the dates are written down. | writing | the cheapest lanes |
 | 43 | Acceptance verification | `acceptance-verification.yaml` | A finished change has to be checked against each accepted criterion of its issue, one by one, by running it. | review | the cheapest lanes; **the lane that wrote the change** |
+| 44 | Deploy: a sealed commit to a named environment | `deploy.yaml` | The owner gave the go to deploy, naming the environment and quoting the commit. | security and release | a locally hosted lane; an advisory-only lane; a provider that does not enforce a step's tool limits |
+| 45 | Rollback: a named environment back to a named revision | `deploy.yaml` | The owner gave the go to roll back, naming the environment and the revision to return to. | security and release | a locally hosted lane; an advisory-only lane; a provider that does not enforce a step's tool limits |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of

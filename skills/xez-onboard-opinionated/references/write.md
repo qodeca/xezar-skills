@@ -138,6 +138,32 @@ Never copied, because each depends on an answer:
   before these keys existed keeps its root-level `designs/` the same way — point `paths.designs`
   at it, or move the folder and then the key. None of them is created empty; a workflow creates
   its folder with its first document.
+
+  **Four lists wake a workflow up.** Deploy, rollback, performance and localisation are installed
+  everywhere and run only where the owner has said something first. Each reads a list, its first
+  step after the preflight is `.xezar/checks/config-guard.sh <key>`, and that guard refuses
+  **before the dependency install** with one of three different sentences: the list is `[]`, the
+  key is absent, or the config is malformed. A typo must never read as "none configured", so the
+  grammar is closed — an unknown key beside these, a value that is not a list, or an element of the
+  wrong shape is a fault, not an empty answer (`kit/checks/lib/config-grammar.mjs`).
+
+  | key | one element | the honest answer for a new project |
+  |---|---|---|
+  | `deploy.environments` | `<environment>=<workflow file>` — `staging=deploy.yml`; a file name, never a path | `[]` unless the project already has a deploy workflow with a `workflow_dispatch` trigger. Never a name copied from another project: it would dispatch something here |
+  | `deploy.rollback` | the same shape, naming the workflow that rolls back | `[]` unless such a workflow exists. An empty list means rollback refuses and says so; it does not mean "use the deploy workflow" |
+  | `performance.budgets` | `<metric>=p<percentile><<limit>@n=<runs>` — `cold-start-ms=p95<400@n=20`; at least five runs | `[]`, always. A budget is a promise the owner makes about their product; this skill never proposes a number |
+  | `localisation.locales` | a locale tag — `pl`, `pt-BR` | the locale folders analysis found, or `[]` |
+
+  Write all four keys explicitly, `[]` included: `[]` is the owner's recorded "this project has
+  none", and an absent key is "nobody has answered". Propose `deploy.*` only from workflow **file
+  names** read in `.github/workflows/`, show each as a reading the owner confirms, and never from
+  anything a workflow file's contents say.
+
+  **`deploy.*` is a trust boundary.** The deploy workflow reads both keys from the base branch,
+  never from the branch under review, and requires each named file to exist there with a
+  `workflow_dispatch` trigger. Say so in the generated `CODE_REVIEW.md`, beside the hook and its
+  loader: a change to `deploy.*` or to a workflow file it names records `reviewerRequired` and is
+  routed to the security-review row.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.

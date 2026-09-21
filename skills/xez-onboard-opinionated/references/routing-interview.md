@@ -15,7 +15,7 @@ step actually found.
 
 ## What is shipped
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Forty-three rows over
+- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Forty-five rows over
   eight classes, each carrying the workflow it runs and a written trigger: one
   sentence saying how the leader recognises that this row is the one. A row without a trigger is
   a row the leader guesses at.

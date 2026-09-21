@@ -82,6 +82,7 @@ const MAINTAINED_SKILLS = new Set([
   "xezar-business-analysis",
   "xezar-code-review",
   "xezar-dependency-maintenance",
+  "xezar-deploy",
   "xezar-deprecation-plan",
   "xezar-design-system",
   "xezar-docs-maintenance",

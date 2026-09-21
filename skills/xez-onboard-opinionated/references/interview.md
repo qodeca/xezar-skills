@@ -61,6 +61,7 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | The branching model | **inferred** from the two above — one long-lived branch is trunk-based, two is a two-branch flow — and shown as an inference, not a reading |
 | The design gate, on or off | the UI signals analysis found, quoted |
 | The browser tool design review and UI tests drive | which of the kit's browser descriptors this machine already has the tool for; asked only when it has both |
+| Deploy and rollback workflows, locales, or "none found" | workflow file names with a manual trigger, and locale folders — readings, each confirmed; performance budgets are never proposed and start empty |
 | Where committed documents go | the `docs/` folders analysis found, or the defaults in `references/write.md` §2 — one line, all of them under `docs/` |
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
