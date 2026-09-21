@@ -69,12 +69,13 @@ rest.
    content digest it was computed against. **Approve the whole set or nothing.** A file that
    changed underneath invalidates the preview rather than being silently overwritten.
 
-6. **Write** — follow `references/write.md`. Re-check every digest, copy the kit, generate what
-   is generated, create the approved labels, then commit on a setup branch and open a pull
-   request. The owner merges it;
-   this skill does not merge its own setup unless the owner says so, and never over a red check
-   without a second answer. It leaves a pending marker so steps 7 to 10 can resume — in this
-   session when the engine's tools are loaded, otherwise in the next one via `--verify`.
+6. **Write, then offer the merge** — follow `references/write.md`. Re-check every digest, copy the
+   kit, generate what is generated, create the approved labels, then commit on a setup branch and
+   open a pull request. Leave a pending marker so steps 7 to 10 can resume, then **ask once,
+   and only on green:** merge now and finish in this session, or leave it to be reviewed? This
+   skill never merges its own setup unasked and never merges over a red or pending check without a
+   second answer — but it does ask, because steps 7 to 10 cannot run before the merge and an owner
+   who comes back for them usually comes back without the engine's tools loaded.
 
 7. **Protect the base branch** — follow `references/protection.md`. Tracker operation
    **branch-protected** with the confirmed gate commands as required checks, administrators

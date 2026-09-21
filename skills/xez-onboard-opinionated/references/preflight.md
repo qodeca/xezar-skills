@@ -132,6 +132,12 @@ Say three things with that line, because each one cost a run when it went unsaid
   the project starts with no agent accounts and the lanes interview has nothing to offer.
 - **`xezar init` is not needed.** Its two example files are harmless (check 3) and are replaced.
 
+**Then read `.xezar/agent-accounts.json` and count the accounts**, rather than trusting that the
+question was answered. None or one is not a stop, and it is not a fault either — it may simply be
+one login on this machine — but say which you think it is, because the lanes and routing interviews
+are about to offer what that file contains. A run that only *told* the owner to answer `y`, and
+never looked, reaches the routing table before anybody notices the import did not happen.
+
 Whether the engine is *running right now* is not a preflight fact: nothing before step 8 needs
 it. `references/verify.md` checks it where it matters.
 
