@@ -31,6 +31,11 @@ Stated once here, never repeated per row. They apply to every row and they overr
 2. **A locally hosted model never touches a branch.** It may read and advise; it may not write.
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
+5. **A provider that does not enforce a step's tool limits is in no chain for a read-only or a
+   security-and-release row** — a tool allowlist is the only thing that makes a read-only role
+   read-only, and a deploy step's two permitted writers the only thing that bounds it. This holds
+   when somebody switches such a provider back on. A provider the setup switched off is in no
+   chain at all.
 
 ## The forty-five rows
 

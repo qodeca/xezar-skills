@@ -83,6 +83,10 @@ Three steps, in order:
    owner type it. Read the engine's account registry for ids and providers. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
+   **OpenCode is recorded and not proposed.** When the probe or the registry finds it, note that
+   it is there; it is never offered as a lane or put in a chain, and `references/verify.md`
+   switches it off for this project. The report says "found, switched off" with the call that
+   turns it back on, so the owner meets a decision and not a disappearance.
 3. **Nothing is read from a credential store.** Which profiles exist and which models they
    support is configuration; what is inside them is not. Record ids, providers and model names,
    and no value from either.

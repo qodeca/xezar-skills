@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 48 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 49 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 225 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text has not drifted across its copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
@@ -31,7 +31,7 @@ rather than trusting this table for a precise number.
 | 19 | Discovery contracts | `test-discovery-contracts.mjs`, invoked by `lint.sh` | ✅ |
 | 20 | A skill actually works end to end under a real coding agent | `test:agent-browser-codex` | ❌ — needs the `codex` CLI and a full-access sandbox |
 | 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
-| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 11 pinned facts | ✅ |
+| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 12 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its seven safety rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
 | 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a routing row, the maintained-skill list is the skill directory, and every row and class count in prose is the table's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, **not** that it runs |
 
@@ -49,7 +49,7 @@ is not hypothetical, it shipped: one file said campaign folders were committed w
 beside it said they never were, and prose promising `decisions.md` is never cut shipped alongside
 a script that cut it at 8 KB.
 
-`test-kit-facts.mjs` now pins ten facts that already caused such a contradiction, asserted in
+`test-kit-facts.mjs` now pins twelve facts that already caused such a contradiction, asserted in
 every place that states them. **What it does not do is compare meaning.** Deciding whether two
 English sentences agree is the actual problem, and no grep does it. So a fact nobody pinned is
 still unchecked, and adding a pin is a deliberate act — the check cannot discover the next

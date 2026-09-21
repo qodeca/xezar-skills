@@ -115,6 +115,11 @@ Two rules that are not negotiable and are stated on the screen:
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
+**OpenCode accounts are not offered as task lanes.** The setup switches that provider off for this
+project (`references/verify.md` §3 has the four reasons and the one call that undoes it), so a lane
+on it would be a lane whose every dispatch is refused. Say so on the screen in one line when the
+registry holds such an account, rather than leaving the owner to wonder where it went.
+
 Unlimited lanes are exempt from budget tracking, so they are marked here rather than discovered
 from a rate limit that never arrives.
 

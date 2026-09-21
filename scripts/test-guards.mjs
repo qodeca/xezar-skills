@@ -446,6 +446,14 @@ breaks(
 );
 
 breaks(
+  "a preview that stops disclosing the provider switch is rejected",
+  "skills/xez-onboard-opinionated/references/preview.md",
+  (s) => s.replace("OpenCode is switched off", "One provider is tuned"),
+  () => script("test-kit-facts.mjs"),
+  "does not disclose the switch before the one approval",
+);
+
+breaks(
   "a kit descriptor edited without its digest pin moving is rejected",
   "skills/xez-onboard-opinionated/references/descriptor-digests.json",
   (s) => s.replace(/("kit\/pipeline\/security\/osv-scanner\.md": ")[0-9a-f]{4}/, "$1ffff"),

@@ -357,6 +357,45 @@ const fail = (fact, where, detail) =>
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 12 -- OpenCode is switched off the same way everywhere it is mentioned.
+//
+// The setup changes one engine setting on the owner's behalf. That is only acceptable while four
+// places say the same thing: the step that does it, the preview that discloses it before approval,
+// the report that tells the owner how to undo it, and the routing rules that keep the provider
+// out of every chain. A preview that discloses less than the step does is a consent the owner
+// never gave. This is a STATIC pin: it proves the prose agrees. That the engine honours the call
+// is proved on a live engine, and `docs/coverage.md` says so.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 12: the OpenCode switch, its disclosure, its undo and its routing ban agree";
+  const verify = read(`${SKILL}/references/verify.md`);
+  const preview = read(`${SKILL}/references/preview.md`);
+  const report = read(`${SKILL}/references/report-templates.md`);
+  const rows = read(`${SKILL}/references/routing-rows.md`);
+  const interview = read(`${SKILL}/references/interview.md`);
+
+  const callRx = /set_provider_enabled/;
+  if (!callRx.test(verify)) fail(fact, "references/verify.md", "no longer switches the provider off through set_provider_enabled");
+  if (!/get_capabilities[\s\S]*set_provider_enabled[\s\S]*get_capabilities/.test(verify))
+    fail(fact, "references/verify.md", "does not read the state before the switch and read it back after");
+  if (!/previousEnabled/.test(verify)) fail(fact, "references/verify.md", "does not record what the setting was before changing it");
+  if (!/leave it on/i.test(verify)) fail(fact, "references/verify.md", "has no case in which the provider is left on -- an older routing table that uses it would start refusing dispatches");
+  for (const [name, text] of [["verify.md", verify], ["preview.md", preview], ["report-templates.md", report]]) {
+    if (!/\.xezar\/workspace\.json/.test(text)) fail(fact, `references/${name}`, "does not name .xezar/workspace.json as the file the switch lives in");
+  }
+  for (const [name, text] of [["verify.md", verify], ["report-templates.md", report]]) {
+    if (!/enabled: true/.test(text)) fail(fact, `references/${name}`, "does not give the call that turns the provider back on");
+  }
+  if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
+  if (!/does not enforce a step's tool limits is in no chain/.test(rows))
+    fail(fact, "references/routing-rows.md", "lost the global prohibition that keeps such a provider out of read-only and release chains");
+  if (!/OpenCode accounts are not offered/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode accounts as task lanes again");
+  if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
+    fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
+  checked.push(fact);
+}
+
 function walk(rel, match) {
   const out = [];
   const rec = (d) => {

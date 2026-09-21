@@ -710,7 +710,7 @@ beside it said they never were, and prose promising `decisions.md` is never cut 
 script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
 no gate found one.
 
-`scripts/test-kit-facts.mjs` pins eleven facts that have already caused a contradiction, asserted in
+`scripts/test-kit-facts.mjs` pins twelve facts that have already caused a contradiction, asserted in
 every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its
@@ -764,3 +764,42 @@ say the gates cannot be run by hand. That is a much larger diff in prose, it rem
 only way to see a gate verdict without dispatching a task, and it buys no safety the two refusals
 above were not already providing. Recorded because the refusal reads like the careful choice, and
 for one release everybody believed it was.
+
+## OpenCode is off by default
+
+The opinionated onboarding switches the OpenCode provider off for the project it sets up, and
+keeps it out of the lane table and out of every routing chain. The engine supports four providers
+and the setup routes to three of them. That is a decision about fit, recorded here once with its
+reasons so the skill text can stay one line long:
+
+- **It can stall silently.** After a denied permission request the session can go quiet — no
+  event, no error — for minutes, until a person ends it (engine issue #692; the engine's own
+  routing notes keep it out of rotation until that is fixed). An unattended pipeline has nobody
+  watching for silence.
+- **It does not enforce a step's tool allowlist.** Every read-only role in the kit — code review,
+  design review, security review, acceptance — is read-only *because* of that list. On a provider
+  that ignores it they are writing roles with a polite instruction.
+- **A resumed session starts a new one** and loses the role and the tool limits it had.
+- **It cannot attach itself as leader**; a person has to do that in the engine's settings.
+
+**Why a switch and not only a routing rule.** The engine has no per-project way to exclude a
+provider from dispatch: a task that names no runner may still land on any enabled one. The switch
+is the only mechanism that makes "not routed" true rather than merely intended.
+
+**Why it is safe to do on the owner's behalf.** The onboarding starts the engine in
+single-project mode, and in that mode the engine stores the switch in `.xezar/workspace.json` — a
+git-ignored file inside the project. No other project on the machine is touched. The step checks
+that mode first and leaves the provider alone otherwise, because the same call outside it writes
+the machine's settings, and a per-project approval must never change every project on a machine.
+It also leaves the provider on when an existing routing table still uses it: switching it off
+under that table would turn working dispatches into refusals on an upgrade.
+
+The previous state is recorded before the switch, the result is read back, the preview discloses
+it before the one approval, and the report carries the call that undoes it. Reverting the setup
+pull request does not undo it — the state is outside git — which is why the undo is printed rather
+than implied.
+
+The routing rule is written by capability, not by name: *a provider that does not enforce a
+step's tool limits is in no read-only or security-and-release chain.* It therefore still holds
+the day somebody switches the provider back on, and it covers the next provider with the same
+gap without an edit.

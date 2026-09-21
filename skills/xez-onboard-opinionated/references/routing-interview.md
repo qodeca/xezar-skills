@@ -22,7 +22,8 @@ step actually found.
 - **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
   never the authoring model for its own review; a locally hosted model never touches a branch; a
   cloud-lane write needs another vendor's review; a high-risk change needs a different account
-  *and* a different vendor.
+  *and* a different vendor; a provider that does not enforce a step's tool limits is in no
+  read-only or security-and-release chain, and one the setup switched off is in no chain at all.
 - **The Never column**, which carries only row-specific bans, plus the precedence rule for the
   rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated on every row.
 

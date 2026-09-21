@@ -19,6 +19,7 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
 | 📋 Routing | <n> rows, chains ending in `wait`; tasks that name no account run on `<lane>`, not the leader's login |
 | 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
+| ⛔ OpenCode | <not installed · already off · found, switched off for this project in `.xezar/workspace.json` — undo: `project_config` `set_provider_enabled`, `provider: "opencode"`, `enabled: true` · found, **left on** because <the engine is not in single-project mode · the existing routing table still uses it>> |
 | 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
 

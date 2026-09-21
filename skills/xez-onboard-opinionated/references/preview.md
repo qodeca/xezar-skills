@@ -77,6 +77,12 @@ Four things, named explicitly, because they are the ones that surprise people:
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the
   owner. Say whether this login can apply it, which the preflight already determined.
+- **One engine setting is changed for this project: OpenCode is switched off.** Say why in one
+  line — it can stall silently after a denied permission and does not enforce a step's tool limits
+  — and say where the switch lives: `.xezar/workspace.json`, a git-ignored file **in this project**,
+  so no other project on this machine is touched. Say that it is skipped, and reported, when the
+  engine is not in single-project mode or when an existing routing table still uses OpenCode, and
+  give the one call that turns it back on.
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
 - **The interview state file** under `.local/xezar/runtime/` was already written, before this preview.
   It is the only thing written so far, and the owner should know it exists.
