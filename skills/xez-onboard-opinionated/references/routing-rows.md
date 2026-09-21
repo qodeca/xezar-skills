@@ -70,7 +70,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 27 | Migration: data, a schema or a format changes shape | `migration.yaml` | Something that already exists outside the code — rows, files, a config people wrote by hand — has to move to a new shape. | implementation | a locally hosted lane; the cheapest lanes — it cannot be reverted the way code can |
 | 28 | Observability: logs, metrics, alerts, runbooks | `observability.yaml` | People cannot tell what a part of the system is doing, and the change adds signals and changes no behaviour. | implementation | a locally hosted lane |
 | 29 | Localisation: translatable text, a listed locale | `localisation.yaml` | Text has to become translatable, or a language the owner has listed has to be added or brought up to date. | implementation | a lane that cannot see pictures — a translated layout has to be looked at |
-| 30 | Automated UI tests: built or maintained | `ui-tests.yaml` | A user-visible behaviour has to be protected by a test that drives the real interface in a browser, again and again, with nobody watching. | testing | any lane that cannot see pictures; a lane on a machine with no browser descriptor; a locally hosted lane |
+| 30 | Automated UI tests: built or maintained | `ui-tests.yaml` | A user-visible behaviour has to be protected by a test that drives the real interface in a browser, again and again, with nobody watching. | testing | any lane that cannot see pictures; a locally hosted lane |
 | 31 | Integration tests: two real parts across a boundary | `integration-tests.yaml` | The thing to prove is that two parts work together — a handler and its database, a client and an API, a command and the file system — not that one part works alone. | testing | a locally hosted lane |
 | 32 | Regression suite: curated | `regression-suite.yaml` | The job is the suite that pins past bugs: fixes with no test that fails without them, tests that guard nothing, or a test to retire. | testing | the cheapest lanes — a test that passes either way looks exactly like a good one |
 | 33 | Performance and load: measured against a budget | `performance.yaml` | The question is whether something is fast enough, and the owner has stated the budget it answers to. | testing | a lane on a shared or noisy machine; a locally hosted lane |
@@ -81,11 +81,11 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 38 | Browser / manual QA | `qa.yaml` | The check needs a live multi-step run in a browser. | review | a locally hosted lane |
 | 39 | Architecture review | `architecture-review.yaml` | A plan, a spec or a diff has to be judged against the recorded architecture decisions. | review | the cheapest lanes; **the lane that wrote the design** |
 | 40 | Acceptance verification | `acceptance-verification.yaml` | A finished change has to be checked against each accepted criterion of its issue, one by one, by running it. | review | the cheapest lanes; **the lane that wrote the change** |
-| 41 | Security-sensitive review | `security-review.yaml` | The diff touches authentication, secrets, permissions, or anything reachable from outside. | security and release | a locally hosted lane; an advisory-only lane; **the lane that wrote the change** |
+| 41 | Security-sensitive review | `security-review.yaml` | The diff touches authentication, secrets, permissions, anything reachable from outside — or what the pipeline itself trusts: a deploy or rollback target, the base branch, a CI workflow, the hook or its loader. The gate's `SECURITY` record says `reviewerRequired` when it is the second kind. | security and release | a locally hosted lane; an advisory-only lane; **the lane that wrote the change** |
 | 42 | Verifying a strong claim from a weaker lane | `code-review.yaml` | A cheaper lane reported something serious and nothing has confirmed it. | security and release | the author; the claimant |
 | 43 | Release role | `release.yaml`, `release-prep.yaml` | The owner gave the release go, quoting the commit. | security and release | — |
-| 44 | Deploy: a sealed commit to a named environment | `deploy.yaml` | The owner gave the go to deploy, naming the environment and quoting the commit. | security and release | a locally hosted lane; an advisory-only lane; a provider that does not enforce a step's tool limits |
-| 45 | Rollback: a named environment back to a named revision | `deploy.yaml` | The owner gave the go to roll back, naming the environment and the revision to return to. | security and release | a locally hosted lane; an advisory-only lane; a provider that does not enforce a step's tool limits |
+| 44 | Deploy: a sealed commit to a named environment | `deploy.yaml` | The owner gave the go to deploy, naming the environment and quoting the full commit SHA. The leader copies those words into the launch text: it is the only authority the run accepts. | security and release | a locally hosted lane; an advisory-only lane |
+| 45 | Rollback: a named environment back to a named revision | `deploy.yaml` | The owner gave the go to roll back, naming the environment and the full SHA to return to — and, in their own words, any one-way migration they accept crossing. The leader copies those words into the launch text. | security and release | a locally hosted lane; an advisory-only lane |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 42 (verifying a strong claim) is a *subset* of row 35 (full cold review), and a hotfix
@@ -98,6 +98,14 @@ specific, take the later one.
 different things. The cold review reads the whole change for correctness; the security review asks
 what a scanner cannot decide. Neither replaces the other, and a security review that found nothing
 is not a code review that passed.
+
+**Row 5 has no chain.** The leader does a root-sync itself; the chain cell holds `leader` and the
+class ranking is not expanded into it.
+
+**Rows 13, 39, 40 and 41 judge somebody else's work, and the judge cannot look the author up.** A
+step agent cannot read another run's record. So the leader names the author's lane, account and
+vendor in the launch text of these four, and the role reports independence as confirmed, not
+confirmed or unknown. A launch that leaves them out gets "unknown", never a silent pass.
 
 These pairs need saying out loud, because their triggers read alike:
 
@@ -123,6 +131,15 @@ These pairs need saying out loud, because their triggers read alike:
 - **3 vs 30 vs 38.** Row 30 *writes* a browser suite that runs again tomorrow. Row 38
   *runs the change by hand* once and judges it. Row 3 collects what already happened. A request
   to "test the UI" is 38 when it means this change, and 30 when it means from now on.
+- **13 vs 38.** Both look at a running screen. Row 13 judges it against the *design* — states,
+  tokens, both themes. Row 38 judges whether the change *works*. A screen can be exactly as
+  designed and broken, or working and wrong.
+- **15 vs 20.** Row 15 writes design files under `paths.designs` and no product code. Row 20
+  writes the product code that makes the screen look like them. "Make it look right" is 15 when no
+  design says what right is, and 20 when one does.
+- **20 vs 29.** Text that changes what a screen *says* in the language it already has is row 20.
+  Making text translatable, or adding a listed language, is row 29 — even when every file it
+  touches is a UI file.
 - **38 vs 40.** QA asks whether the change works and broke nothing. Row 40 asks whether
   it did what the issue asked, criterion by criterion. A change can pass one and fail the other.
 - **7 vs 9 vs 10.** Row 7 plans one feature. Row 9 decides something the next ten

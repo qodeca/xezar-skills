@@ -23,9 +23,9 @@ Use this project's existing localisation library and file layout; do not add a s
 
 ## The interface has to survive it
 
-Translated text is longer — often by a third — and some scripts run right to left. Check the screens that changed in a real browser per this project's browser descriptor (`.xezar/pipeline/browsers/`), at 375px and at desktop width, in the longest locale on the list and in a right-to-left one where the list has one: nothing truncated, nothing overlapping, nothing scrolling sideways. An unavailable browser is reported as that, not as a pass. Do not shorten a translation to fit a layout; the layout is what gives.
+Translated text is longer — often by a third — and some scripts run right to left. Where this project has a user interface and a browser descriptor (`.xezar/pipeline/browsers/`), check the screens that changed in a real browser through it, at 375px and at desktop width, in the longest locale on the list and in a right-to-left one where the list has one: nothing truncated, nothing overlapping, nothing scrolling sideways. An unavailable browser is reported as that, not as a pass. A project with no interface — a command line, a library, a service whose strings reach people as text — has no screens to check: check the longest locale in the output itself, and say that is what you did. Do not shorten a translation to fit a layout; the layout is what gives.
 
-Inputs: the surface to localise or the locale to add. Output: the extracted messages with their context, the catalogue changes, which strings are machine drafts and which need a human before they ship, the missing-key check, and what you saw in the browser. Run the focused tests for what you wrote; the workflow's gates run the rest.
+Inputs: the surface to localise or the locale to add. Output: the extracted messages with their context, the catalogue changes, which strings are machine drafts and which need a human before they ship, the missing-key check, and what you saw in the browser, or where there is none, in the output. Run the focused tests for what you wrote; the workflow's gates run the rest.
 
 ## Shared contract
 

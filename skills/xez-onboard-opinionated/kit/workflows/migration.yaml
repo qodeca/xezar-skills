@@ -19,7 +19,7 @@ steps:
     resultScope: routine
   - id: migrate
     name: Prepare the migration
-    prompt: "Prepare the migration for: {{task}}. Follow xezar-migration instructions: decide the way back first – a real reverse, or the mark one-way with the owner's recorded word quoted. Expand, migrate and contract as separate changes; make it idempotent, resumable and batched; keep the code working on both shapes. Dry-run it forward and back on a realistic copy and record counts, duration and everything that would not convert. Update BACKWARD_COMPATIBILITY.md in the same change. Never run it against production or shared data: hand over a runbook. Record reviewerRequired. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
+    prompt: "Prepare the migration for: {{task}}. Follow xezar-migration instructions: decide the way back first – a real reverse, or the mark one-way with the owner's recorded word quoted. Expand, migrate and contract as separate changes; make it idempotent, resumable and batched; keep the code working on both shapes. Dry-run it forward and back on a realistic copy and record counts, duration and everything that would not convert. Update BACKWARD_COMPATIBILITY.md in the same change. Never run it against production or shared data: hand over a runbook. Say in the handoff text that a security review is required and why. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
     skill: xezar-migration
     timeout: 2h
   - id: readiness

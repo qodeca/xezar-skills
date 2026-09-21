@@ -59,7 +59,7 @@ Eight classes cover the rows:
 
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
-| mechanical | tracker-only work, evidence passes, mechanical docs edits, root-sync | the cheapest lane that can be trusted with it |
+| mechanical | tracker-only work, evidence passes, mechanical docs edits (root-sync sits in this class and takes no chain: the leader does it) | the cheapest lane that can be trusted with it |
 | writing | docs with real writing, analysis, specs, research, business analysis, architecture decisions, spikes, deprecation plans | quality of judgement and prose over cost |
 | design | designing a surface, its visual layer, the design system, and reviewing a design | a lane that can actually **see** a screen |
 | visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |

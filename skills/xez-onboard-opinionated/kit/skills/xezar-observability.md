@@ -14,7 +14,7 @@ Start from the question somebody will ask at the worst moment — is it up, is i
 - **Structured, one event per line, at the level that matches who must act.** An error is something a person must look at; a condition the code handled is not an error.
 - **Every log line carries what connects it to the rest** — the request or job identifier this project already uses. Do not invent a second one.
 - **A field allowlist, not a denylist.** New log statements name the fields they write, one by one. Never log a whole object, a request body, a header set or an environment: that is how a token reaches a log. Denylists fail the day somebody adds a field.
-- **No secrets and no personal data, proved.** Add one redaction test that feeds a secret-shaped and a person-shaped value through the new logging and asserts neither comes out — and watch it fail first, with the redaction removed. When a log statement touches authentication, authorisation or user data, record `reviewerRequired` and say which statement.
+- **No secrets and no personal data, proved.** Add one redaction test that feeds a secret-shaped and a person-shaped value through the new logging and asserts neither comes out — and watch it fail first, with the redaction removed. When a log statement touches authentication, authorisation or user data, say in your handoff text, in plain words, that a security review is required, and name the statement. You cannot set the reviewer flag — the security scan computes it from the files changed — so the sentence is how the leader learns to route one.
 
 ## Metrics and traces
 

@@ -132,12 +132,20 @@ Never copied, because each depends on an answer:
   | `paths.runbooks` | `docs/runbooks` | what to do when an alert fires, how a deploy is rolled back |
   | `paths.deprecations` | `docs/deprecations` | what goes, its replacement, the dates |
   | `paths.performance` | `docs/performance` | how a number was measured, and the baselines |
+  | `paths.migrations` | `docs/migrations` | one page per schema, data or format move, each with a `reversibility:` line the rollback guard reads |
 
   A project that already keeps one of these somewhere else keeps it: analysis proposes the folder
   it found, on the facts screen, and the key records the owner's answer. A project onboarded
   before these keys existed keeps its root-level `designs/` the same way — point `paths.designs`
   at it, or move the folder and then the key. None of them is created empty; a workflow creates
-  its folder with its first document.
+  its folder with its first document. (The designs folder is the one this skill writes into
+  itself: its index is a document, written below.) **Write every key in this table explicitly.** A kit role never
+  guesses a folder: with its key unset it says which key is missing and stops, which is what a
+  project onboarded before the key existed sees until its owner adds it (`UPGRADE_NOTES.md`).
+
+  Two honest limits on "under `docs/`". The root process documents — `AGENTS.md`, `SDLC.md`,
+  `CODE_REVIEW.md` and their siblings — stay at the root, because that is where agents and people
+  look for them. And feature specifications stay where `plan-and-spec` has always put them.
 
   **Four lists wake a workflow up.** Deploy, rollback, performance and localisation are installed
   everywhere and run only where the owner has said something first. Each reads a list, its first
@@ -149,21 +157,31 @@ Never copied, because each depends on an answer:
 
   | key | one element | the honest answer for a new project |
   |---|---|---|
-  | `deploy.environments` | `<environment>=<workflow file>` — `staging=deploy.yml`; a file name, never a path | `[]` unless the project already has a deploy workflow with a `workflow_dispatch` trigger. Never a name copied from another project: it would dispatch something here |
+  | `deploy.environments` | `<environment>=<workflow file>` — `staging=deploy.yml`; a file name, never a path | `[]` unless the project already has a deploy workflow the owner confirms (it needs a `workflow_dispatch` trigger **and a `sha` input** — see below). Never a name copied from another project: it would dispatch something here |
   | `deploy.rollback` | the same shape, naming the workflow that rolls back | `[]` unless such a workflow exists. An empty list means rollback refuses and says so; it does not mean "use the deploy workflow" |
   | `performance.budgets` | `<metric>=p<percentile><<limit>@n=<runs>` — `cold-start-ms=p95<400@n=20`; at least five runs | `[]`, always. A budget is a promise the owner makes about their product; this skill never proposes a number |
   | `localisation.locales` | a locale tag — `pl`, `pt-BR` | the locale folders analysis found, or `[]` |
 
   Write all four keys explicitly, `[]` included: `[]` is the owner's recorded "this project has
   none", and an absent key is "nobody has answered". Propose `deploy.*` only from workflow **file
-  names** read in `.github/workflows/`, show each as a reading the owner confirms, and never from
-  anything a workflow file's contents say.
+  names** read in `.github/workflows/` — `deploy*.yml`, `release-to-*.yml`, `rollback*.yml` — and
+  show each as a reading the owner confirms. The proposal never rests on what a file's contents
+  *say* (a comment, a job name, a description). Two mechanical facts are read and shown beside the
+  name, because the deploy guard will refuse without them and the owner should hear it now: does
+  the file declare `workflow_dispatch`, and does that trigger declare an input named `sha`.
 
-  **`deploy.*` is a trust boundary.** The deploy workflow reads both keys from the base branch,
-  never from the branch under review, and requires each named file to exist there with a
-  `workflow_dispatch` trigger. Say so in the generated `CODE_REVIEW.md`, beside the hook and its
-  loader: a change to `deploy.*` or to a workflow file it names records `reviewerRequired` and is
-  routed to the security-review row.
+  **`deploy.*` is a trust boundary.** The deploy workflow reads both keys from the **remote's
+  default branch** (`origin/HEAD`), never from the branch under review and never from the branch
+  the checkout's own `.xezar/config.json` names — that file is in the worktree, so a branch could
+  repoint it; the guard refuses when the two disagree. It requires each named file to exist there
+  with a `workflow_dispatch` trigger and a `sha` input: `gh workflow run --ref` takes a branch or a
+  tag and never a commit, so the reviewed workflow always runs from the base branch and the commit
+  to deploy travels as that input. A project whose deploy workflow has no `sha` input adds one
+  (`inputs: sha:` and `actions/checkout` with `ref: ${{ inputs.sha }}`) before listing it. The kit's
+  security scan names `.xezar/pipeline/config.json`, `.xezar/config.json` and `.github/workflows/`
+  as trust boundaries, so a change to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated `CODE_REVIEW.md`, beside the hook and its
+  loader: a change to `deploy.*`, to the base branch, or to a workflow file is routed to the
+  security-review row.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.

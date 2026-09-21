@@ -13,7 +13,7 @@ Read, do not assume. Search this repository for uses; read `BACKWARD_COMPATIBILI
 
 ## The plan
 
-One page under the folder `paths.deprecations` names in `.xezar/pipeline/config.json`; every committed document in this project sits under `docs/`. It carries:
+One page under the folder `paths.deprecations` names in `.xezar/pipeline/config.json` — the key says where, never a folder of your own. It carries:
 
 1. **What is going, exactly** — the name, the versions it exists in, the surface it belongs to.
 2. **Why**, in a sentence a user would accept. "It is in our way" is not one.
@@ -25,7 +25,7 @@ One page under the folder `paths.deprecations` names in `.xezar/pipeline/config.
 
 ## What lands with the plan
 
-In the same change: the entry in `BACKWARD_COMPATIBILITY.md` recording the deprecation and its dates, and the upgrade note — keyed by the symptom a user will actually see, saying plainly what happens to them if they do nothing. No code changes. The warning, the default flip and the removal are later tasks for the implementation workflow, each pointing back at this page.
+In the same change: the entry in `BACKWARD_COMPATIBILITY.md` recording the deprecation and its dates, and the upgrade note — keyed by the symptom a user will actually see, saying plainly what happens to them if they do nothing. **The note has one place**: the document this project already keeps for it — an upgrade guide, a migration guide, or the changelog, whichever you find, named in your output — and where it keeps none, a section headed `## Upgrade note` in the plan page itself. Never invent a new root-level file for it. No code changes. The warning, the default flip and the removal are later tasks for the implementation workflow, each pointing back at this page.
 
 Inputs: what is to be retired and why. Output: the plan page, the compatibility entry, the upgrade note, and the list of follow-up tasks in order. Run the focused checks the documents need; the workflow's gates run the rest.
 

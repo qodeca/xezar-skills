@@ -175,7 +175,7 @@ exit_for_outcome() {
     success|cancelled|failure) return 0 ;;
     target.missing|target.invalid) return 2 ;;
     unobservable) return 3 ;;
-    deadline) return 4 ;;
+    deadline) if [ "${TARGET_KIND:-integration}" = "deploy" ]; then return 0; fi; return 4 ;;
     *) return 3 ;;
   esac
 }
@@ -202,7 +202,7 @@ TARGET_FIELDS="$(node -e '
   try { t = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(3); }
   if (t === null || typeof t !== "object" || Array.isArray(t)) process.exit(3);
   const str = (v) => (v === undefined || v === null ? "" : String(v));
-  process.stdout.write([str(t.runId), str(t.repo), str(t.base), str(t.mergeSha), str(t.pr)].join("\n"));
+  process.stdout.write([str(t.runId), str(t.repo), str(t.base), str(t.mergeSha), str(t.pr), str(t.kind)].join("\n"));
 ' "$TARGET" 2>/dev/null)" || finish "target.invalid" "$TARGET is not a JSON object this script can read"
 
 OUT_RUN_ID="$(printf '%s' "$TARGET_FIELDS" | sed -n '1p')"
@@ -210,6 +210,17 @@ OUT_REPO="$(printf '%s' "$TARGET_FIELDS" | sed -n '2p')"
 OUT_BASE="$(printf '%s' "$TARGET_FIELDS" | sed -n '3p')"
 OUT_MERGE_SHA="$(printf '%s' "$TARGET_FIELDS" | sed -n '4p')"
 OUT_PR="$(printf '%s' "$TARGET_FIELDS" | sed -n '5p')"
+# `kind` is absent for the run a merge produced. "deploy" is a run the deploy role dispatched,
+# and three things that are true of a CI run are false of it: a newer push to the base branch
+# does not "supersede" a deploy somebody cancelled; a failed deploy job is never a known load
+# flake to be rerun; and running out of time must still reach the report step, because a deploy
+# still in flight with nobody told is the worst way for this window to end.
+TARGET_KIND="$(printf '%s' "$TARGET_FIELDS" | sed -n '6p')"
+case "$TARGET_KIND" in
+  ''|integration) TARGET_KIND="integration" ;;
+  deploy) KNOWN_LOAD_FLAKES="" ;;
+  *) finish "target.invalid" "kind \"$TARGET_KIND\" is neither integration nor deploy" ;;
+esac
 
 # Identifiers are validated, never sanitised: a value that is not the shape it claims to be is a
 # refusal. These strings become arguments to `gh`.
@@ -304,6 +315,9 @@ case "$OUT_CONCLUSION" in
     finish "success" "run $OUT_RUN_ID finished green on $OUT_BASE"
     ;;
   cancelled)
+    if [ "$TARGET_KIND" = "deploy" ]; then
+      finish "cancelled" "deploy run $OUT_RUN_ID was cancelled — observed; whatever it had already changed is still changed"
+    fi
     # Usually a later push cancelled it through the concurrency group. Say what superseded it, or
     # say plainly that nothing newer was found — "cancelled" and "superseded" are not synonyms.
     SUPER="$("$GH" run list --repo "$OUT_REPO" --branch "$OUT_BASE" --limit 20 \

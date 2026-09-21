@@ -21,6 +21,13 @@
 # `deploy.*` keys also requires each named workflow file to exist THERE with a
 # `workflow_dispatch` trigger. A deploy target is a trust boundary: a branch under review must
 # not be able to repoint `production=` at a workflow file it adds itself.
+#
+# WHICH branch is "the base" is part of that boundary, so under --from-base it is NOT taken from
+# this checkout's `.xezar/config.json`: that file is committed, and a branch that may edit the
+# deploy list may edit `baseBranch` beside it and name itself the base. The base is the remote's
+# own default branch (`refs/remotes/origin/HEAD`), and a config that disagrees with it is refused
+# by name rather than believed. The name is validated before it reaches a git argument: git
+# parses options after the remote name, so an unvalidated branch name is an option injection.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -41,22 +48,45 @@ fi
 
 CFG_REL=".xezar/pipeline/config.json"
 if [ "$FROM_BASE" -eq 1 ]; then
+  REMOTE_DEFAULT="$(git -C "$TASK_CWD" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || REMOTE_DEFAULT=""
+  REMOTE_DEFAULT="${REMOTE_DEFAULT#origin/}"
+  if [ -z "$REMOTE_DEFAULT" ]; then
+    printf 'config-guard: malformed — the remote default branch is unknown here (refs/remotes/origin/HEAD is not set), and the base is never taken from this checkout alone. Run: git remote set-head origin --auto\n' >&2
+    exit 2
+  fi
+  if ! printf '%s' "$REMOTE_DEFAULT" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$'; then
+    printf 'config-guard: malformed — the remote default branch name is not a plain branch name\n' >&2
+    exit 2
+  fi
+  if [ "$BASE_BRANCH" != "$REMOTE_DEFAULT" ]; then
+    printf 'config-guard: malformed — this checkout says the base branch is "%s" and the remote says "%s". A deploy list is trusted from the remote default branch only; a checkout that names another base is refused, not believed.\n' "$BASE_BRANCH" "$REMOTE_DEFAULT" >&2
+    exit 2
+  fi
+  BASE_BRANCH="$REMOTE_DEFAULT"
   SOURCE_NAME="origin/$BASE_BRANCH:$CFG_REL"
-  git -C "$TASK_CWD" fetch --quiet origin "$BASE_BRANCH" 2>/dev/null || true
+  git -C "$TASK_CWD" fetch --quiet origin "refs/heads/$BASE_BRANCH:refs/remotes/origin/$BASE_BRANCH" 2>/dev/null || true
   CFG_TEXT="$(git -C "$TASK_CWD" show "origin/$BASE_BRANCH:$CFG_REL" 2>/dev/null)" || {
     printf 'config-guard: malformed — cannot read %s; the base branch is where this key is trusted from\n' "$SOURCE_NAME" >&2
     exit 2
   }
 else
   SOURCE_NAME="$CFG_REL"
-  CFG_TEXT="$(cat "$TASK_CWD/$CFG_REL" 2>/dev/null)" || {
+  if [ ! -e "$TASK_CWD/$CFG_REL" ]; then
     printf 'config-guard: absent — %s does not exist, so "%s" is not set\n' "$CFG_REL" "$KEY" >&2
     exit 1
+  fi
+  # It exists and cannot be read: that is a fault, not the owner's answer.
+  CFG_TEXT="$(cat "$TASK_CWD/$CFG_REL" 2>/dev/null)" || {
+    printf 'config-guard: malformed — %s exists and cannot be read\n' "$CFG_REL" >&2
+    exit 2
   }
 fi
 
+# The grammar module's path is passed as DATA. Spliced into the source, a checkout path holding
+# a quote would become code inside the script that is meant to be the boundary.
 VERDICT="$(printf '%s' "$CFG_TEXT" | node --input-type=module -e '
-  import { judge } from "'"$SCRIPT_DIR"'/lib/config-grammar.mjs";
+  import { pathToFileURL } from "node:url";
+  const { judge } = await import(pathToFileURL(process.argv[2]).href);
   let text = "";
   for await (const chunk of process.stdin) text += chunk;
   let config;
@@ -64,7 +94,7 @@ VERDICT="$(printf '%s' "$CFG_TEXT" | node --input-type=module -e '
   const result = judge(config, process.argv[1]);
   console.log(`${result.status}\t${result.detail}`);
   for (const value of result.values) console.log(value);
-' "$KEY" 2>/dev/null)" || {
+' "$KEY" "$SCRIPT_DIR/lib/config-grammar.mjs")" || {
   printf 'config-guard: malformed — the grammar check itself could not run; an unknown answer is never a pass\n' >&2
   exit 2
 }

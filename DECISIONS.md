@@ -809,7 +809,7 @@ gap without an edit.
 The kit shipped eighteen workflows that covered planning, building, reviewing and releasing. It
 had nothing for a deploy, a test suite, a migration, an architecture decision — so the leader met
 those as "multi-file implementation" and routed them to a role whose rules did not fit. Release
-1.5.0 added nineteen workflows. Three calls shaped them, and each reads like the obvious opposite
+1.5.0 added nineteen workflows. Four calls shaped them, and each reads like the obvious opposite
 was available:
 
 **A new role skill only when the role's rules differ, not when its prompt differs.** The first
@@ -837,13 +837,22 @@ one regular expression, and unable to carry a path or a shell fragment into an a
 per environment would have needed a second reader in shell and bought one thing — room for a third
 field — that nothing needs yet.
 
-**Deploy authority is a record.** The deploy role's only control used to be the sentence "on the
-owner's go". It is now a file written before the dispatch — direction, environment, the full
-commit SHA, who said it, their words — sourced only from the launch text or an answered question,
-never from an issue or a comment, because that is where somebody who cannot deploy would put it.
-One record permits one dispatch; the run's head SHA must equal the recorded one; `deploy.*` is
-read from the base branch so a branch under review cannot repoint a target; a rollback needs its
-own record and refuses across a migration marked one-way.
+**Deploy authority is a record, and a check step — not the agent — turns it into a permit.** The
+deploy role's only control used to be the sentence "on the owner's go". It is now a file written
+before the dispatch — direction, environment, the full commit SHA, who said it, their words —
+sourced only from the launch text, never from an issue or a comment, because that is where
+somebody who cannot deploy would put it. A first draft left the rest as sentences for the agent to
+follow ("one record permits one dispatch", "run the rollback guard yourself"), and a review showed
+three of them could not hold. `gh workflow run --ref` takes a branch or a tag, never a commit, and
+the ref also picks which version of the workflow file runs — so the ref is always the base branch
+and the commit travels as a `sha` input the project's workflow must declare. The base branch came
+from a file in the worktree, which the branch under review controls — so the guards read the
+remote's default branch and refuse when the checkout disagrees. And "at most once" written as
+prose is a rule an agent under pressure stops following — so `deploy-guard.sh` writes the permit
+with an exclusive create and refuses a second time. The same script refuses a commit that is not
+on the base branch's history, and a rollback that crosses a migration page marked
+`reversibility: one-way` unless the owner's words name that page. An authorise step that cannot
+establish the three facts writes `BLOCKED`; it cannot ask, because it is not the last step.
 
 **What was left out, on purpose**: an accessibility audit workflow (the automated part rides inside
 UI tests, the judgement stays with design review), a postmortem, a cost report, and the
@@ -860,18 +869,22 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 
 - **Kit content** is fresh-install scope. A workflow, a role skill or a check already installed
   into a project never updates itself, so nothing here changes a running project.
-- **The new config keys** — six `paths.*` folders and four lists — are additive, and every reader
+- **The new config keys** — seven `paths.*` folders and four lists — are additive, and every reader
   treats an absent key as "not answered" rather than failing.
 - **`paths.designSystem`** changes its *default* for a new project from empty to a folder that may
   not exist yet. The design roles treat "no `README.md` there" exactly as they treated empty.
-- **The routing table** renumbered its rows and moved row 25 to a new workflow. It is a reference
+- **The routing table** renumbered its rows and moved the security-sensitive review row (24 in
+  1.4.0, 41 now) to a new workflow. It is a reference
   the interview expands into a project's own document; an existing `model-routing.md` is untouched.
 - **`security.provider`** still has no default. The kit now copies the scanner descriptor and the
   write step says in as many words that copying it never sets that key.
 - **The one behaviour edge** is `--verify` resuming a setup written by an older release. The new
   OpenCode step leaves the provider on when the existing routing table still uses it, so an
-  upgrade never turns a working dispatch into a refusal.
+  upgrade never turns a working dispatch into a refusal. Where nothing uses it, it is switched
+  off, recorded and reported like on a new project.
+- **The kit's security scan names two more trust boundaries** — `.xezar/pipeline/config.json` and
+  `.xezar/config.json`. It records that a reviewer is required; it fails nothing.
 
-One change touches this repository's own protected surface: the validation command list grew from
-twenty to twenty-one. That is additive, and the four places that state it moved together.
+This repository's own validation command list grew from twenty to twenty-one. It is not a
+protected surface — no consumer reads it — and the four places that state it moved together.
 

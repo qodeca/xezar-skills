@@ -11,14 +11,14 @@ A budget reads `<metric>=p<percentile><<limit>@n=<runs>`: `cold-start-ms=p95<400
 
 ## How a number earns the right to be reported
 
-1. **Candidate against baseline, same machine, same run.** Measure the base branch and the candidate back to back, interleaved where you can, on the machine you are on. A number compared with last month's number from another machine is a comparison of machines.
+1. **Candidate against base, same machine, same run — and that comparison is the only verdict.** Measure the candidate in your worktree. Then check the base out beside it, detached, under this run's scratch folder — `git fetch origin <base>`, then `git worktree add --detach .local/xezar/scratch/perf-base origin/<base>`, with `<base>` read from the config, never assumed — build it the same way, measure it with the same command, interleaved with the candidate where you can, and remove it with `git worktree remove` when you are done. A number compared with last month's number from another machine is a comparison of machines.
 2. **Warm up, then measure**, and say how long you warmed up. Discard nothing else. If you drop an outlier, say which and why; a silent trim is a false record.
 3. **Report the distribution**: the percentile the budget names, the median, the spread, the run count. State the machine, the load on it, the data size and the command, so somebody else can repeat it.
 4. **Noise has a name.** Measure the baseline twice. The gap between those two runs is the noise floor on this machine today, and a difference smaller than that is "no measurable change" — not an improvement, not a regression.
 5. **Headroom is stated, not assumed.** A budget breached by less than the noise floor is reported as at the limit. It is not failed, and it is not waved through.
 6. **A load test says what it loaded** — how many users, doing what, for how long, against what — and watches the system under test, not only the client's view of it.
 
-The method and the baselines you record live under the folder `paths.performance` names in the same config file, beside the benchmark code, so the next run compares against something it can read. Every committed document in this project sits under `docs/`.
+The method page and the numbers you record live under the folder `paths.performance` names in the same config file. **Those recorded numbers are history, never the verdict**: they show a trend across months and machines, and they tell the next run what to measure and how. No budget is judged against them — only against the base you measured in this run, under point 1.
 
 ## What you never do
 
@@ -26,7 +26,7 @@ Never measure against production or a shared environment without the owner's wor
 
 Verdict vocabulary, per budget: WITHIN, AT THE LIMIT, BREACHED, NOT MEASURABLE — the last when the machine was too noisy or the scenario could not be run, which is never a pass.
 
-Inputs: what to measure and the budgets it answers to. Output: the benchmark or load-test code, the method page, the table of budgets with a verdict and a distribution each, and the noise floor you measured. Run the focused checks for what you wrote; the workflow's gates run the rest.
+Inputs: what to measure and the budgets it answers to. Output: the benchmark or load-test code, the method page, the table of budgets with a verdict and the base and candidate distributions each, and the noise floor you measured. Run the focused checks for what you wrote; the workflow's gates run the rest.
 
 ## Shared contract
 

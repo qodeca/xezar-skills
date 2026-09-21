@@ -23,6 +23,17 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
 
+`xez-onboard-opinionated` 1.5.0 added eleven keys that only its own kit reads. All are additive; none has a loader default, on purpose — a kit role with its key unset names the key and stops, and a guarded workflow refuses. Renaming or removing one, or loosening a list's element grammar, is breaking.
+
+| Key | Written for a new project as | Read by |
+|---|---|---|
+| `paths.designs`, `paths.architecture`, `paths.spikes`, `paths.runbooks`, `paths.deprecations`, `paths.performance`, `paths.migrations` | `docs/<name>` | the kit's role skills; `paths.migrations` also by `kit/checks/deploy-guard.sh` |
+| `deploy.environments`, `deploy.rollback` | `[]`, elements `<environment>=<workflow file>` | `kit/checks/config-guard.sh`, `kit/checks/deploy-guard.sh` — always from the remote's default branch |
+| `performance.budgets` | `[]`, elements `<metric>=p<NN><<limit>@n=<runs>` | `kit/checks/config-guard.sh` |
+| `localisation.locales` | `[]`, locale tags | `kit/checks/config-guard.sh` |
+
+The line `reversibility: one-way` in a page under `paths.migrations` is read by `deploy-guard.sh`; its spelling is part of the contract.
+
 Three gate switches were added on 2026-09-20, all optional and all defaulting to `false`, so an existing config keeps its behaviour untouched:
 
 | Key | Default | Meaning of the default |

@@ -80,6 +80,9 @@ rest.
    second answer — but it does ask, because steps 7 to 10 cannot run before the merge and an owner
    who comes back for them usually comes back without the engine's tools loaded.
 
+**Steps 7 to 9 run from `references/verify.md` §3**, after the merge and after the engine settings
+there, whether this session carries on or a later `--verify` run resumes.
+
 7. **Protect the base branch** — follow `references/protection.md`. Tracker operation
    **branch-protected** with the confirmed gate commands as required checks, administrators
    **not** enforced. No admin rights → print the exact command and wait. Either way, re-read
@@ -111,8 +114,9 @@ rest.
   folder the project already uses is recorded where it is, never moved.
 - **An engine setting is changed only for this project, and only after it was disclosed.** The
   default task account, the skill-update switch and the OpenCode provider switch are read, recorded,
-  written and read back in `references/verify.md` §3 — and left alone when the engine is not in
-  single-project mode, where the same call would reach every project on the machine.
+  written and read back in `references/verify.md` §3. The two switches are left alone when the
+  engine is not in single-project mode, where the same call would reach every project on the
+  machine; the task account is keyed by this checkout and is always set.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
   smoke test runs before the final report. A setup whose gates cannot stop anything is not the
   "ready to work immediately" result this skill promises.

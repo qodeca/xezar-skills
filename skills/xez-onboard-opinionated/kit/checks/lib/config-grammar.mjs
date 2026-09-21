@@ -45,14 +45,19 @@ export function judge(config, key) {
   if (node !== undefined && (node === null || typeof node !== "object" || Array.isArray(node))) {
     return { status: "malformed", detail: `"${group}" must be an object`, values: [] };
   }
-  // A sibling the kit does not know is the typo this whole file exists for.
-  for (const sibling of Object.keys(node ?? {})) {
-    if (!GRAMMAR[`${group}.${sibling}`]) {
-      return { status: "malformed", detail: `"${group}.${sibling}" is not a key this kit reads — a misspelt key would otherwise read as "none configured"`, values: [] };
-    }
-  }
   const value = node?.[leaf];
-  if (value === undefined) return { status: "absent", detail: `"${key}" is not set`, values: [] };
+  if (value === undefined) {
+    // The key is missing. A sibling the kit does not know is then the typo this whole file exists
+    // for. Only then: when the key IS present there is nothing it could be a typo of, and refusing
+    // on an unknown neighbour would break every installed copy of this grammar the day a later
+    // release adds a key beside these.
+    for (const sibling of Object.keys(node ?? {})) {
+      if (!GRAMMAR[`${group}.${sibling}`]) {
+        return { status: "malformed", detail: `"${key}" is not set, and "${group}.${sibling}" is not a key this kit reads — a misspelt key must not read as "none configured"`, values: [] };
+      }
+    }
+    return { status: "absent", detail: `"${key}" is not set`, values: [] };
+  }
   if (!Array.isArray(value)) return { status: "malformed", detail: `"${key}" must be a list of strings`, values: [] };
   if (value.length === 0) return { status: "empty", detail: `"${key}" is []`, values: [] };
   for (const element of value) {
@@ -62,8 +67,18 @@ export function judge(config, key) {
   }
   const names = value.map((element) => element.split("=")[0]);
   const twice = names.find((name, index) => names.indexOf(name) !== index);
-  if (twice !== undefined && key !== "localisation.locales") {
+  if (twice !== undefined) {
     return { status: "malformed", detail: `"${key}" names "${twice}" twice`, values: [] };
+  }
+  // A rollback for an environment nobody can deploy to is a list somebody half edited.
+  if (key === "deploy.rollback") {
+    const deployable = (Array.isArray(node?.environments) ? node.environments : [])
+      .filter((element) => typeof element === "string")
+      .map((element) => element.split("=")[0]);
+    const orphan = names.find((name) => !deployable.includes(name));
+    if (orphan !== undefined) {
+      return { status: "malformed", detail: `"deploy.rollback" names "${orphan}", which "deploy.environments" does not list`, values: [] };
+    }
   }
   return { status: "ok", detail: `${value.length} entr${value.length === 1 ? "y" : "ies"}`, values: value };
 }

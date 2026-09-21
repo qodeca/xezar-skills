@@ -120,7 +120,6 @@ const MAINTAINED_SKILLS = new Set([
 // read-only run, which writes nothing and needs no isolated checkout, and wrong for
 // everything else now that Xezar owns the worktree.
 const READ_ONLY_SKILLS = new Set([
-  "xezar-acceptance",
   "xezar-code-review",
   "xezar-issue-triage",
   "xezar-security-review",

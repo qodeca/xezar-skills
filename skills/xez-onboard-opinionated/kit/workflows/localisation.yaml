@@ -23,7 +23,7 @@ steps:
     resultScope: routine
   - id: localise
     name: Localise the surface
-    prompt: "Localise: {{task}}. Follow xezar-localisation instructions: work only with locales listed in localisation.locales in .xezar/pipeline/config.json and never invent one. Extract every user-facing string into the project's existing catalogue under a meaning-named key, one message per sentence with named placeholders, plurals and formatting through the locale's own rules, context for the translator. Mark every translation you wrote as a machine draft and list legal and consent text for the owner. Add the missing-key check if there is none. Check the changed screens in the longest locale, and a right-to-left one where listed, through the browser descriptor. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
+    prompt: "Localise: {{task}}. Follow xezar-localisation instructions: work only with locales listed in localisation.locales in .xezar/pipeline/config.json and never invent one. Extract every user-facing string into the project's existing catalogue under a meaning-named key, one message per sentence with named placeholders, plurals and formatting through the locale's own rules, context for the translator. Mark every translation you wrote as a machine draft and list legal and consent text for the owner. Add the missing-key check if there is none. Check the changed screens in the longest locale, and a right-to-left one where listed, through the browser descriptor where this project has an interface and a descriptor; otherwise in the output itself. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
     skill: xezar-localisation
     timeout: 2h
   - id: readiness
@@ -43,5 +43,5 @@ steps:
     resultScope: stage
   - id: handoff
     name: Draft PR into the base branch
-    prompt: "Hand off the localisation work for: {{task}}. Verify the sealed head and open the draft PR; make no content changes here. The body says which locales changed, which strings are machine drafts awaiting a fluent reviewer, which text must not ship on a draft, and what the browser check showed."
+    prompt: "Hand off the localisation work for: {{task}}. Verify the sealed head and open the draft PR; make no content changes here. The body says which locales changed, which strings are machine drafts awaiting a fluent reviewer, which text must not ship on a draft, and what the browser or output check showed."
     skill: xezar-handoff-draft-pr

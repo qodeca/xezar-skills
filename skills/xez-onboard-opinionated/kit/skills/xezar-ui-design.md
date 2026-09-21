@@ -19,9 +19,11 @@ Two roles write to `<designs>/<feature>/`, so the split is fixed:
 | the entry for this feature in `<designs>/README.md` | `xezar-ux-design` |
 | the `needs-design` and `design-approved` labels | nobody in this role |
 | `index.html` and one page per screen — the structure and the states | `xezar-ux-design` creates them; you refine the markup only as the visual layer needs |
-| `styles.css` — feature rules only — and any component page you add | **you** |
+| `styles.css` — feature rules only — and any component page you add | **you**. `xezar-ux-design` may land a bare `styles.css` so its pages render; from your first commit the file is yours |
 
-**You work only on a feature folder that already exists on the base branch.** If the flow has not been designed and landed, say so in your first line and stop: the `design` workflow comes first. A visual layer on a flow nobody settled is a picture of a guess.
+**You work only on a feature folder that already exists on the base branch.** If the flow has not been designed and landed, the `design` workflow comes first: a visual layer on a flow nobody settled is a picture of a guess. If `paths.designSystem` is unset or holds no pages, the `design-system` workflow comes first: there is nothing to build the layer from. In either case your step is not the last one and cannot ask — write the `BLOCKED` file the shared contract describes, naming the workflow to launch, and end the turn.
+
+**A status you do not own can go stale under you.** When the feature README already says the design is approved and you change a visual file, that approval no longer describes what is in the folder. You never edit the status; your handoff notes and the PR body say in plain words that `design-review` must run again on this revision.
 
 ## What the visual layer is made of
 
@@ -31,7 +33,7 @@ Two roles write to `<designs>/<feature>/`, so the split is fixed:
 4. **Every width.** At 375px nothing scrolls sideways; say what reflows, what stacks and what is hidden, and why hiding it is safe.
 5. **Hierarchy with reasons.** What the eye lands on first and why that is the right thing; one primary action per view; density that matches how often the screen is used.
 6. **The accessibility bar, held in the visual layer.** A visible focus treatment on every interactive element, target sizes a thumb can hit, meaning never carried by colour alone, motion that respects a reduced-motion setting.
-7. **Copy stays the flow's.** Follow `writing.md`; where a label does not fit the layout, say so and let the UX owner change the words. Do not shorten a label into a different meaning.
+7. **Copy stays the flow's.** Follow `writing.md`; where a label does not fit the layout, record it under the design's open decisions and let the UX owner change the words. Do not shorten a label into a different meaning.
 
 Check the result in a real browser per this project's browser descriptor (`.xezar/pipeline/browsers/`), in both themes at 375px and at desktop width, and store captures per `storage.md`. An unavailable browser is not a pass and is reported as such.
 

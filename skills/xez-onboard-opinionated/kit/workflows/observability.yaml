@@ -18,7 +18,7 @@ steps:
     resultScope: routine
   - id: instrument
     name: Instrument the surface
-    prompt: "Make observable: {{task}}. Follow xezar-observability instructions: start from the question somebody asks at the worst moment. New log statements name their fields one by one – never a whole object, body, header set or environment – and one redaction test, watched failing first, proves no secret and no personal data comes out; record reviewerRequired when a log touches authentication or user data. Keep metric labels bounded. Every alert has an owner, a symptom-based condition and a runbook page under paths.runbooks. Use the telemetry this project already has; a new vendor is the owner's decision. Change no behaviour. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
+    prompt: "Make observable: {{task}}. Follow xezar-observability instructions: start from the question somebody asks at the worst moment. New log statements name their fields one by one – never a whole object, body, header set or environment – and one redaction test, watched failing first, proves no secret and no personal data comes out; say in the handoff text that a security review is required, and which statement, when a log touches authentication or user data. Keep metric labels bounded. Every alert has an owner, a symptom-based condition and a runbook page under paths.runbooks. Use the telemetry this project already has; a new vendor is the owner's decision. Change no behaviour. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
     skill: xezar-observability
     timeout: 2h
   - id: readiness

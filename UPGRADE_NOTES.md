@@ -37,7 +37,7 @@ row's trigger sentence.
 
    ```bash
    K=.claude/skills/xez-onboard-opinionated/kit
-   for f in catalog-check.mjs config-guard.sh lib/config-grammar.mjs; do cp "$K/checks/$f" ".xezar/checks/$f"; done
+   for f in catalog-check.mjs config-guard.sh deploy-guard.sh ci-watch.sh lib/config-grammar.mjs lib/security-scan.mjs; do cp "$K/checks/$f" ".xezar/checks/$f"; done
    cp -R "$K/skills/." .xezar/skills/
    cp -R "$K/workflows/." .xezar/workflows/
    mkdir -p .xezar/pipeline/browsers .xezar/pipeline/security
@@ -51,16 +51,17 @@ row's trigger sentence.
 
    ```json
    "paths": { "designs": "designs", "architecture": "docs/architecture", "spikes": "docs/spikes",
-              "runbooks": "docs/runbooks", "deprecations": "docs/deprecations", "performance": "docs/performance" },
+              "runbooks": "docs/runbooks", "deprecations": "docs/deprecations", "performance": "docs/performance",
+              "migrations": "docs/migrations" },
    "deploy": { "environments": [], "rollback": [] },
    "performance": { "budgets": [] },
    "localisation": { "locales": [] }
    ```
 
 3. Add the rows to `.xezar/docs/model-routing.md`: one line per new row of
-   `references/routing-rows.md`, **with its workflow file**, under a chain you choose. There is one
-   new class, `testing`. Row 25's workflow changed from `code-review.yaml` to
-   `security-review.yaml`, and the two visuals rows now run `visual-asset.yaml`. Copy the fifth
+   `references/routing-rows.md`, **with its workflow file**, under a chain you choose. There are three
+   new classes — `design`, `visuals` and `testing`. The security-sensitive review row (row 24 in
+   1.4.0, row 41 now) changed its workflow from `code-review.yaml` to `security-review.yaml`, and the two visuals rows now run `visual-asset.yaml`. Copy the fifth
    global prohibition and the look-alike pairs as well.
 4. Add the headings the new roles cite to your `SDLC.md`, a sentence or two each: Security review ·
    Architecture review · Acceptance · Deploy authority.
@@ -98,12 +99,14 @@ makes a read-only role read-only — and a resumed session loses its role. `DECI
 
 **What to do, if you want it back.** Engine tool `project_config`, action `set_provider_enabled`,
 `provider: "opencode"`, `enabled: true`. The state is in `.xezar/workspace.json`, which is
-git-ignored; `.xezar/onboarding.json` → `providerSwitches` records what it was before. **Reverting
+git-ignored; `.local/xezar/runtime/onboarding-engine-settings.json` records what it was before. **Reverting
 the setup pull request does not undo it.** Keep it out of read-only and release chains even then:
 the fifth global routing prohibition says why.
 
-**A project onboarded earlier is not switched.** `--verify` leaves the provider on when the
-existing routing table still uses it, and reports that it did.
+**A project onboarded earlier is switched only when nothing uses the provider.** Re-running
+`--verify` on it switches OpenCode off unless the existing routing table still names an OpenCode
+lane, or the engine is not in single-project mode; in both cases it leaves the provider on and
+reports that it did.
 
 **What you lose by leaving it off.** One provider's lanes. Nothing else changes.
 
@@ -175,10 +178,11 @@ cp -R .claude/skills/xez-onboard-opinionated/kit/workflows/. .xezar/workflows/
 ```
 
 **From 1.5.0 those last two lines bring more than fixes.** They now also copy nineteen new
-workflows, two of which call a check this list does not copy, and none of which your routing
+workflows, three of which call a check this list does not copy, and none of which your routing
 table names. Follow the entry "the leader has no workflow for a deploy…" above instead: it copies
 the two extra check files and adds the routing rows, the config keys and the `SDLC.md` headings
-that make the new workflows reachable. `node .xezar/checks/catalog-check.mjs .` tells you at once
+that make the new workflows reachable. It also replaces `ci-watch.sh` and `lib/security-scan.mjs`,
+which the deploy workflow and the deploy trust boundary need. `node .xezar/checks/catalog-check.mjs .` tells you at once
 whether the copy was complete.
 
 **What you lose by skipping it.** The integration gate keeps refusing merges on check names that

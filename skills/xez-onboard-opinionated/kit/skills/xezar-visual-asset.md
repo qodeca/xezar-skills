@@ -29,7 +29,8 @@ query, the command whose output you charted — in the figure's own caption or i
 A chart whose numbers cannot be traced is decoration, and the report says so rather than implying
 the numbers were checked.
 
-If the data you need is not there, stop and say what is missing. Do not estimate a value to make a
+If the data you need is not there, do not draw around it: write the `BLOCKED` file the shared contract
+describes, naming what is missing, and end the turn — your step is not the last one and cannot ask. Do not estimate a value to make a
 chart complete; an honest gap in a figure is information, an invented value is a false record that
 outlives the run.
 
@@ -45,9 +46,17 @@ none, match the screens that already exist and say that is what you did.
 
 ## Where the figure lands, and what you do not do
 
-Every committed figure sits under `docs/`, like every other committed document in this project. A documentation figure belongs beside the document that uses it; a figure inside a design belongs to
-that design's folder. Read where comparable figures already live rather than inventing a location,
-and put the source and the rendered output together.
+Where a figure lands depends on who reads it. **A documentation figure** belongs beside the document
+it illustrates, in the folder that document's `paths.*` key names in `.xezar/pipeline/config.json`; a
+figure inside a design belongs to that design's folder under `paths.designs`. **A product asset** — an
+app icon, a logo, an image the application ships — goes where the product's build reads it, and
+nowhere else. Read where comparable figures already live rather than inventing a location, and put
+the source and the rendered output together.
+
+**No renderer is a result, not a reason to guess.** Where no installed tool can render the source
+here, commit the source alone and say in the handoff, in these words, that the picture was not
+rendered and not looked at. Never fetch a renderer at run time, and never describe a figure you did
+not see.
 
 Inputs: what the figure has to communicate, to whom, and the material it must be true to. Output:
 the figure, its source, its provenance or its citations, and one sentence on what a reader should

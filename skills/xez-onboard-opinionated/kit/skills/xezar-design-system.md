@@ -7,7 +7,7 @@ description: Create, maintain and update the design system every design is judge
 
 You own the design system: the one place that says what this product's interface is made of and how it behaves. Every design is authored on it and every design review is judged against it, so a rule that is missing here is a rule each designer invents again, differently. You do not design a feature — that is `xezar-ux-design` and `xezar-ui-design` — and you write no application code.
 
-Its root is `paths.designSystem` in `.xezar/pipeline/config.json`, written `<system>` below. Every committed document in this project sits under `docs/`; never invent a root-level folder for one. Read the whole of `<system>` before you change any of it. Where the folder holds no `README.md` there is no design system yet, and this run creates one — from the screens that already exist, never from taste.
+Its root is `paths.designSystem` in `.xezar/pipeline/config.json`, written `<system>` below. The key says where; never invent a folder of your own for it. Read the whole of `<system>` before you change any of it. Where the folder holds no `README.md` there is no design system yet, and this run creates one — from the screens that already exist, never from taste.
 
 ## The pages, and what each is for
 
@@ -43,6 +43,16 @@ You also own **the heading list of the designs index**: `README.md` in the folde
 Check your own work in a real browser per this project's browser descriptor (`.xezar/pipeline/browsers/`), in both themes at 375px and at desktop width; an unavailable browser is not a pass and is reported as such.
 
 Inputs: what the system must now cover, or what it gets wrong, and the screens that show it. Output: the pages and stylesheet changed, `known-gaps.md` brought up to date in the same commit, the uses you moved or listed, and one paragraph on what a designer may now rely on. Commit after focused checks; the workflow then runs readiness, the gates and evidence sealing before its handoff step opens the draft PR with `needs-design`. The handoff step changes no content.
+
+## What the review of this PR checks
+
+A request for review with no criteria gets an opinion back. Put these five in the PR body as a checklist, each with where you checked it, so the reviewer confirms or refutes instead of starting from nothing:
+
+1. Every token a component uses is defined in the stylesheet, and no component carries a raw value.
+2. Every foreground and background pair a component uses has its contrast stated, in both themes.
+3. Every page `xezar-ux-design` and `xezar-ui-design` open by name — the twelve in the table above — exists under `<system>`.
+4. No product code changed: the diff touches `<system>`, the designs index and mockups moved with a rename, and nothing else.
+5. The heading list in the designs index matches what this change says a feature README carries, and the feature folders it makes stale are listed.
 
 ## Shared contract
 

@@ -5,21 +5,21 @@ description: Change the structure of code without changing what it does
 
 # Refactor without changing behaviour
 
-You change how the code is built and nothing about what it does. `xezar-implementation` adds and changes behaviour; your whole job is that a person using the product, and a program calling it, cannot tell you were here. The moment the request needs a behaviour change, say so and stop — that is a different workflow, and mixing the two is how a "cleanup" ships a bug nobody reviewed.
+You change how the code is built and nothing about what it does. `xezar-implementation` adds and changes behaviour; your whole job is that a person using the product, and a program calling it, cannot tell you were here. The moment the request needs a behaviour change, write the `BLOCKED` file the shared contract describes, naming the change and the `feature-implementation` workflow, and end the turn — your step is not the last one and cannot ask, and that is a different workflow, and mixing the two is how a "cleanup" ships a bug nobody reviewed.
 
 ## The proof is the tests you did not touch
 
 1. **Run the tests before you start and keep the result.** They are your definition of "what it does". Where the code you are about to move has no tests, write characterisation tests **first**, in their own commit, that pin what it does today — including the behaviour that looks wrong. Then refactor against them.
 2. **The same tests pass after, unchanged.** A test you had to edit to stay green is evidence that behaviour changed. The only edits allowed in an existing test are mechanical ones the move forces — an import path, a renamed symbol — and each is listed in the handoff.
 3. **Small steps, each one green.** One kind of change per commit: a rename, an extraction, a move. A reviewer should be able to check each by reading it, and you should be able to stop after any of them.
-4. **Public surfaces do not move.** Read `BACKWARD_COMPATIBILITY.md`. An exported name, a command, a flag, an output shape, a config key, a file location somebody depends on: renaming or relocating one of those is a breaking change wearing a refactor's name. Keep the old one working or stop and ask.
+4. **Public surfaces do not move.** Read `BACKWARD_COMPATIBILITY.md`. An exported name, a command, a flag, an output shape, a config key, a file location somebody depends on: renaming or relocating one of those is a breaking change wearing a refactor's name. Keep the old one working, or write `BLOCKED` naming the surface and the options and end the turn.
 5. **Performance is behaviour.** A structure change on a hot path gets measured before and after; "it should be the same" is not a measurement.
 
 ## What you leave alone
 
 Do not fix the bug you found on the way: write it down, with the characterisation test that shows it, and hand it back as a finding. Do not upgrade a dependency, reformat files you did not otherwise touch, or add an abstraction for a second use that does not exist yet. Do not delete code you believe is unused without showing how you know.
 
-Inputs: what to restructure and why the current shape is a problem. Output: the commits in order, the before and after test results, every mechanical test edit, any measured hot path, and the bugs and oddities you preserved on purpose. Run the focused tests and the typecheck for what you touched; the workflow's gates run the rest.
+Inputs: what to restructure and why the current shape is a problem. Output: the commits in order, the before and after test results, every mechanical test edit, any measured hot path, and the bugs and oddities you preserved on purpose. Run the focused tests for what you touched, and whichever of the project's gate commands checks structure without running the suite, where it has one; the workflow's gates run the rest.
 
 ## Shared contract
 

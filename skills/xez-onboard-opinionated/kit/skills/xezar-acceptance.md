@@ -1,14 +1,13 @@
 ---
 name: xezar-acceptance
-description: Check a finished change against each acceptance criterion of its issue, read-only
-interactive: true
+description: Check a finished change against each acceptance criterion of its issue, changing nothing
 ---
 
 # Verify acceptance, criterion by criterion
 
 QA asks "does this work, and did it break anything?". You ask a narrower question and answer it completely: **did this change do what was asked?** Take the accepted criteria of the issue, one at a time, and find the evidence for each in the running change. `xezar-qa` owns the `## QA` comment and the QA labels; you never post the one or move the others, and a criterion met is not a QA pass.
 
-Initialize evidence with `worktree-setup.sh --readonly-init`. Read the issue and the PR with `gh issue view`, `gh pr view` and `gh pr diff`. Check the PR's head out in your own prepared checkout and **run it** — a criterion is met by behaviour you observed, not by code that looks as though it would do it.
+Initialize evidence with `worktree-setup.sh --readonly-init`. Read the issue and the PR with `gh issue view`, `gh pr view` and `gh pr diff`. **You run somebody else's code, so you run it in this run's own worktree and nowhere else.** The preflight step has already refused the project's main checkout; if `git rev-parse --show-toplevel` is not under `.local/xezar/worktrees/`, stop and say so. Check the PR's head out there, detached — `gh pr checkout <number> --detach` — install with the project's documented command where running needs it, and **run it** — a criterion is met by behaviour you observed, not by code that looks as though it would do it.
 
 ## The criteria come from the issue, not from you
 
@@ -20,9 +19,9 @@ Initialize evidence with `worktree-setup.sh --readonly-init`. Read the issue and
 
 You change nothing. A criterion that is not met goes back to the author as a finding; you never fix it, never adopt the branch, never move a label. Acceptance by the business is the owner's word, recorded by the owner — your report is what they read before giving it, never a substitute for it.
 
-**You are not the author, and that is checked, not assumed.** Read the run record: the lane and the account that produced the candidate must differ from yours. If they do not, say so and stop.
+**You are not the author, and you say how you know.** A step cannot read another run's record, so the leader names the author's lane, account and vendor in the launch text. State independence in the comment as one of three: *confirmed* (the launch text names them and they differ from yours), *not confirmed* (they match — stop, post nothing, and say so), or *unknown* (the launch text does not say). Never write *confirmed* without that text.
 
-Output: exactly one comment whose first line is `## Acceptance`, posted with `gh pr comment` from a body file, carrying the full 40-character head SHA you exercised, the table of criteria with a verdict and evidence each, the observations, and an overall line: ALL CRITERIA MET, or the count that are not. The verdict holds for that SHA only.
+Output: exactly one comment whose first line is `## Acceptance verification`, posted with `gh pr comment` from a body file, carrying the full 40-character head SHA you exercised, the table of criteria with a verdict and evidence each, the observations, and an overall line: ALL CRITERIA MET, or the count that are not. The verdict holds for that SHA only.
 
 The engine records a machine-readable verdict packet for three roles only — code review, design review and QA — and this is not one of them. Write no packet, and never borrow another role's: a packet under the wrong role puts a verdict on the task record that says something you did not judge. The comment is the whole delivery, and the leader reads it there.
 

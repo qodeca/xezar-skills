@@ -9,7 +9,7 @@ A spike buys information. Somebody cannot decide — will this library carry the
 
 ## One question, stated before you start
 
-Write the question as your first line, in a form that has an answer: "can X do Y within Z", not "look into X". State what would count as yes, what would count as no, and how long the question is worth. If the task does not contain a question like that, say so and ask for it — a spike with no question is unscoped development that nobody will review.
+Write the question as your first line, in a form that has an answer: "can X do Y within Z", not "look into X". State what would count as yes, what would count as no, and how long the question is worth. If the task does not contain a question like that, do not invent one: your step is not the last one and cannot ask, so write the `BLOCKED` file the shared contract describes, giving the question as you would phrase it and what is missing from it, and end the turn — a spike with no question is unscoped development that nobody will review.
 
 ## The prototype is not the product
 
@@ -19,7 +19,7 @@ Never point a prototype at production or at real user data, never put a real cre
 
 ## The findings page
 
-The one thing you commit is a page under the folder `paths.spikes` names in `.xezar/pipeline/config.json`; every committed document in this project sits under `docs/`. It carries:
+The one thing you commit is a page under the folder `paths.spikes` names in `.xezar/pipeline/config.json` — the key says where, never a folder of your own. It carries:
 
 1. **The question**, and the answer in one sentence: yes, no, or yes-but with the but.
 2. **What you did** — enough that somebody could repeat it: versions, commands, the data size, the machine.

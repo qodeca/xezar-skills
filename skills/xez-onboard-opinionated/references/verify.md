@@ -48,6 +48,30 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 
 ## 3. The remaining steps, in order
 
+**Three engine settings change here, and all three follow one rule: read, record, write, read back.**
+They are the default task account, the OpenCode switch and the skill auto-update switch. None of
+them is a file in the pull request, so the preview names each (`references/preview.md`) and the
+report says what each was before.
+
+- **Where the record goes.** `.local/xezar/runtime/onboarding-engine-settings.json` — git-ignored,
+  beside the saved interview, one entry per setting: `{ "setting": "<name>", "previous": <what you
+  read>, "now": <what you wrote>, "undo": "<the call>", "when": "<ISO-8601>" }`. **Never
+  `.xezar/onboarding.json`**: that file is committed, this step runs after the merge, and a write
+  there leaves the tree dirty under a rule that says it must be clean — and puts a fact about one
+  machine into git.
+- **Which mode the engine is in is read from the engine, not from a file.** `project_config`,
+  action `get_capabilities`: `capabilities.singleProjectRoot` is `true` when this folder owns its
+  engine state, and only then do these settings land in this project (`.xezar/workspace.json`,
+  git-ignored). The file existing proves nothing — the engine creates it either way. Absent or
+  false → the provider switch and the skill-update switch are the machine's, shared by every
+  project on it: **change neither**, and report each as "left as it was, the engine is not in
+  single-project mode". The default task account is keyed by this checkout's path in either mode,
+  so it is always set.
+- **A successful call is not the evidence; the read-back is.** Each write is followed by the read
+  that shows the new value, and a read-back that disagrees is a finding, reported as one.
+
+In order:
+
 - **The default task account.** Engine tool `project_config`, action `select_account`, with the
   lane the owner chose in the interview; read it back with `get_account`. It must not be the
   leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
@@ -65,32 +89,30 @@ Setup results use four words, and none implies the next: **files prepared**, **c
   read-only role read-only — a resumed session loses its role and its tool limits, and it cannot
   attach itself as leader. Four moves, in this order, and the order is the point:
 
-  1. **Read.** Engine tool `project_config`, action `get_capabilities`. Find the `opencode` entry
-     under `providers` and note `enabled` and `status`. Not installed, or already disabled → say
-     so, write nothing, tick the line.
-  2. **Check it is safe to switch.** Two conditions, both read, neither assumed. `.xezar/workspace.json`
-     exists — the engine is in single-project mode, so the switch is stored in **that file, in this
-     project, git-ignored**, and touches no other project on this machine. And
-     `.xezar/docs/model-routing.md` names no OpenCode lane in any chain — a setup written before
-     this rule may, and switching the provider off under it turns those dispatches into refusals.
-     Either condition false → **leave it on**, report "found, left on" with which condition failed,
-     and keep it out of any chain this run writes. Never reach for a machine-wide setting from a
-     per-project setup.
-  3. **Record, then switch.** Write what was there into `.xezar/onboarding.json` under
-     `providerSwitches` — `{ "provider": "opencode", "previousEnabled": <what you read>, "file":
-     ".xezar/workspace.json", "when": "<ISO-8601>" }` — and only then call action
-     `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a fresh `operationId`.
-  4. **Read back.** `get_capabilities` again; `enabled` must now be false. A successful call is
-     not the evidence; the read-back is.
+  1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
+     and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
+  2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
+     `capabilities.singleProjectRoot` is `true` (above). And `.xezar/docs/model-routing.md` names
+     no OpenCode lane in any chain — a setup written before this rule may, and switching the
+     provider off under it turns those dispatches into refusals. Either condition false → **leave
+     it on**, report "found, left on" with which condition failed, and keep it out of any chain
+     this run writes. Never reach for a machine-wide setting from a per-project setup.
+  3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
+     then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
+     fresh `operationId`.
+  4. **Read back.** `get_capabilities` again; `enabled` must now be false.
 
   Put the one call that undoes it in the report, word for word: `set_provider_enabled` with
   `provider: "opencode"`, `enabled: true`. Reverting the setup pull request does **not** undo this —
   the state lives outside git — and an engine started later without `--single-project` reads the
   machine's own settings instead, where this switch was never made.
-- **Skill updates are the owner's, not the engine's start-up.** Engine tool
-  `set_workspace_config` with `skillsAutoUpdate: false`. The engine otherwise updates installed
-  skills at every start under a thirty-second limit, and the first test found fifteen of
-  forty-five updated and the rest not — invisible once the skill folders are ignored.
+- **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action
+  `get_limits` → `workspace.skillsAutoUpdate.effective`; already `false` → say so and write
+  nothing. Otherwise record the entry (`"setting": "skillsAutoUpdate"`), call
+  `set_workspace_config` with `skillsAutoUpdate: false`, and read `get_limits` again. The engine
+  otherwise updates installed skills at every start under a thirty-second limit, and the first
+  test found fifteen of forty-five updated and the rest not — invisible once the skill folders are
+  ignored. Undo: the same call with `true`.
 - **The labels exist.** Tracker operation **list-labels** against `.xezar/pipeline/labels.json`.
   Anything missing → **ensure-label-taxonomy**, which creates only what is absent and never
   recolours. They were approved in the preview; this is the read-back.

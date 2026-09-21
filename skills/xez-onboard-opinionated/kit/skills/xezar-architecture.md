@@ -5,23 +5,23 @@ description: Decide and record software architecture, or review a change against
 
 # Decide and record architecture
 
-Architecture here means the decisions that **outlive a feature**: how the system is cut into parts, which part owns which data, what crosses a boundary and in what shape, what a part may depend on, and the qualities the whole must hold — how it fails, how it scales, how it is secured, how it is changed. A plan for one feature is `plan-and-spec`; this role is for the decision the next ten features will inherit. If the request is really one feature's plan, say so in your first line and stop.
+Architecture here means the decisions that **outlive a feature**: how the system is cut into parts, which part owns which data, what crosses a boundary and in what shape, what a part may depend on, and the qualities the whole must hold — how it fails, how it scales, how it is secured, how it is changed. A plan for one feature is `plan-and-spec`; this role is for the decision the next ten features will inherit. If the request is really one feature's plan, this is the wrong workflow: in the `architecture` workflow your step is not the last one and cannot ask, so write the `BLOCKED` file the shared contract describes, naming `plan-and-spec` as the workflow to launch, and end the turn; in review mode, say so in your first line and stop.
 
 Two workflows run this skill: `architecture` (authoring, below) and `architecture-review` (the review mode at the end of this file). Whichever way it is reached, its output is a record, a page, a diagram or a verdict, never product code.
 
-Everything you write lands in the folder named by `paths.architecture` in `.xezar/pipeline/config.json`, written `<architecture>` below. Every committed document in this project sits under `docs/`; never invent a root-level folder for one. Read what is already there before you write: `<architecture>/README.md` is the index, `<architecture>/decisions/` holds the decision records. Where neither exists yet, you create them with your first record and say so.
+Everything you write lands in the folder named by `paths.architecture` in `.xezar/pipeline/config.json`, written `<architecture>` below. Never invent a folder of your own for one: the key says where architecture lives. Read what is already there before you write: `<architecture>/README.md` is the index, `<architecture>/decisions/` holds the decision records. Where neither exists yet, you create them with your first record and say so.
 
 ## One decision, one record
 
 A decision record is a short file, `<architecture>/decisions/NNNN-<slug>.md`, numbered in order and never renumbered. It carries, in this order:
 
-1. **Status** — Proposed, Accepted, Superseded by NNNN. A record is never edited to mean something else; a changed mind is a new record that supersedes the old one, and the old one gains one line pointing forward.
+1. **Status** — Proposed, or Superseded by NNNN. A record is never edited to mean something else; a changed mind is a new record that supersedes the old one, and the old one gains one line pointing forward.
 2. **Context** — the forces at work, stated so that a reader who was not here can tell why this was a question at all. Cite what you read: the file, the measurement, the issue. A context nobody can trace is an opinion.
 3. **Options** — at least two that were really on the table, each with what it costs and what it closes off. "Do nothing" is an option whenever it is one. An option written only to be knocked down is not an option; leave it out.
 4. **Decision** — one paragraph, in the active voice, that a developer can follow without asking you.
 5. **Consequences** — what becomes easier, what becomes harder, what must now be true elsewhere, and **how anybody would notice this decision has gone wrong**. The last one is the part that gets skipped and the part that matters in a year.
 
-Only the owner accepts a decision. You write **Proposed**; the record becomes Accepted when the owner's words are recorded against it, in the PR or the issue, and never because a label moved or a review passed.
+Only the owner accepts a decision, and the owner accepts it **by merging the pull request that carries it**. You write **Proposed** and nothing else; the merge is the acceptance, and git records who and when. So an **Accepted** record, everywhere in this file, means one that is on the base branch and not superseded — no follow-up change flips a word in it, and nobody has to remember to. A record on an open branch is a proposal however it reads, and a label that moved or a review that passed accepts nothing.
 
 ## Pages and diagrams
 
@@ -45,7 +45,9 @@ A finding is one of three things. **A contradiction** — the change breaks an A
 
 Verdict vocabulary: CONFORMS, CONFORMS WITH FOLLOW-UPS, CONTRADICTS. Findings are numbered B-n (blocking) and NB-n (non-blocking); each names `file:line` or the plan section, and the record or page it is measured against.
 
-Output: exactly one comment whose first line is `## Architecture review`, posted with `gh pr comment` or `gh issue comment` from a body file, carrying the reviewed commit SHA or document revision, the records consulted, the verdict and the findings. That comment is the whole delivery: you change no file, you move no label, and the candidate's author answers the findings. A review by the lane that wrote the design is not a review; if the run record shows you are that lane, say so and stop.
+Output: exactly one comment whose first line is `## Architecture review`, posted with `gh pr comment` or `gh issue comment` from a body file, carrying the reviewed commit SHA or document revision, the records consulted, the verdict and the findings. That comment is the whole delivery: you change no file, you move no label, and the candidate's author answers the findings. No PR and no issue to comment on — a path or a plan file with no tracker item behind it — means the same content is your final message and nothing is posted; where there is a tracking issue, comment there.
+
+A review by the lane that wrote the design is not a review, and you cannot read the run record to check. The leader names the author's lane, account and vendor in the launch text. State independence in the comment as one of three words: **confirmed** (the launch text names the author and it is not you), **not confirmed** (it names you: say so in your first line and stop), or **unknown** (it does not say). Never write confirmed without that text.
 
 ## Shared contract
 

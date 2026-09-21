@@ -1,5 +1,5 @@
 name: plan-and-spec
-description: Design an approach and write a right-sized spec under docs/features/ before substantial work.
+description: Design an approach and write a right-sized spec under docs/features/ (this kit's one fixed document folder) before substantial work.
 steps:
   - id: kit
     name: Snapshot the local project kit

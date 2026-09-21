@@ -69,7 +69,23 @@ something. So the generated process document states the position in one plain se
 the parts are installed regardless, and gives the one line that flips it. Nobody should be able
 to read a sleeping rule as an active one.
 
-## 4. Agent tools, accounts and models
+## 4. What wakes the sleeping workflows
+
+Four readings, each a proposal for the facts screen and nothing more. Finding none is ordinary and
+is written down as `[]` or as the default, never as a guess.
+
+- **The browser tool.** Probe for each tool the kit ships a browser descriptor for
+  (`kit/pipeline/browsers/`). One found → propose it. Both → the owner picks. None → say so: design
+  review and the browser half of UI-test authoring will report "not verifiable here" on this machine.
+- **Deploy and rollback workflows.** File **names** in `.github/workflows/` that say deploy,
+  release-to or rollback. Beside each name, two mechanical facts: whether it declares
+  `workflow_dispatch`, and whether that trigger has a `sha` input (`references/write.md` §2 says
+  why the guard needs both). Nothing else in the file is evidence of anything.
+- **Locales.** Locale folders or files the project already has (`locales/`, `i18n/`, `*.po`,
+  `messages.<tag>.json`). Propose the tags found; never a tag the project does not have.
+- **Documents.** Covered in §3. Performance budgets are never read off anything: they start `[]`.
+
+## 5. Agent tools, accounts and models
 
 Three steps, in order:
 
@@ -95,7 +111,7 @@ The routing table is then **generated from the owner's answers** rather than cop
 anywhere. Shipping a table naming accounts that exist on one machine guarantees a first dispatch
 to an account that does not exist on this one.
 
-## 5. The state the setup lands on
+## 6. The state the setup lands on
 
 Four read-only looks at the project as it is today. Each one is a finding for the preview, and
 each was found the hard way in the first test:
@@ -114,7 +130,7 @@ each was found the hard way in the first test:
 - **Does an update bot target the default branch while work lands on another?** Note it; the
   owner decides.
 
-## 6. What analysis must not do
+## 7. What analysis must not do
 
 - **No writes.** Not a directory, not a placeholder, not a `.gitkeep`.
 - **No network calls** beyond reading the repository's own remote.

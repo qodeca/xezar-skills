@@ -10,8 +10,17 @@ A migration changes something that already exists in the world: rows in a databa
 ## Before you write the migration
 
 1. **Say what is moving and who holds it.** The data, its size, where copies live, who reads it and when. A migration designed for the ten rows in your fixture is not designed.
-2. **Decide the way back first.** Either the move is reversible and you write the reverse as carefully as the forward, or it is **one-way** and you say so in those words. One-way needs the owner's recorded word before it is shipped — quote it, with where it was given — and it is marked `one-way` in the migration's own record, because `xezar-deploy` reads that mark and refuses to roll back across it.
+2. **Decide the way back first.** Either the move is reversible and you write the reverse as carefully as the forward, or it is **one-way** and you say so in those words. One-way needs the owner's recorded word before it is shipped — quote it, with where it was given — and it is marked in the migration's page, below, because the deploy workflow's guard reads that mark and refuses to roll back across it.
 3. **Read `BACKWARD_COMPATIBILITY.md`.** A config or file format people already have is a protected surface. The old shape keeps being read for as long as that document says, and the change lands there in the same PR.
+
+## One page per migration, with one line a machine reads
+
+Every migration commits one page under the folder `paths.migrations` names in `.xezar/pipeline/config.json` — the key says where, never a folder of your own. The page says what moved, the way back or why there is none, and who runs it. It carries, **on a line of its own and spelled exactly**, one of:
+
+`reversibility: reversible`
+`reversibility: one-way`
+
+That line is a contract. Before any rollback, `.xezar/checks/deploy-guard.sh` lists the pages added to the base branch since the rollback target and matches `^reversibility:[[:space:]]*one-way[[:space:]]*$`; a match refuses the rollback unless the owner named that page. A heading, a bold word, a table cell or trailing text on the line is not a match. **A migration with no page, or a page with the line misspelled, is a move the rollback guard cannot see** — it will permit old code onto data that code cannot read. So the page lands in the same commit as the migration, never after. Where `paths.migrations` is unset, write `BLOCKED` naming the key; do not pick a folder.
 
 ## The shape of a safe one
 
@@ -26,7 +35,7 @@ Run the migration against a realistic copy — never the live data — forward, 
 
 You never run a migration against production or shared data. You prepare it, prove it on a copy, and hand the owner a runbook: the command, the order, what to watch, how long it takes, the point of no return, and the exact way back.
 
-Inputs: what has to change shape and why. Output: the forward migration, the reverse or the `one-way` mark with the authority for it, the dry-run record, the compatibility entry, and the runbook. Run the focused tests for what you wrote; the workflow's gates run the rest. A change here touches a trust boundary by its nature: record `reviewerRequired` and say why.
+Inputs: what has to change shape and why. Output: the forward migration, the migration page with its `reversibility:` line, the reverse or the owner's words for one-way, the dry-run record, the compatibility entry, and the runbook. Run the focused tests for what you wrote; the workflow's gates run the rest. A change here touches a trust boundary by its nature. You cannot set the reviewer flag — the security scan computes it — so say in your handoff text, in plain words, that a security review is required and why; the leader routes it.
 
 ## Shared contract
 

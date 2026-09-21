@@ -11,10 +11,13 @@
   single-project mode the switch lives in `.xezar/workspace.json` — git-ignored, inside the
   project, so no other project on the machine is touched. The previous state is recorded first,
   the result is read back, the preview discloses it before the one approval, and the report prints
-  the call that undoes it. It is **left on**, and reported, when the engine is not in
+  the call that undoes it. The record is a git-ignored file under `.local/xezar/runtime/`, never
+  the committed manifest: this step runs after the merge, and a machine's state is not a fact
+  for git. The other two engine settings the setup changes — the default task account and skill
+  auto-update — now follow the same read, record, write, read-back rule and are named in the preview. It is **left on**, and reported, when the engine is not in
   single-project mode or when an existing routing table still uses it.
 - **Every document the setup or a workflow commits lives under `docs/`.** The design system, the
-  designs, architecture, spikes, runbooks, deprecations and performance notes each have a `paths.*`
+  designs, architecture, spikes, runbooks, deprecations, performance notes and migration pages each have a `paths.*`
   key; the kit reads the key and never a literal folder. A project onboarded earlier keeps its
   root-level `designs/` by pointing `paths.designs` at it. The designs index is now written
   always — `write.md` said "only when the design gate is on" while `analysis.md` said the design
@@ -26,7 +29,7 @@
   `review`, where one prose ranking decided who designs a screen; `testing` is new, because
   writing a test that fails for the right reason is a different skill from writing the feature.
   The two visuals rows now run `visual-asset.yaml`. The table is sorted by class, and the rules for
-  choosing between rows were regenerated against the new numbers — eleven look-alike pairs.
+  choosing between rows were regenerated against the new numbers — thirteen look-alike pairs.
 - **`model-routing.md` keeps every column of a row, the workflow file included.** Nothing said so,
   and a row written without its workflow is work the leader can recognise and cannot start.
   `write.md` also now lists the `SDLC.md` sections the kit cites by name, which nothing told the
@@ -45,16 +48,24 @@
   hotfix mode; architecture is one skill for the authoring workflow and its read-only review.
   Seventeen new role skills, thirty-seven in all.
 - **Deploy never deploys, and its authority is a record.** It dispatches the project's own deploy
-  workflow exactly once, for the environment and the full commit SHA the owner authorised in words
-  that are written down *before* the dispatch — from the launch text or an answered question only,
-  never from an issue, a pull request or a comment. The run's head SHA must equal the recorded one.
-  A rollback needs its own record and refuses across a migration marked one-way. A failed deploy
-  is never re-dispatched by a machine, and nothing is copied out of deploy logs.
+  workflow at most once, for the environment and the full commit SHA the owner authorised in words
+  that are written down *before* the dispatch — from the launch text only, never from an issue, a
+  pull request or a comment. A check step, `deploy-guard.sh`, turns that record into a permit or
+  refuses: the environment must be listed on the remote's default branch, the workflow there must
+  declare a `sha` input (`--ref` cannot name a commit, so the reviewed workflow runs from the base
+  branch and the commit travels as data), the commit must be on the base branch's history, a
+  rollback must not cross a migration page marked `reversibility: one-way` unless the owner's
+  words name it, and a second permit for the same authority is never written. `ci-watch.sh`
+  learned `"kind": "deploy"`: a cancelled deploy is not "superseded", a failed deploy job is never
+  a known flake, and running out of time still reaches the report. A failed deploy is never
+  re-dispatched by a machine, and nothing is copied out of deploy logs.
 - **`config-guard.sh` — a guarded workflow refuses before the dependency install.** Deploy,
   rollback, performance and localisation are installed everywhere and run only where a list says
   so. The guard tells an honest `[]` from an absent key from a typo, because for these keys an
   empty list means "do not run" and a misspelt one must never read that way. `deploy.*` is read
-  from the base branch, so a branch under review cannot repoint a deploy target.
+  from the remote's default branch — not from the branch the checkout's own config names, which a
+  branch under review controls — so a deploy target cannot be repointed from a pull request. The
+  kit's security scan now names both config files as trust boundaries.
 - **The kit ships browser and security descriptors**, byte-identical to the collection's and
   pinned by SHA-256, and the write step records the installed digests. The design skill pointed at
   a browser descriptor folder no run ever installed.
@@ -67,7 +78,7 @@
 - **The role skills' shared contract is generated.** `sync-shared-blocks.mjs` gained tail blocks,
   so thirty-seven copies of one text are written from one canonical copy instead of by hand.
 - A twelfth pinned kit fact (the OpenCode switch, its disclosure, its undo and its routing ban
-  agree), and eight more deliberate-break cases — forty-nine in all.
+  agree), and nineteen more deliberate-break cases — sixty in all. The catalog gate also runs the two guard scripts for real, on a throwaway repository: twenty-two cases.
 
 ## Fixed
 

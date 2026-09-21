@@ -73,35 +73,64 @@ if (process.argv.includes('--check')) {
   process.exit(STALE_EXIT_CODE)
 }
 
-if (pinned === tag) {
-  console.log(`already at ${tag}; nothing to do`)
-  process.exit(0)
-}
-
-let updated = original.replaceAll(pinned, tag)
-for (const name of EXPECTED_ASSETS) {
-  const caseLine = new RegExp(`(${name.replaceAll('.', '\\.')}\\) ASSET_SHA256=)[0-9a-f]{64}`)
-  if (!caseLine.test(updated)) fail(`no ASSET_SHA256 case entry for ${name} in ${DESCRIPTOR}`)
-  updated = updated.replace(caseLine, `$1${digests.get(name)}`)
-}
-const win32Sum = /(\$expectedSha256 = ')[0-9a-f]{64}(')/
-if (!win32Sum.test(updated)) fail(`no $expectedSha256 assignment found in ${DESCRIPTOR}`)
-updated = updated.replace(win32Sum, `$1${digests.get('agent-browser-win32-x64.exe')}$2`)
-
-for (const digest of digests.values()) {
-  if (!updated.includes(digest)) fail(`digest ${digest} did not land in ${DESCRIPTOR}; aborting without writing`)
-}
-if (updated.includes(pinned)) fail(`old version ${pinned} still present after rewrite; aborting without writing`)
-
-writeFileSync(DESCRIPTOR, updated)
-
-// The onboarding kit installs its own copy of this descriptor, held byte-identical and pinned by
-// digest (scripts/test-kit-facts.mjs FACT 9). A bump that stopped at the canonical file would
-// leave every newly onboarded project on the old pin, so both move here, in the one command.
+// Everything is read and validated BEFORE anything is written. Three files move together -- the
+// canonical descriptor, the onboarding kit's byte-identical copy, and the kit's digest pin
+// (scripts/test-kit-facts.mjs FACT 9) -- and a failure after the first write would leave them
+// disagreeing, which is the state the pin exists to make impossible.
 const KIT_COPY = 'skills/xez-onboard-opinionated/kit/pipeline/browsers/agent-browser.md'
 const KIT_DIGESTS = 'skills/xez-onboard-opinionated/references/descriptor-digests.json'
-writeFileSync(KIT_COPY, updated)
-const lock = JSON.parse(readFileSync(KIT_DIGESTS, 'utf8'))
-lock.digests['kit/pipeline/browsers/agent-browser.md'] = createHash('sha256').update(updated).digest('hex')
-writeFileSync(KIT_DIGESTS, `${JSON.stringify(lock, null, 2)}\n`)
-console.log(`bumped agent-browser pin: ${pinned} -> ${tag}`)
+const KIT_KEY = 'kit/pipeline/browsers/agent-browser.md'
+
+let updated = original
+if (pinned !== tag) {
+  updated = original.replaceAll(pinned, tag)
+  for (const name of EXPECTED_ASSETS) {
+    const caseLine = new RegExp(`(${name.replaceAll('.', '\\.')}\\) ASSET_SHA256=)[0-9a-f]{64}`)
+    if (!caseLine.test(updated)) fail(`no ASSET_SHA256 case entry for ${name} in ${DESCRIPTOR}`)
+    updated = updated.replace(caseLine, (_, lead) => `${lead}${digests.get(name)}`)
+  }
+  const win32Sum = /(\$expectedSha256 = ')[0-9a-f]{64}(')/
+  if (!win32Sum.test(updated)) fail(`no $expectedSha256 assignment found in ${DESCRIPTOR}`)
+  updated = updated.replace(win32Sum, (_, lead, trail) => `${lead}${digests.get('agent-browser-win32-x64.exe')}${trail}`)
+
+  for (const digest of digests.values()) {
+    if (!updated.includes(digest)) fail(`digest ${digest} did not land in ${DESCRIPTOR}; aborting without writing`)
+  }
+  if (updated.includes(pinned)) fail(`old version ${pinned} still present after rewrite; aborting without writing`)
+}
+
+let lockText
+let kitText
+try {
+  lockText = readFileSync(KIT_DIGESTS, 'utf8')
+  kitText = readFileSync(KIT_COPY, 'utf8')
+} catch (error) {
+  fail(`cannot read the onboarding kit's copy or its digest pin (${error.message}); aborting without writing`)
+}
+let lock
+try {
+  lock = JSON.parse(lockText)
+} catch {
+  fail(`${KIT_DIGESTS} is not valid JSON; aborting without writing`)
+}
+const pins = lock?.digests
+if (pins === null || typeof pins !== 'object' || Array.isArray(pins)) {
+  fail(`${KIT_DIGESTS} has no "digests" object; aborting without writing`)
+}
+if (!/^[0-9a-f]{64}$/.test(pins[KIT_KEY] ?? '')) {
+  fail(`${KIT_DIGESTS} pins no SHA-256 for ${KIT_KEY}; aborting without writing`)
+}
+pins[KIT_KEY] = createHash('sha256').update(updated).digest('hex')
+const newLockText = `${JSON.stringify(lock, null, 2)}\n`
+
+// The kit copy and its pin are brought level even when the canonical file is already at the
+// latest tag: a bump made by hand, or by a version of this script that stopped at the canonical
+// file, leaves exactly that state, and "nothing to do" would leave it there.
+const wrote = []
+if (updated !== original) { writeFileSync(DESCRIPTOR, updated); wrote.push(DESCRIPTOR) }
+if (kitText !== updated) { writeFileSync(KIT_COPY, updated); wrote.push(KIT_COPY) }
+if (lockText !== newLockText) { writeFileSync(KIT_DIGESTS, newLockText); wrote.push(KIT_DIGESTS) }
+
+if (wrote.length === 0) console.log(`already at ${tag}; nothing to do`)
+else if (pinned === tag) console.log(`already at ${tag}; brought level: ${wrote.join(', ')}`)
+else console.log(`bumped agent-browser pin: ${pinned} -> ${tag}`)
