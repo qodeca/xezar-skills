@@ -10,6 +10,20 @@ It analyses the repository read-only (the real branching model, the gate command
 
 Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch and opens a pull request for you to merge, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
+## Before you run it
+
+Three things, each of which otherwise stops the run in its first minute:
+
+```bash
+npm install -g @qodeca/xezar          # the engine, 0.16.0 or later
+xezar --single-project --no-open      # in its own terminal, in the project folder – leave it open
+gh auth login                         # if you are not logged in
+```
+
+The engine's first start asks one question – whether to copy your global setup in. Answer it: it is asked once, and only in a real terminal. A stop you can fix in a minute does not end the run; the skill waits and checks again.
+
+The smoke test needs the engine's tools inside the Claude Code session, and Claude Code loads them only when a session starts. So a run usually has two halves: the setup pull request, then – in a session started with the launcher it installed – `/xez-onboard-opinionated --verify`.
+
 ## Parameters
 
 | Parameter | Required | Description |
@@ -17,6 +31,7 @@ Nothing reaches the project until the interview finishes and you approve the pre
 | `--resume` | No | Continue an interrupted interview. Also the default when a saved interview is found; the flag only skips the "continue?" question. |
 | `--restart` | No | Discard the saved interview and start over. Never implied. |
 | `--section <name>` | No | Re-ask one answered section: `branching`, `gates`, `design`, `leader`, `lanes`, `routing`, `seeding`. |
+| `--verify` | No | Finish a run whose setup pull request is open or merged: branch protection, the smoke test, the report. A plain re-run does the same when it finds an unfinished run. |
 
 This skill has **no unattended-defaults switch**: every default it could take alone is a decision about how a project will be run for the rest of its life.
 

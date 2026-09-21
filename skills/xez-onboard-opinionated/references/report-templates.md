@@ -44,8 +44,37 @@ the six. Nothing is less safe; it is just less useful overnight.
 npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule
 ```
 
-**Next:** open a session with `<launcher>` — the full command, including
+**Next:** from tomorrow, open the leader with `<launcher>` — the full command, including
 `--dangerously-load-development-channels`, so you can see what it turns on before you run it.
+One leader per project: to move it to a new session, exit this one first.
+<when push was not seen:> Events are read by polling, not pushed: <the reason found>.
+
+PR: #<number> (link: <full PR URL>)
+```
+
+## Setup pull request open
+
+Ends step 6. Not a completion report: say what is still owed and give the exact lines.
+
+```markdown
+## 📋 Setup written — <n> files in <PR>, not proved yet
+
+Protection and the smoke test come after the merge. <One of:>
+
+<the engine's tools are loaded in this session:>
+**Next:** merge <PR> — or tell me to, and I check its CI first — and I carry on here.
+
+<they are not — this session started before the MCP registration existed:>
+**Next, in this order:**
+1. Merge <PR>.
+2. `git switch <base> && git pull`
+3. `<launcher> "/xez-onboard-opinionated --verify"` — the full command, including
+   `--dangerously-load-development-channels`, so you can see what it turns on before you run it.
+   Claude Code shows its development-channel warning on every launch; accept it.
+4. Approve the `xezar` MCP server when Claude Code asks.
+
+Keep the engine running in its own terminal the whole time. Closing this session does not
+stop it; closing that terminal does.
 
 PR: #<number> (link: <full PR URL>)
 ```
@@ -145,7 +174,23 @@ Nothing was written. <Only when several checks failed:> Two other things would a
 this run: <…> — listed now so you are not discovering them one re-run at a time.
 ```
 
-Use this shape for every preflight stop: wrong harness, non-GitHub tracker, existing
-configuration, a prior onboarding by this skill, and an engine that is missing or has never run.
-All five are ordinary outcomes, not failures, and a refusal that explains itself at length reads
-like one.
+Use this shape for every hard stop: wrong harness, non-GitHub tracker, existing configuration, a
+finished prior onboarding by this skill. All are ordinary outcomes, not failures, and a refusal
+that explains itself at length reads like one.
+
+## Waiting on a fix
+
+For the fixable stops — engine missing, too old or never run, tracker login, a dirty tree. The
+run is paused, not ended:
+
+```markdown
+## ⚠️ <n> thing(s) to fix before I start — nothing written
+
+| | | |
+|---|---|---|
+| ❌ | <what is missing, in plain words> | `<the exact command>` |
+
+<for the engine start line: own terminal, leave it open, answer its one question.>
+
+Tell me when that is done and I check again — only what failed, not the whole list.
+```
