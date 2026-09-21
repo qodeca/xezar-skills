@@ -1,4 +1,14 @@
-# Unreleased
+# 1.3.0 (2026-09-21)
+
+## Highlights
+
+The opinionated onboarding was tested for the first time on a real project, and the test was honest about it: three invocations to get past preflight, sixteen questions, four pull requests, two session restarts nobody planned – and a project that could run a task but was not ready. This release is what that test taught.
+
+The skill now re-checks a fixable stop in place instead of asking to be run again, can come back and finish its own run, ships a kit that passes its own checks in somebody else's repository, creates the labels it configures, refuses to require a check that is already red, and proves itself with a smoke test that no longer costs 287,000 tokens. And there is **one prompt** that does the whole setup, from installing the engine to the proof.
+
+Every fix was applied by hand to that first project before it was written into the skill, and `UPGRADE_NOTES.md` carries what a project onboarded with 1.2.0 needs.
+
+Forty-five skills, twenty gate commands, thirty-eight deliberate defects, ten pinned kit facts.
 
 ## ✨ Features
 
@@ -21,6 +31,14 @@
 - 🔧 `SECURITY.md` now counts committed repository content that a privileged session loads as untrusted input, and names the one accepted gate bypass — branch protection without admin enforcement in the opinionated onboarding setup — as recorded rather than found.
 - 🔧 Stale counts corrected in `docs/coverage.md`, `DECISIONS.md` and `AGENTS.md`; `docs/style.md` re-measured, with a skill's vendored `kit/` left out of the counts and two rules that outlived the brand gate reworded. `AGENTS.md` loses its closing "Process documents" section, which repeated the top of the same file.
 - 🔧 Every pin in `test-kit-facts.mjs` now has a deliberate-break case. Two of the six — the `.local/xezar/` subfolder list and the campaign file kinds — had none, so nothing proved they still fired. The guard suite breaks thirty-two guards on purpose. `xez-add-rule`'s section list is headed "six sections" over its six rows, not "five".
+
+## 🏷️ Notes
+
+- **The bootstrap prompt has not been run end to end yet.** Its parts were read from the engine's source at 0.16.0 and its rules are held by a gate, but three things are unproved until the first real run: pushed events arriving in a session launched with the development-channels flag and a local-scope registration; the terminal window for the engine passing the harness and macOS automation consent; and the engine tool calls `references/verify.md` names. A re-test on a fresh repository is the next step, and its targets are written down: one skill start, about six questions, one pull request, no restart, one `/mcp` reconnect, about twenty minutes.
+- Two new symptom-keyed `UPGRADE_NOTES.md` entries for a project onboarded with 1.2.0: the skills out of git and the labels on the tracker; and the leader hook and tidiness check. Neither reaches an existing install by upgrading the skills.
+- The kit is now an **adapted copy** of the engine project's files, fixed in this repository by the owner's decision. `DECISIONS.md` supersedes the earlier "copied verbatim" rule in part and records the cost: a manual merge when the kit is refreshed.
+- The interview still asks more than it needs to. Trimming it waits for the re-test, so the cut is made on a second measurement and not on one.
+- `main` carries no branch protection, so no check on it is *required*. Every pull request in this release passed the full gate in CI before it merged, and so did the release commit.
 
 # 1.2.0 (2026-09-20)
 
