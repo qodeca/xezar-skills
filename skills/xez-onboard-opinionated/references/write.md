@@ -71,8 +71,9 @@ Never copied, because each depends on an answer:
   `paths.qa` to `".local/xezar/qa"` rather than leaving the `.local/qa` default: every local
   artifact belongs in the one tree, and the tidiness check only looks inside it. This is a config
   value, set per project — the shipped default is unchanged, so nothing breaks for anyone else.
-- **`.xezar/pipeline/trackers/github.md`** — copied from **this collection's** shipped
-  descriptor, not from another project's copy, so a new project starts on the current contract.
+- **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
+  `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
+  canonical descriptor, so a new project starts on the current contract.
 - **`.xezar/docs/leader-guide.md`** — built from `kit/leader-guide.template.md`. Everything
   outside a `{{...}}` placeholder ships **verbatim and is never reworded**: who the leader is and
   is not · session start, re-attach and compaction recovery · standing loops · owner-only
@@ -178,6 +179,17 @@ to carry — do not invent one, and do not tell the owner to run one.
   with a stated meaning, plus `kit/checks/local-tree.sh` — which reports a missing subfolder or
   anything loose at the top level, and deletes nothing. It is a check rather than a line in a
   document because a rule about tidiness is exactly the kind that gets skimmed and ignored.
+- **Where this collection's skills live.** They are installed per machine and **never
+  committed**: the engine updates installed skills when it starts and writes them as real files
+  under `.agents/skills/` with links under `.claude/skills/`; committed copies fight that and
+  dirty the tree at every start. Write three lines to the root `.gitignore` —
+  `/.agents/skills/xez-*`, `/.claude/skills/xez-*`, `/skills-lock.json` — **without a trailing
+  slash**, because a slash pattern does not match a link. `.claude/skills/` itself stays
+  tracked: a project's own skills belong in git. Add `.agents` to every formatter and linter
+  ignore file analysis found. Put one "get the skills" section in the generated `AGENTS.md` with
+  the install command and **two** `--agent` values (`claude-code` and `codex`): one value makes
+  copies, two make the link layout. This skill **names** that command and never runs it; when
+  the skills are not installed in the project, say so in the report.
 - **Both halves of the manifest.** Committed `.xezar/onboarding.json`: version, date, stack,
   detected facts, the *shape* of the answers, per-file digest and origin. Gitignored
   `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
@@ -188,7 +200,17 @@ to carry — do not invent one, and do not tell the owner to run one.
 
 ## 6. Commit, and let the owner merge
 
-Commit on a setup branch, open a pull request, and stop. This skill does not merge its own
+**Labels first, so the setup pull request can carry them.** Tracker operation
+**ensure-label-taxonomy** from the `labels.json` just written, then **list-labels** to read back.
+The owner approved this in the preview, where the taxonomy is listed by name — it is a change to
+the repository, not to a file, and it is never made unasked. Existing labels keep their colour
+and description. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
+which carries the three design labels the kit's policy needs; the tracker descriptor is this
+skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
+
+Commit on a setup branch, open a pull request, and stop. The pull request carries the full label
+set the pipeline itself demands — one pipeline label, a category, a QA label, one priority, one
+risk — through the descriptor's guards. This skill does not merge its own
 setup — a change this large to how a project works is reviewed by the person who will live with
 it. Protection (step 7) is applied after the merge, because protecting a branch the setup has
 not landed on yet only blocks the setup.

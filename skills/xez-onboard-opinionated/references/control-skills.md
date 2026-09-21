@@ -36,6 +36,11 @@ for s in xez-unattended-on xez-unattended-off xez-add-rule; do
 done
 ```
 
+In a project set up by this skill the collection is installed **in the project**, as links under
+`.claude/skills/` pointing into `.agents/skills/`. A link to a directory passes `-d`, so the check
+above holds; resolve `SKILLS_ROOT` to the project's `.claude/skills` when this skill itself was
+found there.
+
 Other agent tools keep their skills elsewhere (`~/.codex/skills`, or a project-level skills
 directory). Resolve `SKILLS_ROOT` from where *this* skill is installed rather than assuming a
 path — if the lookup is wrong, every check reports "missing" for a correct install and the owner
@@ -47,7 +52,7 @@ All three present → one line in the report naming them as the owner's controls
 paste-and-run command that installs all of them at once:
 
 ```bash
-npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule
+npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule --agent claude-code --agent codex
 ```
 
 One command for all three, never one per skill — three commands invite installing one and

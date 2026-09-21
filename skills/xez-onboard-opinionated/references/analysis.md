@@ -66,8 +66,12 @@ Three steps, in order:
 
 1. **Which agent tools are installed** — probe each candidate for its version. Absent is
    ordinary; record it and move on.
-2. **Which accounts or profiles each tool has**, and **which models each supports**. Read the
-   engine's account registry for ids and providers. Note that not every tool can hold multiple
+2. **Which accounts or profiles each tool has**, and **which models each supports** — ask each
+   tool to **list its models**, not only for its version and its default. The first test classed
+   two tools as "local, advice only" from their default model; both also reached a cloud model,
+   and the routing question had to be asked twice. Note **which login this session itself runs
+   on**: it is the likeliest leader login, and a list of candidates that leaves it out makes the
+   owner type it. Read the engine's account registry for ids and providers. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
 3. **Nothing is read from a credential store.** Which profiles exist and which models they
@@ -78,7 +82,26 @@ The routing table is then **generated from the owner's answers** rather than cop
 anywhere. Shipping a table naming accounts that exist on one machine guarantees a first dispatch
 to an account that does not exist on this one.
 
-## 5. What analysis must not do
+## 5. The state the setup lands on
+
+Four read-only looks at the project as it is today. Each one is a finding for the preview, and
+each was found the hard way in the first test:
+
+- **Is the base branch green right now?** Tracker operation **list-runs** on the base branch, and
+  the jobs of the latest run. A check that is already red — an audit step that fails on a new
+  advisory, say — is not this setup's fault, and it will fail the setup pull request, then block
+  every later one the moment protection requires it. Say so in the preview, and propose fixing it
+  in its own small pull request **first**.
+- **What runs in CI but not in the proposed gates?** A step CI runs and no local command covers
+  (a dependency audit, a licence check) is where "green here, red there" comes from. List them.
+- **Does a linter, a formatter or a licence check scan the whole tree?** The setup adds
+  `.xezar/`, `.claude/`, `.agents/` and `.local/`. A formatter that scans them turns the
+  project's own format check red on day one; a licence tool that needs a declaration per file
+  needs one for the kit's folders, which keep the collection's licence, not the project's.
+- **Does an update bot target the default branch while work lands on another?** Note it; the
+  owner decides.
+
+## 6. What analysis must not do
 
 - **No writes.** Not a directory, not a placeholder, not a `.gitkeep`.
 - **No network calls** beyond reading the repository's own remote.

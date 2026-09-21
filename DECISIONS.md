@@ -668,7 +668,7 @@ beside it said they never were, and prose promising `decisions.md` is never cut 
 script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
 no gate found one.
 
-`scripts/test-kit-facts.mjs` pins eight facts that have already caused a contradiction, asserted in
+`scripts/test-kit-facts.mjs` pins ten facts that have already caused a contradiction, asserted in
 every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its

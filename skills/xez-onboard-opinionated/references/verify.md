@@ -44,6 +44,17 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 
 ## 3. The remaining steps, in order
 
+- **The default task account.** Engine tool `project_config`, action `select_account`, with the
+  lane the owner chose in the interview; read it back with `get_account`. It must not be the
+  leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
+  checkout's absolute path, which is why the kit's ignore file lists it.
+- **Skill updates are the owner's, not the engine's start-up.** Engine tool
+  `set_workspace_config` with `skillsAutoUpdate: false`. The engine otherwise updates installed
+  skills at every start under a thirty-second limit, and the first test found fifteen of
+  forty-five updated and the rest not — invisible once the skill folders are ignored.
+- **The labels exist.** Tracker operation **list-labels** against `.xezar/pipeline/labels.json`.
+  Anything missing → **ensure-label-taxonomy**, which creates only what is absent and never
+  recolours. They were approved in the preview; this is the read-back.
 - **Step 7** — `references/protection.md`.
 - **Step 8** — `references/smoke-test.md`.
 - **Step 9** — `references/control-skills.md`.
@@ -56,8 +67,9 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
-on the base branch · protection read back · connection state (one of the four words, or polling)
-· smoke test · gates · clean tree · launcher · owner's controls.
+on the base branch · labels · default task account · protection read back · connection state
+(one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
+owner's controls.
 
 Any ❌ → name the **one** next action, keep the pending file, and use the matching failure
 template. All ✅ → delete the pending file and report with `references/report-templates.md` →

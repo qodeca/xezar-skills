@@ -249,6 +249,44 @@ const fail = (fact, where, detail) =>
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 9 -- the skill's own tracker descriptor IS the collection's.
+//
+// A skill never reads another skill's references, so this one carries its own copy of the GitHub
+// descriptor to install. The first version did not, and the run went looking on the machine and
+// found one only because another skill happened to be installed globally. A private copy that
+// drifts installs last year's contract into a new project, so the copy is held byte-identical.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 9: the skill's tracker descriptor is the canonical one";
+  const own = `${SKILL}/references/trackers/github.md`;
+  const canonical = "skills/xez-setup-agent-pipeline/references/trackers/github.md";
+  if (!has(own)) fail(fact, own, "the skill ships no descriptor of its own to install");
+  else if (read(own) !== read(canonical))
+    fail(fact, own, `differs from ${canonical} -- copy the canonical file over it`);
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 10 -- the taxonomy the skill installs has the labels its kit enforces.
+//
+// The kit's design gate reads five labels. The taxonomy template the first run found had two of
+// them, and the run added the other three by hand. A label the policy reads and the taxonomy
+// never creates is a gate that logs a skip forever.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 10: the installed taxonomy carries the design labels the kit reads";
+  const taxonomy = JSON.parse(read(`${SKILL}/references/labels.json`));
+  for (const name of ["needs-design", "design-approved", "skip-design", "design", "design-failed"]) {
+    if (!taxonomy.labels?.[name]) fail(fact, "references/labels.json", `has no "${name}" label`);
+  }
+  for (const [name, l] of Object.entries(taxonomy.labels ?? {})) {
+    if (!taxonomy.colors?.[l.group]) fail(fact, "references/labels.json", `"${name}" is in group "${l.group}", which has no colour`);
+    if (!l.description || !/[.!?]$/.test(l.description.trim())) fail(fact, "references/labels.json", `"${name}" has no full-sentence description`);
+  }
+  checked.push(fact);
+}
+
 function walk(rel, match) {
   const out = [];
   const rec = (d) => {
