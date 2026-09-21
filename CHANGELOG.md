@@ -1,4 +1,7 @@
-# Unreleased
+# 1.6.1 (2026-09-21)
+
+A one-day patch on 1.6.0. It corrects a sentence 1.6.0 shipped that would have
+walked a run on engine 0.16.0 into the exact loop 1.6.0 was written to remove.
 
 ## Fixed
 
