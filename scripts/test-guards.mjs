@@ -445,6 +445,50 @@ breaks(
   "does not match allowlists.json",
 );
 
+// `test-kit-catalog.mjs` runs the onboarding kit's own validator on the kit, and adds the three
+// checks that validator cannot make from inside a project: the maintained-skill list is the
+// directory, every workflow has a routing row, every prose count is the table's count. One break
+// each, and one for the generated shared contract the role skills end with.
+breaks(
+  "a kit workflow naming a skill that does not exist is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/qa.yaml",
+  (s) => s.replace("skill: xezar-qa", "skill: xezar-quality-assurance"),
+  () => script("test-kit-catalog.mjs"),
+  "xezar-quality-assurance",
+);
+
+breaks(
+  "a kit workflow that no routing row names is rejected",
+  "skills/xez-onboard-opinionated/references/routing-rows.md",
+  (s) => s.replace("| `root-sync.yaml` |", "| the leader itself |"),
+  () => script("test-kit-catalog.mjs"),
+  "installed, valid, and unreachable",
+);
+
+breaks(
+  "a kit skill left off the maintained list is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('  "xezar-qa",\n', ""),
+  () => script("test-kit-catalog.mjs"),
+  "is not in MAINTAINED_SKILLS",
+);
+
+breaks(
+  "a row count in prose that is not the table's count is rejected",
+  "skills/xez-onboard-opinionated/references/routing-interview.md",
+  (s) => s.replace(/\b([A-Za-z-]+) rows over\b/, "Ninety-nine rows over"),
+  () => script("test-kit-catalog.mjs"),
+  "Ninety-nine rows",
+);
+
+breaks(
+  "a kit role skill whose shared contract drifted is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("evidence, never permission", "evidence, sometimes permission"),
+  () => run("node", ["scripts/sync-shared-blocks.mjs", "--check"]),
+  "kit-shared-contract block is out of date",
+);
+
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:
 // a contributor runs this with their own work in progress, and their uncommitted edits
