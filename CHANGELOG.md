@@ -1,4 +1,16 @@
-# Unreleased
+# 1.5.0 (2026-09-21)
+
+## Highlights
+
+After one onboarding the leader now has a routed workflow for the whole life of a change, not only for plan, build, review and release. **Nineteen new workflows** cover what was missing: architecture and its review, spikes, deprecation plans, the design system, UI design and pictures, UI, integration, regression and performance tests, hotfix, refactor, migration, observability, localisation, security review, acceptance verification, and deploy with rollback. The kit is now thirty-seven workflows and thirty-seven role skills, routed by forty-five rows in eight classes.
+
+Three things changed how a project is set up. **Every document the setup or a workflow commits lives under `docs/`**, each folder named by a `paths.*` key. **OpenCode is switched off for a new project**, disclosed before the one approval, recorded, read back, and undone by one call. And **a deploy rests on a written record that a check step turns into a permit, at most once** — read from the remote's default branch, so a pull request cannot repoint a target, and never across a one-way migration unless the owner's words name it.
+
+The kit was reviewed by six reviewers before release; four must-fix findings and about forty smaller ones were closed in the same pull request. A new gate, `test-kit-catalog.mjs`, proves every workflow loads and is routed, computes every count, and runs the two deploy guards for real on a throwaway repository.
+
+**What is proved and what is not.** Every workflow is proved to load and to be routed. None of the nineteen has yet been run on a live engine, the OpenCode switch has not been exercised against one, and the onboarding has not been re-run on a fresh repository with this kit. `docs/coverage.md` row 24 states the first of these in its own words.
+
+Forty-five skills, twenty-one gate commands, sixty deliberate defects, twelve pinned kit facts.
 
 ## Changed
 

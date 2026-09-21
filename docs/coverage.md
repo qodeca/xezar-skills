@@ -33,7 +33,7 @@ rather than trusting this table for a precise number.
 | 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
 | 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 12 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its seven safety rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
-| 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a routing row, the maintained-skill list is the skill directory, and every row and class count in prose is the table's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, **not** that it runs |
+| 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a routing row, the maintained-skill list is the skill directory, and every row and class count in prose is the table's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, and runs `config-guard.sh` and `deploy-guard.sh` for real on a throwaway repository; **not** that a workflow runs on an engine |
 
 ## What this says
 
