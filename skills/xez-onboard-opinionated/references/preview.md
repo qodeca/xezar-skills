@@ -3,17 +3,24 @@
 Called from step 5. The preview is the last thing this half produces, and in the full skill it is
 the gate the writing half passes through.
 
-## Three groups, always all three
+## Four groups, always all four
 
 | group | meaning |
 |---|---|
 | **create** | The file does not exist. The setup will write it. |
-| **leave alone** | The file exists and is untouched engine-init output, or is outside the setup's scope. |
+| **delete** | The file exists, is untouched engine-init output, and nothing in the kit takes its place. |
+| **leave alone** | The file exists and is outside the setup's scope. |
 | **needs your decision** | The file exists and the setup has content for that path. |
 
-Under `.xezar/` the third group holds one legitimate case: untouched engine-init output that is
+Under `.xezar/` the fourth group holds one legitimate case: untouched engine-init output that is
 being replaced. Show what is there and what replaces it, so "replaced without asking" is at
 least *seen* without asking.
+
+**The delete group is short and it is never empty after `xezar init`.** It holds
+`.xezar/workflows/fix-and-verify.yaml` and `.xezar/skills/project-conventions.md`: the two files
+init writes, which the kit does not overwrite because it ships nothing by either name
+(`references/write.md` §1). A deletion is the one preview entry an owner cannot infer from the
+others, so it is listed by path and by reason rather than folded into "replaced".
 
 Outside `.xezar/` it is rarely empty, and preflight check 3 already listed what is there: a
 `CLAUDE.md`, an `AGENTS.md`, a pull request template, issue templates, an `.mcp.json`. One rule

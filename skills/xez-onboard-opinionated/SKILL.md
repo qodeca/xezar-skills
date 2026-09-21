@@ -68,7 +68,7 @@ rest.
    the first dispatch.
 
 5. **Preview everything, bound to digests** — follow `references/preview.md`. Every file the
-   setup will write, grouped create / leave alone / needs-your-decision, each bound to the
+   setup will write, grouped create / delete / leave alone / needs-your-decision, each bound to the
    content digest it was computed against. **Approve the whole set or nothing.** A file that
    changed underneath invalidates the preview rather than being silently overwritten.
 
