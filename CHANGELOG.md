@@ -1,3 +1,18 @@
+# Unreleased
+
+## Fixed
+
+- **`AGENTS.md` stated the document order backwards.** "Later entries override earlier ones" sat
+  above a list whose first item says nothing overrides it. It now says earlier entries win, which
+  is what the list always meant.
+- **The governance documents caught up with the 1.5.0 kit.** `AGENTS.md` names all six generated
+  shared blocks, the kit role skills' `## Shared contract` tail among them, and has a task-routing
+  row for the vendored onboarding kit; `CODE_REVIEW.md` has a check for kit changes; `SECURITY.md`
+  names configuration that grants authority as untrusted when it is read from the branch under
+  review. `docs/coverage.md` had four stale counts — six pinned facts for twelve, seven prompt
+  rules for eight — all re-read from the gates' own output. Two rules `AGENTS.md` stated three
+  times are now stated where they apply.
+
 # 1.5.0 (2026-09-21)
 
 ## Highlights
