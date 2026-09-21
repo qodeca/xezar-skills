@@ -1,4 +1,17 @@
-# Unreleased
+# 1.4.0 (2026-09-21)
+
+## Highlights
+
+The opinionated onboarding was tested a second time, on a project cleaned back to nothing. It was a clean single pass: **17 minutes 38 seconds**, one session, one setup pull request, no restarts, one `/mcp` reconnect, 121 correct files, 31 labels, green CI. Against the first test — three invocations, sixteen questions, four pull requests, two restarts, about fifty minutes — the shape is fixed.
+
+What it did not do is **finish**. It stopped at "merge it yourself", so protection was never read back, the smoke test never ran, and the default task account still named a login the account registry did not contain. This release is about the distance between a run that works and a run that is done: the skill now offers the merge the moment the checks are green and carries straight on into verification in the same session.
+
+Two faults reached every project the skill had ever onboarded. The gate script the leader guide tells you to run **exited 1 in all of them**, because it demanded an engine run id the primary checkout never has. And twenty-three strings in the vendored kit named the engine's own repository — module paths, CI job names, a commit hash, a design-system tree — two of which silently changed behaviour in somebody else's repo. Both are fixed, and both have an `UPGRADE_NOTES.md` entry, because a file already installed into a project never updates itself.
+
+The interview is on a diet: eighteen separate asks became **five screens**, by confirming detected facts together instead of one at a time, and by deleting two questions — one that nothing read, one that can be inferred and shown.
+
+Forty-five skills, twenty gate commands, forty-one deliberate defects, eleven pinned kit facts.
+
 
 ## Changed
 
