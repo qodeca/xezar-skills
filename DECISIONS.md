@@ -640,6 +640,13 @@ reads changes until it copies the new check files, so the gap the two-step rule 
 already there: the copy is the step. Neither argument generalises — both turn on the
 removed thing being a mechanism nobody should learn, rather than a surface somebody uses.
 
+That second argument was, for a while, only half true, and the correction is worth keeping.
+It rests on a copy the reader performs — but until 2026-09-21 **no upgrade entry told anyone
+to copy those three files**, so the substitute step did not exist on the published path and a
+reader who did as they were told would rename their variables and find the installed checks
+still reading the old names: broken *because* they followed the note. The entry now carries
+its own copy block. A substitute step that only exists in the reasoning is not a step.
+
 What was owed anyway is still paid: a row in the ledger of deliberate breaks, and an
 `UPGRADE_NOTES.md` entry per symptom. What is genuinely lost is the warning period, and
 `DOGFOOD_*` fails silently rather than loudly — a project that set one finds it stopped
@@ -1022,11 +1029,24 @@ only on the happy path is worse than none: the next run queues behind one that f
 ago. The re-exec also needs no library file, no record-schema change and no trap. Proven by
 running it: a gate run killed mid-flight released its slot in under 0.2 seconds.
 
-**Fail open, always.** No engine on PATH, an engine older than 0.17.0, an unwritable slot folder,
-a lease that times out — one loud line, and the gates run. A queueing aid must never become a new
-way for a working gate to fail. The engine is resolved from the project's own `node_modules` first
-and PATH second, **never `npx`**: npx would fetch an arbitrary build from the registry and lease
-against a different build's idea of the slots.
+**Fail open, always — and say which half of that the kit actually owns.** Four conditions end with
+one loud line and the gates running. Two are checked here before the kit commits to the engine: no
+engine on PATH or in `node_modules`, and an engine that cannot run the verb — which covers a build
+older than 0.17.0, a fork that does not know `lease`, one too old for the flags used, one that dies
+during boot, and one that does not answer at all, since every probe is time-bounded. The other two
+— an unwritable slot folder and a lease that times out — are the **engine's** contract, and nothing
+in this repository exercises them. The original entry listed all four as though they were the same
+kind of claim; they are not, and a promise is only worth what its weakest quarter is worth.
+
+The probes are not decoration: `exec` replaces the script, so after it no code of the kit's remains
+and every later failure would reach the caller **as the gate verdict**, with zero gates run and an
+exit code indistinguishable from a real failure. That was the shipped behaviour until 2026-09-21.
+The probe exploits a property of the verb — `lease gates` with no command exits 2 with a usage line
+*without acquiring a slot* — so proving the engine works can never itself queue.
+
+The engine is resolved from the project's own `node_modules` first and PATH second, **never
+`npx`**: npx would fetch an arbitrary build from the registry and lease against a different build's
+idea of the slots.
 
 **What would make us remove it again.** A measurement on a second machine showing concurrent gate
 runs are fine there, or a change in how the test runner allocates workers that removes the

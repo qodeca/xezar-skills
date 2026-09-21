@@ -23,7 +23,7 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
 
-`xez-onboard-opinionated` 1.5.0 added eleven keys that only its own kit reads. All are additive; none has a loader default, on purpose — a kit role with its key unset names the key and stops, and a guarded workflow refuses. Renaming or removing one, or loosening a list's element grammar, is breaking.
+`xez-onboard-opinionated` added thirteen keys that only its own kit reads: eleven in 1.5.0 with the `docs/` work, and two more that arrived earlier, in 1.4.0, with the portability work. All are additive; none has a loader default, on purpose — a kit role with its key unset names the key and stops, and a guarded workflow refuses. Renaming or removing one, or loosening a list's element grammar, is breaking.
 
 | Key | Written for a new project as | Read by |
 |---|---|---|
@@ -34,11 +34,14 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `ci.requiredChecks` | `[]`, check names exactly as the check-runs API reports them | `kit/checks/integration-preflight.sh` |
 | `paths.designSystem` | `docs/design-system`, or the project's own | the kit's design role skills |
 
-The two `ci.*` and `paths.designSystem` rows were missing from this table until 2026-09-21,
-although `DECISIONS.md` records all three being created in the same work as the rest. They are
-listed now so the next reader does not have to re-derive whether they are protected. **They are.**
-A third key created alongside them, `ci.knownLoadFlakes`, was removed on the same day — see the
-ledger below, which is what a removal from this list looks like when it is done deliberately.
+The `ci.requiredChecks` and `paths.designSystem` rows were missing from this table until
+2026-09-21. `DECISIONS.md` records them being created in the **1.4.0 portability** work — the same
+change that removed twenty-three engine-repository strings — and not alongside the eleven keys
+above, which are the 1.5.0 `docs/` work. Different work, different release; that is why they were
+missed. They are listed now so the next reader does not have to re-derive whether they are
+protected. **They are.** A third key created in that same 1.4.0 work, `ci.knownLoadFlakes`, was
+removed on 2026-09-21 — see the ledger below, which is what a removal from this list looks like
+when it is done deliberately.
 
 `config.version` stays at `1`. A version bump signals to a reader that their file may need
 migrating; here nothing on disk does. A config carrying the removed key still parses, still
@@ -134,7 +137,7 @@ ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
-| 2026-09-21 | `ci.knownLoadFlakes` removed from `.xezar/pipeline/config.json`, with the `knownLoadFlakes` and `failedJobsAreKnownLoadFlakes` fields of `ci-watch.sh`'s `outcome.json` and the one-rerun rule that read them | a project onboarded by `xez-onboard-opinionated` 1.5.0–1.6.1 that copies the new kit checks without the new role skills | copy `kit/skills/xezar-integration.md` in the same pass as `kit/checks/ci-watch.sh`; delete the now-unread key | the mechanism taught a new project that a red build can be excused by naming a job, which is the opposite of the owner's rule that a flaky test is rebuilt, never retried |
+| 2026-09-21 | `ci.knownLoadFlakes` removed from `.xezar/pipeline/config.json`, with the `knownLoadFlakes` and `failedJobsAreKnownLoadFlakes` fields of `ci-watch.sh`'s `outcome.json` and the one-rerun rule that read them | a project onboarded by `xez-onboard-opinionated` 1.4.0–1.6.1 (the release the key arrived in) that copies the new kit checks without the new role skills | copy `kit/skills/xezar-integration.md` **before or with** `kit/checks/ci-watch.sh` — the role is safe to copy first, the check is the one that must not lead; then delete the now-unread key | the mechanism taught a new project that a red build can be excused by naming a job, which is the opposite of the owner's rule that a flaky test is rebuilt, never retried |
 | 2026-09-21 | the `DOGFOOD_GH`, `DOGFOOD_WORKFLOW`, `DOGFOOD_GATE_LOG` and `DOGFOOD_ALLOW_ROOT_BOOTSTRAP` environment variables renamed to `KIT_TEST_*` | anyone whose own tooling sets one of the four; they fail **silently**, not loudly | set the `KIT_TEST_` name instead, after copying the new check files | the word named a practice being removed from the kit entirely, and leaving four variables carrying it would have kept the thing findable and copyable |
 | 2026-09-21 | the dogfooding fragment ledger removed: `kit/checks/dogfooding-fragments.mjs` deleted, its `repository-checks.sh` call removed, the producer sentence dropped from all 37 role skills, and the release role's fold step deleted | a project that has been writing `.xezar/docs/dogfooding.d/` fragments | nothing breaks on its own; the fragments stop being folded, so fold or delete them by hand once | it was one project's record-keeping habit shipped to every other project, and `AGENTS.md` forbids a skill assuming a practice only its home project has |
 

@@ -236,7 +236,7 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
   # build's idea of the slots. A resolved binary cannot do that.
 
   if [ -n "$lease_bin" ]; then
-    lease_probe="$(mktemp "${TMPDIR:-/tmp}/xez-lease-probe.XXXXXX" 2>/dev/null || true)"
+    lease_probe="$(mktemp "${TMPDIR:-/tmp}/gate-lease-probe.XXXXXX" 2>/dev/null || true)"
     if [ -z "$lease_probe" ]; then
       lease_why="no temporary file to probe the engine with"
       lease_bin=""
@@ -282,7 +282,7 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
     # The child reads this to report what the wait actually cost and to record `leaseWaitMs` on
     # the attempt. Without it the one residual risk the engine documents - a step killed mid-wait
     # - is invisible afterwards.
-    lease_status="$(mktemp "${TMPDIR:-/tmp}/xez-lease-status.XXXXXX" 2>/dev/null || true)"
+    lease_status="$(mktemp "${TMPDIR:-/tmp}/gate-lease-status.XXXXXX" 2>/dev/null || true)"
     export XEZ_GATE_LEASE=1
     export XEZ_GATE_LEASE_STATUS="$lease_status"
     # `bash` and an ABSOLUTE path, both deliberate: the engine spawns the wrapped command without

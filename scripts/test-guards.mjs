@@ -249,6 +249,27 @@ breaks(
   "failedJobsAreKnownLoadFlakes",
 );
 
+// The two below guard the same fact against the idea returning as ENGLISH. Both identifiers can
+// be gone while the kit still teaches the practice in a sentence -- which is what happened: after
+// the removal `xezar-deploy.md` still said "a failed job is never rerun as a known flake", the
+// survivor of a three-way contrast whose premise had been deleted, so it now taught that the
+// integration path excuses jobs by name. Every gate was green.
+breaks(
+  "a kit document that excuses a failed job as a known flake is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-deploy.md",
+  (s) => `${s}\nA failed job is never rerun as a known flake here.\n`,
+  () => script("test-kit-facts.mjs"),
+  "as a known flake",
+);
+
+breaks(
+  "a kit document that names the removed known-load-flake register is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/integration.yaml",
+  (s) => `${s}\n# The two known load flakes are excused by name.\n`,
+  () => script("test-kit-facts.mjs"),
+  "known load flake",
+);
+
 // FACT 15's three properties. Each breaks QUIETLY -- the gates still run and nothing goes red --
 // which is exactly the kind of regression a mutation case exists to catch.
 breaks(
