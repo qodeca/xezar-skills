@@ -82,6 +82,8 @@ Rules for this skill; workflow label roles refer to names established by local p
 
 ## xez-spec-writing specifics
 
+- **The clock rule: a time is read, never typed.** A session has no sense of the time, and a typed date is a plausible-looking guess. Every date or time this skill writes into a file, a comment or a report comes from `date -u +%Y-%m-%dT%H:%M:%SZ` (or `date -u +%Y-%m-%d` where only the day is wanted), run at that moment. An audited run invented every timestamp it wrote, some of them an hour out.
+
 - **Interactive by default.** The Open Questions gate is a hard stop in interactive runs — never answer your own gate questions to keep moving. The autonomous-run bullet applies only when the skill is invoked with `--autonomous`; then the gate resolves per the skill body's Autonomous defaults, with every default surfaced for override.
 - This skill performs no tracker operations, mutates no labels, holds no claims, and defines no chaining reference lines of its own (callers such as `xez-auto-write-spec` emit the `Spec:` reference line for the spec it writes); the label-discipline, claim-etiquette, and marker bullets apply only if a repo-local extension adds such behavior — and it may not relax them.
 - Never edit code while writing or reviewing a spec — the deliverable is the document.

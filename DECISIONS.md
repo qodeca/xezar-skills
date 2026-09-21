@@ -942,3 +942,21 @@ keeping — the fixed part was cut to fit, with the reasoning moved to
 the fixed lines to the stated budgets and fails above 200, so the two numbers cannot drift apart
 again. Every heading kept its name: `xez-add-rule` routes owner rules into them.
 
+## The clock rule is every skill's, not one skill's
+
+An audited onboarding run invented every timestamp it wrote — interview state, the resume marker,
+both halves of the manifest — some of them an hour into the future. A session has no sense of the
+time, so a date it types is a plausible-looking guess, and the files it lands in are exactly the
+ones a later run or a later person trusts to say when something happened.
+
+The rule is one sentence: read the time with `date -u`, never type it. A review pass found eight
+other skills that write a date the same way — `xez-add-rule`, `xez-auto-update-changelog`,
+`xez-auto-write-spec`, `xez-brainstorm`, `xez-close-fixed-issues`, `xez-followup-issue-from-pr`,
+`xez-pipeline-retro`, `xez-spec-writing` — and the owner chose to sync all nine at once rather
+than leave eight skills dating their own output by guess.
+
+It lives in each skill's own "specifics" section rather than in a generated shared block. The
+block generator is for text that must be byte-identical everywhere; this rule names what each
+skill actually writes, so it reads differently in a changelog skill and in a spec skill. If it
+ever needs to be identical, that is the moment to promote it to a shared block, not before.
+

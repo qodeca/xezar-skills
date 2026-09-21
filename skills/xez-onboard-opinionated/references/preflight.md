@@ -51,8 +51,12 @@ Untouched engine-init output counts as **clean** and is replaced without asking,
 how most people arrive — the getting-started guide tells them to run init first. Recognise it by
 content, not by presence:
 
-- the generated `fix-and-verify.yaml`, in any of its current generator variants (with a
-  discovered check command, or with the agent-review fallback when none was found);
+- the generated `fix-and-verify.yaml`, in any of its current generator variants: with a
+  discovered check command, with the agent-review fallback when none was found, or — from engine
+  0.18.0 — the discovered-check variant that ends with a third, agent step. Recognise that last
+  one by its shape rather than its wording: step ids `implement`, `verify`, `report`, the last of
+  them an agent step named "Report the result". A variant you do not recognise is somebody's
+  configuration and stops the run, so a new engine release needs this list extended first;
 - the generated `project-conventions.md` skill, unedited.
 
 Equally clean, because **the engine writes them by itself on its first single-project start** —
@@ -89,8 +93,12 @@ Two accepted consequences, stated rather than discovered later:
 
 ## 4. Prior onboarding by this skill
 
-`.xezar/onboarding.json` present means *this skill's own earlier run*. Two cases, told apart by
-one file:
+**Either** `.xezar/onboarding.json` **or** `.local/xezar/runtime/onboarding-pending.json` present
+means *this skill's own earlier run*. Check both, and check the pending file even when the other
+is absent: `onboarding.json` is committed on the **setup branch**, so an owner who deferred the
+merge and came back on the base branch has the pending file and nothing else. Keying this check on
+`onboarding.json` alone silently starts that owner over. Two cases, told apart by the pending
+file:
 
 - **The run is unfinished** — `.local/xezar/runtime/onboarding-pending.json` exists. The writing
   half leaves it behind when it opens the setup pull request, because protection and the smoke
@@ -144,9 +152,12 @@ question was answered. None or one is not a stop, and it is not a fault either �
 one login on this machine — but say which you think it is, because the lanes and routing interviews
 are about to offer what that file contains. A run that only *told* the owner to answer `y`, and
 never looked, reaches the routing table before anybody notices the import did not happen.
-**Empty here while the machine's global registry lists accounts is the declined import**, and it
-is never asked twice: offer to bring them in through `references/engine-refusals.md` now, rather
-than at screen 3 of the interview.
+**Empty or defaults-only here while the machine's global registry lists more is the declined
+import**, and it is never asked twice: offer to bring them in through
+`references/engine-refusals.md` **here**, not at screen 3 of the interview. This step owns that
+offer — screen 3 needs its answer to draw its table, and screens 1 to 3 go out together. An owner
+who says the project registry is meant to be empty is recorded in the interview state and never
+asked again in this run.
 
 Whether the engine is *running right now* is not a preflight fact: nothing before step 8 needs
 it. `references/verify.md` checks it where it matters.

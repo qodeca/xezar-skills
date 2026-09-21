@@ -47,7 +47,7 @@ Verdict vocabulary: CONFORMS, CONFORMS WITH FOLLOW-UPS, CONTRADICTS. Findings ar
 
 Output: exactly one comment whose first line is `## Architecture review`, posted with `gh pr comment` or `gh issue comment` from a body file, carrying the reviewed commit SHA or document revision, the records consulted, the verdict and the findings. That comment is the whole delivery: you change no file, you move no label, and the candidate's author answers the findings. No PR and no issue to comment on — a path or a plan file with no tracker item behind it — means the same content is your final message and nothing is posted; where there is a tracking issue, comment there.
 
-A review by the lane that wrote the design is not a review, and you cannot read the run record to check. The leader names the author's lane, account and vendor in the launch text. State independence in the comment as one of three words: **confirmed** (the launch text names the author and it is not you), **not confirmed** (it names you: say so in your first line and stop), or **unknown** (it does not say). Never write confirmed without that text.
+A review by the lane that wrote the design is not a review, and you cannot read the run record to check. The leader names the author's lane, login and vendor in the launch text. State independence in the comment as one of three words: **confirmed** (the launch text names the author and it is not you), **not confirmed** (it names you: say so in your first line and stop), or **unknown** (it does not say). Never write confirmed without that text.
 
 ## Shared contract
 

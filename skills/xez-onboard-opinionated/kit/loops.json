@@ -17,7 +17,7 @@
       "mechanism": "self-paced-wakeup",
       "schedule": "3600s",
       "mayDispatch": false,
-      "prompt": "Walk the budget table. Move any metered lane whose reset time has passed from `out` to `unknown`. Do not probe - the next real dispatch that prefers that lane is the probe. If work is paused only because every preferred lane was out, and a lane is now `unknown` or available, wake the pacing loop so it can resume that work - never start it yourself; keep at most one such wake pending, replacing any earlier one. Skip unlimited lanes entirely. If nothing changed, do nothing and say so."
+      "prompt": "Walk the budget table. It is keyed by tool and login: move any metered **login** whose reset time has passed from `out` to `unknown`. Do not probe - the next real dispatch that prefers a lane on that login is the probe. A lane is a tool plus a model, and it is out only while EVERY login in its tool's rotation is out. If work is paused only because every preferred lane was out, and a login is now `unknown` or available, wake the pacing loop so it can resume that work - never start it yourself; keep at most one such wake pending, replacing any earlier one. Skip unlimited logins entirely. If nothing changed, do nothing and say so."
     },
     {
       "id": "L3",

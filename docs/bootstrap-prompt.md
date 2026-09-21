@@ -78,13 +78,13 @@ b) Call the xezar `health` tool. If it says running for this project, go to step
 c) Otherwise the engine must be started in a REAL terminal window of its own, because its first
    start asks one question that it only asks in a terminal, and because it must keep running
    after this session ends.
-   BEFORE you open the window, tell me this and wait for my ok, because a window that is already
-   asking cannot be warned about:
+   BEFORE you open the window: check whether `xezar --help` lists --import-global. If it does,
+   add that flag to the line below and tell me it replaces the question - nothing to type.
+   If it does not, tell me this and wait for my ok, because a window that is already asking
+   cannot be warned about:
      "A Terminal window will open and ask: Copy your global setup ... [y/N]. The default is No.
       Type y, then Enter - that copies your agent accounts in. It asks only once. Leave the
       window open afterwards."
-   If `xezar --help` lists --import-global, add that flag to the line below and tell me it
-   replaces the question; then there is nothing to type.
    On macOS, open the window for me:
      osascript -e 'tell application "Terminal" to do script "cd \"<absolute path of this repo>\" && xezar --single-project --no-open"'
    If that is refused or this is not macOS, print the line for me to run myself:

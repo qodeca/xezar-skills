@@ -74,6 +74,12 @@ offers both by name:
 
 ## How to ask without a question per row
 
+**A third take of this screen is a defect, not diligence.** Two takes is a correction; three
+means the proposal rested on something the owner knows and was never asked. Stop proposing, ask
+that one thing in plain words, and name the screen and the reason in the run report. The first
+audited run took four, and the last two were owner-only knowledge about how a tool behaves on
+this machine — so ask for that directly rather than proposing into it.
+
 **Ask what each model is for before proposing anything.** One question, first on the screen:
 *which of these models are your daily workhorses, which is escalation only, which is single
 purpose, and which should not be used at all?* — over the `<tool>/<model>` list analysis found.
@@ -126,7 +132,8 @@ tool × login, and dispatch filters the chain through it: a lane is available wh
 its tool's rotation has budget. Two rules the interview should state
 because they decide behaviour at 03:00:
 
-- **Unlimited lanes are exempt** from budget tracking entirely.
+- **Unlimited logins are exempt** from budget tracking entirely, and so is any lane whose tool
+  has one.
 - **Unknown is never "out" and never "fine".** A quota entry carries a reset time and expires to
   `unknown`, which means the next real dispatch that prefers that lane finds out. Nothing probes
   in a loop: a probe *is* a first use, and a first use opens a fresh window.

@@ -15,8 +15,10 @@ minutes and about twelve question rounds against a target of twenty and six. The
   prohibition 4 now says "a different vendor", which was always the half that mattered.
   `DECISIONS.md` → "A lane is a tool plus a model".
 - **The leader guide fits its own limit.** The template's fixed part went from 186 lines to 149
-  with every rule kept; the reasoning moved to the new `kit/docs/leader-guide-detail.md`. The four
-  generated sections are budgeted at 12/12/15/12. `test-kit-facts.mjs` (FACT 13) adds the two up
+  with every rule kept; the reasoning moved to the new `kit/docs/leader-guide-detail.md`. It is
+  now 145, so the four generated sections at 12/12/15/12 leave about four lines spare, and the
+  limit is stated as what this skill writes rather than a cap forever — a rule the owner adds with
+  `xez-add-rule` afterwards is meant to grow it. `test-kit-facts.mjs` (FACT 13) adds the two up
   and fails above 200.
 - **A command line is a user interface.** Analysis proposes the design gate **on** for a project
   that ships a CLI.
@@ -28,17 +30,52 @@ minutes and about twelve question rounds against a target of twenty and six. The
   person's way, then a backed-up edit of one of two named files on the owner's yes to one question
   that shows the exact change. Recorded as an accepted exception in `SECURITY.md`, because it
   reaches outside the repository. `DECISIONS.md` → "A consented edit when the engine says no".
-- **A reviewable setup pull request.** The body sorts files by origin — copied unchanged (with the
-  `diff -r` line that proves it), adapted, written for this project, the owner's files edited — so
-  the dozen files worth reading are not lost among a hundred that are not.
+- **A reviewable setup pull request.** The body sorts files by origin — copied unchanged, adapted,
+  written for this project, the owner's files edited — so the dozen files worth reading are not
+  lost among a hundred that are not. Verbatim copies are proved by the per-file digests already
+  recorded in `.xezar/onboarding.json`; two of the four kit folders also hold generated files, so
+  a folder-level diff is not the check.
 - **"I will read it first" is a normal answer.** New *owner defers* branch in the report and in the
   bootstrap prompt: the run ends cleanly, says what is owed and how to resume, and does not ask
   again. New "Setup rejected" report lists what the setup made outside git, with the undo for each.
 - **The clock rule.** Every time this skill or the prompt writes down is read from `date -u`. The
   audited run invented all of its timestamps.
 
+All of the above went through a five-reviewer pass before merge; what that pass found is folded
+in, including two claims of its own that were wrong on a real machine.
+
 ## Fixed
 
+- **The budget loop marked a whole lane out when one login ran out.** L2 in the shipped
+  `loops.json` treated a lane as the thing that runs out of tokens. It now walks logins, and a
+  lane is out only while every login in its tool's rotation is. `UPGRADE_NOTES.md` has the entry.
+- **Five places still called a login a "lane"** after the redefinition — including the
+  `select_account` step, which would have had an agent pass a model name to an account call.
+- **The consented edit could have happened before the file that hides it.** The account copy was
+  offered at preflight, before the preview and before the kit's ignore entry lands, leaving the
+  owner's login labels and home paths in an untracked, uncovered file for the whole interview. It
+  now writes the ignore entry first, and `agentic-setup.md` names it as the one extra write
+  allowed before the preview.
+- **A refusal was recognised by its wording, not its origin.** Any text in context could claim to
+  be one, and the skill then offered to hand the owner a command taken from it. A refusal now
+  counts only when it came back from a call made in this session, and a command is never relayed
+  out of refusal text.
+- **The consented edit is narrow by key, not only by file** — the provider switch in
+  `~/.xezar/config.json` and nothing else, backups counted inside the exception, symlinks refused,
+  before-and-after values shown, and anything short of a clear yes ending it.
+- **A backup path under the owner's home folder could reach a pull request body**, carrying their
+  username. There the undo is the call.
+- **Defer-and-resume had a hole.** Preflight keyed the resume check on a file that only exists on
+  the setup branch, so an owner who deferred and came back before merging was started over. It now
+  triggers on the pending file too, and the pending file records which labels this run created —
+  a later session cannot tell them apart otherwise.
+- **The clock command is at the write sites**, not only in a rules file the audited run never
+  opened. Eight other skills that write dates gained the same rule.
+- **The import offer has one owner** (preflight check 5), because screen 3 needs its answer and
+  screens 1 to 3 go out together.
+- **Preflight learns the engine 0.18.0 `xezar init` example**, matched by its step shape rather
+  than its wording (`qodeca/xezar#820`). Without it a fresh `init` on that engine reads as
+  somebody's configuration and stops the run.
 - **The engine's account question is announced before its window opens**, with its real shape:
   `[y/N]`, default No, asked once. The prompt said "answer y" a minute after the question had
   appeared and been declined. Where the engine lists `--import-global`, the prompt uses it. The

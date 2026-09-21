@@ -32,8 +32,9 @@ Stated once here, never repeated per row. They apply to every row and they overr
 1. **Never the authoring model for its own review.** A model does not judge what it wrote.
 2. **A locally hosted model never touches a branch.** It may read and advise; it may not write.
 3. **A cloud-lane write needs another vendor's review** before it can merge.
-4. **A high-risk change needs a different vendor** from the author — which is always a different
-   login as well. Rotating to another login of the *same* vendor never satisfies this.
+4. **A high-risk change needs a different vendor** from the author — and never the same login,
+   whatever vendor that login reaches. Rotating to another login of the *same* vendor never
+   satisfies this.
 5. **A provider that does not enforce a step's tool limits is in no chain for a read-only or a
    security-and-release row** — a tool allowlist is the only thing that makes a read-only role
    read-only, and a deploy step's two permitted writers the only thing that bounds it. This holds

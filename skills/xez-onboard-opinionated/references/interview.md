@@ -111,13 +111,13 @@ marks up in one pass — which may run tasks, in which **rotation order** per to
 unlimited, and which single login is the engine's default for a task that names none. These are
 columns of one decision, not separate topics.
 
-**The registry can be emptier than the machine.** The engine copies the owner's global logins into
-a project only when its one-time first-start question is answered `y`, and the default answer is
-No (`references/preflight.md` check 5). So before drawing this table, compare the project's
-registry with what the machine holds. Project registry empty or defaults-only while the machine's
-global registry lists more → say exactly that, and offer to bring them in through
-`references/engine-refusals.md` — the engine's own account tool first, the consented copy second.
-Do not build a routing table on a registry the owner did not mean to be empty.
+**The registry can be emptier than the machine**, and that was settled before this screen.
+`references/preflight.md` check 5 owns the question: the engine copies the owner's global logins
+in only when its one-time first-start question is answered `y`, and the default is No. By the time
+this table is drawn the answer is in the interview state — imported, declined, or "meant to be
+empty". Read it; do not ask again. If it says the import is still owed, this screen cannot be
+drawn honestly: go back to check 5's offer rather than building a routing table on a registry the
+owner did not mean to be empty.
 
 **A default that names nothing.** The built-in login of a tool — for Claude Code, the `~/.claude`
 folder, handle `default` — has **no record in the registry**. So a registry default naming an id
@@ -131,18 +131,18 @@ Two rules that are not negotiable and are stated on the screen:
   dispatched to it — and why the unnamed-task default may not be it either. The engine's own
   default out of the box is whatever the owner logged in with first, usually exactly that login,
   which breaks this rule on the first task dispatched without an explicit account. So the default
-  is **validated on this screen, not asked**: offer only lanes that are not the reserved one.
+  is **validated on this screen, not asked**: offer only logins that are not the reserved one.
 - **A missing login is a hard stop at dispatch, never a fallback to the reserved one.** Offer only
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
-**OpenCode accounts are not offered as task lanes.** The setup switches that provider off for this
-project (`references/verify.md` §3 has the four reasons and the one call that undoes it), so a lane
-on it would be a lane whose every dispatch is refused. Say so on the screen in one line when the
+**OpenCode logins are not offered as task logins, and no `opencode/<model>` lane is offered
+either.** The setup switches that provider off for this project (`references/verify.md` §3 has the
+four reasons and the one call that undoes it), so every dispatch on it would be refused. Say so on the screen in one line when the
 registry holds such an account, rather than leaving the owner to wonder where it went.
 
-Unlimited lanes are exempt from budget tracking, so they are marked here rather than discovered
-from a rate limit that never arrives.
+Unlimited **logins** are exempt from budget tracking, so they are marked here rather than
+discovered from a rate limit that never arrives.
 
 With a single login there is nothing to choose: say so, carry the warning into the report, and skip
 the screen. The answer is *set*, not only recorded — `references/verify.md` does it once the

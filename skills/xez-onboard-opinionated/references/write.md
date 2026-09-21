@@ -219,11 +219,14 @@ Never copied, because each depends on an answer:
   an account name into the result — both are gitignored runtime facts.
 
   The guide is injected **in full** at every start, resume, clear and compaction, so its size is
-  paid on every one of those events. Keep the whole file at or under **200 lines**; the shipped
-  template's fixed part is 149, which leaves 51 for the four sections together. Those numbers are
-  counted, not estimated — `scripts/test-kit-facts.mjs` adds the template's fixed lines to the
-  four budgets below and fails above 200, because for one release the limit was arithmetically
-  impossible and every run reported a cross it could do nothing about. Budget them:
+  paid on every one of those events. Keep the whole file at or under **200 lines**, as you write it; the
+  shipped template's fixed part is 145, which leaves 51 for the four sections together and about
+  four lines spare. Those numbers are counted, not estimated — `scripts/test-kit-facts.mjs` adds
+  the template's fixed lines to the four budgets below and fails above 200, because for one
+  release the limit was arithmetically impossible and every run reported a cross it could do
+  nothing about. **The limit is about what this skill writes, not a cap forever**: a rule the
+  owner later adds with `xez-add-rule` grows the guide, and that is the product working. Budget
+  them:
 
   | Placeholder | Must state | Lines |
   |---|---|---|
@@ -354,8 +357,8 @@ to carry — do not invent one, and do not tell the owner to run one.
   the install command and **two** `--agent` values (`claude-code` and `codex`): one value makes
   copies, two make the link layout. This skill **names** that command and never runs it; when
   the skills are not installed in the project, say so in the report.
-- **Both halves of the manifest.** Every date and time in them is read from the clock
-  (`references/rules.md` → the clock rule). Committed `.xezar/onboarding.json`: version, date, stack,
+- **Both halves of the manifest.** Every date and time in them comes from
+  `date -u +%Y-%m-%dT%H:%M:%SZ`, run at that moment — never typed. Committed `.xezar/onboarding.json`: version, date, stack,
   detected facts, the *shape* of the answers, per-file digest and origin. Gitignored
   `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
   teammate cloning the repository gets the first and not the second, and a future migration
@@ -369,7 +372,9 @@ to carry — do not invent one, and do not tell the owner to run one.
 **ensure-label-taxonomy** from the `labels.json` just written, then **list-labels** to read back.
 The owner approved this in the preview, where the taxonomy is listed by name — it is a change to
 the repository, not to a file, and it is never made unasked. Existing labels keep their colour
-and description. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
+and description. **Write down which labels this run created and which already existed**, in the
+pending file below: a later session cannot tell them apart, and the report for a rejected setup
+has to name the ones it would be undoing. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
 which carries the three design labels the kit's policy needs; the tracker descriptor is this
 skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
 
@@ -391,9 +396,13 @@ merge, because protecting a branch the setup has not landed on yet only blocks t
 **Leave the way back in.** Steps 7 to 10 run after the merge, and often in a later session: the
 MCP registration this step wrote is read by Claude Code only when a session starts, so a session
 that began before it existed has no engine tools and cannot run the smoke test. Write
-`.local/xezar/runtime/onboarding-pending.json` — the pull request number, the base branch, and
-the time — and end the step with the exact lines from `references/report-templates.md` →
-"Setup pull request open". Without the file a second run finds `.xezar/onboarding.json`, reads it
+`.local/xezar/runtime/onboarding-pending.json` — the pull request number, the base branch, the
+labels this run created and the ones that already existed, and the time from
+`date -u +%Y-%m-%dT%H:%M:%SZ` — and end the step with the exact lines from
+`references/report-templates.md` →
+"Setup pull request open". It is also the only marker on a base branch where the setup has not merged, which is why
+preflight check 4 looks for it even when `.xezar/onboarding.json` is absent. Without the file a
+second run finds `.xezar/onboarding.json`, reads it
 as a finished onboarding, and refuses; the first test of this skill ended exactly there.
 
 **Then offer the merge — once, and only on green.** Write the pending file first, so a declined

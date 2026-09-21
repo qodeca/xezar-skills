@@ -427,7 +427,7 @@ const fail = (fact, where, detail) =>
   if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
   if (!/does not enforce a step's tool limits is in no chain/.test(rows))
     fail(fact, "references/routing-rows.md", "lost the global prohibition that keeps such a provider out of read-only and release chains");
-  if (!/OpenCode accounts are not offered/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode accounts as task lanes again");
+  if (!/OpenCode logins are not offered as task logins/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode logins as task logins again");
   if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
     fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
   checked.push(fact);
