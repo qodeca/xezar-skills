@@ -21,6 +21,27 @@ npx skills add qodeca/xezar-skills --skill '*'
 
 Install all forty-five — the pipeline composes, and every skill is small until invoked. Drop `--skill '*'` to cherry-pick interactively. Skills install for 22+ coding agents (Claude Code, Cursor, Codex, and others) via [skills.sh](https://skills.sh).
 
+### Set up Xezar with one prompt
+
+Want the full setup – the engine, the skills, a Claude Code leader, labels, branch protection,
+and a smoke test that proves it – without doing the steps by hand? From your repository's root:
+
+```bash
+claude mcp add --scope local xezar -- npx -y @qodeca/xezar mcp
+claude --dangerously-load-development-channels server:xezar
+```
+
+Accept the development-channel warning, then paste the prompt from
+[`docs/bootstrap-prompt.md`](docs/bootstrap-prompt.md). It checks that the engine is installed
+and new enough, installs these skills, runs `xezar init`, opens a terminal window for the engine,
+and runs [`xez-onboard-opinionated`](docs/skills/xez-onboard-opinionated.md): an interview, a
+preview of every file, **one** pull request, then the proof – in the same session. It asks before
+anything global and before anything on GitHub, never uses `sudo`, and never pipes a download into
+a shell. Paste it again at any time; it continues where it stopped.
+
+You need Node 20 or later, `git`, the GitHub CLI logged in, and a GitHub remote. Claude Code and
+GitHub only; on Windows, use WSL.
+
 ### Which setup skill
 
 Three setup skills, and they barely overlap:

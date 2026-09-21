@@ -27,6 +27,7 @@
     "check:gate-list": "node scripts/check-gate-list.mjs",
     "check:label-taxonomy": "node scripts/check-label-taxonomy.mjs",
     "test:kit-facts": "node scripts/test-kit-facts.mjs",
+    "test:compat-pins": "node scripts/test-compat-pins.mjs",
     "check:allowlists": "node scripts/check-allowlists.mjs",
     "test:guards": "node scripts/test-guards.mjs",
     "test:discovery-contracts": "node scripts/test-discovery-contracts.mjs",

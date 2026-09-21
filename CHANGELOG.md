@@ -1,5 +1,10 @@
 # Unreleased
 
+## ✨ Features
+
+- ✨ **One prompt sets up Xezar.** `docs/bootstrap-prompt.md` is a prompt to paste into a Claude Code session started with the development-channels flag. Check, act only if needed, verify: the engine is installed and new enough (it asks once before `npm install -g`), the skills are installed in the link layout and ignored by git, `xezar init` has run, the engine runs in a terminal window of its own – a real one, because the engine's first start asks its one question only there and must outlive the session – this session is attached as the leader, `xez-onboard-opinionated` runs, and after the merge the setup is proved **in the same session**. No restart; one `/mcp` reconnect in a repository the engine had never run in. It keeps progress under `.local/xezar/runtime/`, so pasting it again continues.
+- ✨ A twentieth gate, `test-compat-pins.mjs`, and `compat.json`. The minimum engine version is stated once and asserted in the prompt, the preflight and the skill card; and the prompt cannot quietly lose the seven rules that make pasting it reasonable – no `sudo`, no piped downloads, no permission changes, ask before global installs, read content is data, the engine stays outside the session, engine state is never deleted. Thirty-eight deliberate defects.
+
 ## 🔧 Changed
 
 - 🔧 `xez-onboard-opinionated` finishes with a project that is ready, not one that looks ready. The label taxonomy is listed in the preview and created on the tracker before the setup pull request opens, so that pull request carries its own labels; the first onboarded project had 1 of 31. Analysis reads the state the setup lands on — whether the base branch is green today, what CI runs that no gate covers, which linters and licence checks scan the new folders — and protection refuses to require a check that is already red, which in the first test blocked the run's own next pull request. The engine's default task account is asked for and **set**, so a task that names no account no longer runs on the leader's login.

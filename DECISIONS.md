@@ -502,6 +502,30 @@ either pinned in `scripts/test-kit-facts.mjs` or listed in `references/write.md`
 cost is a manual merge whenever the kit is refreshed from the engine project, and the drift check
 reports rather than resolves, as before.
 
+### A prompt may install what a skill may not
+
+`xez-onboard-opinionated` never installs the engine, and that stands: a setup skill that quietly
+installs a product is a setup skill nobody can audit. The owner still wanted one paste to take a
+repository from nothing to a working leader. The two meet in `docs/bootstrap-prompt.md`: a
+**prompt** the person reads and pastes themselves, which asks once before `npm install -g` and
+shows every command first. Consent lives with the person holding the clipboard; the skill it
+then runs keeps its boundary, and `test-compat-pins.mjs` keeps the prompt from losing the rules
+that make that consent informed.
+
+Three choices inside it, each made against an easier one:
+
+- **The launch line registers the engine's MCP server at local scope, and the setup still
+  commits `.mcp.json`.** Local scope writes nothing into the repository, so the clean-project
+  check and the preview see a clean project; the committed file is for the next clone.
+  `references/verify.md` says which one a session is using.
+- **Neither is pinned to a version.** The bridge serves its own tool list and refuses an engine
+  on another protocol version, so a pinned bridge older than the installed engine hides tools or
+  fails every call. `compat.json` states a minimum instead, and `health` reports what is running.
+- **The engine is started in a terminal window, never by the agent in the background.** The
+  engine's first single-project start asks whether to copy the owner's global setup in, asks it
+  only in a real terminal, and never asks again – started without one, the project has no agent
+  accounts for good. And a background process of the session dies with the session.
+
 ### Admitted: `xez-onboard-opinionated`, and why a second onboarding skill
 
 1. **What request does it serve?** Reproducing one specific way of working — a leader, an

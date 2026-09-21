@@ -62,6 +62,8 @@ jobs:
         run: node scripts/check-label-taxonomy.mjs
       - name: Kit facts
         run: node scripts/test-kit-facts.mjs
+      - name: One minimum engine version, and the bootstrap prompt keeps its rules
+        run: node scripts/test-compat-pins.mjs
       - name: Allowlist shape, owners and expiry dates
         run: node scripts/check-allowlists.mjs
       - name: Guard suite (every gate broken on purpose)
