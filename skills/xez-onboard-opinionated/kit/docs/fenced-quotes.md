@@ -37,14 +37,15 @@ locations to keep them out of the walk.
 
 This excerpt is checked against the task-agent guard in the maintained hook script:
 
-<!-- from: .xezar/checks/leader-context.sh#L30-L43 -->
+<!-- from: .xezar/checks/leader-context.sh#L32-L46 -->
 ```sh
-# A xezar task agent, even one running in the primary checkout with Worktree off.
+# A task agent, even one running in the primary checkout with Worktree off.
 [ -z "${XEZ_HANDOFF_FILE:-}" ] || silent
 [ -z "${XEZ_TODOS_FILE:-}" ] || silent
 [ -z "${XEZ_TASK_ID:-}" ] || silent
 
-# A task worktree, by path or by git registration.
+# A task worktree, by path or by git registration. The path test is the belt to the git test's
+# braces: it does not depend on git being installed or on either git command succeeding.
 case "$PWD" in */.local/xezar/worktrees/*) silent ;; esac
 case "$REPO_ROOT" in */.local/xezar/worktrees/*) silent ;; esac
 git_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"

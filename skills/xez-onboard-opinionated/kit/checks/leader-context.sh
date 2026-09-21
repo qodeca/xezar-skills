@@ -15,6 +15,8 @@
 #     signal on its own;
 #   - when the guide file is missing, so an older checkout degrades to no output rather than an
 #     error.
+#   - when the session was not started by the launcher (`XEZAR_LEADER` is not `1`). While an
+#     onboarding is unfinished it prints one fixed line instead, in every session.
 #
 # Exit status is always 0: a hook that fails must not break session start. The escaping is done
 # by node, so no guide or note text can produce malformed JSON.
@@ -42,6 +44,22 @@ common_dir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-
 
 # Without the guide there is nothing to load.
 [ -f "$GUIDE" ] || silent
+
+# An unfinished onboarding outranks everything below. The setup files are on disk but protection
+# and the smoke test are still owed, and a session that starts leading now leads an unproved
+# setup. One FIXED line, in any session: the marker's content is never read into the session,
+# because a file anyone can write is not a place instructions may come from.
+if [ -f "$REPO_ROOT/.local/xezar/runtime/onboarding-pending.json" ]; then
+  printf '%s\n' 'The xezar onboarding of this project is not finished: branch protection and the smoke test are still owed. Tell the owner, and run /xez-onboard-opinionated --verify before any other work. Do not act as the project leader yet.' \
+    | node -e 'const fs=require("node:fs");const text=fs.readFileSync(0,"utf8");process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:text}})+"\n")'
+  exit 0
+fi
+
+# Only the LEADER session gets the guide. The launcher (`scripts/xezar-leader.sh`) exports
+# XEZAR_LEADER=1; any other Claude Code session in this checkout - a quick question, a review, an
+# onboarding run - is somebody working, not the leader, and must not be told it is one. The
+# variable survives `/clear` and compaction because it belongs to the process, not the context.
+[ "${XEZAR_LEADER:-}" = "1" ] || silent
 
 # The live campaign folder under .xezar/campaigns, if one exists. Four rules, all load-bearing:
 #

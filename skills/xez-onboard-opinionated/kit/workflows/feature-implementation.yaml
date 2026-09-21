@@ -1,5 +1,5 @@
 name: feature-implementation
-description: Implement a feature end to end - code, tests, docs, release metadata - then gates and a draft PR into main.
+description: Implement a feature end to end - code, tests, docs, release metadata - then gates and a draft PR into the base branch.
 steps:
   - id: kit
     name: Snapshot the local project kit
@@ -34,6 +34,6 @@ steps:
     command: ".xezar/checks/worktree-preflight.sh --record-gate-evidence"
     resultScope: stage
   - id: handoff
-    name: Draft PR into main
+    name: Draft PR into the base branch
     prompt: "Hand off the implementation of: {{task}}"
     skill: xezar-handoff-draft-pr

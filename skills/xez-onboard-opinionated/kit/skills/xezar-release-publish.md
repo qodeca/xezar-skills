@@ -53,7 +53,7 @@ gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-head> \
 ```sh
 git fetch --quiet origin main --tags
 git rev-parse origin/main                                   # must equal the merge commit from b.
-git show origin/main:packages/xezar/package.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version'
+git show origin/main:package.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version'
 npm view @qodeca/xezar versions --json
 ```
 

@@ -208,6 +208,47 @@ const fail = (fact, where, detail) =>
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// FACT 7 -- only the launcher's session is the leader.
+//
+// The hook fires in every Claude Code session in the checkout. Ungated, a second session opened
+// to finish an onboarding was handed the leader guide and started leading the project. The gate
+// has two halves in two files, and either one alone does nothing: the hook must test the
+// variable, and the launcher must export it. The prose that explains it is the third place.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 7: only the launcher's session gets the leader guide";
+  const loader = read(`${SKILL}/kit/checks/leader-context.sh`);
+  if (!/\[ "\$\{XEZAR_LEADER:-\}" = "1" \] \|\| silent/.test(loader))
+    fail(fact, "kit/checks/leader-context.sh", "the hook does not stay silent when XEZAR_LEADER is not 1");
+  const launcher = read(`${SKILL}/kit/scripts/xezar-leader.sh`);
+  if (!/^export XEZAR_LEADER=1$/m.test(launcher))
+    fail(fact, "kit/scripts/xezar-leader.sh", "the launcher does not export XEZAR_LEADER=1, so its own session gets no guide");
+  if (!read(`${SKILL}/references/write.md`).includes("XEZAR_LEADER=1"))
+    fail(fact, "references/write.md", "never says what makes a session the leader");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 8 -- tracker-facing templates name no repository but the consumer's own.
+//
+// The kit began as another project's files. Copied verbatim, its issue-template config sent a
+// consumer's SECURITY REPORTS to that other project's advisory page. A template names the
+// repository only through {{REPO_SLUG}}, and the write step must say the placeholder is filled.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 8: kit tracker templates name no foreign repository";
+  for (const file of walk(`${SKILL}/kit/github`, /\.(ya?ml|md)$/)) {
+    for (const m of read(file).matchAll(/github\.com\/([^\s)"'>]+)/g)) {
+      if (!m[1].startsWith("{{REPO_SLUG}}"))
+        fail(fact, file.replace(`${SKILL}/`, ""), `links github.com/${m[1]} -- a consumer's template must point at the consumer's repository`);
+    }
+  }
+  if (!read(`${SKILL}/references/write.md`).includes("{{REPO_SLUG}}"))
+    fail(fact, "references/write.md", "never says the {{REPO_SLUG}} placeholder must be filled");
+  checked.push(fact);
+}
+
 function walk(rel, match) {
   const out = [];
   const rec = (d) => {

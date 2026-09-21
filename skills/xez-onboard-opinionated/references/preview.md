@@ -11,10 +11,24 @@ the gate the writing half passes through.
 | **leave alone** | The file exists and is untouched engine-init output, or is outside the setup's scope. |
 | **needs your decision** | The file exists and the setup has content for that path. |
 
-The third group should be **empty on a clean project** — the preflight refuses anything else. It
-exists for the one legitimate case: untouched engine-init output that is being replaced. Show
-what is there and what replaces it, so "replaced without asking" is at least *seen* without
-asking.
+Under `.xezar/` the third group holds one legitimate case: untouched engine-init output that is
+being replaced. Show what is there and what replaces it, so "replaced without asking" is at
+least *seen* without asking.
+
+Outside `.xezar/` it is rarely empty, and preflight check 3 already listed what is there: a
+`CLAUDE.md`, an `AGENTS.md`, a pull request template, issue templates, an `.mcp.json`. One rule
+per kind, stated in the preview rather than asked file by file:
+
+- a document the project already has (`CLAUDE.md`, `AGENTS.md`) — **append a marked section**,
+  never replace;
+- an issue template — **left alone**, always;
+- a pull request template — offer the Design and Risk parts as an addition;
+- `.mcp.json` — **merge** the one server entry in;
+- a linter or formatter that scans the whole tree — add the new folders to its ignore file, and
+  show the line. A setup that turns the project's own format check red has failed its first gate.
+
+Do not warn about a consequence you have not checked. "The licence check will probably fail"
+costs the owner a decision; reading the licence config costs one command.
 
 ## Every entry is bound to a digest
 

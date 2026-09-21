@@ -34,6 +34,6 @@ steps:
     command: ".xezar/checks/worktree-preflight.sh --record-gate-evidence"
     resultScope: stage
   - id: handoff
-    name: Draft PR into main
+    name: Draft PR into the base branch
     prompt: "Hand off the fix for: {{task}}"
     skill: xezar-handoff-draft-pr

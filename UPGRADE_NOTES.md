@@ -17,6 +17,28 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – every Claude Code session in an onboarded project acts as the leader
+
+Applies only to a repository onboarded by `xez-onboard-opinionated` 1.2.0.
+
+**Symptom – you open Claude Code in the project to ask a question, and it starts checking
+campaigns, loops and open pull requests.** Your `.xezar/checks/leader-context.sh` has no line
+testing `XEZAR_LEADER`, so the `SessionStart` hook hands the leader guide to every session in
+the checkout, not only to the one the launcher started.
+
+**Symptom – the task gate fails on `.local/xezar/` entries you never created**, such as
+`mcp-operations.ndjson` or `mcp-owner-claims/`. Your `.xezar/checks/local-tree.sh` predates the
+list of files the engine writes in single-project mode.
+
+**What is lost by skipping this.** Two sessions believing they lead one project, with one leader
+slot between them; and a gate that is red on a healthy tree, so every task fails it.
+
+**How to apply.** Copy `kit/checks/leader-context.sh` and `kit/checks/local-tree.sh` from the
+skill over your `.xezar/checks/` copies, and `kit/scripts/xezar-leader.sh` over
+`scripts/xezar-leader.sh` — or add `export XEZAR_LEADER=1` above its `exec` line if you have
+edited it. Refresh their digests in `.xezar/onboarding.json`. From then on, start the leader with
+the launcher; a session started any other way is an ordinary session.
+
 ## 2026-09-21 – a project onboarded with 1.2.0: skills out of git, labels on the tracker
 
 Applies only to a repository onboarded by `xez-onboard-opinionated` 1.2.0. Everything it installed is

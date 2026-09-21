@@ -20,7 +20,12 @@ node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 # `--diff-base auto` refuses a direct `# Unreleased` edit: inside the gate run it resolves the
 # attempt's own base; run bare it falls back to the remote default branch then the local one, and
 # says so when neither exists. `--fragments` parses the per-pull-request changelog fragments.
-if [ -f "$REPO_ROOT/CHANGELOG.md" ]; then
+# The fragment flow needs BOTH the changelog and a `changelog.d/` folder. A project that edits its
+# changelog directly has no fragments to check, so the check is skipped, loudly, until the owner
+# adopts fragments (create `changelog.d/` to turn it on).
+if [ -f "$REPO_ROOT/CHANGELOG.md" ] && [ ! -d "$REPO_ROOT/changelog.d" ]; then
+  skip changelog-check "CHANGELOG.md exists but this project has no changelog.d/ fragment folder"
+elif [ -f "$REPO_ROOT/CHANGELOG.md" ]; then
   bash "$SCRIPT_DIR/changelog-check.sh" --file "$REPO_ROOT/CHANGELOG.md" --diff-base auto \
     --fragments "$REPO_ROOT/changelog.d"
 else

@@ -484,6 +484,24 @@ listed here: the permanent old-brand ban, the credential-shape gate and the port
 still walk every kit file, and kit content that failed them was fixed at source rather than
 exempted.
 
+**Superseded in part, 2026-09-21: the kit is an adapted copy, and it is fixed here.** The
+paragraph above says a kit must never be rewritten, "since the version tested would stop being
+the version installed". The first real onboarding showed what that costs when the source is
+another project's *own* working folder rather than a product's distributable: the tidiness check
+rejected files the engine itself writes, the gate script numbered five gates by hand, the release
+role skills read a module path that exists in one repository on earth, and the issue-template
+config sent a consumer's security reports to the engine project's advisory page. Every run would
+have had to repair those by hand, differently each time — which is the version tested not being
+the version installed, by another route.
+
+The owner's decision: **fix the kit in this repository and do not wait on the source.** What
+changes is narrow. The three path exclusions stand, for the reason given — the kit still runs
+under the engine and still calls its tracker directly. What goes is "verbatim": a kit file may
+differ from its source where the source assumes its own repository, and each such difference is
+either pinned in `scripts/test-kit-facts.mjs` or listed in `references/write.md` §1. The accepted
+cost is a manual merge whenever the kit is refreshed from the engine project, and the drift check
+reports rather than resolves, as before.
+
 ### Admitted: `xez-onboard-opinionated`, and why a second onboarding skill
 
 1. **What request does it serve?** Reproducing one specific way of working — a leader, an
@@ -650,7 +668,7 @@ beside it said they never were, and prose promising `decisions.md` is never cut 
 script that cut it at 8 KB. Six reviewers reading both halves found sixteen such contradictions;
 no gate found one.
 
-`scripts/test-kit-facts.mjs` pins six facts that have already caused a contradiction, asserted in
+`scripts/test-kit-facts.mjs` pins eight facts that have already caused a contradiction, asserted in
 every place that states them.
 
 1. **What request does it serve?** Catching a disagreement between a skill's prose and its

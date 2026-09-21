@@ -22,23 +22,49 @@ From this skill's `kit/` into the project:
 | `kit/xezar.gitignore` | `.xezar/.gitignore` |
 | `kit/github/**` | `.github/` |
 | `kit/loops.json` | `.xezar/loops.json` |
+| `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
+| `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
+| `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, executable |
 
 **Rewritten during the copy**, routine and not an owner decision: any absolute path becomes the
 new project root, and references to the source project's own module layout, issue numbers and
 commit hashes are dropped. Product names stay — a project installing a product should see the
 product's name.
 
-**Three files in `.xezar/.gitignore` that the source's own copy misses**, added here because a
-project that copies it verbatim and commits without checking can commit an account registry:
-the account registry and the two workspace state files. They are machine-level state, set once
-per operator, and onboarding must never fabricate them either.
+**Three entries in `kit/xezar.gitignore` that the engine's own copy misses**, and the kit now
+carries: the account registry and the two workspace state files. They are machine-level state,
+set once per operator — the registry keys its selections by the checkout's absolute path — and
+onboarding must never fabricate them either.
+
+**Copy these files with a plain copy, one file per command.** The launcher carries a flag whose
+name begins `--dangerously`, and a harness that screens shell commands refuses a command that
+*types* such a script — the first test lost the launcher, the permission file and the MCP
+registration in one refused heredoc, and the launcher became a second pull request. A copy of a
+file that ships in the kit is not that. If the copy of the launcher is still refused, do not work
+around it: finish the rest, list it under "not written" with the path to the kit file, and let
+the owner copy it.
+
+**The kit is an adapted copy, not a mirror.** It began as the engine project's own `.xezar/`
+folder, and that project's module paths, release names and tracker links do not belong in
+somebody else's repository. They are fixed in the kit, once, rather than by every run rewriting
+them by hand. `.github/` templates carry four placeholders: `{{REPO_SLUG}}` and `{{PRODUCT}}`
+from the tracker's **repo-info**; `{{UI_SCOPE}}` — what counts as a user-visible surface here, from
+the design answer (for a CLI: command names, flags, help text, output shapes); `{{RISK_SURFACES}}`
+— the two or three areas analysis found most dangerous to change. No placeholder survives into a
+written file. **An issue template the project already has is never overwritten** —
+offer only the pull request template's Design and Risk parts, as an addition.
 
 ## 2. Generate what is generated
 
 Never copied, because each depends on an answer:
 
 - **`.xezar/checks/repo-gates.sh` command arrays** — from the confirmed gate commands. This is
-  the file that turns an answer into an enforced gate.
+  the file that turns an answer into an enforced gate. Keep the shape: the install first, the
+  security scan second, the confirmed commands next, `repository-checks.sh` last. The phases are
+  derived from that shape, so nothing is numbered by hand. Then set `GATE_APPLICATION_LANES`
+  beside the arrays — which application gates may run side by side, by position. A gate that
+  needs another's output goes after it in the same lane; when unsure, leave it empty, which runs
+  them one after another and is never wrong.
 - **`.xezar/config.json`** — the base branch and the system prompt, written for this project.
 - **`.xezar/pipeline/config.json`** and **`labels.json`** — this collection's current schema:
   base branch, tracker, validation commands, label taxonomy, QA gate, paths. Set
@@ -79,6 +105,12 @@ Never copied, because each depends on an answer:
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
   boundary** in plain words, and the routing table sends any diff touching them to the
   security-review row: the risk is not removed, it is made visible and routed.
+- **`BACKWARD_COMPATIBILITY.md`** — the kit's checks, workflows and role skills point at it from
+  twenty-odd places, so a project without one gets dead references in every review. Generate it
+  from what analysis found: the public surfaces this project must not break (a CLI's commands and
+  output, a library's exports, a config format), one honest line each. It is in the preview like
+  every other generated file.
+- **`designs/README.md`** — only when the design gate is on; the design workflow writes there.
 - **`CLAUDE.md`** at the root, **`.xezar/CLAUDE.md`**, and the gitignored **`.claude/CLAUDE.md`**
   with this project's path and campaign name. An `@`-import of a missing file is a real failure,
   so seed every file it imports in the same step.
@@ -108,7 +140,11 @@ to carry — do not invent one, and do not tell the owner to run one.
 
 - **`.mcp.json`** at the root, committed: registers the server through its published package,
   not through a local source checkout. Clone on a second machine and the leader works with no
-  global setup, and the wiring is reviewable like any other file.
+  global setup, and the wiring is reviewable like any other file. **The package is not pinned to
+  a version, on purpose.** The bridge serves its own tool list and refuses an engine that speaks
+  a different protocol version, so a bridge pinned older than the installed engine hides tools or
+  refuses every call. Version discipline lives in the preflight minimum and in the version
+  `health` reports.
 - **`.claude/settings.local.json`**, gitignored: `permissions.allow` covering the leader's MCP
   tools, so unattended mode never stops on an interactive prompt. **Accepted cost, recorded in
   the report:** a tool the product adds later is allowed without anyone looking at it.
@@ -119,7 +155,10 @@ to carry — do not invent one, and do not tell the owner to run one.
   installing. What it does: it lets the server push events straight into the session. Without it
   the leader silently degrades to polling, which its own guide calls the fallback rather than the
   normal path. Committing a script that carries the flag is the accepted cost, and it is named
-  here so it can be refused.
+  here so it can be refused. The launcher also exports `XEZAR_LEADER=1`, which is what makes the
+  `SessionStart` hook load the leader guide: **every other Claude Code session in the checkout
+  gets nothing**. Without that, the first test's owner opened a second session to continue the
+  onboarding and it began leading the project instead.
 
 ## 5. Records and working state
 

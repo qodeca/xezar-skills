@@ -13,7 +13,7 @@ You are the `changelog` step of the `release` workflow (Worktree ON). Read docs/
 
 | Key | Values | Meaning |
 |---|---|---|
-| `bump` | `patch`, `minor`, `major` | Required unless `version` is given. The target is `bump` applied to the version in `packages/xezar/package.json` on `origin/main`. |
+| `bump` | `patch`, `minor`, `major` | Required unless `version` is given. The target is `bump` applied to the version in `package.json` on `origin/main`. |
 | `version` | `X.Y.Z` | Optional explicit target. When both are given they must agree, otherwise write `BLOCKED` and stop. |
 | `dry-run` | `true` | Optional. Ignored here (this step never pushes anyway); the publish step stops before dispatching. |
 
@@ -25,10 +25,10 @@ Record the resolved target, the tag you measured from and the brief itself in `r
 git fetch --quiet origin main --tags                         # a fresh worktree has no tags yet
 git describe --tags --abbrev=0 --match 'v*' origin/main     # last release tag, e.g. v0.11.1
 git log -1 --format=%cI "$(git describe --tags --abbrev=0 --match 'v*' origin/main)"   # its date
-git show origin/main:packages/xezar/package.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version'
+git show origin/main:package.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version'
 ```
 
-Sanity rules. The version in `packages/xezar/package.json` on `origin/main` may still be one behind npm when the previous `release/v<n>` bump PR has not merged (that happened on 0.11.1). Compare against `npm view @qodeca/xezar version` and the newest dated heading in CHANGELOG.md; when the manifest is behind, the target you write must be the next version after what npm serves, and you must say so in `release.json` so the publish step can refuse a duplicate bump. Never guess: when tag, manifest, npm and changelog cannot be reconciled into one target, write `BLOCKED` with the four values and stop.
+Sanity rules. The version in `package.json` on `origin/main` may still be one behind npm when the previous `release/v<n>` bump PR has not merged (that happened on 0.11.1). Compare against `npm view @qodeca/xezar version` and the newest dated heading in CHANGELOG.md; when the manifest is behind, the target you write must be the next version after what npm serves, and you must say so in `release.json` so the publish step can refuse a duplicate bump. Never guess: when tag, manifest, npm and changelog cannot be reconciled into one target, write `BLOCKED` with the four values and stop.
 
 ## 2. Collect the PRs
 

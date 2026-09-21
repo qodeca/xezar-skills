@@ -1,11 +1,11 @@
 name: Bug report
-description: Something in xezar does not work as documented.
-labels: ["bug"]
+description: Something in {{PRODUCT}} does not work as documented.
+labels: ['bug']
 body:
   - type: markdown
     attributes:
       value: |
-        **Security problem?** Do not use this form. Report it privately – see [SECURITY.md](https://github.com/qodeca/xezar/blob/main/SECURITY.md).
+        **Security problem?** Do not use this form. Report it privately – see the repository's SECURITY.md.
 
         Please remove tokens, keys and private paths from anything you paste below.
   - type: textarea
@@ -25,9 +25,9 @@ body:
     id: reproduction
     attributes:
       label: How to reproduce
-      description: The smallest set of steps that shows the problem, starting from `xezar` in a repository.
+      description: The smallest set of steps that shows the problem, the exact commands you ran and what they printed.
       placeholder: |
-        1. cd into a repository and run `xezar`
+        1. ...
         2. ...
         3. ...
     validations:
@@ -35,8 +35,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: xezar version
-      description: The output of `xezar --version`.
+      label: '{{PRODUCT}} version'
     validations:
       required: true
   - type: input
@@ -46,49 +45,10 @@ body:
       placeholder: macOS 15.5, Ubuntu 24.04, Windows 11 + WSL2, ...
     validations:
       required: true
-  - type: input
-    id: node
-    attributes:
-      label: Node version
-      description: The output of `node --version`.
-    validations:
-      required: true
-  - type: dropdown
-    id: backend
-    attributes:
-      label: Agent backend
-      description: Which agent the failing task used. Pick every one that shows the problem.
-      multiple: true
-      options:
-        - claude (Claude Code)
-        - codex (Codex)
-        - opencode (OpenCode)
-        - pi
-        - none – the problem is not in an agent run
-    validations:
-      required: true
-  - type: dropdown
-    id: dry-run
-    attributes:
-      label: Was XEZ_DRY_RUN set?
-      description: "`XEZ_DRY_RUN=1` replaces the real agent CLIs with a bundled mock."
-      options:
-        - "No"
-        - "Yes – XEZ_DRY_RUN=1"
-        - "I do not know"
-    validations:
-      required: true
-  - type: checkboxes
-    id: visual
-    attributes:
-      label: Visual discrepancy
-      description: Tick this when the cockpit looks different from what `docs/design-system/` documents. A maintainer labels it `design-debt` at triage.
-      options:
-        - label: Visual discrepancy – it looks different from `docs/design-system/`
   - type: textarea
     id: extra
     attributes:
       label: Anything else
-      description: Logs, screenshots, the workflow you used, or when the problem started.
+      description: Logs with secrets removed, or when the problem started.
     validations:
       required: false

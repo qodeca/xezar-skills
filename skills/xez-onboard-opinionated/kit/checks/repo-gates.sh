@@ -69,6 +69,12 @@ GATE_COMMANDS=(
   "npm run test:package"
   ".xezar/checks/repository-checks.sh"
 )
+# Which application gates may run side by side, as one-based positions in the list above: lanes
+# separated by `;`, gates inside a lane by `,` and run in that order. A gate that needs another's
+# output (a package test that needs the build) goes after it in the same lane. Empty means one
+# lane, every application gate in list order — slower, and never wrong.
+GATE_APPLICATION_LANES="${GATE_APPLICATION_LANES-3,6,7;4;5}"
+export GATE_APPLICATION_LANES
 
 # The list as JSON, and its digest. Both derived from the arrays above, so they cannot drift
 # from what actually runs.
@@ -279,6 +285,14 @@ case "$security_status" in
     gate_finish failed
     ;;
 esac
-gate_phase application 3 4 5 6 7 || exit 1
-gate_phase serial 8 || exit 1
+# The phases are derived from the list, never numbered by hand: gate 1 is the install, gate 2 the
+# security stage, the LAST gate the repository-check tail, and everything between is the
+# application phase. A project with five application gates or nine gets the same three lines.
+GATE_LAST=${#GATE_NAMES[@]}
+GATE_APPLICATION=()
+for ((gate_i = 3; gate_i < GATE_LAST; gate_i++)); do GATE_APPLICATION+=("$gate_i"); done
+if [ "${#GATE_APPLICATION[@]}" -gt 0 ]; then
+  gate_phase application "${GATE_APPLICATION[@]}" || exit 1
+fi
+gate_phase serial "$GATE_LAST" || exit 1
 gate_finish passed
