@@ -14,8 +14,12 @@ untrusted-content boundary in `references/agentic-setup.md` governs it like any 
 
 1. **A refusal is a finding, not an error to retry.** Read it once and stop calling. Do not guess
    argument shapes either: an "Unrecognized key" answer means read the tool's own description for
-   that action, and one corrected call is the limit. The first audited run sent four shapes of one
-   call and learned only on the fourth that the action was refused whatever the shape.
+   that action, and one corrected call is the limit. **An argument complaint can be hiding a
+   refusal.** On engine 0.16.0 an action that was refused outright still validated its arguments
+   first, so a call that could never have been allowed came back as `Unrecognized keys` — and the
+   first audited run spent four shapes learning that. Engine 0.18.0 answers the refusal first and
+   lists the keys an action accepts. So on an older engine, treat a second argument complaint on
+   the same action as a probable refusal and go to step 2, rather than shaping a third call.
 2. **Try the engine's own way first.** A newer engine may allow what an older one refused — adding
    an account with its account tool, switching a provider off for *this project* in
    single-project mode (`references/verify.md` §3). An engine tool that works is always preferred
