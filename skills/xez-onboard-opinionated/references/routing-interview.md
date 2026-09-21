@@ -59,13 +59,13 @@ Eight classes cover the rows:
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
 | mechanical | tracker-only work, evidence passes, mechanical docs edits, root-sync | the cheapest lane that can be trusted with it |
-| writing | docs with real writing, analysis, specs, research, business analysis | quality of prose over cost |
-| design | designing a surface, and reviewing a design | a lane that can actually **see** a screen |
+| writing | docs with real writing, analysis, specs, research, business analysis, architecture decisions, spikes, deprecation plans | quality of judgement and prose over cost |
+| design | designing a surface, its visual layer, the design system, and reviewing a design | a lane that can actually **see** a screen |
 | visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |
-| implementation | bounded fixes, multi-file work, UI work, kit refactors, conflicts, merge chains, dependencies | the working horse of the project |
+| implementation | bounded fixes and hotfixes, multi-file work, UI work, refactors, migrations, observability, localisation, conflicts, merge chains, dependencies | the working horse of the project |
 | testing | automated UI tests, integration tests, the regression suite, performance and load | who can be trusted to write a test that fails for the right reason |
-| review | scoped re-checks, full cold reviews, review responses, browser QA | who is allowed to judge whose work |
-| security and release | security-sensitive review, verifying a strong claim, the release role | the strongest lane, and never the author's |
+| review | scoped re-checks, full cold reviews, review responses, browser QA, architecture review, acceptance verification | who is allowed to judge whose work |
+| security and release | security-sensitive review, verifying a strong claim, the release role, deploy and rollback | the strongest lane, and never the author's |
 
 **Why design and visuals are their own classes.** They were rows inside `writing` and `review`, and
 that made the wrong lane look acceptable. Design work needs a lane that can look at a screen, which

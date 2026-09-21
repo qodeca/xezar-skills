@@ -214,11 +214,27 @@ Never copied, because each depends on an answer:
   A section with nothing true to say gets one honest line — "this project has no release process
   yet" — not invented content. The guide is read after every compaction, so a padded section costs
   tokens forever.
-- **`.xezar/docs/model-routing.md`** — from the routing interview.
+- **`.xezar/docs/model-routing.md`** — from the routing interview. One line per row of
+  `references/routing-rows.md`, and **every column of the row survives**: the task kind, the
+  **workflow file**, the trigger sentence, the class, the row's own bans, and the chain the owner
+  confirmed. The leader picks a workflow by matching a trigger in this document, so a row written
+  without its workflow is a kind of work the leader can recognise and cannot start. Carry over the
+  global prohibitions, the rule for two matching triggers and the look-alike pairs as well — they
+  are how the leader chooses between rows, not commentary.
 - **`SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`** — generated together from the confirmed gate list
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
   boundary** in plain words, and the routing table sends any diff touching them to the
   security-review row: the risk is not removed, it is made visible and routed.
+
+  The kit's workflows and role skills cite `SDLC.md` sections **by name**, so the generated file
+  carries each of these headings, with this project's position under it in a sentence or two:
+  The QA gate · The design gate · Review loop · Self-review inside the author phase, and the
+  repair counters · The QA and design self-verification exceptions · Security review ·
+  Architecture review · Acceptance · Deploy authority. A heading the kit cites and the file lacks
+  is a dead reference in every run that reaches it. Under each conditional one — the design gate,
+  deploy, performance, localisation — say in one plain sentence whether it is awake in this
+  project, that its parts are installed either way, and the one line that flips it
+  (`references/analysis.md` §3 has the reason).
 - **`BACKWARD_COMPATIBILITY.md`** — the kit's checks, workflows and role skills point at it from
   twenty-odd places, so a project without one gets dead references in every review. Generate it
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
