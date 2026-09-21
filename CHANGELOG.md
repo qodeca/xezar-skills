@@ -1,5 +1,18 @@
 # Unreleased
 
+## Changed
+
+- **The interview is five screens, not eighteen asks.** It said "seven sections", which hid four
+  asks inside `lanes` and six inside `routing`; a real run answered fourteen of them one at a time,
+  most of them confirming facts the analysis had already read off the repository. Now: one screen
+  confirming every detected fact with its evidence, the gate commands alone (the most-consumed
+  answer, and the one most likely wrong on an untested stack), one lane table, the five routing
+  classes together, and the expanded rows. `--section` takes `facts`, `gates`, `lanes`, `routing`,
+  `table`; the old names resolve or explain themselves.
+- **Two questions are gone.** `seeding` was asked and read by nothing at all. The branching *model*
+  is inferred from the branch set and shown as an inference — the case the old "ask, do not infer"
+  rule guarded against was reading a policy out of a workflow file, which this is not.
+
 ## Added
 
 - **The run now offers the merge instead of stopping at it.** With the engine's tools loaded and

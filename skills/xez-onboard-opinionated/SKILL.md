@@ -27,8 +27,9 @@ rest.
 - `--resume` — continue an interview that was interrupted. Also the default behaviour when an
   interview state file is found; the flag only skips the "found one, continue?" question.
 - `--restart` — discard the saved interview and start over. Never implied.
-- `--section <name>` — re-ask one answered section (`branching`, `gates`, `design`, `leader`,
-  `lanes`, `routing`, `seeding`) and leave the rest alone.
+- `--section <name>` — re-ask one answered screen (`facts`, `gates`, `lanes`, `routing`, `table`)
+  and leave the rest alone. The old names still work: `branching`, `design` and `leader` resolve to
+  `facts` and say so; `seeding` reports that the question is gone.
 - `--verify` — finish a run whose setup pull request is open or merged: protection, the smoke
   test and the report. Also what a plain re-run does when it finds an unfinished one.
 
@@ -54,10 +55,12 @@ rest.
    reads the state the setup lands on: whether the base branch is green today, what CI runs
    that no gate covers, and which linters or licence checks scan the folders it will add.
 
-3. **Interview the owner** — follow `references/interview.md`. Every answer is saved to
+3. **Interview the owner** — follow `references/interview.md`. **Five screens**: confirm the
+   detected facts in one screen, the gate commands alone, the lane table, the five routing classes
+   together, the expanded rows. Every answer is saved to
    `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
    resumes rather than restarting. Detected facts are shown as proposals to confirm or correct,
-   never as decisions already taken.
+   never as decisions already taken — a confirmation screen is still a confirmation.
 
 4. **Build the routing table with the owner** — follow `references/routing-interview.md`. The
    table is *not* shipped as a fixed file: preference chains are built from the lanes this
@@ -115,7 +118,8 @@ rest.
 - **One interview, resumable, revisable.** A resumed run shows what was already answered and
   lets the owner change an earlier answer before continuing. Without that, a long interview is
   answered by pushing through, and the questions pushed through are the late ones — which are
-  the unattended-safety ones.
+  the unattended-safety ones. The interview is short for the same reason: it asks about decisions,
+  and confirms detected facts together in one screen rather than one at a time.
 - **No personal identity reaches a committed file.** Account names, profile values and absolute
   paths belong in the gitignored half of the manifest; the committed half records the *shape* of
   the answers — which lanes exist, not which accounts.

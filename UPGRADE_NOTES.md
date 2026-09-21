@@ -17,6 +17,24 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-21 – `--section leader` says there is no such screen
+
+Applies to anyone who learned this skill's arguments before the interview was shortened.
+
+**Symptom – `/xez-onboard-opinionated --section leader` (or `branching`, `design`, `seeding`) is
+not a screen any more.** The interview used to be seven sections holding eighteen separate asks.
+It is now five screens: `facts`, `gates`, `lanes`, `routing`, `table`.
+
+**What to do.** Nothing, unless you have the old names written down somewhere. They still work:
+`branching`, `design` and `leader` resolve to `facts` and say so, and `seeding` tells you the
+question is gone. Update a note or a runbook that names them, so the alias does not have to live
+forever.
+
+**What you lose by skipping it.** Nothing today. The aliases exist so a habit does not break; the
+one thing they will not do is re-ask a screen that no longer exists, which is why `seeding` reports
+rather than silently doing nothing. `seeding` asked whether the routing table started with day-one
+preferences filled in, and nothing in the setup ever read the answer.
+
 ## 2026-09-21 – your `.xezar/` names the engine project's own files
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.2.0 or 1.3.0.

@@ -48,7 +48,13 @@ consequences worth stating in the interview:
 
 ## How to ask without twenty-six questions
 
-Ask **per task class**, then expand. Five classes cover the rows:
+**One screen, five classes, then expand.** Each class gets a proposed chain — strongest to cheapest
+among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
+and the owner confirms or reorders all five together. Five separate screens was the old shape and
+bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
+for having answered the third.
+
+Five classes cover the rows:
 
 | class | rows it covers | what the owner is really choosing |
 |---|---|---|
@@ -61,9 +67,10 @@ Ask **per task class**, then expand. Five classes cover the rows:
 The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
 expansion is a lookup rather than a judgement.
 
-The owner ranks the available lanes once per class. The skill expands that into the full row set,
-applies the global prohibitions, and then **shows the whole table for row-level edits**. Most
-rows will be right; the two or three that are not are exactly the ones worth a minute.
+The owner confirms or reorders the five proposed chains on that one screen. The skill then expands
+them into the full row set, applies the global prohibitions, and **shows the whole table for
+row-level edits** — the last screen of the interview. Most rows will be right; the two or three
+that are not are exactly the ones worth a minute.
 
 ## Budget is not in this table
 
