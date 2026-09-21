@@ -1,23 +1,25 @@
 ---
-name: xezar-bug-investigation
-description: Diagnose and repair a bug
+name: xezar-refactor
+description: Change the structure of code without changing what it does
 ---
 
-# Diagnose and repair a bug
+# Refactor without changing behaviour
 
-This is the workflow's only writing step: read run/history evidence first, reproduce on the relevant release/current revision, add the red test, apply the fix, run focused tests, and commit with `bash .xezar/checks/worktree-git.sh commit -m "fix: ..."` before ending with `XEZ:DONE`. Ending after a diagnosis alone fails readiness. Show the root cause, smallest fix and regression failing without the fix; preserve load-bearing timeout/lock/default-path effects, and separate guards that pass both ways from the test that catches the bug.
+You change how the code is built and nothing about what it does. `xezar-implementation` adds and changes behaviour; your whole job is that a person using the product, and a program calling it, cannot tell you were here. The moment the request needs a behaviour change, say so and stop — that is a different workflow, and mixing the two is how a "cleanup" ships a bug nobody reviewed.
 
-Inputs: original trigger, affected release and predecessor evidence. Output: reproduced cause, minimal repair and red-without-fix proof distinguished from passing controls. If reproduction is unavailable, report unconfirmed hardening rather than claiming the original incident fixed.
+## The proof is the tests you did not touch
 
-## Hotfix mode
+1. **Run the tests before you start and keep the result.** They are your definition of "what it does". Where the code you are about to move has no tests, write characterisation tests **first**, in their own commit, that pin what it does today — including the behaviour that looks wrong. Then refactor against them.
+2. **The same tests pass after, unchanged.** A test you had to edit to stay green is evidence that behaviour changed. The only edits allowed in an existing test are mechanical ones the move forces — an import path, a renamed symbol — and each is listed in the handoff.
+3. **Small steps, each one green.** One kind of change per commit: a rename, an extraction, a move. A reviewer should be able to check each by reading it, and you should be able to stop after any of them.
+4. **Public surfaces do not move.** Read `BACKWARD_COMPATIBILITY.md`. An exported name, a command, a flag, an output shape, a config key, a file location somebody depends on: renaming or relocating one of those is a breaking change wearing a refactor's name. Keep the old one working or stop and ask.
+5. **Performance is behaviour.** A structure change on a hot path gets measured before and after; "it should be the same" is not a measurement.
 
-The `hotfix` workflow runs this skill when the fault is **live**: people are hitting it now, and waiting for the full fix costs more than shipping a narrow one. Everything above still holds — reproduce, red test first, the smallest fix, the proof it fails without it. Hotfix mode changes three things and relaxes none.
+## What you leave alone
 
-1. **The fix is the narrowest change that stops the harm**, even when it is not the right fix. Guard the bad input, turn the feature off behind its existing switch, restore the previous behaviour. Say plainly which of those you did. Anything wider — the refactor that would have prevented it, the second bug you noticed on the way — is not in this change.
-2. **A follow-up issue is part of done.** Before you end, file it through the tracker's **create-issue** operation: what the narrow fix leaves unsolved, the full fix as you understand it, and the link to this PR. Put its number in the PR body. A hotfix with no follow-up is a workaround nobody will ever revisit.
-3. **Nothing is skipped to go faster.** The gates run. Cold review still applies, and security review where the diff touches a trust boundary. If the owner decides a review may follow the merge and not precede it, that is the owner's decision: quote their words in the follow-up issue, by name. You never grant yourself that, and urgency is not authority.
+Do not fix the bug you found on the way: write it down, with the characterisation test that shows it, and hand it back as a finding. Do not upgrade a dependency, reformat files you did not otherwise touch, or add an abstraction for a second use that does not exist yet. Do not delete code you believe is unused without showing how you know.
 
-This kit forks every task from the configured base branch, so hotfix mode serves a project that releases from that branch. Where the live fault is on a separate release branch, say so in your first line and stop: carrying a fix across branches is the owner's call and the `integration` role's work, not something to improvise under pressure.
+Inputs: what to restructure and why the current shape is a problem. Output: the commits in order, the before and after test results, every mechanical test edit, any measured hot path, and the bugs and oddities you preserved on purpose. Run the focused tests and the typecheck for what you touched; the workflow's gates run the rest.
 
 ## Shared contract
 

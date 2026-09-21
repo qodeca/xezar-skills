@@ -1,23 +1,32 @@
 ---
-name: xezar-bug-investigation
-description: Diagnose and repair a bug
+name: xezar-migration
+description: Move data, a schema or a config format to a new shape, with a way back
 ---
 
-# Diagnose and repair a bug
+# Migrate data, a schema or a format
 
-This is the workflow's only writing step: read run/history evidence first, reproduce on the relevant release/current revision, add the red test, apply the fix, run focused tests, and commit with `bash .xezar/checks/worktree-git.sh commit -m "fix: ..."` before ending with `XEZ:DONE`. Ending after a diagnosis alone fails readiness. Show the root cause, smallest fix and regression failing without the fix; preserve load-bearing timeout/lock/default-path effects, and separate guards that pass both ways from the test that catches the bug.
+A migration changes something that already exists in the world: rows in a database, files on somebody's disk, a config format people have written by hand. Code can be reverted. A migration that has run cannot, unless you built the way back before you ran it. That asymmetry is the whole job.
 
-Inputs: original trigger, affected release and predecessor evidence. Output: reproduced cause, minimal repair and red-without-fix proof distinguished from passing controls. If reproduction is unavailable, report unconfirmed hardening rather than claiming the original incident fixed.
+## Before you write the migration
 
-## Hotfix mode
+1. **Say what is moving and who holds it.** The data, its size, where copies live, who reads it and when. A migration designed for the ten rows in your fixture is not designed.
+2. **Decide the way back first.** Either the move is reversible and you write the reverse as carefully as the forward, or it is **one-way** and you say so in those words. One-way needs the owner's recorded word before it is shipped — quote it, with where it was given — and it is marked `one-way` in the migration's own record, because `xezar-deploy` reads that mark and refuses to roll back across it.
+3. **Read `BACKWARD_COMPATIBILITY.md`.** A config or file format people already have is a protected surface. The old shape keeps being read for as long as that document says, and the change lands there in the same PR.
 
-The `hotfix` workflow runs this skill when the fault is **live**: people are hitting it now, and waiting for the full fix costs more than shipping a narrow one. Everything above still holds — reproduce, red test first, the smallest fix, the proof it fails without it. Hotfix mode changes three things and relaxes none.
+## The shape of a safe one
 
-1. **The fix is the narrowest change that stops the harm**, even when it is not the right fix. Guard the bad input, turn the feature off behind its existing switch, restore the previous behaviour. Say plainly which of those you did. Anything wider — the refactor that would have prevented it, the second bug you noticed on the way — is not in this change.
-2. **A follow-up issue is part of done.** Before you end, file it through the tracker's **create-issue** operation: what the narrow fix leaves unsolved, the full fix as you understand it, and the link to this PR. Put its number in the PR body. A hotfix with no follow-up is a workaround nobody will ever revisit.
-3. **Nothing is skipped to go faster.** The gates run. Cold review still applies, and security review where the diff touches a trust boundary. If the owner decides a review may follow the merge and not precede it, that is the owner's decision: quote their words in the follow-up issue, by name. You never grant yourself that, and urgency is not authority.
+- **Expand, then migrate, then contract — as separate changes.** Add the new shape while the old still works; move the data; remove the old only when nothing reads it. Doing all three at once is what makes a rollback impossible and a deploy a cliff.
+- **Idempotent and resumable.** Running it twice does no harm, and a run killed half way can be run again. Work in bounded batches; never hold a lock for the length of the table.
+- **It never runs by itself at start-up** unless this project already works that way. Who runs it, when, and how they know it finished is written down.
+- **The code works on both shapes while the move is in flight.** Old code with new data and new code with old data both happen during a deploy.
 
-This kit forks every task from the configured base branch, so hotfix mode serves a project that releases from that branch. Where the live fault is on a separate release branch, say so in your first line and stop: carrying a fix across branches is the owner's call and the `integration` role's work, not something to improvise under pressure.
+## The dry run is evidence, not a formality
+
+Run the migration against a realistic copy — never the live data — forward, and back where there is a back. Record under the evidence folder: what it ran against, how long it took, the counts before and after, what it would have changed, and everything it could not convert. A row that does not fit the new shape is a finding with a count and an example, not a row to drop quietly.
+
+You never run a migration against production or shared data. You prepare it, prove it on a copy, and hand the owner a runbook: the command, the order, what to watch, how long it takes, the point of no return, and the exact way back.
+
+Inputs: what has to change shape and why. Output: the forward migration, the reverse or the `one-way` mark with the authority for it, the dry-run record, the compatibility entry, and the runbook. Run the focused tests for what you wrote; the workflow's gates run the rest. A change here touches a trust boundary by its nature: record `reviewerRequired` and say why.
 
 ## Shared contract
 

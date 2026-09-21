@@ -1,23 +1,31 @@
 ---
-name: xezar-bug-investigation
-description: Diagnose and repair a bug
+name: xezar-localisation
+description: Make text translatable and add or maintain a locale the project has listed
 ---
 
-# Diagnose and repair a bug
+# Localise the product
 
-This is the workflow's only writing step: read run/history evidence first, reproduce on the relevant release/current revision, add the red test, apply the fix, run focused tests, and commit with `bash .xezar/checks/worktree-git.sh commit -m "fix: ..."` before ending with `XEZ:DONE`. Ending after a diagnosis alone fails readiness. Show the root cause, smallest fix and regression failing without the fix; preserve load-bearing timeout/lock/default-path effects, and separate guards that pass both ways from the test that catches the bug.
+You make the product speak the languages the owner has chosen. The list is `localisation.locales` in `.xezar/pipeline/config.json`, and the workflow's guard step has already refused to start if it is empty. You add a locale that is on the list and you never invent one that is not: which markets a product serves is the owner's decision, and a half-translated language shipped by accident is worse than none.
 
-Inputs: original trigger, affected release and predecessor evidence. Output: reproduced cause, minimal repair and red-without-fix proof distinguished from passing controls. If reproduction is unavailable, report unconfirmed hardening rather than claiming the original incident fixed.
+## Make the text translatable first
 
-## Hotfix mode
+1. **No user-facing string lives in code.** Extract each into the message catalogue this project already uses, under a key that names its meaning and place, never its English words.
+2. **Never build a sentence out of pieces.** Word order differs between languages, so concatenated fragments cannot be translated. One message per sentence, with named placeholders.
+3. **Plurals, gender and lists go through the message format's own rules.** English has two plural forms; Polish has four, Arabic six. An `if count == 1` is a bug in most of the world.
+4. **Dates, numbers, currencies and sort order come from the locale**, through the platform's own formatting. Never format by hand.
+5. **Give the translator context**: a description for every message that is short, ambiguous or carries a placeholder. "Open" the verb and "Open" the state are different words almost everywhere.
 
-The `hotfix` workflow runs this skill when the fault is **live**: people are hitting it now, and waiting for the full fix costs more than shipping a narrow one. Everything above still holds — reproduce, red test first, the smallest fix, the proof it fails without it. Hotfix mode changes three things and relaxes none.
+## Add or maintain a locale
 
-1. **The fix is the narrowest change that stops the harm**, even when it is not the right fix. Guard the bad input, turn the feature off behind its existing switch, restore the previous behaviour. Say plainly which of those you did. Anything wider — the refactor that would have prevented it, the second bug you noticed on the way — is not in this change.
-2. **A follow-up issue is part of done.** Before you end, file it through the tracker's **create-issue** operation: what the narrow fix leaves unsolved, the full fix as you understand it, and the link to this PR. Put its number in the PR body. A hotfix with no follow-up is a workaround nobody will ever revisit.
-3. **Nothing is skipped to go faster.** The gates run. Cold review still applies, and security review where the diff touches a trust boundary. If the owner decides a review may follow the merge and not precede it, that is the owner's decision: quote their words in the follow-up issue, by name. You never grant yourself that, and urgency is not authority.
+Use this project's existing localisation library and file layout; do not add a second. Fill the catalogue for the locale completely or mark plainly what is missing — and add the check that fails when a key exists in the source language and not in a listed locale, if the project does not have it yet.
 
-This kit forks every task from the configured base branch, so hotfix mode serves a project that releases from that branch. Where the live fault is on a separate release branch, say so in your first line and stop: carrying a fix across branches is the owner's call and the `integration` role's work, not something to improvise under pressure.
+**Say where each translation came from.** A translation you wrote is a machine draft: mark it as one, in the catalogue's own metadata where the format allows and in the handoff always, and say that a fluent speaker has not reviewed it. Never present a draft as reviewed. Legal text, consent wording and anything a person relies on to make a decision is never shipped on a machine draft alone: list it for the owner.
+
+## The interface has to survive it
+
+Translated text is longer — often by a third — and some scripts run right to left. Check the screens that changed in a real browser per this project's browser descriptor (`.xezar/pipeline/browsers/`), at 375px and at desktop width, in the longest locale on the list and in a right-to-left one where the list has one: nothing truncated, nothing overlapping, nothing scrolling sideways. An unavailable browser is reported as that, not as a pass. Do not shorten a translation to fit a layout; the layout is what gives.
+
+Inputs: the surface to localise or the locale to add. Output: the extracted messages with their context, the catalogue changes, which strings are machine drafts and which need a human before they ship, the missing-key check, and what you saw in the browser. Run the focused tests for what you wrote; the workflow's gates run the rest.
 
 ## Shared contract
 

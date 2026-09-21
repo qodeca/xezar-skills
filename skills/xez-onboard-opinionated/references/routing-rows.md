@@ -32,7 +32,7 @@ Stated once here, never repeated per row. They apply to every row and they overr
 3. **A cloud-lane write needs another vendor's review** before it can merge.
 4. **A high-risk change needs a different account *and* a different vendor** from the author.
 
-## The thirty-five rows
+## The forty rows
 
 | # | Task kind | Workflow | Trigger | Class | Never |
 |---|---|---|---|---|---|
@@ -71,6 +71,11 @@ Stated once here, never repeated per row. They apply to every row and they overr
 | 33 | Integration tests: two real parts across a boundary | `integration-tests.yaml` | The thing to prove is that two parts work together — a handler and its database, a client and an API, a command and the file system — not that one part works alone. | testing | a locally hosted lane |
 | 34 | Regression suite: curated | `regression-suite.yaml` | The job is the suite that pins past bugs: fixes with no test that fails without them, tests that guard nothing, or a test to retire. | testing | the cheapest lanes — a test that passes either way looks exactly like a good one |
 | 35 | Performance and load: measured against a budget | `performance.yaml` | The question is whether something is fast enough, and the owner has stated the budget it answers to. | testing | a lane on a shared or noisy machine; a locally hosted lane |
+| 36 | Hotfix: a live fault, the narrowest fix now | `hotfix.yaml` | People are hitting the fault right now, and waiting for the full fix costs more than shipping a narrow one and following up. | implementation | a lane with a known weakness on small precise edits; a locally hosted lane |
+| 37 | Refactor: structure changes, behaviour does not | `refactor.yaml` | The product's code has to be restructured and nothing a user or a caller can observe may change. | implementation | a locally hosted lane; a single mid lane with no review |
+| 38 | Migration: data, a schema or a format changes shape | `migration.yaml` | Something that already exists outside the code — rows, files, a config people wrote by hand — has to move to a new shape. | implementation | a locally hosted lane; the cheapest lanes — it cannot be reverted the way code can |
+| 39 | Observability: logs, metrics, alerts, runbooks | `observability.yaml` | People cannot tell what a part of the system is doing, and the change adds signals and changes no behaviour. | implementation | a locally hosted lane |
+| 40 | Localisation: translatable text, a listed locale | `localisation.yaml` | Text has to become translatable, or a language the owner has listed has to be added or brought up to date. | implementation | a lane that cannot see pictures — a translated layout has to be looked at |
 
 **When two triggers both match, take the more specific row.** Several rows overlap on purpose —
 row 25 (security-sensitive) is a *subset* of row 21 (full cold review), and row 26 is a subset of

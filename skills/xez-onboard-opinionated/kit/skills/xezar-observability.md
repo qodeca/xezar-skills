@@ -1,23 +1,34 @@
 ---
-name: xezar-bug-investigation
-description: Diagnose and repair a bug
+name: xezar-observability
+description: Add the logs, metrics and alerts that show what a part of the system is doing
 ---
 
-# Diagnose and repair a bug
+# Make a part of the system observable
 
-This is the workflow's only writing step: read run/history evidence first, reproduce on the relevant release/current revision, add the red test, apply the fix, run focused tests, and commit with `bash .xezar/checks/worktree-git.sh commit -m "fix: ..."` before ending with `XEZ:DONE`. Ending after a diagnosis alone fails readiness. Show the root cause, smallest fix and regression failing without the fix; preserve load-bearing timeout/lock/default-path effects, and separate guards that pass both ways from the test that catches the bug.
+You add what lets a person who was not there work out what happened: logs, metrics, traces, alerts, and the page that says what to do when an alert fires. You change no behaviour. If the product does something different after your change, other than report on itself, you have gone too far.
 
-Inputs: original trigger, affected release and predecessor evidence. Output: reproduced cause, minimal repair and red-without-fix proof distinguished from passing controls. If reproduction is unavailable, report unconfirmed hardening rather than claiming the original incident fixed.
+Start from the question somebody will ask at the worst moment — is it up, is it slow, is it wrong, who is affected, since when — and work back to the signal that answers it. An instrument that answers no question is noise somebody pays to store.
 
-## Hotfix mode
+## Logs
 
-The `hotfix` workflow runs this skill when the fault is **live**: people are hitting it now, and waiting for the full fix costs more than shipping a narrow one. Everything above still holds — reproduce, red test first, the smallest fix, the proof it fails without it. Hotfix mode changes three things and relaxes none.
+- **Structured, one event per line, at the level that matches who must act.** An error is something a person must look at; a condition the code handled is not an error.
+- **Every log line carries what connects it to the rest** — the request or job identifier this project already uses. Do not invent a second one.
+- **A field allowlist, not a denylist.** New log statements name the fields they write, one by one. Never log a whole object, a request body, a header set or an environment: that is how a token reaches a log. Denylists fail the day somebody adds a field.
+- **No secrets and no personal data, proved.** Add one redaction test that feeds a secret-shaped and a person-shaped value through the new logging and asserts neither comes out — and watch it fail first, with the redaction removed. When a log statement touches authentication, authorisation or user data, record `reviewerRequired` and say which statement.
 
-1. **The fix is the narrowest change that stops the harm**, even when it is not the right fix. Guard the bad input, turn the feature off behind its existing switch, restore the previous behaviour. Say plainly which of those you did. Anything wider — the refactor that would have prevented it, the second bug you noticed on the way — is not in this change.
-2. **A follow-up issue is part of done.** Before you end, file it through the tracker's **create-issue** operation: what the narrow fix leaves unsolved, the full fix as you understand it, and the link to this PR. Put its number in the PR body. A hotfix with no follow-up is a workaround nobody will ever revisit.
-3. **Nothing is skipped to go faster.** The gates run. Cold review still applies, and security review where the diff touches a trust boundary. If the owner decides a review may follow the merge and not precede it, that is the owner's decision: quote their words in the follow-up issue, by name. You never grant yourself that, and urgency is not authority.
+## Metrics and traces
 
-This kit forks every task from the configured base branch, so hotfix mode serves a project that releases from that branch. Where the live fault is on a separate release branch, say so in your first line and stop: carrying a fix across branches is the owner's call and the `integration` role's work, not something to improvise under pressure.
+Name a metric for what it counts, with its unit, in this project's existing scheme. Keep label values bounded: a user id or a URL as a label is a bill, and eventually an outage of the monitoring itself. Measure at the boundary the user feels, and record the distribution, not the average.
+
+## Alerts
+
+An alert exists because a person must do something now. Each one has an owner, a condition expressed on a symptom the user feels rather than on a cause, a threshold with the reasoning beside it, and **a runbook page**. An alert nobody can act on is removed, not muted.
+
+The runbook page lives under the folder `paths.runbooks` names in `.xezar/pipeline/config.json`; every committed document in this project sits under `docs/`. One page per alert: what it means in one sentence, how to confirm it is real, the first three things to check, how to stop the harm, who to tell. Written for somebody woken at night who has never seen this system.
+
+Use the telemetry libraries and the backend this project already has. Do not add a vendor, an agent or a sidecar on your own authority: a new place that data leaves the system to is the owner's decision, stated as an open question with what it would cost.
+
+Inputs: the part of the system and the questions people need answered about it. Output: the instrumentation, the redaction test and its red proof, the alerts with their thresholds and owners, the runbook pages, and the questions that still cannot be answered. Run the focused tests for what you wrote; the workflow's gates run the rest.
 
 ## Shared contract
 
