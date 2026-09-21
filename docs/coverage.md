@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 62 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 66 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values; inside a vendored `kit/`, paths from the engine's own repository | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 227 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text, and the kit role skills' shared contract, have not drifted across their copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
@@ -31,9 +31,23 @@ rather than trusting this table for a precise number.
 | 19 | Discovery contracts | `test-discovery-contracts.mjs`, invoked by `lint.sh` | ✅ |
 | 20 | A skill actually works end to end under a real coding agent | `test:agent-browser-codex` | ❌ — needs the `codex` CLI and a full-access sandbox |
 | 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
-| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 13 pinned facts | ✅ |
+| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 15 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its nine pinned rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
 | 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a routing row, the maintained-skill list is the skill directory, and every row and class count in prose is the table's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, and runs `config-guard.sh` and `deploy-guard.sh` for real on a throwaway repository; **not** that a workflow runs on an engine |
+| 25 | The gate lease cannot loop, cannot delay `--list`, and never resolves the engine through `npx` | `test-kit-facts.mjs` FACT 15, two break cases in `test-guards.mjs` | ✅ — but read the limit below |
+
+**Row 25 is thinner than it looks, and deliberately so.** What CI checks is the *shape* of the
+lease block: that the re-entry guard exists, that it sits after the `--list` exit, and that no code
+line resolves through `npx`. All three break quietly — the gates still run and nothing goes red —
+which is why they are pinned at all.
+
+What CI does **not** check is that the lease works. It cannot: that needs an engine 0.17.0 or later
+on the machine, and the kit never installs one. Those properties were verified by hand on
+2026-09-21 against engine 0.17.0 — a lease taken from a plain folder, a second project waiting 4s
+for the first, a waiting notice at 30s, the slot released in under 0.2s after a `kill -TERM`, and
+both fail-open paths naming their reason. That is a dated observation, not a gate, and it will not
+notice the day the engine changes the verb. The fail-open contract is what makes that acceptable:
+the worst outcome of the lease silently ceasing to work is the behaviour this kit had before it.
 
 ## What this says
 

@@ -99,6 +99,9 @@ FAST=0
 LIST=0
 AS_JSON=0
 PRODUCER=""
+# Kept because the parse loop below consumes them and the gate lease re-executes this script
+# with exactly what it was called with.
+ORIGINAL_ARGS=("$@")
 while [ $# -gt 0 ]; do
   case "$1" in
     --fast) FAST=1 ;;
@@ -138,6 +141,69 @@ if [ "$LIST" -eq 1 ]; then
     printf '\ncommandListId  %s\n' "$(gate_list_id)"
   fi
   exit 0
+fi
+
+# --- One gate run per machine, by default -----------------------------------------------------
+#
+# Two full gate runs on one machine starve each other, and they fail in suites the change under
+# test never touched. Measured on the engine's own machine: attempt failure was 20% with one
+# concurrent run, 37% at three, 90% at four to five and 100% at six or more. Those are that
+# machine's numbers on that machine's suite, and the two worst buckets rest on single-digit
+# samples - do not quote them as a law. What they establish is the SHAPE: the cliff is steep and
+# it arrives early. This kit makes it arrive earlier than most, because one gate run of its own
+# already fans out - `GATE_APPLICATION_LANES` defaults to three lanes, so two runs is six
+# processes.
+#
+# So the whole run re-executes itself once, holding one of the machine's gate slots. How many run
+# together is the engine's `resources.gateSlots`, default 1; the wait is bounded at 20 minutes and
+# the engine prints both a notice at 30 seconds and the wait it actually paid.
+#
+# WHY A RE-EXEC AND NOT A LOCK AROUND THE PHASES. The lease is held for the lifetime of the
+# process it wraps, so it is released when this script exits - by any path, including a kill, a
+# `set -e` abort or the security stage's early stop. A lock taken inside the script would need an
+# EXIT trap to match, and a released-only-on-the-happy-path lease is worse than none: the next run
+# on this machine queues behind one that finished minutes ago.
+#
+# The slot files live at a fixed machine-wide path (`~/.cache/xez/gate-slots/`) in every engine
+# layout, so runs in DIFFERENT projects contend against the same slots. That is the point.
+#
+# FAIL OPEN, ALWAYS. No engine on PATH, an old engine, an unwritable slot folder, a lease that
+# times out: one loud line, and the gates run anyway. A queueing aid must never become a new way
+# for a working gate to fail.
+if [ -z "${XEZ_GATE_LEASE:-}" ]; then
+  export XEZ_GATE_LEASE=1
+  lease_bin=""
+  lease_why=""
+  repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+  # A project that depends on the engine gets the exact build it pinned. Rare today - the engine
+  # is normally a global install - but it is the strongest identity, so it is tried first.
+  if [ -x "$repo_root/node_modules/.bin/xezar" ]; then
+    lease_bin="$repo_root/node_modules/.bin/xezar"
+  elif command -v xezar >/dev/null 2>&1; then
+    lease_bin="$(command -v xezar)"
+  elif command -v xez >/dev/null 2>&1; then
+    lease_bin="$(command -v xez)"
+  else
+    lease_why="no xezar on PATH and none in this project's node_modules"
+  fi
+  # NEVER `npx`: it would fetch some other build from the registry and lease against a different
+  # build's idea of the slots. A resolved binary cannot do that.
+  if [ -n "$lease_bin" ]; then
+    lease_version="$("$lease_bin" --version 2>/dev/null | tr -d '[:space:]')"
+    case "$lease_version" in
+      0.1[0-6].*|0.[0-9].*|"")
+        lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
+        lease_bin=""
+        ;;
+    esac
+  fi
+  if [ -n "$lease_bin" ]; then
+    # `bash` and an ABSOLUTE path, both deliberate: the engine spawns the wrapped command without
+    # a shell, so a relative `repo-gates.sh` is not resolvable and the exec bit is not guaranteed.
+    # The `+` form keeps an empty array from tripping `set -u` on older bash.
+    exec "$lease_bin" lease gates -- bash "$SCRIPT_DIR/repo-gates.sh" ${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}
+  fi
+  printf 'gate lease     NOT TAKEN (%s) - running unleased\n' "$lease_why" >&2
 fi
 
 resolve_task_paths || exit 1

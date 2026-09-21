@@ -990,3 +990,46 @@ block generator is for text that must be byte-identical everywhere; this rule na
 skill actually writes, so it reads differently in a changelog skill and in a spec skill. If it
 ever needs to be identical, that is the moment to promote it to a shared block, not before.
 
+
+## One gate run per machine, on by default
+
+**Owner: Marcin. Decided 2026-09-21. Review by 2027-03-21.**
+
+`repo-gates.sh` re-executes itself once under `xezar lease gates`, so a second full gate run on
+the same machine waits instead of starting. It is on by default and it is not a config key of
+ours: how many run together is the engine's own `resources.gateSlots`, default 1.
+
+The evidence is the engine project's, measured on one machine: attempt failure was 20% with one
+concurrent gate run, 37% at three, 90% at four to five, 100% at six or more — **in suites the
+change under test never touched**. That last clause is the whole problem. The failures do not look
+like contention; they look like flaky tests in code nobody edited, so they get re-run, re-reported
+and eventually blamed on the change. The two worst buckets rest on single-digit samples and there
+is no after-measurement, so the numbers establish a shape rather than a law. This kit reaches that
+shape sooner than most: one of its gate runs already fans out to three lanes, so two runs is six
+processes.
+
+**Why it is on rather than opt-in**, against the rule that a new default should make an upgrade a
+no-op. A safety device you must discover after being burned is not much of one, and the burn here
+is misdiagnosis rather than a red build. The rule's real target is a *silent* change, and this one
+is not silent: every run prints the slot it took, or that it is waiting and for how long. An
+installed project also never gets it by surprise — a kit never auto-updates, so it arrives only
+when someone copies the new check, with an upgrade note explaining it.
+
+**Why a re-exec rather than a lock around the gate phases.** The lease is held by the process it
+wraps, so it is released when the run ends by *any* path — a kill, an abort, the security stage's
+early stop. A lock taken inside the script would need a matching EXIT trap, and a lease released
+only on the happy path is worse than none: the next run queues behind one that finished minutes
+ago. The re-exec also needs no library file, no record-schema change and no trap. Proven by
+running it: a gate run killed mid-flight released its slot in under 0.2 seconds.
+
+**Fail open, always.** No engine on PATH, an engine older than 0.17.0, an unwritable slot folder,
+a lease that times out — one loud line, and the gates run. A queueing aid must never become a new
+way for a working gate to fail. The engine is resolved from the project's own `node_modules` first
+and PATH second, **never `npx`**: npx would fetch an arbitrary build from the registry and lease
+against a different build's idea of the slots.
+
+**What would make us remove it again.** A measurement on a second machine showing concurrent gate
+runs are fine there, or a change in how the test runner allocates workers that removes the
+contention at its source. Either would make this a tax rather than a guard. Nobody has measured
+the *after* state yet, on any machine — that is the honest gap in this entry, and the review date
+exists because of it.
