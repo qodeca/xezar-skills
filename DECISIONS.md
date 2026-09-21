@@ -520,6 +520,18 @@ rules enforce, no known flakes means no failure is excused, and no design system
 judged against the screens the project already has. A default that guessed would be worse than a
 gap, because it would look configured.
 
+**Superseded in part, 2026-09-21: `ci.knownLoadFlakes` is gone, not merely empty.** The reasoning
+above held that an empty list was the honest default. It was — as far as it went. What it missed is
+that shipping the *mechanism* teaches a project the list is a legitimate answer to a red build,
+and the entry that excuses a failure is always added on the night somebody needs it excused. The
+owner's rule, in their own words (2026-09-20): "All flake tests MUST be fixed / rebuilt to ensure
+no flake(iness)", and "flaky tests must be redesign to a different approach to ensure the are not
+flaky". A flaky test is rebuilt onto a mechanism that cannot fail on timing — never retried, never
+waited out, never named on a list. The kit shipped both the list and a one-rerun rule, and it also
+shipped this project's own fact — "the two known load flakes" — into repositories whose list was
+empty. The key, its record fields and the rerun are removed. `ci.requiredChecks` and
+`paths.designSystem` keep the reasoning above unchanged.
+
 ### A prompt may install what a skill may not
 
 `xez-onboard-opinionated` never installs the engine, and that stands: a setup skill that quietly
@@ -614,6 +626,24 @@ the ledger of deliberate breaks.
 Collapsing the two is how a consumer discovers a removal by having a run fail. The gap
 between the steps is the entire value of the process, so a "deprecated and removed in the
 same release" is a break with a softer word on it.
+
+**Overridden once, deliberately, by the owner on 2026-09-21**, for two items in the same
+pull request: `ci.knownLoadFlakes` and the four `DOGFOOD_*` variable names. The rule above
+is not weakened and no precedent is set — this entry exists so the next reader finds the
+exception instead of the pattern.
+
+The reasoning, so it can be disagreed with. For the flake list, a deprecation step would
+have meant one more release in which a kit teaches a new project that a red build can be
+excused by adding a name to a list. The thing being removed is the *idea*, and a working
+deprecated copy still ships the idea. For the variable names, nothing an installed project
+reads changes until it copies the new check files, so the gap the two-step rule buys is
+already there: the copy is the step. Neither argument generalises — both turn on the
+removed thing being a mechanism nobody should learn, rather than a surface somebody uses.
+
+What was owed anyway is still paid: a row in the ledger of deliberate breaks, and an
+`UPGRADE_NOTES.md` entry per symptom. What is genuinely lost is the warning period, and
+`DOGFOOD_*` fails silently rather than loudly — a project that set one finds it stopped
+working with no message. That is the cost the owner accepted.
 
 ## A worker cap, because a worktree is not a sandbox
 

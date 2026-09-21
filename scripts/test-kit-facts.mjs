@@ -474,6 +474,55 @@ function walk(rel, match) {
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 14 -- the kit carries no practice that belongs to one project only.
+//
+// Two concepts were removed from the kit on 2026-09-21 by owner decision: the dogfooding
+// fragment ledger (this project's own record-keeping habit, which AGENTS.md forbids a skill
+// from assuming) and the known-load-flake list (a register of CI jobs allowed one automatic
+// rerun, which the owner's rule forbids outright).
+//
+// This fact exists because NOTHING ELSE CATCHES THEM COMING BACK. lint.sh's reference gate
+// matches only tokens containing the literal segment `references/`, so a kit pointer at
+// `.xezar/docs/dogfooding.md` never matched it -- which is exactly why that dead pointer
+// shipped in 46 files and survived every gate for four releases. catalog-check.mjs never
+// parses repository-checks.sh, so half a removal passes too. A grep in a plan document is
+// not a gate; this is.
+//
+// Scope: the vendored kit only. CHANGELOG.md, DECISIONS.md, BACKWARD_COMPATIBILITY.md and
+// UPGRADE_NOTES.md are records of what was true then and MUST keep naming both, or the
+// upgrade note cannot tell a reader what to look for.
+{
+  const fact = "FACT 14: the vendored kit carries no dogfooding ledger and no known-flake register";
+  const banned = [
+    ["dogfood", "the dogfooding ledger -- one project's record-keeping habit"],
+    ["knownLoadFlakes", "the known-load-flake register -- a list of CI jobs allowed a rerun"],
+    ["failedJobsAreKnownLoadFlakes", "the record field the one-rerun rule read"],
+  ];
+  const walk = (rel) => {
+    const out = [];
+    for (const e of readdirSync(join(root, rel), { withFileTypes: true })) {
+      const p = `${rel}/${e.name}`;
+      if (e.isDirectory()) out.push(...walk(p));
+      else out.push(p);
+    }
+    return out;
+  };
+  const kit = `${SKILL}/kit`;
+  for (const file of has(kit) ? walk(kit) : []) {
+    const text = read(file).toLowerCase();
+    for (const [needle, what] of banned) {
+      if (text.includes(needle.toLowerCase()))
+        fail(fact, file, `names "${needle}" -- ${what}. It was removed from the kit on 2026-09-21; see DECISIONS.md. A project onboarded tomorrow must not learn it exists.`);
+    }
+  }
+  // The skill's own generator must not write the key back into a new project's config either.
+  const write = read(`${SKILL}/references/write.md`);
+  if (write.includes("knownLoadFlakes"))
+    fail(fact, `${SKILL}/references/write.md`, `still generates ci.knownLoadFlakes into a new project's .xezar/pipeline/config.json`);
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

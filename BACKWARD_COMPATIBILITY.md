@@ -31,6 +31,20 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `deploy.environments`, `deploy.rollback` | `[]`, elements `<environment>=<workflow file>` | `kit/checks/config-guard.sh`, `kit/checks/deploy-guard.sh` — always from the remote's default branch |
 | `performance.budgets` | `[]`, elements `<metric>=p<NN><<limit>@n=<runs>` | `kit/checks/config-guard.sh` |
 | `localisation.locales` | `[]`, locale tags | `kit/checks/config-guard.sh` |
+| `ci.requiredChecks` | `[]`, check names exactly as the check-runs API reports them | `kit/checks/integration-preflight.sh` |
+| `paths.designSystem` | `docs/design-system`, or the project's own | the kit's design role skills |
+
+The two `ci.*` and `paths.designSystem` rows were missing from this table until 2026-09-21,
+although `DECISIONS.md` records all three being created in the same work as the rest. They are
+listed now so the next reader does not have to re-derive whether they are protected. **They are.**
+A third key created alongside them, `ci.knownLoadFlakes`, was removed on the same day — see the
+ledger below, which is what a removal from this list looks like when it is done deliberately.
+
+`config.version` stays at `1`. A version bump signals to a reader that their file may need
+migrating; here nothing on disk does. A config carrying the removed key still parses, still
+validates, and the key is simply never read again — so a bump would send every project looking
+for a migration that does not exist. The removal is recorded in the ledger instead, which is where
+a reader is told what changed.
 
 The line `reversibility: one-way` in a page under `paths.migrations` is read by `deploy-guard.sh`; its spelling is part of the contract.
 
@@ -115,11 +129,14 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Nothing has been broken yet. When something is, it gets a row here on the day it ships:
+Three breaks have shipped, all on one day and all deliberate. Each gets a row here on the day it
+ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-09-21 | `ci.knownLoadFlakes` removed from `.xezar/pipeline/config.json`, with the `knownLoadFlakes` and `failedJobsAreKnownLoadFlakes` fields of `ci-watch.sh`'s `outcome.json` and the one-rerun rule that read them | a project onboarded by `xez-onboard-opinionated` 1.5.0–1.6.1 that copies the new kit checks without the new role skills | copy `kit/skills/xezar-integration.md` in the same pass as `kit/checks/ci-watch.sh`; delete the now-unread key | the mechanism taught a new project that a red build can be excused by naming a job, which is the opposite of the owner's rule that a flaky test is rebuilt, never retried |
+| 2026-09-21 | the `DOGFOOD_GH`, `DOGFOOD_WORKFLOW`, `DOGFOOD_GATE_LOG` and `DOGFOOD_ALLOW_ROOT_BOOTSTRAP` environment variables renamed to `KIT_TEST_*` | anyone whose own tooling sets one of the four; they fail **silently**, not loudly | set the `KIT_TEST_` name instead, after copying the new check files | the word named a practice being removed from the kit entirely, and leaving four variables carrying it would have kept the thing findable and copyable |
+| 2026-09-21 | the dogfooding fragment ledger removed: `kit/checks/dogfooding-fragments.mjs` deleted, its `repository-checks.sh` call removed, the producer sentence dropped from all 37 role skills, and the release role's fold step deleted | a project that has been writing `.xezar/docs/dogfooding.d/` fragments | nothing breaks on its own; the fragments stop being folded, so fold or delete them by hand once | it was one project's record-keeping habit shipped to every other project, and `AGENTS.md` forbids a skill assuming a practice only its home project has |
 
 A row is written **in the PR that ships the break**, never afterwards. "We will document it
 later" has the same success rate everywhere.

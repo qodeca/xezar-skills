@@ -263,6 +263,31 @@ Never copied, because each depends on an answer:
   from what analysis found: the public surfaces this project must not break (a CLI's commands and
   output, a library's exports, a config format), one honest line each. It is in the preview like
   every other generated file.
+- **`SECURITY.md`** — six places in the kit point at it, so a project without one gets a dead
+  reference on its most sensitive path. Two of the six are roles that read it as **input**, not
+  reporters: `xezar-security-review` is told to read it "so you know what this project has
+  promised" before it opens the diff, and `xezar-architecture` weighs a change against it. A file
+  holding only reporter instructions makes the security review's first read a no-op. So four
+  things, each one or two sentences:
+
+  1. **Where to report privately, and which versions are covered.** The private address is already
+     decided: `.github/ISSUE_TEMPLATE/config.yml` routes a reporter to this repository's own
+     security advisories. Name that same route — never invent a second address, or the two
+     documents disagree and the reporter picks one. Say which versions get a fix; "the latest
+     release" is a real answer.
+  2. **What this project does not treat as a vulnerability.** From the interview. A report that
+     names designed behaviour costs a reviewer a day; a project that never writes this down gets
+     that report more than once.
+  3. **What happens if nobody answers.** Blank issues are enabled in the kit's templates *because*
+     this escalation fallback exists (`xezar-issue-create` says so), so the fallback has to be
+     real: who to reach, and after how long.
+  4. **What this project has promised** — its trust boundaries and the surfaces it will not weaken,
+     from the same analysis answers that generate `CODE_REVIEW.md` and `BACKWARD_COMPATIBILITY.md`.
+     This is the half the security-review role actually consumes.
+
+  Write what analysis found and nothing more. A promise this project has not made is worse than a
+  missing line: the review role will spend its verdict defending a boundary nobody built. It is in
+  the preview like every other generated file.
 - **`<paths.designs>/README.md`** — the designs index, written **always**: the design half installs
   whatever the design gate's answer (`references/analysis.md` §3), and the design skill takes every
   feature README's headings from this file, so a project without it has a design workflow with
