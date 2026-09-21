@@ -159,22 +159,68 @@ fi
 # the engine prints both a notice at 30 seconds and the wait it actually paid.
 #
 # WHY A RE-EXEC AND NOT A LOCK AROUND THE PHASES. The lease is held for the lifetime of the
-# process it wraps, so it is released when this script exits - by any path, including a kill, a
-# `set -e` abort or the security stage's early stop. A lock taken inside the script would need an
+# process it wraps, so it is released when this script exits - by any path, including a kill or
+# the security stage's early stop. (This file sets `set -uo pipefail` and deliberately not
+# `set -e`, so there is no `set -e` abort to be had.) A lock taken inside the script would need an
 # EXIT trap to match, and a released-only-on-the-happy-path lease is worse than none: the next run
 # on this machine queues behind one that finished minutes ago.
 #
 # The slot files live at a fixed machine-wide path (`~/.cache/xez/gate-slots/`) in every engine
 # layout, so runs in DIFFERENT projects contend against the same slots. That is the point.
 #
-# FAIL OPEN, ALWAYS. No engine on PATH, an old engine, an unwritable slot folder, a lease that
-# times out: one loud line, and the gates run anyway. A queueing aid must never become a new way
-# for a working gate to fail.
+# FAIL OPEN, ALWAYS - AND THE PROBES ARE WHAT MAKE THAT TRUE. `exec` replaces this script, so
+# after it there is no code of ours left to fall back to: every later failure would reach the
+# caller AS THE GATE VERDICT, with no gates run and an exit code indistinguishable from a real
+# gate failure. So nothing is committed until a probe has proved this binary can actually run the
+# verb with the flags used below. `lease gates` with no command after `--` exits 2 with a usage
+# line WITHOUT taking a slot, so the probe exercises the whole path - the binary runs, the engine
+# boots, `lease` is a verb, `gates` is a known subject and `--status-file` parses - and can never
+# queue behind another run. A fork that does not know the verb, an engine too old for the flag
+# (`parseArgs` is strict, so an unknown option throws), and an engine that dies during boot on a
+# bad setting or a truncated workspace.json all fail the probe, and we run unleased instead.
+#
+# Two fail-open paths are ours and proven here; the other two - an unwritable slot folder and a
+# lease that times out - are the engine's contract and are not exercised by this script.
+#
+# TWO LIMITS THIS SIDE CANNOT CLOSE, written down rather than left to be discovered.
+#   - SIGKILL of the WRAPPER does not stop the gates. The engine spawns this script as a child,
+#     so killing the engine outright skips its release AND orphans a full gate run: the slot is
+#     recovered by pid liveness and handed to a waiter while the orphan is still loading the
+#     machine - the very over-subscription the lease exists to prevent. Killing the gate run
+#     itself is clean; it is only a kill aimed at the wrapper that leaks. Before the lease the
+#     supervisor's direct child WAS this script, so this is a cost the lease introduced.
+#   - `XEZ_GATE_LEASE` set in a shell profile or a CI environment disables leasing for every run
+#     in that environment. It is a re-entry guard, not a designed opt-out, and the engine states
+#     it deliberately offers no env var to turn leasing off.
 if [ -z "${XEZ_GATE_LEASE:-}" ]; then
-  export XEZ_GATE_LEASE=1
   lease_bin=""
   lease_why=""
-  repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+  lease_probe=""
+  # Ask git for the root. `$SCRIPT_DIR/../..` is only true for the installed `.xezar/checks/`
+  # layout; run from the kit source tree it points at the skill folder and probes the wrong
+  # node_modules. Git is the fact, the relative path is the fallback when git is absent.
+  repo_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$repo_root" ] || repo_root="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+
+  # Every probe is time-bounded. A wedged binary - an NFS stall, a shim waiting on stdin, a node
+  # process blocked on a lock - would otherwise hang a command substitution forever, producing no
+  # output and no attempt record, and macOS ships no `timeout(1)` to cut it short.
+  lease_run_bounded() {
+    local secs="$1" out="$2"
+    shift 2
+    "$@" >"$out" 2>&1 &
+    local pid=$! waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+      if [ "$waited" -ge "$secs" ]; then
+        kill -TERM "$pid" 2>/dev/null
+        return 124
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+    wait "$pid"
+  }
+
   # A project that depends on the engine gets the exact build it pinned. Rare today - the engine
   # is normally a global install - but it is the strongest identity, so it is tried first.
   if [ -x "$repo_root/node_modules/.bin/xezar" ]; then
@@ -188,23 +234,97 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
   fi
   # NEVER `npx`: it would fetch some other build from the registry and lease against a different
   # build's idea of the slots. A resolved binary cannot do that.
+
   if [ -n "$lease_bin" ]; then
-    lease_version="$("$lease_bin" --version 2>/dev/null | tr -d '[:space:]')"
-    case "$lease_version" in
-      0.1[0-6].*|0.[0-9].*|"")
-        lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
-        lease_bin=""
-        ;;
-    esac
+    lease_probe="$(mktemp "${TMPDIR:-/tmp}/xez-lease-probe.XXXXXX" 2>/dev/null || true)"
+    if [ -z "$lease_probe" ]; then
+      lease_why="no temporary file to probe the engine with"
+      lease_bin=""
+    fi
   fi
+
+  # Probe 1 - the version, compared NUMERICALLY. A glob anchored on `0.` accepts anything that is
+  # not `0.<digits>.` from the first character: `v0.16.0`, `0.16` and `0.9` all slipped through it.
+  # Requiring three numeric components also rejects a banner-prefixed or truncated version, and
+  # anything unparseable is treated as too old.
   if [ -n "$lease_bin" ]; then
+    if lease_run_bounded 10 "$lease_probe" "$lease_bin" --version; then
+      lease_version="$(tr -d '[:space:]' <"$lease_probe")"
+    else
+      lease_version=""
+    fi
+    if ! node -e '
+      const raw = String(process.argv[1] || "").replace(/^v/, "");
+      const m = /^(\d+)\.(\d+)\.(\d+)/.exec(raw);
+      if (!m) process.exit(1);
+      const major = Number(m[1]), minor = Number(m[2]);
+      process.exit(major > 0 || (major === 0 && minor >= 17) ? 0 : 1);
+    ' "$lease_version" 2>/dev/null; then
+      lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
+      lease_bin=""
+    fi
+  fi
+
+  # Probe 2 - the verb and the flag, without taking a slot. Exit status is deliberately ignored:
+  # this call is MEANT to fail with 2, and the usage line is what proves it failed for the right
+  # reason and got as far as the lease command.
+  if [ -n "$lease_bin" ]; then
+    lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --status-file "$lease_probe.status"
+    if ! grep -q 'usage: xezar lease gates' "$lease_probe" 2>/dev/null; then
+      lease_why="the engine at $lease_bin cannot run \`lease gates --status-file\`"
+      lease_bin=""
+    fi
+    rm -f "$lease_probe.status" 2>/dev/null
+  fi
+
+  if [ -n "$lease_bin" ]; then
+    rm -f "$lease_probe" 2>/dev/null
+    # The child reads this to report what the wait actually cost and to record `leaseWaitMs` on
+    # the attempt. Without it the one residual risk the engine documents - a step killed mid-wait
+    # - is invisible afterwards.
+    lease_status="$(mktemp "${TMPDIR:-/tmp}/xez-lease-status.XXXXXX" 2>/dev/null || true)"
+    export XEZ_GATE_LEASE=1
+    export XEZ_GATE_LEASE_STATUS="$lease_status"
     # `bash` and an ABSOLUTE path, both deliberate: the engine spawns the wrapped command without
     # a shell, so a relative `repo-gates.sh` is not resolvable and the exec bit is not guaranteed.
     # The `+` form keeps an empty array from tripping `set -u` on older bash.
-    exec "$lease_bin" lease gates -- bash "$SCRIPT_DIR/repo-gates.sh" ${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}
+    # `execfail` is what keeps the promise above: without it a failed `exec` exits this
+    # non-interactive shell outright and the fail-open line below is unreachable.
+    shopt -s execfail
+    exec "$lease_bin" lease gates ${lease_status:+--status-file "$lease_status"} \
+      -- bash "$SCRIPT_DIR/repo-gates.sh" ${ORIGINAL_ARGS[@]+"${ORIGINAL_ARGS[@]}"}
+    # Reached only when `exec` itself failed - the binary passed every probe and then could not be
+    # started: deleted or replaced in the meantime, a `noexec` mount, ETXTBSY.
+    shopt -u execfail
+    unset XEZ_GATE_LEASE XEZ_GATE_LEASE_STATUS
+    rm -f "$lease_status" 2>/dev/null
+    lease_why="the engine passed every probe and then could not be started"
+  else
+    rm -f "$lease_probe" 2>/dev/null
   fi
   printf 'gate lease     NOT TAKEN (%s) - running unleased\n' "$lease_why" >&2
 fi
+
+# What the lease cost, reported by the child of the re-exec. A genuinely nested gate run - one
+# spawned from inside a gate command - inherits the same variables and prints the same line, which
+# is accurate: it really is running under a slot an ancestor holds. Silence here was the old
+# behaviour and was indistinguishable from "no lease at all".
+GATE_LEASE_WAIT_MS=""
+if [ -n "${XEZ_GATE_LEASE_STATUS:-}" ] && [ -s "${XEZ_GATE_LEASE_STATUS:-}" ]; then
+  # The human line goes to stderr so it is seen; the number goes to stdout so it is captured.
+  GATE_LEASE_WAIT_MS="$(node -e '
+    try {
+      const s = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+      if (s && s.held === true && Number.isFinite(s.waitedMs)) {
+        // Same wording as the engine own message, and NOT re-indexed: the engine reports the
+        // slot as it numbers it, so adding one here made the two disagree ("slot 2 of 1").
+        process.stderr.write(`gate lease     HELD (slot ${s.slot} of ${s.slots}, waited ${(s.waitedMs / 1000).toFixed(1)}s)\n`);
+        process.stdout.write(String(s.waitedMs));
+      }
+    } catch { /* diagnostics, never the lease */ }
+  ' "$XEZ_GATE_LEASE_STATUS")"
+fi
+export GATE_LEASE_WAIT_MS
 
 resolve_task_paths || exit 1
 cd "$TASK_CWD" || exit 1
