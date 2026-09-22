@@ -26,8 +26,10 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 **attached**, **delivery verified**. Report the furthest one reached, by name.
 
 1. **Are the engine's MCP tools in this session at all?** Not there → this session started before
-   the registration existed, or the owner has not approved the server. Print the launcher line
-   and the sentence "start a new session with it, then run `/xez-onboard-opinionated --verify`".
+   the registration existed, or the owner has not approved the server. Print the launcher line —
+   `./scripts/xezar-leader.sh`, or by hand
+   `XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar` — and the sentence
+   "start a new session with it, then run `/xez-onboard-opinionated --verify`".
    That is the whole answer; do not improvise a smoke test without the tools. A session started
    from the bootstrap prompt has the server registered at **local scope** (the owner's own
    settings) as well as in the committed `.mcp.json`; both name the same package, so either one
@@ -140,9 +142,11 @@ In order:
 - **Step 9** — `references/control-skills.md`.
 - **The tree and the gates.** The working tree is clean, and the confirmed gate commands pass
   when run here, one at a time. An engine that dirties the tree by starting is a finding.
-- **The launcher.** It parses (`bash -n`). This session may never have used it — a session
-  launched by hand with the same flag is just as attached — so say plainly that the launcher is
-  what the owner uses from tomorrow, and that it is parsed, not yet run.
+- **The launcher.** It parses (`bash -n`) and it exports `XEZAR_LEADER=1`. This session may never
+  have used it — a session launched by hand with the same flag is just as attached to the engine,
+  but it is the leader **only** if it also set `XEZAR_LEADER=1` — so say plainly that
+  `./scripts/xezar-leader.sh` is what the owner uses from tomorrow, give the by-hand form with the
+  variable, and say the launcher is parsed, not yet run.
 
 ## 4. The checklist, then the report
 

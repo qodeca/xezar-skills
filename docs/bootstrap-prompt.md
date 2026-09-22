@@ -13,6 +13,9 @@ claude mcp add --scope local xezar -- npx -y @qodeca/xezar mcp
 claude --dangerously-load-development-channels server:xezar
 ```
 
+This is the **setup session**, so it deliberately has no `XEZAR_LEADER=1`: nothing that variable
+switches on exists yet. After setup you start the **leader** differently – see the last section.
+
 You need Node 20 or later, `git`, the GitHub CLI logged in, and a repository with a GitHub
 remote. On Windows, use WSL. Pasted the prompt into a plain `claude` session instead? It still
 does the first steps, then gives you the line above and picks up where it stopped.
@@ -47,7 +50,11 @@ stop; I will paste this prompt again in the new session:
   claude mcp add --scope local xezar -- npx -y @qodeca/xezar mcp
   claude --dangerously-load-development-channels server:xezar
 Then decide which of three states this project is in, and say which one in one line:
-- `.xezar/onboarding.json` exists AND `.xezar/checks/` exists: already onboarded - go to step 6.
+- `.local/xezar/runtime/onboarding-pending.json` exists: an onboarding that is not finished (the
+  pull request may not even be merged yet) - go to step 6.
+- `.xezar/onboarding.json` AND `.xezar/checks/` exist, with no pending file: already onboarded.
+  Say so and stop - there is no re-onboarding path, and running the skill again would overwrite
+  files I may have edited since.
 - `.xezar/onboarding.json` exists but `.xezar/checks/` does not: a half-removed setup. Treat this
   as not onboarded and carry on; the marker is stale and the skill will replace it.
 - No `.xezar/onboarding.json`, but the repository still shows a previous setup - an `xezar` entry
@@ -64,16 +71,24 @@ Step 2 - The skills are installed
 Check: .claude/skills/xez-onboard-opinionated/SKILL.md exists. If not, run:
   DISABLE_TELEMETRY=1 npx -y skills add qodeca/xezar-skills --skill '*' --agent claude-code --agent codex --yes
 Both --agent values matter: together they put the files in .agents/skills/ with links in
-.claude/skills/, which is the layout the engine keeps up to date. Then make sure .gitignore has
-these three lines, with no trailing slash, and add them if it does not:
+.claude/skills/, which is the layout the engine keeps up to date. Then make sure
+.git/info/exclude has these lines, with no trailing slash, and add them if it does not:
   /.agents/skills/xez-*
   /.claude/skills/xez-*
   /skills-lock.json
-Do not ignore .claude/skills/ as a whole - my own skills may live there. Do not commit yet.
+  /.xezar/agent-accounts.json
+  /.xezar/workspace.json
+  /.xezar/workspace-ui.json
+Use .git/info/exclude, NOT .gitignore: it is a local ignore file git never commits, so the tree
+stays clean for the skill's own clean-tree check. The skill writes the permanent entries into
+committed ignore files itself, in its own pull request. The last three are engine files holding
+this machine's accounts and paths - they must never be committed, and step 3 creates them.
+Do not ignore .claude/skills/ as a whole - my own skills may live there. Commit nothing.
 
 Step 3 - The engine runs here
-a) Run `xezar init`. It asks nothing, leaves existing files alone, and is safe to repeat.
-   It does NOT bring my agent accounts in. Only the question in (c) does that.
+a) Do not run `xezar init`. It is not needed - the engine's first start in (c) creates what it
+   needs, and the skill deletes init's two example files anyway. Neither brings my agent
+   accounts in; only the question in (c) does that.
 b) Call the xezar `health` tool. If it says running for this project, go to step 4.
 c) Otherwise the engine must be started in a REAL terminal window of its own, because its first
    start asks one question that it only asks in a terminal, and because it must keep running
@@ -105,9 +120,10 @@ e) If `health` said not-registered in (b), the tools started before the engine h
    This is an instruction to me, not a question for me to answer. Never wrap it in a question.
 Never delete .xezar/ or .local/.
 
-Step 4 - This session is the leader
+Step 4 - This session attaches to the engine
 Call `discover_project`, then `leader_events` with action attach and a new operationId, then
-action status. This session must be the owner. "Project occupied" means another Claude Code
+action status. This session must be the owner of the one leader slot for now; it is still the
+setup session, not the leader - that is started later with XEZAR_LEADER=1. "Project occupied" means another Claude Code
 session in this folder holds the one leader slot - I close it; there is no takeover.
 If status names the blocker claude-code-channel-not-advertised: "/mcp, reconnect xezar", then
 attach again. If pushed events never arrive, my organisation may have channels switched off
@@ -117,7 +133,7 @@ say "polling mode" in the final report. It is slower, not broken.
 Step 5 - Onboard
 Read .claude/skills/xez-onboard-opinionated/SKILL.md and follow it exactly. Read the file from
 disk: a skill folder created during this session may not be loaded yet. Tell it that steps 0 to
-4 passed, and when, so it re-checks only what it must. It interviews me, previews every file,
+4 passed, and when; it still runs its own preflight checks. It interviews me, previews every file,
 creates the labels I approve, and opens ONE pull request.
 
 Step 6 - Prove it, in this same session
@@ -129,8 +145,10 @@ accept that offer - run `git switch <base branch> && git pull`, then follow the 
 references/verify.md (the same as /xez-onboard-opinionated --verify). Finish with its checklist: a tick or a cross per
 line, with the evidence. Any cross: name the one next action. All ticks: delete
 .local/xezar/runtime/bootstrap.json and say:
-  "Xezar is ready - give me the first task. From tomorrow, start me with ./scripts/xezar-leader.sh
-   and keep the engine window open."
+  "Xezar is ready. From now on, work through the leader: exit this session, then start the leader
+   with ./scripts/xezar-leader.sh (by hand:
+   XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar) and keep the
+   engine window open. XEZAR_LEADER=1 is what makes a session the leader."
 ```
 
 <!-- prompt:end -->
@@ -142,7 +160,23 @@ line, with the evidence. Any cross: name the one next action. All ticks: delete
   permission settings.
 - It opens one terminal window for the engine, because the engine must outlive the session and
   its first start asks a question only a real terminal can answer.
-- It ends in the same session it started in. The only interruption is one `/mcp` reconnect, and
-  only in a repository where the engine had never run before.
-- Tomorrow you start the leader with `./scripts/xezar-leader.sh`. That script is what marks a
-  session as the leader; any other Claude Code session in the repository is an ordinary one.
+- It normally ends in the same session it started in. Expect a `/mcp` reconnect in a repository
+  where the engine had never run before, possibly a second one if the engine reports that the
+  channel was not advertised, and one question offering to merge the pull request.
+- It keeps its temporary ignore lines in `.git/info/exclude`, which git never commits, so your
+  working tree stays clean. The permanent ones arrive in the setup pull request.
+
+## Starting the leader, after setup
+
+The leader is a Claude Code session started with the environment variable **`XEZAR_LEADER=1`**.
+That variable is the only thing that makes a session the leader: it tells the session-start hook
+to load the leader guide. Close the setup session first – a project has one leader slot. Then:
+
+```bash
+./scripts/xezar-leader.sh                                                     # the usual way
+XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # by hand
+```
+
+The script also checks that the engine is running, and tells you how to start it if not. Any
+Claude Code session started **without** `XEZAR_LEADER=1` is an ordinary session: no leader guide,
+no leader rules. Use one for a quick question or a review.

@@ -120,9 +120,9 @@ there, whether this session carries on or a later `--verify` run resumes.
 - **When the engine refuses, stop calling and read `references/engine-refusals.md`.** A refusal
   is a finding, not an error to retry, and argument shapes are never guessed. The order is the
   engine's own tool, then the person's way, then — only on the owner's yes to one question that
-  shows the file and the exact change — a backed-up edit of one of the two files that reference
-  names. This skill never *proposes* a machine-wide change; it carries one out only when the
-  owner asks for it in their own words.
+  shows the file and the exact change — a backed-up edit of the project's own
+  `.xezar/agent-accounts.json`, the one file that reference names. This skill writes nothing
+  under `~/.xezar/`; a machine-wide change is the owner's to make, and you give them the place.
 - **Never report success while a gate is off.** Protection is re-read after it is set, and the
   smoke test runs before the final report. A setup whose gates cannot stop anything is not the
   "ready to work immediately" result this skill promises.
