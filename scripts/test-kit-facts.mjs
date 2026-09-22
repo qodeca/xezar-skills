@@ -643,7 +643,7 @@ function walk(rel, match) {
 // ---------------------------------------------------------------------------
 // FACT 17 -- routing decides which model may review or ship a change, so the file and the script
 // hold the floor together. The shipped rows state the security minimums, the owner's two reserved
-// lanes stay reserved, the route script enforces the minimums whatever a project's file says, and
+// lanes stay reserved (Fable may run security-review only: Anthropic re-routes cyber work on Opus 5.5), the route script enforces the minimums whatever a project's file says, and
 // a pull request that edits the routing file is a trust-boundary change.
 // ---------------------------------------------------------------------------
 {
@@ -656,8 +656,8 @@ function walk(rel, match) {
       fail(fact, "kit/routing.json", `row ${row.id} lost a security minimum (neverAuthor, no handledBy, bans ${missing.join(" ") || "all present"})`);
   }
   const reserved = routing.reservedLanes ?? {};
-  if (reserved["claude/fable"]?.escalation !== true || (reserved["claude/fable"]?.rows ?? ["x"]).length !== 0)
-    fail(fact, "kit/routing.json", "claude/fable is no longer reserved for escalation only");
+  if (reserved["claude/fable"]?.escalation !== true || JSON.stringify(reserved["claude/fable"]?.rows) !== '["security-review"]')
+    fail(fact, "kit/routing.json", "claude/fable is no longer reserved to security-review, plus escalation");
   if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams"]')
     fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images and diagrams, plus escalation");
   const route = read(`${SKILL}/kit/checks/route.mjs`);

@@ -23,6 +23,14 @@ the leader from classifying the work to the exact `task_create` fields. Onboardi
 shipped routing instead of building a table, and `--section routing` migrates an old
 `model-routing.md`, showing the old order beside the new one.
 
+**The shipped routing is ranked for Opus 5.5.** Claude Code's `opus` alias now means Opus 5.5, which
+matches or beats Fable 5.1 on most published coding, review and knowledge-work tests at 40% of its
+price. The `claude/opus` lane is now `very-strong` and comes first in the 13 rows GPT-5.6 sol used
+to lead – specs, refactors, multi-file work, design review and acceptance among them – with sol
+second. Security review may now fall back to `claude/fable`, because Anthropic re-routes most
+cyber-security work on Opus 5.5 to an older Opus. A lane note tells the leader to send "continue"
+when an unattended Opus 5.5 run ends with only a progress note.
+
 **Reviewers really read.** Code review, architecture review, security review, business analysis and
 issue triage run with a short list of allowed commands. On engine 0.19.0 Claude enforces that list
 and removes the file tools. Three kit scripts are the only ways to write: `verdict-write.sh` for the

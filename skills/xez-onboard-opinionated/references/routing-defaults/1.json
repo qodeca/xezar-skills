@@ -40,13 +40,16 @@
       "tool": "claude",
       "model": "opus",
       "vendor": "anthropic",
-      "tier": "strong",
+      "tier": "very-strong",
       "vision": true,
       "imageGeneration": false,
       "local": false,
       "enforcesToolLimits": true,
       "advisoryOnly": false,
-      "engineModel": "opus[1m]"
+      "engineModel": "opus[1m]",
+      "notes": [
+        "Opus 5.5 can end an unattended turn with a progress note and no result; when a run stops that way, send \"continue\" on the same thread before you count it as done."
+      ]
     },
     "claude/sonnet": {
       "tool": "claude",
@@ -154,7 +157,9 @@
   "reservedLanes": {
     "claude/fable": {
       "escalation": true,
-      "rows": []
+      "rows": [
+        "security-review"
+      ]
     },
     "codex/gpt-6-astra": {
       "escalation": true,
@@ -454,8 +459,8 @@
       "writes": true,
       "trigger": "The output is a judgement or a design, and the work is larger than one file.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -507,8 +512,8 @@
       "writes": true,
       "trigger": "The question is how the system is cut, what owns what, or a quality the whole must hold, and the answer will bind work beyond this one feature.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -529,8 +534,8 @@
       "writes": true,
       "trigger": "Somebody cannot decide until they know whether something is possible, how hard it is or how it behaves, and the way to find out is to try it.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -548,8 +553,8 @@
       "writes": true,
       "trigger": "Something people depend on has to be retired, and nothing may be removed until who is affected, the replacement and the dates are written down.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -594,8 +599,8 @@
       "runsCode": true,
       "trigger": "The verdict depends on looking at a rendered screen or a mockup.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -785,8 +790,8 @@
       "writes": true,
       "trigger": "The change spans files and the design is settled.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/opus",
+        "codex/gpt-5.6-sol",
         "pi/deepseek-api/deepseek-flash"
       ],
       "never": [
@@ -842,8 +847,8 @@
       "writes": true,
       "trigger": "The change is to the pipeline's own tooling rather than the product.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -969,8 +974,8 @@
       "writes": true,
       "trigger": "The product's code has to be restructured and nothing a user or a caller can observe may change.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -991,8 +996,8 @@
       "writes": true,
       "trigger": "Something that already exists outside the code (rows, files, a config people wrote by hand) has to move to a new shape.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -1112,9 +1117,9 @@
       "writes": true,
       "trigger": "The thing to prove is that two parts work together (a handler and its database, a client and an API, a command and the file system), not that one part works alone.",
       "lanes": [
+        "claude/opus",
         "codex/gpt-5.6-sol",
         "codex/gpt-5.6-terra",
-        "claude/opus",
         "claude/sonnet"
       ],
       "never": [
@@ -1133,8 +1138,8 @@
       "writes": true,
       "trigger": "The job is the suite that pins past bugs: fixes with no test that fails without them, tests that guard nothing, or a test to retire.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -1152,8 +1157,8 @@
       "writes": true,
       "trigger": "The question is whether something is fast enough, and the owner has stated the budget it answers to.",
       "lanes": [
-        "codex/gpt-5.6-sol",
-        "claude/opus"
+        "claude/opus",
+        "codex/gpt-5.6-sol"
       ],
       "never": [
         {
@@ -1332,8 +1337,8 @@
       "runsCode": true,
       "trigger": "A finished change has to be checked against each accepted criterion of its issue, one by one, by running it.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/opus",
+        "codex/gpt-5.6-sol",
         "codex/gpt-5.6-terra",
         "claude/sonnet"
       ],
@@ -1354,7 +1359,8 @@
       "writes": false,
       "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings.json or settings.local.json.",
       "lanes": [
-        "claude/opus"
+        "claude/opus",
+        "claude/fable"
       ],
       "never": [
         {
@@ -1385,6 +1391,7 @@
         "full-cold-review"
       ],
       "notes": [
+        "Anthropic re-routes most cyber-security work on Opus 5.5 to an older Opus; when the run reports a re-route or a refusal, re-dispatch the same brief on claude/fable.",
         "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
