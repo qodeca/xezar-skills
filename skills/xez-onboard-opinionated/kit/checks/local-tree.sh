@@ -32,9 +32,16 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 # fails a gate in EVERY onboarded project, on EVERY run, for a file nobody did anything wrong to
 # create. So the list is extended by a release of this kit, never by editing an installed copy, and
 # the engine team has undertaken to announce a new top-level name before it ships (agreed for
-# engine 0.19.0 onward, 2026-09-22). Until they record it on their side that is an intention, not a
-# guarantee — so the failure message below names this as the likely cause rather than leaving
-# somebody to work it out mid-gate.
+# engine 0.19.0 onward, 2026-09-22).
+#
+# THREE THINGS ARE INTENTIONS, NOT GUARANTEES, as of engine 0.18.0, and they are listed together
+# so none gets promoted by repetition: (1) that announcement; (2) their documenting this top level
+# as a surface at all; (3) their recording it as a SHAPE — base names plus the suffixes below —
+# rather than as a fixed set of names. All three were agreed between sessions on 2026-09-22 and
+# none is recorded in the engine's own compatibility document yet. Treat each as goodwill until it
+# is. That is why this check does not lean on any of them: the list is extended by a release of
+# this kit, the match is by prefix, and the failure message below names a new engine file as the
+# likely cause rather than leaving somebody to work it out mid-gate.
 #
 # A SUBDIRECTORY is not the same risk: `ENGINE_DIRS` covers the engine's folders, and anything the
 # engine writes INSIDE one of them is invisible to this check by construction. Only the top level
