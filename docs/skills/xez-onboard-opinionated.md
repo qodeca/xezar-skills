@@ -38,7 +38,7 @@ The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves r
 Three things, each of which otherwise stops the run in its first minute:
 
 ```bash
-npm install -g @qodeca/xezar          # the engine, 0.16.0 or later
+npm install -g @qodeca/xezar          # the engine, 0.18.0 or later
 xezar --single-project --no-open      # in its own terminal, in the project folder – leave it open
 gh auth login                         # if you are not logged in
 ```

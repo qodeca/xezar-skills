@@ -39,10 +39,21 @@ operator did not intend.
   backup beside each of those two files is part of the exception; nothing else is. Never a file
   holding a secret (`skills/xez-onboard-opinionated/references/engine-refusals.md`). The owner
   accepted it, and `DECISIONS.md` → "A consented edit when the engine says no" states what it
-  gives away. **Re-review it when the minimum engine version in `compat.json` reaches a release
-  that allows both actions through the engine's own tools** — then this path is a fallback for old
-  engines, and its scope should shrink to match. A third file, another key in that config, an edit
-  without the question, or the same path in any other skill is still a finding.
+  gives away. A third file, another key in that config, an edit without the question, or the same
+  path in any other skill is still a finding.
+
+  **That re-review is now due, and this is what it found (2026-09-22, floor raised to 0.18.0).**
+  The condition was "a release that allows *both* actions through the engine's own tools". Only
+  one arrived. The account-registry case is replaced: engine 0.18.0 ships
+  `project_config import_global_accounts`, so the engine can do it and step 2 of
+  `references/engine-refusals.md` reaches it before any file edit. The machine-wide provider case
+  is **not** replaced: `set_provider_enabled` answers `scope: project` in single-project mode, so
+  no engine tool makes that machine-wide change an agent may call.
+  **The scope has therefore not been shrunk here, deliberately.** Retiring the first case means
+  proving the onboarding run can actually reach that MCP action, and the live end-to-end run that
+  would show it is still owed. Shrinking a safety exception on the strength of a capability nobody
+  has watched work would be the wrong direction to be wrong in. The evidence is assembled; the
+  decision is the owner's, and it is the first thing to settle after that run.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on

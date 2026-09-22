@@ -124,7 +124,7 @@ Three facts, each with its own fix. All three are **fixable stops**:
 | Pass when | Otherwise tell the owner |
 |---|---|
 | `command -v xezar` finds the binary | `npm install -g @qodeca/xezar` |
-| `xezar --version` is 0.16.0 or later — the version this kit was tested against | the same command; it upgrades |
+| `xezar --version` is 0.18.0 or later — the version this kit was tested against | the same command; it upgrades |
 | `.xezar/workspace.json` exists — the engine's single-project marker | the start line below |
 
 ```bash
