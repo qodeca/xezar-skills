@@ -8,6 +8,27 @@ Re-read every previewed path and compare against the digest recorded in the prev
 expected absence. Any mismatch → stop, regenerate the preview, re-ask the affected decisions.
 Approval is approval of a state, not of a plan.
 
+**The account registry is re-read here too, and it is not covered by the digests above.**
+`.xezar/agent-accounts.json` is git-ignored machine state, so it is never a previewed path — yet
+screen 3's answer is a login read out of it, and since engine 0.18.0 a leader may call
+`project_config import_global_accounts` and *add* accounts at any moment. So the approval can be of
+a list that no longer exists, and nothing else in this section would notice.
+
+Re-read the registry, and compare the account ids against those recorded in
+`.local/xezar/runtime/onboarding-interview.json`. Two outcomes, and the difference between them is
+the whole point:
+
+- **Accounts appeared.** Not a stop. The owner's chosen login is still there, so write as planned
+  and name the new ids in the report, under the assumptions section, so the owner learns they can
+  route to them later. Halting a whole setup because the machine gained a login the owner never
+  asked about would spend their attention on nothing.
+- **A login the owner chose is gone, or its provider changed.** Hard stop, re-ask screen 3. This is
+  the same defect `references/verify.md` §3 describes finding in a real test — a default naming a
+  login the registry does not contain — and it surfaces as a task that fails at dispatch with
+  nothing to point at. Cheap to catch here; expensive to debug later.
+
+Comparing **ids and providers only**. Never a label, and never anything from inside a profile.
+
 ## 1. Copy what is copied
 
 From this skill's `kit/` into the project:
