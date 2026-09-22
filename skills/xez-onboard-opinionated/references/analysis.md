@@ -129,7 +129,8 @@ Then **map what was found onto the shipped routing** (`kit/routing.json`):
   no lane at all here.
 - When the engine is running, compare each lane's `vision` tag with the `vision` flag
   `project_config` `list_models` reports for that model, and put any mismatch on the facts screen.
-  The engine's answer wins unless the owner says otherwise.
+  The engine's answer wins unless the owner says otherwise. The flag is optional: a model without
+  it is unknown, not a mismatch, and the lane keeps its tag.
 
 ## 6. The state the setup lands on
 

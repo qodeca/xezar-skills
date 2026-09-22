@@ -19,4 +19,5 @@ steps:
     name: QA
     prompt: "QA (see your skill for what to post and which labels to apply): {{task}} Report independence as confirmed, not confirmed or unknown, from the author the launch text names; never confirmed without that text."
     skill: xezar-qa
+    verdictRole: qa
     allowedTools: [Read, Grep, Glob, Bash]

@@ -202,7 +202,8 @@ Never copied, because each depends on an answer:
   to deploy travels as that input. A project whose deploy workflow has no `sha` input adds one
   (`inputs: sha:` and `actions/checkout` with `ref: ${{ inputs.sha }}`) before listing it. The kit's
   security scan names `.xezar/pipeline/config.json`, `.xezar/config.json`, `.github/workflows/`,
-  `.xezar/workflows/`, `.xezar/checks/` and `.xezar/routing.json` as trust boundaries, so a change
+  `.xezar/workflows/`, `.xezar/checks/`, `.xezar/routing.json`, `.xezar/loops.json`,
+  `.xezar/docs/`, `.xezar/skills/` and `.claude/settings.json` as trust boundaries, so a change
   to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated
   `CODE_REVIEW.md`, beside the hook and its loader: a change to `deploy.*`, to the base branch, to a
   workflow file, to a check script or to the routing file is routed to the security-review row.

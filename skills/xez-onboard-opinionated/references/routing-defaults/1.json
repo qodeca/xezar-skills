@@ -33,7 +33,7 @@
       "vision": true,
       "imageGeneration": false,
       "local": false,
-      "enforcesToolLimits": false,
+      "enforcesToolLimits": true,
       "advisoryOnly": false
     },
     "claude/opus": {
@@ -67,7 +67,7 @@
       "vision": true,
       "imageGeneration": false,
       "local": false,
-      "enforcesToolLimits": false,
+      "enforcesToolLimits": true,
       "advisoryOnly": false
     },
     "codex/gpt-6-astra": {
@@ -1290,7 +1290,7 @@
       ],
       "class": "security-and-release",
       "writes": false,
-      "trigger": "The diff touches authentication, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, a CI workflow, .xezar/workflows, .xezar/checks or .xezar/routing.json.",
+      "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings.json.",
       "lanes": [
         "claude/opus"
       ],

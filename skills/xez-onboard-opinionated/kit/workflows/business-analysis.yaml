@@ -14,4 +14,4 @@ steps:
     prompt: "{{task}}"
     skill: xezar-business-analysis
     allowedTools: [Read, Grep, Glob, Bash]
-    bashAllowlist: ["gh pr view", "gh pr diff", "gh pr checks", "gh pr list", "gh pr comment", "gh pr edit", "gh issue view", "gh issue list", "gh issue comment", "gh issue edit", "gh label list", "gh repo view", "bash .xezar/checks/git-read.sh", "bash .xezar/checks/verdict-write.sh", "bash .xezar/checks/phase-record.sh", "bash .xezar/checks/worktree-setup.sh --readonly-init"]
+    bashAllowlist: ["gh pr view", "gh pr diff", "gh pr checks", "gh pr list", "gh issue view", "gh issue list", "gh label list", "gh repo view", "jq -n", "bash .xezar/checks/git-read.sh", "bash .xezar/checks/gh-write.sh", "bash .xezar/checks/verdict-write.sh", "bash .xezar/checks/phase-record.sh", "bash .xezar/checks/worktree-setup.sh --readonly-init"]

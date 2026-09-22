@@ -18,7 +18,7 @@
 // reintroduce exactly the problem it exists to prevent.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 const root = process.argv[2] ?? process.cwd();
 const workflowsDir = join(root, ".xezar/workflows");
@@ -44,6 +44,8 @@ const err = (where, message) => errors.push(`${where}: ${message}`);
 // 6cd4aaa3605e8bcddf7bafd8f05ac96881ee35cc (0.10.1) and cited `:13-44` / `:51-60`; those
 // ranges no longer hold, which is why this note records what was actually opened.
 //
+// The 2026-09-22 re-read (0.19.0, main 7147c938) added `verdictRole` at `types.ts:88`: the reviewer
+// role an agent step reports a verdict as, refused on a check step by the refine at `:113-115`.
 // The 2026-09-16 re-read added `resultScope`, the check-only significance enum declared beside
 // `command` in both the contract and runtime schemas. The earlier re-read added `timeout`, declared
 // at `:79` (its scalar `stepTimeoutSchema`
@@ -68,6 +70,7 @@ const STEP_KEYS = new Set([
   "bashAllowlist",
   "command",
   "resultScope",
+  "verdictRole",
   "onFail",
   "timeout",
 ]);
@@ -128,31 +131,42 @@ const READ_ONLY_SKILLS = new Set([
 // A reading step: its `allowedTools` holds neither Edit nor Write, which is the engine's own signal
 // for a step that must not change files (xezar #849). A tool list alone never made that true –
 // every backend still offered a shell – so a reading step also carries a `bashAllowlist`, and every
-// entry must be one of these prefixes. Git goes through `git-read.sh` and every file a reader must
-// write goes through `verdict-write.sh`, because a prefix such as `git diff` cannot refuse
-// `--output=<file>` and a reader has no other way to write its verdict.
+// entry must be one of these prefixes. A prefix limits the program, never its target, so every
+// command that can write is a kit script instead: git goes through `git-read.sh`, a comment or a
+// label through `gh-write.sh`, and every file a reader must write through `verdict-write.sh`.
+// `gh pr comment` alone takes `--edit-last`, `-R` and `-F <file>`; `git diff` takes `--output`.
+// `jq -n` only prints: it is how a reader feeds text into those scripts, since a heredoc into a
+// script is refused (a pipe's left side needs no entry on Claude, but not every runner says so).
 const READER_BASH_PREFIXES = new Set([
   "gh pr view",
   "gh pr diff",
   "gh pr checks",
   "gh pr list",
-  "gh pr comment",
-  "gh pr edit",
   "gh issue view",
   "gh issue list",
-  "gh issue comment",
-  "gh issue edit",
   "gh label list",
   "gh repo view",
+  "jq -n",
   "bash .xezar/checks/git-read.sh",
+  "bash .xezar/checks/gh-write.sh",
   "bash .xezar/checks/verdict-write.sh",
   "bash .xezar/checks/phase-record.sh",
   "bash .xezar/checks/worktree-setup.sh --readonly-init",
-  "bash .xezar/checks/security-scan.sh",
 ]);
 
-// The kit's reading workflows. Named, so that a pull request adding Edit or Write to one of them
-// turns it into a writing workflow in plain sight instead of quietly escaping the rule above.
+// The only tools a kit reading workflow may list. Naming what is allowed, rather than refusing Edit
+// and Write, keeps a writing tool with another name (NotebookEdit, MultiEdit) out as well.
+const READER_TOOLS = new Set(["Read", "Grep", "Glob", "Bash"]);
+
+// The engine's verdict roles (0.19.0, `TASK_VERDICT_ROLES`, xezar #851). The engine records a verdict
+// packet only from an agent step that DECLARES the role the packet names, so each kit workflow whose
+// skill writes a packet must declare it on its verdict step, or every verdict it writes is refused.
+const VERDICT_ROLES = new Set(["code-review", "design-review", "qa", "architecture-review"]);
+const VERDICT_WORKFLOWS = { "code-review": "code-review", "design-review": "design-review", qa: "qa" };
+
+// The kit's reading workflows, by FILE name (not the `name:` field, which a pull request could
+// change). Named, so that a pull request adding a writing tool to one of them fails in plain sight
+// instead of quietly escaping the rule above.
 const READ_ONLY_WORKFLOWS = new Set([
   "architecture-review",
   "business-analysis",
@@ -310,8 +324,8 @@ function parseInlineList(value) {
 function checkReaderStep(at, workflow, step) {
   const tools = step.allowedTools;
   const writes = Array.isArray(tools) && (tools.includes("Edit") || tools.includes("Write"));
-  if (READ_ONLY_WORKFLOWS.has(workflow) && (!Array.isArray(tools) || writes)) {
-    err(at, `"${workflow}" is a reading workflow: its allowedTools must be listed and hold neither Edit nor Write`);
+  if (READ_ONLY_WORKFLOWS.has(workflow) && (!Array.isArray(tools) || writes || !tools.every((t) => READER_TOOLS.has(t)))) {
+    err(at, `"${workflow}" is a reading workflow: its allowedTools must be listed and hold only ${[...READER_TOOLS].join(", ")}`);
     return;
   }
   if (!Array.isArray(tools) || writes) return;
@@ -326,7 +340,7 @@ function checkReaderStep(at, workflow, step) {
   }
   for (const entry of list) {
     if (!READER_BASH_PREFIXES.has(entry)) {
-      err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh and writes through verdict-write.sh`);
+      err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh, comments and labels through gh-write.sh, files through verdict-write.sh`);
     }
   }
 }
@@ -362,7 +376,7 @@ function checkWorkflow(file, doc) {
         const skillPath = join(skillsDir, `${step.skill}.md`);
         if (!existsSync(skillPath)) err(at, `names skill "${step.skill}", which has no file at ${skillPath}`);
       }
-      checkReaderStep(at, doc.name, step);
+      checkReaderStep(at, basename(file).replace(/\.ya?ml$/, ""), step);
     }
     if (isCheck) {
       // A check step's command must be a script this repo actually ships, so a renamed or
@@ -371,6 +385,10 @@ function checkWorkflow(file, doc) {
       if (script.startsWith(".xezar/checks/") && !existsSync(join(root, script))) {
         err(at, `runs "${script}", which does not exist`);
       }
+    }
+    if (step.verdictRole !== undefined) {
+      if (!isAgent) err(at, "verdictRole applies to an agent step; a check step (command) reports no verdict");
+      if (!VERDICT_ROLES.has(step.verdictRole)) err(at, `verdictRole must be one of ${[...VERDICT_ROLES].join(", ")} (got "${step.verdictRole}")`);
     }
     if (step.resultScope !== undefined) {
       if (!isCheck) err(at, "resultScope applies only to a check step (command)");
@@ -385,6 +403,12 @@ function checkWorkflow(file, doc) {
       }
     }
   });
+
+  const workflowName = basename(file).replace(/\.ya?ml$/, "");
+  const role = VERDICT_WORKFLOWS[workflowName];
+  if (Object.hasOwn(VERDICT_WORKFLOWS, workflowName) && !doc.steps.some((s) => s.verdictRole === role)) {
+    err(file, `its skill writes a ${role} verdict packet, and no agent step declares verdictRole: ${role}, so the engine refuses every one`);
+  }
 
   // --- The shared phase contract ------------------------------------------------------------
   // Added 2026-09-09 (issue #116). A workflow that runs the gates is a WRITING workflow, and every
@@ -444,6 +468,33 @@ if (!existsSync(workflowsDir)) {
     checkWorkflow(file, doc);
   }
   notes.push(`${files.length} workflow file(s) checked`);
+}
+
+// A project's own Claude settings re-widen a reading step's shell: the engine removes only the
+// file tools, and a `permissions.allow` Bash rule here is added to the step's allowlist (engine
+// answer on xezar #849). So a Bash rule is allowed only when it names a reading prefix.
+for (const name of ["settings.json", "settings.local.json"]) {
+  const path = join(root, ".claude", name);
+  if (!existsSync(path)) continue;
+  let allow;
+  try {
+    allow = JSON.parse(readFileSync(path, "utf8"))?.permissions?.allow;
+  } catch (error) {
+    err(`.claude/${name}`, `is not valid JSON: ${error.message}`);
+    continue;
+  }
+  if (allow === undefined) continue;
+  if (!Array.isArray(allow)) {
+    err(`.claude/${name}`, "permissions.allow is not a list");
+    continue;
+  }
+  for (const rule of allow) {
+    if (typeof rule !== "string" || !/^Bash\b/.test(rule)) continue;
+    const prefix = /^Bash\((.+?)(?::\*|\s\*)?\)$/.exec(rule)?.[1];
+    if (!prefix || !READER_BASH_PREFIXES.has(prefix)) {
+      err(`.claude/${name}`, `permissions.allow has "${rule}", which widens every reading step's shell; allow only a reading prefix here`);
+    }
+  }
 }
 
 // Every skill file must be well-formed. That is the whole scope, and the comment used to claim

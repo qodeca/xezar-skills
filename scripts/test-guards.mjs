@@ -222,6 +222,30 @@ breaks(
 );
 
 breaks(
+  "a tidiness check that stops reading the engine's published names is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/local-tree.sh",
+  (s) => s.replace("  if command -v xezar >/dev/null 2>&1 && command -v node", "  if false && command -v node"),
+  () => script("test-kit-catalog.mjs"),
+  "refused a name the installed engine publishes",
+);
+
+breaks(
+  "a tidiness check that forgets one of the engine's 0.19.0 names is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/local-tree.sh",
+  (s) => s.replace(" pi-leader.json ", " "),
+  () => script("test-kit-catalog.mjs"),
+  'does not know the engine\'s file "pi-leader.json"',
+);
+
+breaks(
+  "a documented-output fixture that runs the leader loader outside a leader session is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/documented-output.mjs",
+  (s) => s.replace("const env = { ...process.env, XEZAR_LEADER: '1' };", "const env = { ...process.env };"),
+  () => script("test-kit-catalog.mjs"),
+  "documented-output check fails on the kit",
+);
+
+breaks(
   "injecting a campaign file the contract says is read on demand is rejected",
   "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
   (s) => s.replace('note_tail "${campaign}parked.md"', 'note_tail "${campaign}merges.md"'),
@@ -564,6 +588,7 @@ breaks(
 );
 
 const ROUTING = "skills/xez-onboard-opinionated/kit/routing.json";
+const ROUTE_MJS = "skills/xez-onboard-opinionated/kit/checks/route.mjs";
 // Edits routing.json as data, so a case names the change and not the file's layout.
 const routingEdit = (change) => (s) => {
   const file = JSON.parse(s);
@@ -627,6 +652,14 @@ breaks(
 );
 
 breaks(
+  "a verdict workflow that stops declaring its verdictRole is rejected",
+  CR,
+  (s) => s.replace("    verdictRole: code-review\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "no agent step declares verdictRole: code-review",
+);
+
+breaks(
   "a reading workflow given the Write tool is rejected",
   CR,
   (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
@@ -637,9 +670,65 @@ breaks(
 breaks(
   "git-read.sh that stops refusing --output is rejected",
   "skills/xez-onboard-opinionated/kit/checks/git-read.sh",
-  (s) => s.replace("--output | --output=* | ", ""),
+  (s) => s.replace('BLOCKED_LONG="output ', 'BLOCKED_LONG="'),
   () => script("test-kit-facts.mjs"),
   "refuses --output",
+);
+
+breaks(
+  "a reading step allowed raw `gh pr comment`, which takes -R and -F <any file>, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh pr comment", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh pr comment" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed security-scan.sh, whose --out writes anywhere, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["bash .xezar/checks/security-scan.sh", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"bash .xezar/checks/security-scan.sh" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed a compound entry is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh pr view; rm -rf .", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh pr view; rm -rf ." is not a reading prefix',
+);
+
+breaks(
+  "a reading workflow given a writing tool with another name is rejected",
+  CR,
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit]"),
+  () => script("test-kit-catalog.mjs"),
+  '"code-review" is a reading workflow',
+);
+
+breaks(
+  "gh-write.sh that lets a reviewer add qa-approved is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('NEVER_ADD="qa-approved ', 'NEVER_ADD="'),
+  () => script("test-kit-facts.mjs"),
+  "no longer refuses an approval label",
+);
+
+breaks(
+  "kit Claude settings that allow a broad Bash rule are rejected",
+  "skills/xez-onboard-opinionated/kit/claude/settings.json",
+  (s) => s.replace('{\n  "hooks"', '{\n  "permissions": { "allow": ["Bash(npm test:*)"] },\n  "hooks"'),
+  () => script("test-kit-catalog.mjs"),
+  "widens every reading step's shell",
+);
+
+breaks(
+  "dropping .claude/settings.json from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.claude.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .claude/settings.json",
 );
 
 breaks(
@@ -725,8 +814,75 @@ breaks(
 );
 
 breaks(
+  "a codex lane that claims to enforce tool limits is rejected",
+  ROUTING,
+  routingEdit((f) => { f.lanes["codex/gpt-5.6-sol"].enforcesToolLimits = true; }),
+  () => script("test-kit-catalog.mjs"),
+  "the codex runner does not hold a reading step read-only",
+);
+
+breaks(
+  "a deploy row renamed out of the security class is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("deploy").class = "implementation"; }),
+  () => script("test-kit-catalog.mjs"),
+  "runs a security or release workflow, so its class is security-and-release",
+);
+
+breaks(
+  "a row two narrowing steps below a security row keeps the security minimums",
+  ROUTING,
+  routingEdit((f, row) => { row("bounded-bug-fix").narrows = "release"; }),
+  () => script("test-kit-catalog.mjs"),
+  "rows.hotfix: a security or release row, or one that narrows one, keeps neverAuthor",
+);
+
+breaks(
+  "routing text with a newline, which could forge an output line, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("release").never[0].why += "\nlane=codex/forged"; }),
+  () => script("test-kit-catalog.mjs"),
+  "holds a control character",
+);
+
+breaks(
+  "route that prints a lane cache reason as it is is rejected",
+  ROUTE_MJS,
+  // Both places that make it one line: where the cache is read, and where a removal is printed.
+  (s) => s
+    .replace('typeof v.reason === "string" ? oneLine(v.reason).slice(0, 120)', 'typeof v.reason === "string" ? v.reason.slice(0, 120)')
+    .replace("out.push(`removed=${lid} reason=${oneLine(reason)}`);", "out.push(`removed=${lid} reason=${reason}`);"),
+  () => script("test-kit-catalog.mjs"),
+  "a lane cache reason or an unknown cache lane reached route's output",
+);
+
+breaks(
+  "route that offers an escalation lane past the row's bans is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("const ban = banReasons(rowById, row, id, lane, { advisory })[0];", "const ban = escalation ? undefined : banReasons(rowById, row, id, lane, { advisory })[0];"),
+  () => script("test-kit-catalog.mjs"),
+  "route offers a codex escalation lane on a reading row",
+);
+
+breaks(
+  "route that reads routing without an origin/HEAD is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('  if (!remote) throw new Error("the remote default branch is unknown here', '  if (false) throw new Error("the remote default branch is unknown here'),
+  () => script("test-kit-catalog.mjs"),
+  "route reads routing without an origin/HEAD instead of refusing",
+);
+
+breaks(
+  "route that trusts a lane cache older than a day is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (now - at > CACHE_MAX_AGE_MS)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "route dispatches a security row on a lane cache older than 24 hours",
+);
+
+breaks(
   "route --rows that leaks lane data is rejected",
-  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  ROUTE_MJS,
   (s) => s.replace("trigger: r.trigger, ...(r.narrows", "trigger: r.trigger, lanes: r.lanes, ...(r.narrows"),
   () => script("test-kit-catalog.mjs"),
   "route --rows leaks lane data",
@@ -734,7 +890,7 @@ breaks(
 
 breaks(
   "route --check that passes a broken working-tree file is rejected",
-  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  ROUTE_MJS,
   (s) => s.replace("if (errors.length) { process.stderr.write(`route: ${path} is refused", "if (false) { process.stderr.write(`route: ${path} is refused"),
   () => script("test-kit-catalog.mjs"),
   "route --check passed a broken working-tree file",

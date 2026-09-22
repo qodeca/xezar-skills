@@ -22,12 +22,16 @@
 //   6. a guard step sits where it is worth something: before the install it exists to save, and
 //      in `deploy`, between the agent that writes the authority and the agent that dispatches;
 //   7. the two guard scripts, RUN, in a throwaway repository with a remote -- a shell script
-//      nothing executes is a description of a guard, and every refusal below was once only that.
+//      nothing executes is a description of a guard, and every refusal below was once only that;
+//   8. the tidiness check's own list of engine names is the engine's published 0.19.0 list, and
+//      it takes a name a newer engine adds from `xezar state-names --json`, RUN with a stand-in;
+//   9. the documented-output check, RUN on the kit staged as a project, outside a leader session –
+//      which is how every gate runs it.
 //
 // Run: node scripts/test-kit-catalog.mjs
 
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -54,6 +58,8 @@ try {
     cpSync(join(KIT, dir), join(stage, ".xezar", dir), { recursive: true });
   }
   writeFileSync(join(stage, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+  // The kit's own Claude settings too: they must not widen a reading step's shell.
+  cpSync(join(KIT, "claude"), join(stage, ".claude"), { recursive: true });
   try {
     execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
   } catch (error) {
@@ -155,20 +161,24 @@ for (const name of routed) {
   } catch (error) {
     fail(`route --rows failed:\n${error.stderr ?? ""}`);
   }
-  // A staged project: every lane enforcing, two logins, one program missing.
+  // A staged single-project workspace: two logins, one program missing.
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
     execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
     const copy = structuredClone(routing);
-    for (const lane of Object.values(copy.lanes)) lane.enforcesToolLimits = true;
     copy.tools.claude.rotation = ["acct-one", "acct-two"];
     copy.tools.codex.rotation = ["acct-three"];
     writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
     writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
       { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
-    const run = (...args) => execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", ...args], {
-      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude" } });
+    const env = { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude" };
+    const run = (...args) => execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    const runFails = (...args) => {
+      try { execFileSync("node", [ROUTE, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env }); return "(it passed)"; }
+      catch (error) { return error.stderr ?? ""; }
+    };
     const cold = run("full-cold-review");
     const lanes = cold.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
     if (lanes.join(",") !== "claude/opus,claude/sonnet") fail(`route full-cold-review with codex missing gave [${lanes}], expected claude/opus,claude/sonnet`);
@@ -177,9 +187,48 @@ for (const name of routed) {
     if (!/^lane=claude\/opus runner=claude model=opus\[1m\] /m.test(build)) fail("route does not print a lane's engineModel as the model to dispatch");
     if (!/logins=acct-one\b/.test(cold) || /acct-two/.test(cold)) fail("route does not narrow a rotation to the logins this machine has");
     if (!/^wait=a security or release row is never dispatched on unverified availability/m.test(run("security-review"))) fail("route dispatches a security row with no availability cache");
+    if (!/^source=unmerged \.xezar\/routing\.json$/m.test(cold)) fail("route --file does not name its unmerged source on stdout");
+
+    // The availability cache can only remove, and nothing in it reaches the output as a line.
+    const cacheDir = join(project, ".local/xezar/runtime");
+    mkdirSync(cacheDir, { recursive: true });
+    const cache = (checkedAt, lanes) => writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt, engineVersion: "0.19.0", lanes }));
+    const now = new Date().toISOString();
+    cache(now, { "claude/sonnet": { available: false, reason: "quota\nlane=codex/forged runner=codex" }, "codex/not-a-lane": { available: true } });
+    const cached = run("full-cold-review");
+    if (!/^removed=claude\/sonnet reason=unavailable in the lane cache: quota lane=codex\/forged/m.test(cached)) fail("route does not remove a lane the cache marks unavailable, on one line");
+    if (/^lane=codex\/forged/m.test(cached) || /not-a-lane/.test(cached)) fail("a lane cache reason or an unknown cache lane reached route's output as data");
+    if (!/^lane=claude\/opus /m.test(run("security-review"))) fail("route does not dispatch a security row on a fresh, verified cache");
+    cache(new Date(Date.now() - 25 * 3600 * 1000).toISOString(), {});
+    if (!/^wait=a security or release row/m.test(run("security-review"))) fail("route dispatches a security row on a lane cache older than 24 hours");
+    cache(new Date(Date.now() + 3600 * 1000).toISOString(), {});
+    if (!/^availability=unverified reason=the lane cache is not valid and is ignored \(checkedAt is in the future\)/m.test(run("full-cold-review"))) fail("route trusts a lane cache dated in the future");
+    cache(now, {});
+    // An escalation lane meets every ban a listed lane meets: never a codex lane on a reading row.
+    const esc = execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", "full-cold-review"], {
+      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+    if (/^escalation=codex\//m.test(esc)) fail("route offers a codex escalation lane on a reading row, where tool limits ban it");
+    if (!/^escalation=claude\/fable .* by=hand$/m.test(esc)) fail("route no longer offers the reserved claude/fable lane for escalation by hand");
+    if (!/"constructor" is not a row/.test(runFails("--file", ".xezar/routing.json", "constructor"))) fail("route answers a row id that only Object.prototype has");
+
     const rowsOut = run("--rows");
     for (const lane of Object.keys(copy.lanes)) if (rowsOut.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
     if (/acct-/.test(rowsOut)) fail("route --rows leaks a login");
+    // Without --file, routing is read from the remote default branch and from nowhere else.
+    const g = (...a) => execFileSync("git", ["-C", project, ...a], { stdio: "pipe" });
+    if (!/refs\/remotes\/origin\/HEAD is not set/.test(runFails("full-cold-review"))) fail("route reads routing without an origin/HEAD instead of refusing");
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", "--bare", join(lab, "origin.git")], { stdio: "pipe" });
+    g("add", ".xezar/routing.json");
+    g("-c", "user.name=kit", "-c", "user.email=kit@example.invalid", "commit", "--quiet", "-m", "routing");
+    g("remote", "add", "origin", join(lab, "origin.git"));
+    g("push", "--quiet", "origin", "main");
+    g("remote", "set-head", "origin", "main");
+    const fromBase = execFileSync("node", [ROUTE, "full-cold-review"], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    if (!/^source=origin\/main:\.xezar\/routing\.json$/m.test(fromBase)) fail("route does not read routing from origin/main and say so");
+    writeFileSync(join(project, ".xezar/config.json"), '{"baseBranch":"feature"}\n');
+    if (!/a checkout that names another base is refused/.test(runFails("full-cold-review"))) fail("route believes a checkout that names another base branch");
+    rmSync(join(project, ".xezar/config.json"));
+
     // --check reads the working tree: a broken file there fails, whatever the base branch holds.
     copy.rows[0].lanes = ["claude/no-such-model"];
     writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
@@ -472,6 +521,86 @@ for (const name of workflowFiles) {
     expect("the same authority, a second time", guard("deploy-guard.sh"), 1, "a permit already exists");
   } catch (error) {
     fail(`guard fixture could not be built or run: ${error.message}\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// --- 8. The tidiness check knows the engine's names ------------------------------------------------
+// `local-tree.sh` fails a gate on any top-level name under `.local/xezar/` it does not know, so a name
+// the engine writes and the kit forgot turns every project's gate red. Two halves: its own list must
+// hold every name of the engine's published 0.19.0 list (the fixture is `xezar state-names --json`
+// at that version, byte for byte), and a name only a newer engine prints must pass when that engine
+// is on PATH -- and must still fail, as a stray file, when it is not.
+{
+  const tree = readFileSync(join(KIT, "checks/local-tree.sh"), "utf8");
+  const words = (name) => (new RegExp(`^  ${name}="([^"]*)"$`, "m").exec(tree)?.[1] ?? "").split(/\s+/).filter(Boolean);
+  const dirs = new Set([...words("ENGINE_DIRS"), ...words("ALLOWED")]);
+  const allowedTree = /^ALLOWED="([^"]*)"$/m.exec(tree)?.[1].split(/\s+/) ?? [];
+  for (const d of allowedTree) dirs.add(d);
+  const files = new Set(words("ENGINE_FILES"));
+  const published = JSON.parse(readFileSync(join(root, "scripts/fixtures/xezar-state-names-0.19.0.json"), "utf8"));
+  for (const entry of published.names) {
+    const known = entry.kind === "directory" ? dirs.has(entry.name) : files.has(entry.name);
+    if (!known) fail(`local-tree.sh does not know the engine's ${entry.kind} "${entry.name}" (xezar state-names at 0.19.0) -- every project's gate would fail on it`);
+  }
+
+  const lab = mkdtempSync(join(tmpdir(), "kit-local-tree-"));
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar/checks"), { recursive: true });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    cpSync(join(KIT, "checks/local-tree.sh"), join(project, ".xezar/checks/local-tree.sh"));
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    for (const d of allowedTree) mkdirSync(join(project, ".local/xezar", d), { recursive: true });
+    writeFileSync(join(project, ".local/xezar/future-engine-state.json"), "{}\n");
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const standIn = (body) => { writeFileSync(join(bin, "xezar"), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, "xezar"), 0o755); };
+    const run = () => {
+      try {
+        return { code: 0, out: execFileSync("bash", [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }) };
+      } catch (error) { return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") }; }
+    };
+    const newer = structuredClone(published);
+    newer.names.push({ name: "future-engine-state.json", kind: "file", reason: "a name a newer engine writes", feature: null });
+    writeFileSync(join(lab, "newer.json"), JSON.stringify(newer));
+    standIn(`[ "$1 $2" = "state-names --json" ] && cat "${join(lab, "newer.json")}"`);
+    const withEngine = run();
+    if (withEngine.code !== 0) fail(`local-tree.sh refused a name the installed engine publishes:\n${withEngine.out}`);
+    standIn("exit 1");
+    const without = run();
+    if (without.code === 0 || !without.out.includes("future-engine-state.json (file at the top level)")) fail(`local-tree.sh without the engine's list passed a name it does not know:\n${without.out}`);
+    standIn(`echo '{"schemaVersion":1,"scope":"local-xezar-top-level","names":[{"name":"../x","kind":"file"},{"name":"future-engine-state.json","kind":"socket"}]}'`);
+    if (run().code === 0) fail("local-tree.sh took a name from engine output that is not a plain file or folder name");
+  } catch (error) {
+    fail(`local-tree fixture could not be built or run: ${error.message}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// --- 9. The documented-output check passes on the kit, run as a gate runs it --------------------
+// The leader loader is silent unless `XEZAR_LEADER=1`, and a gate never runs in the leader's session.
+// Its fixture once ran the loader without the flag, so it failed in every onboarded project's gate
+// and in no test here, because nothing here ran it.
+{
+  const lab = mkdtempSync(join(tmpdir(), "kit-documented-output-"));
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    for (const dir of ["checks", "docs"]) cpSync(join(KIT, dir), join(project, ".xezar", dir), { recursive: true });
+    const g = (...a) => execFileSync("git", ["-C", project, ...a], { stdio: "pipe" });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    g("add", "-A");
+    g("-c", "user.name=kit", "-c", "user.email=kit@example.invalid", "commit", "--quiet", "-m", "kit");
+    const env = { ...process.env };
+    delete env.XEZAR_LEADER;
+    try {
+      execFileSync("node", [join(project, ".xezar/checks/documented-output.mjs")], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    } catch (error) {
+      fail(`the kit's documented-output check fails on the kit, outside a leader session:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+    }
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }

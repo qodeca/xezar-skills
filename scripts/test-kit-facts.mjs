@@ -616,11 +616,20 @@ function walk(rel, match) {
       fail(fact, `kit/workflows/${wf}.yaml`, "the reading step has no bashAllowlist naming verdict-write.sh -- its shell can write anywhere");
   }
   const gitRead = read(`${SKILL}/kit/checks/git-read.sh`);
-  if (!/--output \| --output=\*/.test(gitRead))
+  if (!/^BLOCKED_LONG=".*\boutput\b.*"$/m.test(gitRead))
     fail(fact, "kit/checks/git-read.sh", "it no longer refuses --output, so an allowed `git diff` can write a file");
   const scan = read(`${SKILL}/kit/checks/lib/security-scan.mjs`);
   if (!scan.includes("/^\\.xezar\\/(workflows|checks)\\//"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/workflows/ and .xezar/checks/ -- a PR that loosens a reading step passes as an ordinary edit");
+  if (!scan.includes("/^\\.claude\\/settings(\\.local)?\\.json$/"))
+    fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .claude/settings.json -- a PR could widen every reading step's shell as an ordinary edit");
+  const ghWrite = read(`${SKILL}/kit/checks/gh-write.sh`);
+  if (!/^NEVER_ADD=".*qa-approved.*design-approved.*"$/m.test(ghWrite) || !/^NEVER_REMOVE=".*blocked.*do-not-merge.*"$/m.test(ghWrite))
+    fail(fact, "kit/checks/gh-write.sh", "it no longer refuses an approval label or the removal of a blocking one -- a reviewer could pass the merge gate on its own word");
+  const checker = read(`${SKILL}/kit/checks/catalog-check.mjs`);
+  for (const gone of ['"gh pr comment"', '"gh pr edit"', '"gh issue comment"', '"gh issue edit"', '"bash .xezar/checks/security-scan.sh"'])
+    if (checker.includes(`  ${gone},`))
+      fail(fact, "kit/checks/catalog-check.mjs", `READER_BASH_PREFIXES has ${gone} again -- that prefix can write to any repository or any path`);
   checked.push(fact);
 }
 
@@ -645,8 +654,8 @@ function walk(rel, match) {
   if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams"]')
     fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images and diagrams, plus escalation");
   const route = read(`${SKILL}/kit/checks/route.mjs`);
-  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/err\("security-minimum", w, `"\$\{id\}" is a cheap lane`\)/.test(route))
-    fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans and the security minimums itself -- a project's file could drop them");
+  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude"\]\);$/m.test(route))
+    fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans, the security minimums and the enforcing-runner list itself -- a project's file could drop them");
   if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");
   checked.push(fact);

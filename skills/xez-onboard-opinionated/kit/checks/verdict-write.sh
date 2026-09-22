@@ -23,6 +23,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$SCRIPT_DIR/lib/common.sh"
 
 PACKET_MAX_BYTES=40960
+EVIDENCE_MAX_BYTES=1048576
+# Files the run itself owns in the evidence directory; a reader never overwrites them.
+RESERVED_NAMES="manifest.json merge-intent.json blocked"
 
 usage() {
   echo "usage: verdict-write.sh packet | blocked | evidence <name>   (content on stdin)" >&2
@@ -34,14 +37,20 @@ refuse() {
   exit 1
 }
 
-# Write stdin to <target> through a temporary file in the same directory, then rename it, so a
-# reader never sees half a file.
+# Write at most <max> bytes of stdin to <target> through a fresh temporary file in the same
+# directory, then rename it, so a reader never sees half a file. `mktemp` creates the file itself,
+# so a name planted in advance, or a symlink, is never written through.
 atomic_from_stdin() {
-  local target="$1" tmp
+  local target="$1" max="$2" tmp size
   [ -L "$target" ] && refuse "$target is a symlink"
   mkdir -p "$(dirname "$target")" || refuse "cannot create $(dirname "$target")"
-  tmp="$target.tmp.$$"
-  cat >"$tmp" || { rm -f "$tmp"; refuse "could not read stdin"; }
+  tmp="$(mktemp "$target.XXXXXX")" || refuse "cannot create a temporary file beside $target"
+  head -c $((max + 1)) >"$tmp" || { rm -f "$tmp"; refuse "could not read stdin"; }
+  size="$(wc -c <"$tmp" | tr -d ' ')"
+  if [ "$size" -gt "$max" ]; then
+    rm -f "$tmp"
+    refuse "the content is over $max bytes"
+  fi
   printf '%s' "$tmp"
 }
 
@@ -61,12 +70,7 @@ case "$kind" in
     [ $# -eq 0 ] || usage
     [ -n "${XEZ_HANDOFF_FILE:-}" ] || refuse "XEZ_HANDOFF_FILE is not set: a packet belongs to a workflow step"
     target="${XEZ_HANDOFF_FILE}.verdict.json"
-    tmp="$(atomic_from_stdin "$target")" || exit 1
-    size="$(wc -c <"$tmp" | tr -d ' ')"
-    if [ "$size" -gt "$PACKET_MAX_BYTES" ]; then
-      rm -f "$tmp"
-      refuse "the packet is $size bytes; the engine refuses anything over $PACKET_MAX_BYTES"
-    fi
+    tmp="$(atomic_from_stdin "$target" "$PACKET_MAX_BYTES")" || exit 1
     if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$tmp" 2>/dev/null; then
       rm -f "$tmp"
       refuse "the packet is not valid JSON"
@@ -77,7 +81,7 @@ case "$kind" in
   blocked)
     [ $# -eq 0 ] || usage
     dir="$(evidence_dir)" || exit 1
-    tmp="$(atomic_from_stdin "$dir/BLOCKED")" || exit 1
+    tmp="$(atomic_from_stdin "$dir/BLOCKED" "$EVIDENCE_MAX_BYTES")" || exit 1
     mv -f "$tmp" "$dir/BLOCKED" || refuse "could not write BLOCKED"
     echo "verdict-write.sh: wrote $dir/BLOCKED"
     ;;
@@ -88,12 +92,16 @@ case "$kind" in
       *[!A-Za-z0-9._-]* | "" | .* ) refuse "\"$name\" is not a plain file name" ;;
     esac
     [ "${#name}" -le 64 ] || refuse "\"$name\" is longer than 64 characters"
+    # Phase records are upper-case names with no dot or hyphen (`PLAN`, `SELF_REVIEW`). On a
+    # case-insensitive disk `plan` IS `PLAN`, so an evidence name must carry a dot or a hyphen.
     case "$name" in
-      *[a-z]*) ;;
-      *) refuse "\"$name\" is an upper-case phase-record name; use phase-record.sh set" ;;
+      *.* | *-*) ;;
+      *) refuse "\"$name\" needs a dot or a hyphen (e.g. notes.md); bare names are phase records, written by phase-record.sh set" ;;
     esac
+    lower="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
+    case " $RESERVED_NAMES " in *" $lower "*) refuse "\"$name\" is a file the run itself owns" ;; esac
     dir="$(evidence_dir)" || exit 1
-    tmp="$(atomic_from_stdin "$dir/$name")" || exit 1
+    tmp="$(atomic_from_stdin "$dir/$name" "$EVIDENCE_MAX_BYTES")" || exit 1
     mv -f "$tmp" "$dir/$name" || refuse "could not write $name"
     echo "verdict-write.sh: wrote $dir/$name"
     ;;

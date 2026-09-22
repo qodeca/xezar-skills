@@ -153,7 +153,7 @@ In order:
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
 on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
-`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · protection read back · connection state
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 

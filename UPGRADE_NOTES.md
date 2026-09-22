@@ -17,6 +17,68 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – my gate fails with "fixture execution failure for leader-context"
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 2.1.0 or 2.1.1.
+
+**Symptom – `repository-checks.sh` fails every run.** The message is
+`documented-output: .xezar/docs/leader-context-loading.md:45: fixture execution failure for
+leader-context: script did not print exactly one JSON object`. Nothing is wrong with your project.
+The leader loader speaks only when `XEZAR_LEADER=1`, and the check ran it without that flag, so the
+loader correctly printed nothing and the check called that a failure.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/documented-output.mjs .xezar/checks/
+```
+
+**What you lose by skipping it.** A gate that is red for no reason, in every run.
+
+## 2026-09-22 – on engine 0.19.0, a review or QA verdict is "refused" on the task record
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0 that runs engine
+0.19.0 or later.
+
+**Symptom – the leader sees no verdict from code review, design review or QA,** and the task record
+lists the packet as refused. From 0.19.0 the engine accepts a verdict packet only from a workflow
+step that declares its role with `verdictRole`, so a packet from an older workflow is refused, as
+the engine intends.
+
+**What to do.** Copy the three workflows and the checker that knows the new key:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/workflows/code-review.yaml $K/workflows/design-review.yaml $K/workflows/qa.yaml .xezar/workflows/
+cp $K/checks/catalog-check.mjs .xezar/checks/
+```
+
+If your project has **its own** workflow whose step writes a verdict packet, add
+`verdictRole: <role>` to that step, where the role is `code-review`, `design-review`, `qa` or
+`architecture-review`.
+
+**What you lose by skipping it.** Every verdict on the task record. The PR comment still lands, so
+a person can read it, but the leader has to parse it.
+
+## 2026-09-22 – the tidiness check calls a new engine file "loose"
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0.
+
+**Symptom – `local-tree.sh` reports an engine file at the top of `.local/xezar/` as loose** after an
+engine upgrade. Its list of engine names was fixed in the kit. It now also reads the names the
+engine publishes (`xezar state-names --json`, engine 0.19.0 and later) whenever `xezar` is on PATH.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/local-tree.sh .xezar/checks/
+```
+
+**What you lose by skipping it.** A red gate each time an engine release adds a name, until the next
+kit release.
+
 ## 2026-09-22 – the onboarding skill says my engine is too old, and it ran yesterday
 
 Applies to anyone running engine **0.18.x** with `xez-onboard-opinionated` 3.0.0 or later.
@@ -32,7 +94,9 @@ xezar --version     # must print 0.19.0 or later
 ```
 
 **Why the floor moved.** 0.19.0 is the first engine that makes a reading step read-only: on Claude
-it removes the Edit and Write tools and honours the step's `bashAllowlist`. The shipped routing
+it removes the Edit and Write tools, and turns the step's `bashAllowlist` into Claude permission
+rules. A `permissions.allow` Bash rule in the project's `.claude/settings*.json` still widens those
+rules, so the kit's catalog check now refuses one that is not a reading command. The shipped routing
 marks the Claude lanes as enforcing because of that, and puts only them on review and release work.
 On an older engine those rows would run a reviewer that can still write.
 
@@ -54,7 +118,8 @@ in it is a ban the leader has to remember.
 ```bash
 K=.claude/skills/xez-onboard-opinionated/kit
 cp $K/routing.schema.json .xezar/
-cp $K/checks/route.mjs $K/checks/verdict-write.sh $K/checks/repository-checks.sh .xezar/checks/
+cp $K/checks/route.mjs $K/checks/verdict-write.sh $K/checks/git-read.sh $K/checks/gh-write.sh \
+   $K/checks/catalog-check.mjs $K/checks/repository-checks.sh .xezar/checks/
 cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
 cp $K/docs/routing.md $K/docs/README.md $K/docs/account-limits.md $K/docs/leader-context-loading.md .xezar/docs/
 cp $K/loops.json .xezar/loops.json
@@ -91,15 +156,16 @@ the step a shell, so `git commit`, `> file` or `git diff --output=file` all work
 **Symptom 2 – after copying only the workflows, the verdict packet stopped arriving.** The five
 reading workflows now carry a `bashAllowlist`. Their shell may run only the reading prefixes it
 names, so the role writes its verdict packet, `BLOCKED` and evidence through a new helper,
-`verdict-write.sh`, and reads git through `git-read.sh`. A role skill from before this entry still
-tries `mv` and is refused.
+`verdict-write.sh`, posts comments and moves labels through `gh-write.sh`, and reads git through
+`git-read.sh`. A role skill from before this entry still tries `mv` or `gh pr comment` and is
+refused.
 
 **What to do.** Copy the two helpers, the checks that know about them, the five workflows and
 their role skills, together:
 
 ```bash
 K=.claude/skills/xez-onboard-opinionated/kit
-cp $K/checks/git-read.sh $K/checks/verdict-write.sh $K/checks/catalog-check.mjs .xezar/checks/
+cp $K/checks/git-read.sh $K/checks/gh-write.sh $K/checks/verdict-write.sh $K/checks/catalog-check.mjs .xezar/checks/
 cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
 for w in code-review architecture-review security-review business-analysis issue-triage; do
   cp $K/workflows/$w.yaml .xezar/workflows/
@@ -109,7 +175,9 @@ cp $K/skills/xezar-*.md .xezar/skills/
 
 If your project has **its own** workflow with a step that lists neither `Edit` nor `Write`, the
 new `catalog-check.mjs` refuses it until you give it a `bashAllowlist` from the table in that
-file, or add `Edit`/`Write` if it really writes.
+file, or add `Edit`/`Write` if it really writes. It also refuses a Bash rule in the project's
+`.claude/settings.json` or `.claude/settings.local.json` that is not a reading command, because
+Claude adds that rule to every reading step's shell.
 
 **What you lose by skipping it.** A reviewer that can change what it reviews. Nothing fails, and
 that is why this entry exists.
@@ -462,7 +530,7 @@ row's trigger sentence.
    ```
 
 3. Add the rows to `.xezar/docs/model-routing.md`: one line per new row of
-   `references/routing-rows.md`, **with its workflow file**, under a chain you choose. There are three
+   `references/routing-rows.md` (a 2.x file; 3.0.0 replaced it with `kit/routing.json`), **with its workflow file**, under a chain you choose. There are three
    new classes — `design`, `visuals` and `testing`. The security-sensitive review row (row 24 in
    1.4.0, row 41 now) changed its workflow from `code-review.yaml` to `security-review.yaml`, and the two visuals rows now run `visual-asset.yaml`. Copy the fifth
    global prohibition and the look-alike pairs as well.

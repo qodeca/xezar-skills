@@ -33,18 +33,40 @@ case "$sub" in
     ;;
 esac
 
-# Each of these makes git write a file or run a program the repository configures.
+# Each of these makes git write a file, run a program the repository configures, or read a file
+# outside the repository. git accepts any unambiguous abbreviation of a long option (`--outp`,
+# `--textc`), so a long option is refused when it is a prefix of one of these as well as when it
+# is the whole name.
+BLOCKED_LONG="output ext-diff textconv exec upload-pack receive-pack git-dir work-tree filters no-index contents config-env"
 for arg in "$@"; do
+  refused=""
   case "$arg" in
-    --output | --output=* | --ext-diff | --textconv | --exec | --exec=* | --upload-pack* | --git-dir* | --work-tree*)
-      echo "git-read.sh: refused: \"$arg\" can make git write or run a helper" >&2
-      exit 1
+    --*)
+      name="${arg#--}"
+      name="${name%%=*}"
+      if [ "${#name}" -ge 3 ]; then
+        for blocked in $BLOCKED_LONG; do
+          case "$blocked" in "$name"*) refused=1 ;; esac
+        done
+      fi
+      ;;
+    -O*)
+      # `-O <file>` reads an order file from anywhere. (`-c` here is not git's config switch: that
+      # one goes before the subcommand, which this script always places first.)
+      refused=1
       ;;
   esac
+  if [ -n "$refused" ]; then
+    echo "git-read.sh: refused: \"$arg\" can make git write, run a helper or read outside the repository" >&2
+    exit 1
+  fi
 done
 
+# No optional lock: `status` and `describe --dirty` would otherwise rewrite the index file.
+export GIT_OPTIONAL_LOCKS=0
 case "$sub" in
   diff | log | show) exec git --no-pager "$sub" --no-ext-diff --no-textconv "$@" ;;
+  blame) exec git --no-pager blame --no-textconv "$@" ;;
   status) exec git --no-pager status --no-renames "$@" ;;
   *) exec git --no-pager "$sub" "$@" ;;
 esac

@@ -1,3 +1,51 @@
+# 3.0.0 (unreleased – ships the day engine 0.19.0 is on npm)
+
+**The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with
+engine 0.19.0, which this release requires. Four breaking changes, each with a row in
+`BACKWARD_COMPATIBILITY.md` and an entry in `UPGRADE_NOTES.md`; a project that must stay on engine
+0.18 stays on 2.1.1.
+
+**Routing is a file with a checker, not a table in prose.** `.xezar/routing.json` lists 45 kinds of
+work, the lanes each may use in order (a lane is a runner plus a model), the bans, the reserved
+lanes and the login rotation per runner. The owner's own routing ships as everyone's default. The
+leader reads it only through `node .xezar/checks/route.mjs`:
+
+- `route --rows` gives the kinds of work to classify against, with no lane data in it;
+- `route <row id>` gives the lane order, and names every lane it removed and why – banned, reserved,
+  program not installed, no login on this machine, or marked unavailable by the leader's lane cache;
+- `route --check` is a gate on the file.
+
+It reads the file from the remote default branch, so a change under review cannot reroute its own
+review. It enforces the security minimums itself, whatever the file says: no cheap, local or
+advisory lane on security, release and deploy work, and never the author. A security or release row
+waits until lane availability is verified. The new leader manual, `.xezar/docs/routing.md`, walks
+the leader from classifying the work to the exact `task_create` fields. Onboarding confirms the
+shipped routing instead of building a table, and `--section routing` migrates an old
+`model-routing.md`, showing the old order beside the new one.
+
+**Reviewers really read.** Code review, architecture review, security review, business analysis and
+issue triage run with a short list of allowed commands. On engine 0.19.0 Claude enforces that list
+and removes the file tools. Three kit scripts are the only ways to write: `verdict-write.sh` for the
+verdict packet and evidence, `gh-write.sh` for a comment or a label change on this repository only
+(it never adds an approval label and never lifts a blocking one), and `phase-record.sh`. Git is read
+through `git-read.sh`, which refuses every flag that can write or run a program. The kit's checker
+refuses a reading step with a writing command, and a Bash rule in the project's own
+`.claude/settings*.json` that would widen every reviewer's shell. Codex and pi lanes leave the
+reading and release rows until their runner enforces the list too, so for now a different Claude
+model reviews Claude's work, and the reviewer says "same vendor".
+
+**Verdicts carry their role.** Engine 0.19.0 records a verdict packet only from a workflow step that
+declares `verdictRole`. The code review, design review and QA workflows declare it, and the checker
+refuses one that stops.
+
+**Two fixes for every onboarded project.** The documented-output check ran the leader loader
+without `XEZAR_LEADER=1`, so it failed every gate since 2.1.0. And the tidiness check now also reads
+the engine's own list of state names (`xezar state-names --json`), so an engine release that adds a
+name no longer turns gates red.
+
+More files are trust boundaries, so a change to them needs a security review: the routing file and
+its schema, `loops.json`, `.xezar/docs/`, `.xezar/skills/` and `.claude/settings*.json`.
+
 # 2.1.1 (2026-09-22)
 
 **Documentation that now matches what the skill actually does.** No behaviour of an installed
