@@ -968,6 +968,23 @@ for a machine-wide setting from a per-project setup — and the common case writ
 project. The engine's own tool always comes first; engine 0.17.0 already allows both actions the
 run was refused on 0.16.0, so on a current engine this path should rarely be walked at all.
 
+**Superseded in part, 2026-09-22: the machine-wide case is gone.** The paragraphs above describe
+two files. There is now one. A read of engine 0.18.0 established that the provider enable/disable
+key in `~/.xezar/config.json` is **never read in the mode this setup creates**: in the project
+state layout the engine takes that key from `<project>/.xezar/workspace.json`, with no merge and no
+fallback, and `set_provider_enabled` writes the project file and answers `scope: project`. In the
+global layout the machine file is read, but `references/verify.md` §3 already forbids touching a
+machine-wide switch there.
+
+So the run that prompted this decision hand-edited a file that nothing consulted, and the exception
+written to cover it granted a write outside the repository in exchange for nothing. **That is the
+argument for removing it rather than narrowing it.** An exception with a real cost can be weighed
+against a real benefit; an exception with no benefit only ever costs. Nothing would have failed
+visibly if it had been abused, which is the property that makes it worth deleting rather than
+watching. `SECURITY.md` and `references/engine-refusals.md` carry the current scope; the
+account-registry case is unchanged and stays until a live onboarding run proves
+`import_global_accounts` is reached.
+
 ## The leader guide's budget is checked, because it was impossible
 
 `references/write.md` told the agent to keep the generated leader guide under 200 lines while the

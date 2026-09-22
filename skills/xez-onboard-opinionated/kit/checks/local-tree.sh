@@ -68,7 +68,13 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 ENGINE_DIRS=""
 ENGINE_FILES=""
 if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
-  ENGINE_DIRS="ipc mcp mcp-owner-claims runs writer-claims tmp campaigns"
+  # `kit` is the one name here that a source enumeration of 0.18.0 missed and the engine team's own
+  # scan found: `projectKitDir` (`src/project-kit-paths.ts`) falls back to `.local/xezar/kit` when
+  # the repo root IS the user's home directory, so that a home launch cannot turn the workspace
+  # file into a kit. Onboarded projects are not launched from `$HOME`, so this should never appear
+  # - which is the reason to allow it rather than argue about it. A name that cannot occur costs
+  # nothing to permit and costs every project a red gate if the reasoning is ever wrong.
+  ENGINE_DIRS="ipc mcp mcp-owner-claims runs writer-claims tmp campaigns kit"
   # BASE names only. The match below is a prefix match, so `<name>.tmp`, `<name>.lock`,
   # `<name>.<pid>.<hex>.tmp` and `audit.ndjson.1`..`.4` are all covered without being listed.
   ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json ui-state.json todos.json pi-leader.json automations.json automation-state.json automation-receipts.ndjson automation-log.ndjson automation-poll.lock"
@@ -108,6 +114,12 @@ for entry in "$LOCAL"/* "$LOCAL"/.[!.]* "$LOCAL"/..?*; do
     # live, so a run that races an atomic write would fail on a file that is gone a millisecond
     # later - the worst kind of flake, and one no exact list can prevent. Matching `<known>` or
     # `<known>.*` covers every one of them in a single rule.
+    #
+    # It also covers one the engine team found only after their own review pressed on it:
+    # `<file>.lock.takeover`, written by `core/file-lock.ts` on EVERY lock release rather than only
+    # on a stale takeover, and reached on every audit write. It was missing from their documented
+    # suffix list too. A rule that matches shapes absorbs that; an enumeration would have needed a
+    # release to learn it. Keep the rule, not a longer list.
     #
     # The trade, stated: a stray file a person names `runs.json.notes` is skipped. That is worth
     # it. A missed stray file is untidiness; a false failure is every project's gate going red on

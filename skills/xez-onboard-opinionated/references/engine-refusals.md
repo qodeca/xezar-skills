@@ -39,24 +39,37 @@ The owner decided this path exists because it is kinder than sending a first-tim
 settings page mid-interview, and because the decision stays theirs: nothing here happens without
 their answer to one plain question. It is a recorded exception in `SECURITY.md`, and it is narrow.
 
-**What it may touch — two files and their backups, nothing else:**
+**What it may touch — one file and its backup, nothing else:**
 
 | Case | Reads | Writes |
 |---|---|---|
 | The project's account registry is empty because the engine's one-time import was declined — **only when `import_global_accounts` is unavailable or refuses**, which on engine 0.18.0 it should not be | the machine's global account registry (`~/.xezar/agent-accounts.json`) | the project's own `.xezar/agent-accounts.json` |
-| The owner **names** a machine-wide switch the engine will not let an agent make | — | the machine's `~/.xezar/config.json`, **the provider enable/disable key only** |
 
-The backup taken beside each of those two files is part of the exception. **Any other key in
-`~/.xezar/config.json` is a finding, not a second case** — the kit's own catalog check prints
-advice about `resources.maxParallel` and `resources.memoryLimitMb` in that file, and that advice is
-for a person, never a licence to write them here.
+The backup taken beside that file is part of the exception. It writes **inside the project**.
 
-The first case writes **inside the project** and is the common one. The second reaches every
-project on the machine: it is never proposed by this skill, only carried out when the owner names
-that change in their own words — "yes" to a question you asked is not naming it. The rule in
-`references/verify.md` — never reach for a machine-wide setting from a per-project setup — still
-decides what the skill *proposes*, and its two conditions for the OpenCode switch (the engine is in
-single-project mode, and no chain names an OpenCode lane) apply here exactly as they do there.
+**`~/.xezar/config.json` is never written by this skill. Any write there is a finding.** That
+includes the provider enable/disable key, which used to be a second case here — see below for why
+it was retired — and it includes `resources.maxParallel` and `resources.memoryLimitMb`, which the
+kit's catalog check prints advice about. That advice is for a person, never a licence to write them
+here.
+
+### The provider switch was a second case, and it is retired (2026-09-22)
+
+It allowed a consented write to the provider enable/disable key of `~/.xezar/config.json` when the
+owner named that machine-wide change themselves. Reading engine 0.18.0 showed it **never did
+anything in either mode this skill runs in**:
+
+- **In the project state layout** — the one this setup creates, proved by
+  `capabilities.singleProjectRoot` — the engine reads that key from
+  `<project>/.xezar/workspace.json` and **never opens `~/.xezar/config.json` for it**. There is no
+  merge and no fallback. `set_provider_enabled` writes the project file and answers
+  `scope: project`. So the hand edit changed a file nothing read.
+- **In the global layout** the machine file *is* read — and `references/verify.md` §3 already says
+  to change neither machine-wide switch there. So the edit was forbidden by our own rule.
+
+Both paths are covered without it. A permission that buys nothing is not a small exception, it is a
+standing invitation, so it is gone rather than narrowed. If the owner wants a machine-wide provider
+change, give them the place to make it themselves (step 3 above).
 
 **One question, and it shows everything:** the file; the exact change as **keys and their values,
 before and after**, never a summary; whether it reaches this project or every project on the

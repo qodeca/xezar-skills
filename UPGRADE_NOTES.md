@@ -17,6 +17,34 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – my gate fails on a `kit` directory, or my gate lease quietly stopped taking slots
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 2.0.0 or earlier, **once you copy
+the two checks below**. Until then nothing changes. Both are small and neither is urgent today.
+
+**Symptom 1 – `local-tree` fails with `kit/ (unexpected directory)`.** The engine writes
+`.local/xezar/kit` when a repository root is the user's own home directory. That should never be an
+onboarded project, so you are unlikely to see this — it is allowed now because the cost of being
+wrong about "never" is every gate run going red, and the cost of allowing it is nothing.
+
+**Symptom 2 – there is no symptom, and that is the problem.** The lease probe in `repo-gates.sh`
+used to look for the words `usage: xezar lease gates` in the engine's refusal. No test of the
+engine's protects that wording. If it is ever reworded, the probe stops matching, the gate lease
+silently stops being taken, and gate runs go back to trampling each other with no error and nothing
+in the log. The probe now matches `nothing to run` instead — the one phrase the engine's own test
+suite asserts for that exact call — so a rewording would turn **their** build red before it reached
+you.
+
+**What to do.** Copy the two checks:
+
+```bash
+cp .claude/skills/xez-onboard-opinionated/kit/checks/repo-gates.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/local-tree.sh .xezar/checks/
+```
+
+**What you lose by skipping it.** Nothing you will notice today. Later, a gate that fails on a
+directory you did not create, or a lease that stopped working months ago and never said so.
+
 ## 2026-09-22 – the onboarding skill says my engine is too old, and it used to run
 
 Applies to anyone running engine **0.16.x or 0.17.x** with `xez-onboard-opinionated` 1.7.0 or later.

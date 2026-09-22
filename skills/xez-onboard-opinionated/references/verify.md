@@ -81,6 +81,15 @@ In order:
   leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
   checkout's absolute path, which is why the kit's ignore file lists it.
 
+  **Compare the registry against screen 3's answer once more, immediately before this call.**
+  `references/write.md` §0 already did this, but that was **before the merge** and this step runs
+  **after** it, so an arbitrary amount of time has passed and a leader may have called
+  `project_config import_global_accounts` inside the gap. Re-read the account ids and compare them
+  to `.local/xezar/runtime/onboarding-interview.json`. Accounts that merely appeared are reported,
+  not a stop. **The chosen login missing is a stop** — do not call `select_account` with it, because
+  the engine accepts the write and the failure surfaces later as a dispatch with nothing to point
+  at. This is the last moment the check is cheap.
+
   **Read what was there before you write, and report it.** Until this step runs, the project falls
   back to the engine's own default, and that default can name an account the registry does not
   contain — a second test found `selections: {}` and a default naming a login absent from the

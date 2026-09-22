@@ -32,28 +32,32 @@ operator did not intend.
   committed, and the bypass that costs" states what it gives away. A *second* bypass, or this
   one used for anything but records, is still a finding.
 - **One reach outside the repository is accepted and recorded rather than found:** the
-  opinionated onboarding may read the machine's engine account registry
+  opinionated onboarding may **read** the machine's engine account registry
   (`~/.xezar/agent-accounts.json`) and, on the owner's yes to one question showing the file and
-  the exact values, write the project's own `.xezar/agent-accounts.json`, or — only when the owner
-  names that change themselves — the provider enable/disable key of `~/.xezar/config.json`. A
-  backup beside each of those two files is part of the exception; nothing else is. Never a file
-  holding a secret (`skills/xez-onboard-opinionated/references/engine-refusals.md`). The owner
-  accepted it, and `DECISIONS.md` → "A consented edit when the engine says no" states what it
-  gives away. A third file, another key in that config, an edit without the question, or the same
-  path in any other skill is still a finding.
+  the exact values, write the project's own `.xezar/agent-accounts.json`. A backup beside that
+  file is part of the exception; nothing else is. **It writes inside the project only.** Never a
+  file holding a secret (`skills/xez-onboard-opinionated/references/engine-refusals.md`). The
+  owner accepted it, and `DECISIONS.md` → "A consented edit when the engine says no" states what
+  it gives away. A second file, a write anywhere under `~/.xezar/`, an edit without the question,
+  or the same path in any other skill is still a finding.
 
-  **That re-review is now due, and this is what it found (2026-09-22, floor raised to 0.18.0).**
-  The condition was "a release that allows *both* actions through the engine's own tools". Only
-  one arrived. The account-registry case is replaced: engine 0.18.0 ships
-  `project_config import_global_accounts`, so the engine can do it and step 2 of
-  `references/engine-refusals.md` reaches it before any file edit. The machine-wide provider case
-  is **not** replaced: `set_provider_enabled` answers `scope: project` in single-project mode, so
-  no engine tool makes that machine-wide change an agent may call.
-  **The scope has therefore not been shrunk here, deliberately.** Retiring the first case means
-  proving the onboarding run can actually reach that MCP action, and the live end-to-end run that
-  would show it is still owed. Shrinking a safety exception on the strength of a capability nobody
-  has watched work would be the wrong direction to be wrong in. The evidence is assembled; the
-  decision is the owner's, and it is the first thing to settle after that run.
+  **The scope was cut here on 2026-09-22, and this is the reasoning.** The exception used to
+  carry a second case: a consented write to the provider enable/disable key of
+  `~/.xezar/config.json`, when the owner named that machine-wide change themselves. A read of
+  engine 0.18.0 showed it **never had any effect in either mode this skill runs in**. In the
+  project state layout — the one this setup creates — the engine reads that key from
+  `<project>/.xezar/workspace.json` and never opens `~/.xezar/config.json` for it; there is no
+  merge and no fallback, and `set_provider_enabled` writes the project file and answers
+  `scope: project`. In the global layout the machine file *is* read, and
+  `references/verify.md` §3 already forbids changing a machine-wide switch there. So the
+  permission was granted for a file edit that changed nothing a reader would ever see.
+  **That is worse than a wide exception, not better** — it is a standing write permission outside
+  the repository with no purpose to weigh against it, and nothing would have failed if it were
+  abused. It is retired outright rather than narrowed. The remaining account-registry case stays
+  as it is: engine 0.18.0's `project_config import_global_accounts` should reach it first, but
+  retiring it means proving a live onboarding run gets there, and that run is still owed.
+  Shrinking the last case on the strength of a capability nobody has watched work is the wrong
+  direction to be wrong in.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on

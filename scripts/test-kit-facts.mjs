@@ -585,11 +585,15 @@ function walk(rel, match) {
   // The probe must come BEFORE the exec, and execfail must be set. Order is the whole point: a
   // probe after the exec is not a probe, it is dead code.
   const execAt = gates.indexOf('exec "$lease_bin"');
-  const probeAt = gates.indexOf("usage: xezar lease gates");
+  // The matched phrase is pinned, not just the presence of a probe. `nothing to run` is the one
+  // string in that refusal the ENGINE's own suite asserts (its infra-tests expect_fail case for
+  // `lease gates` with no command), so it is the only one a rewording cannot silently take from
+  // us. Reverting to `usage:` would look identical at run time and lose that protection.
+  const probeAt = gates.indexOf("grep -qF 'nothing to run'");
   if (execAt === -1)
     fail(fact, where, "no `exec \"$lease_bin\"` found -- the lease no longer re-executes, so its release-on-any-exit property is gone");
   else if (probeAt === -1)
-    fail(fact, where, "nothing checks the engine's usage line before the exec -- a fork or a too-old engine now reaches the caller as the gate verdict, with no gates run");
+    fail(fact, where, "the probe no longer matches `nothing to run` before the exec -- that phrase is the one the engine's own tests assert, and any other match leaves a fork or a too-old engine reaching the caller as the gate verdict, with no gates run");
   else if (probeAt > execAt)
     fail(fact, where, "the engine probe sits AFTER the exec, where no code of ours ever runs -- fail-open is decorative");
   if (execAt !== -1 && !gates.includes("shopt -s execfail"))

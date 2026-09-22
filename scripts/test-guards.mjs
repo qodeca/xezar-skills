@@ -288,6 +288,20 @@ breaks(
   "npx",
 );
 
+// The break that looks like no break at all: reverting to the old matcher leaves a working probe.
+// It fails only when the engine rewords a line no test of theirs asserts -- which is precisely the
+// event this pin exists to survive, and precisely the one nobody would notice happening.
+breaks(
+  "a lease probe matching an unasserted engine string is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace(
+    "grep -qF 'nothing to run'",
+    "grep -qE 'usage: xezar lease gates|^xezar lease:'",
+  ),
+  () => script("test-kit-facts.mjs"),
+  "nothing to run",
+);
+
 breaks(
   "a launcher that stops marking its session as the leader is rejected",
   "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
