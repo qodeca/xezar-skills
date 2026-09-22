@@ -562,13 +562,18 @@ breaks(
   "has no SHA-256 digest for kit/pipeline/toolchains/cargo.md",
 );
 
+const ROUTING = "skills/xez-onboard-opinionated/kit/routing.json";
+// Edits routing.json as data, so a case names the change and not the file's layout.
+const routingEdit = (change) => (s) => {
+  const file = JSON.parse(s);
+  change(file, (id) => file.rows.find((row) => row.id === id));
+  return `${JSON.stringify(file, null, 2)}\n`;
+};
+
 breaks(
-  "the provider prohibition moved out of the global prohibitions is rejected",
-  "skills/xez-onboard-opinionated/references/routing-rows.md",
-  (s) => {
-    const phrase = "does not enforce a step's tool limits is in no chain";
-    return `${s.replace(phrase, "is best avoided")}\n<!-- a provider that ${phrase} -->\n`;
-  },
+  "the tool-limits prohibition softened in routing.json is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "tool-limits").rule = "A lane that ignores tool limits is best avoided."; }),
   () => script("test-kit-facts.mjs"),
   "lost the global prohibition",
 );
@@ -646,10 +651,108 @@ breaks(
 
 breaks(
   "a kit workflow that no routing row names is rejected",
-  "skills/xez-onboard-opinionated/references/routing-rows.md",
-  (s) => s.replace("| `root-sync.yaml` |", "| the leader itself |"),
+  ROUTING,
+  routingEdit((f, row) => { row("root-sync").workflows = ["issue-triage.yaml"]; }),
   () => script("test-kit-catalog.mjs"),
   "installed, valid, and unreachable",
+);
+
+// The routing file is read by a script that applies every ban a file can decide (FACT 17). Each
+// way a pull request could reroute work past a ban is a break of its own.
+breaks(
+  "a cheap lane in the security review is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("security-review").lanes.push("codex/gpt-5.6-luna"); }),
+  () => script("test-kit-catalog.mjs"),
+  '"codex/gpt-5.6-luna" is a cheap lane',
+);
+
+breaks(
+  "a row that narrows a security row, with a cheap lane, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("docs-writing").narrows = "security-review"; row("docs-writing").neverAuthor = true; }),
+  () => script("test-kit-catalog.mjs"),
+  '"pi/deepseek-api/deepseek-flash" is a cheap lane',
+);
+
+breaks(
+  "a reserved lane in an ordinary row is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("docs-writing").lanes.unshift("claude/fable"); }),
+  () => script("test-kit-catalog.mjs"),
+  "is reserved and this row is not one of its rows",
+);
+
+breaks(
+  "a login that is an email address is rejected",
+  ROUTING,
+  routingEdit((f) => { f.tools.claude.rotation = ["owner@example.com"]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is not an engine account ID",
+);
+
+breaks(
+  "a login that is this machine's own user name is rejected",
+  ROUTING,
+  routingEdit((f) => { f.tools.codex.rotation = [(process.env.USER || "runner").toLowerCase().replace(/\s+/g, "-")]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is this machine's own user name",
+);
+
+breaks(
+  "a row naming a lane that does not exist is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("refactor").lanes.push("claude/opus-9"); }),
+  () => script("test-kit-catalog.mjs"),
+  '"claude/opus-9" is not a lane',
+);
+
+breaks(
+  "a never entry that is only a reason, and so matches every lane, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("refactor").never.push({ why: "too risky" }); }),
+  () => script("test-kit-catalog.mjs"),
+  "names no match key",
+);
+
+breaks(
+  "routing text that points at a URL is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("spike").trigger += " See https://example.com first."; }),
+  () => script("test-kit-catalog.mjs"),
+  "holds a URL",
+);
+
+breaks(
+  "route --rows that leaks lane data is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  (s) => s.replace("trigger: r.trigger, ...(r.narrows", "trigger: r.trigger, lanes: r.lanes, ...(r.narrows"),
+  () => script("test-kit-catalog.mjs"),
+  "route --rows leaks lane data",
+);
+
+breaks(
+  "route --check that passes a broken working-tree file is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  (s) => s.replace("if (errors.length) { process.stderr.write(`route: ${path} is refused", "if (false) { process.stderr.write(`route: ${path} is refused"),
+  () => script("test-kit-catalog.mjs"),
+  "route --check passed a broken working-tree file",
+);
+
+breaks(
+  "dropping routing.json from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.xezar\\\/routing.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .xezar/routing.json",
+);
+
+breaks(
+  "a routing.json edited without storing its defaults version is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("hotfix").lanes.reverse(); }),
+  () => script("test-kit-catalog.mjs"),
+  "raises defaults.version and stores the new copy",
 );
 
 breaks(

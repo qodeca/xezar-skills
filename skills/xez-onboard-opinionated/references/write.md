@@ -199,10 +199,11 @@ Never copied, because each depends on an answer:
   tag and never a commit, so the reviewed workflow always runs from the base branch and the commit
   to deploy travels as that input. A project whose deploy workflow has no `sha` input adds one
   (`inputs: sha:` and `actions/checkout` with `ref: ${{ inputs.sha }}`) before listing it. The kit's
-  security scan names `.xezar/pipeline/config.json`, `.xezar/config.json` and `.github/workflows/`
-  as trust boundaries, so a change to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated `CODE_REVIEW.md`, beside the hook and its
-  loader: a change to `deploy.*`, to the base branch, or to a workflow file is routed to the
-  security-review row.
+  security scan names `.xezar/pipeline/config.json`, `.xezar/config.json`, `.github/workflows/`,
+  `.xezar/workflows/`, `.xezar/checks/` and `.xezar/routing.json` as trust boundaries, so a change
+  to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated
+  `CODE_REVIEW.md`, beside the hook and its loader: a change to `deploy.*`, to the base branch, to a
+  workflow file, to a check script or to the routing file is routed to the security-review row.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.

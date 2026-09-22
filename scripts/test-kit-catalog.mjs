@@ -13,7 +13,10 @@
 //   1. the kit's own validator passes on the kit, staged the way a project holds it;
 //   2. the validator's list of maintained skills IS the set of skill files -- a name left off
 //      that list is not held to the shared contract, and passes in silence;
-//   3. every workflow has a routing row, and every workflow a row names exists;
+//   3. every workflow has a routing row in kit/routing.json, and every workflow a row names
+//      exists; the file passes `route.mjs --check`, the script and the schema name the same
+//      keys, the file is its stored defaults copy, reading rows run reading workflows, and
+//      `route` itself answers right on a staged project;
 //   4. every count of rows and classes written in prose equals the table it describes;
 //   5. the grammar of the guarded workflows' config keys tells a typo from an honest empty list;
 //   6. a guard step sits where it is worth something: before the install it exists to save, and
@@ -33,7 +36,7 @@ import { pathToFileURL } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = "skills/xez-onboard-opinionated";
 const KIT = join(root, SKILL, "kit");
-const ROWS = `${SKILL}/references/routing-rows.md`;
+const ROUTING = `${SKILL}/kit/routing.json`;
 
 let problems = 0;
 const fail = (message) => {
@@ -80,63 +83,134 @@ if (!listed) {
 }
 
 // --- 3. Workflows and routing rows name each other ---------------------------------------------
-// A row is a table line opening with its number. Columns: #, task kind, workflow, trigger,
-// class, never. A workflow cell may name more than one file.
-// A pipe inside a code span, or escaped as `\|`, is text and not a column edge. Splitting on
-// every `|` would shift the cells of the first row whose trigger quotes a shell pipeline, and the
-// class would then be read out of the wrong column without anything failing.
-const splitRow = (line) => {
-  const cells = [];
-  let cell = "";
-  let inCode = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (ch === "\\" && line[i + 1] === "|") { cell += "|"; i += 1; continue; }
-    if (ch === "`") inCode = !inCode;
-    if (ch === "|" && !inCode) { cells.push(cell.trim()); cell = ""; continue; }
-    cell += ch;
-  }
-  cells.push(cell.trim());
-  return cells;
-};
-{
-  const probe = splitRow("| 1 | a \\| b | `x | y` | c |");
-  if (probe.length !== 6 || probe[2] !== "a | b" || probe[3] !== "`x | y`" || probe[4] !== "c") {
-    fail(`the routing row splitter no longer keeps an escaped or backticked pipe inside its cell: ${JSON.stringify(probe)}`);
-  }
-}
-const rowsText = readFileSync(join(root, ROWS), "utf8");
-const rows = rowsText
-  .split("\n")
-  .filter((line) => /^\| \d+ \|/.test(line))
-  .map((line) => {
-    const cells = splitRow(line);
-    return {
-      number: Number(cells[1]),
-      workflows: [...cells[3].matchAll(/`([a-z0-9-]+\.yaml)`/g)].map((m) => m[1]),
-      cls: cells[5],
-    };
-  });
+// The rows live in `kit/routing.json`. A row may name more than one workflow file.
+const routing = JSON.parse(readFileSync(join(KIT, "routing.json"), "utf8"));
+const rows = routing.rows.map((row) => ({ id: row.id, workflows: row.workflows, cls: row.class }));
 const workflowFiles = readdirSync(join(KIT, "workflows")).filter((name) => name.endsWith(".yaml")).sort();
 const routed = new Set(rows.flatMap((row) => row.workflows));
 
-if (rows.length === 0) fail(`${ROWS} has no table rows this test can read`);
-rows.forEach((row, index) => {
-  if (row.number !== index + 1) fail(`${ROWS}: row ${index + 1} is numbered ${row.number} -- the precedence rules cite rows by number`);
-  if (row.workflows.length === 0) fail(`${ROWS}: row ${row.number} names no workflow`);
-  if (!row.cls) fail(`${ROWS}: row ${row.number} has no class`);
-});
+if (rows.length === 0) fail(`${ROUTING} has no rows`);
 for (const name of workflowFiles) {
   if (!routed.has(name)) fail(`kit/workflows/${name} is named by no routing row -- installed, valid, and unreachable`);
 }
 for (const name of routed) {
-  if (!workflowFiles.includes(name)) fail(`${ROWS} routes to ${name}, and kit/workflows/ has no such file`);
+  if (!workflowFiles.includes(name)) fail(`${ROUTING} routes to ${name}, and kit/workflows/ has no such file`);
+}
+
+// --- 3b. The routing file passes its own check, and agrees with the schema and the catalog -------
+{
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { KNOWN, readingRow } = await import(pathToFileURL(ROUTE).href);
+  // Until the engine floor is 0.19.0, no runner blocks writes in a reading step, so every lane is
+  // honestly `enforcesToolLimits: false` and the tool-limits ban refuses the reading and release
+  // rows. That, and only that, is tolerated below the floor. Raising the floor ends the tolerance:
+  // the release cannot ship a file whose reviews all wait.
+  const floor = JSON.parse(readFileSync(join(root, "compat.json"), "utf8")).xezar.min.split(".").map(Number);
+  const beforeEnforcement = floor[0] === 0 && floor[1] < 19;
+  try {
+    execFileSync("node", [ROUTE, "--check", join(KIT, "routing.json")], { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    const lines = (error.stderr ?? "").split("\n").filter((l) => l.startsWith("route: error "));
+    const other = lines.filter((l) => !l.startsWith("route: error [tool-limits] "));
+    if (!lines.length || other.length || !beforeEnforcement) {
+      fail(`route --check refuses ${ROUTING}:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+    }
+  }
+
+  // The script's key lists and the schema's properties are the same lists.
+  const schema = JSON.parse(readFileSync(join(KIT, "routing.schema.json"), "utf8"));
+  const d = schema.$defs;
+  const pairs = {
+    top: schema.properties, defaults: schema.properties.defaults.properties, leader: schema.properties.leader.properties,
+    tool: d.tool.properties, lane: d.lane.properties, reserved: schema.properties.reservedLanes.additionalProperties.properties,
+    globalBan: schema.properties.globalBans.items.properties, noMatch: schema.properties.noMatch.properties,
+    lookAlike: schema.properties.lookAlikes.items.properties, row: d.row.properties, match: d.match.properties,
+    secondOpinion: d.row.properties.secondOpinion.properties,
+  };
+  for (const [name, props] of Object.entries(pairs)) {
+    const a = [...KNOWN[name]].sort().join(",");
+    const b = Object.keys(props ?? {}).sort().join(",");
+    if (a !== b) fail(`route.mjs KNOWN.${name} is [${a}] and routing.schema.json says [${b}] -- the script and the schema must name the same keys`);
+  }
+
+  // The shipped file is the stored copy of its defaults version: the upgrade diff's base.
+  const stored = `${SKILL}/references/routing-defaults/${routing.defaults.version}.json`;
+  if (!existsSync(join(root, stored))) fail(`${ROUTING} says defaults version ${routing.defaults.version}, and ${stored} does not exist`);
+  else if (readFileSync(join(root, stored), "utf8") !== readFileSync(join(KIT, "routing.json"), "utf8")) {
+    fail(`${ROUTING} differs from ${stored}: changing the shipped defaults raises defaults.version and stores the new copy`);
+  }
+
+  // A reading row runs a reading workflow, and a runs-code row a workflow that runs code: the
+  // tool-limits ban is only as good as the row telling the truth about its step.
+  const lists = readFileSync(join(KIT, "checks/catalog-check.mjs"), "utf8");
+  const setOf = (name) => {
+    const m = new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\);`).exec(lists);
+    return new Set(m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => `${x[1]}.yaml`) : []);
+  };
+  const reading = setOf("READ_ONLY_WORKFLOWS");
+  const runsCode = setOf("RUNS_CODE_WORKFLOWS");
+  if (!reading.size || !runsCode.size) fail("catalog-check.mjs no longer declares READ_ONLY_WORKFLOWS and RUNS_CODE_WORKFLOWS as Set literals this test can read");
+  for (const row of routing.rows) {
+    for (const wf of row.workflows) {
+      if (reading.has(wf) && !readingRow(row)) fail(`${ROUTING}: row ${row.id} runs the reading workflow ${wf}, so it is writes: false with no runsCode`);
+      if (runsCode.has(wf) && row.runsCode !== true) fail(`${ROUTING}: row ${row.id} runs ${wf}, which builds and runs code, so it says runsCode: true`);
+    }
+  }
+
+  // --rows is the classification view: it must carry no lane and no login.
+  const lab = mkdtempSync(join(tmpdir(), "kit-route-"));
+  try {
+    const out = execFileSync("node", [ROUTE, "--file", join(KIT, "routing.json"), "--rows"], { cwd: lab, encoding: "utf8", stdio: "pipe" });
+    for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
+  } catch (error) {
+    // Below the floor the kit file itself is refused (see above); --rows is then proven on a copy.
+    if (!beforeEnforcement) fail(`route --rows failed:\n${error.stderr ?? ""}`);
+  }
+  // A staged project: every lane enforcing, two logins, one program missing.
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    const copy = structuredClone(routing);
+    for (const lane of Object.values(copy.lanes)) lane.enforcesToolLimits = true;
+    copy.tools.claude.rotation = ["acct-one", "acct-two"];
+    copy.tools.codex.rotation = ["acct-three"];
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const run = (...args) => execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", ...args], {
+      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude" } });
+    const cold = run("full-cold-review");
+    const lanes = cold.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
+    if (lanes.join(",") !== "claude/opus,claude/sonnet") fail(`route full-cold-review with codex missing gave [${lanes}], expected claude/opus,claude/sonnet`);
+    if (!/removed=codex\/gpt-5\.6-sol reason=the codex program is not installed here/.test(cold)) fail("route does not say why it removed a lane whose program is missing");
+    if (!/logins=acct-one\b/.test(cold) || /acct-two/.test(cold)) fail("route does not narrow a rotation to the logins this machine has");
+    if (!/^wait=a security or release row is never dispatched on unverified availability/m.test(run("security-review"))) fail("route dispatches a security row with no availability cache");
+    const rowsOut = run("--rows");
+    for (const lane of Object.keys(copy.lanes)) if (rowsOut.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
+    if (/acct-/.test(rowsOut)) fail("route --rows leaks a login");
+    // --check reads the working tree: a broken file there fails, whatever the base branch holds.
+    copy.rows[0].lanes = ["claude/no-such-model"];
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    try {
+      execFileSync("node", [ROUTE, "--check"], { cwd: project, encoding: "utf8", stdio: "pipe" });
+      fail("route --check passed a broken working-tree file");
+    } catch (error) {
+      if (!/\[ref\] rows\.[a-z-]+\.lanes\[0\]: "claude\/no-such-model" is not a lane/.test(error.stderr ?? "")) {
+        fail(`route --check refused a broken file for the wrong reason:\n${error.stderr ?? error.message}`);
+      }
+    }
+  } catch (error) {
+    fail(`the staged route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
 }
 
 // --- 4. Counts written in prose ------------------------------------------------------------------
 // A number standing directly before "rows" or "classes" in these files is a claim about the
 // table, and it has to be the table's number. Spelled or in digits; a placeholder is not a claim.
-// For ROWS a number under five is not one either -- "when two rows are equally specific" talks
+// For rows a number under five is not one either -- "when two rows are equally specific" talks
 // about two rows, not about the table. A class count is always a claim: nobody writes about
 // "three classes" of a table that has eight and means something else.
 const classes = [...new Set(rows.map((row) => row.cls))];
@@ -153,7 +227,6 @@ const toNumber = (text) => {
 };
 const NUMBER = `(\\d+|(?:${Object.keys(TENS).join("|")})(?:-[a-z]+)?|${UNITS.join("|")})`;
 const COUNT_SITES = [
-  `${SKILL}/references/routing-rows.md`,
   `${SKILL}/references/routing-interview.md`,
   `${SKILL}/references/interview.md`,
   `${SKILL}/references/report-templates.md`,

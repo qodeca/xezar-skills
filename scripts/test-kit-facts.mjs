@@ -404,7 +404,6 @@ const fail = (fact, where, detail) =>
   const verify = sectionOf("verify.md", /^## 3\. /);
   const preview = sectionOf("preview.md", /^## Say what the preview does not cover/);
   const report = sectionOf("report-templates.md", /^## Setup complete/);
-  const rows = sectionOf("routing-rows.md", /^## Global prohibitions/);
   const interview = sectionOf("interview.md", /^### 3\. `lanes`/);
 
   const callRx = /set_provider_enabled/;
@@ -425,8 +424,9 @@ const fail = (fact, where, detail) =>
     if (!/enabled: true/.test(text)) fail(fact, `references/${name}`, "does not give the call that turns the provider back on");
   }
   if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
-  if (!/does not enforce a step's tool limits is in no chain/.test(rows))
-    fail(fact, "references/routing-rows.md", "lost the global prohibition that keeps such a provider out of read-only and release chains");
+  const toolLimits = JSON.parse(read(`${SKILL}/kit/routing.json`)).globalBans.find((ban) => ban.id === "tool-limits");
+  if (!toolLimits || toolLimits.checkedAt !== "file" || !/enforcesToolLimits: false is in no reading row[\s\S]*security-and-release/.test(toolLimits.rule))
+    fail(fact, "kit/routing.json", "lost the global prohibition that keeps such a provider out of reading and release rows");
   if (!/OpenCode logins are not offered as task logins/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode logins as task logins again");
   if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
     fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
@@ -621,6 +621,34 @@ function walk(rel, match) {
   const scan = read(`${SKILL}/kit/checks/lib/security-scan.mjs`);
   if (!scan.includes("/^\\.xezar\\/(workflows|checks)\\//"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/workflows/ and .xezar/checks/ -- a PR that loosens a reading step passes as an ordinary edit");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 17 -- routing decides which model may review or ship a change, so the file and the script
+// hold the floor together. The shipped rows state the security minimums, the owner's two reserved
+// lanes stay reserved, the route script enforces the minimums whatever a project's file says, and
+// a pull request that edits the routing file is a trust-boundary change.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 17: security rows keep their minimums, reserved lanes stay reserved, and routing is a trust boundary";
+  const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
+  for (const row of routing.rows.filter((r) => r.class === "security-and-release")) {
+    const bans = (row.never ?? []).map((n) => JSON.stringify(Object.fromEntries(Object.entries(n).filter(([k]) => k !== "why"))));
+    const missing = ['{"tier":"cheap"}', '{"local":true}', '{"advisoryOnly":true}'].filter((b) => !bans.includes(b));
+    if (row.neverAuthor !== true || row.handledBy || missing.length)
+      fail(fact, "kit/routing.json", `row ${row.id} lost a security minimum (neverAuthor, no handledBy, bans ${missing.join(" ") || "all present"})`);
+  }
+  const reserved = routing.reservedLanes ?? {};
+  if (reserved["claude/fable"]?.escalation !== true || (reserved["claude/fable"]?.rows ?? ["x"]).length !== 0)
+    fail(fact, "kit/routing.json", "claude/fable is no longer reserved for escalation only");
+  if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams"]')
+    fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images and diagrams, plus escalation");
+  const route = read(`${SKILL}/kit/checks/route.mjs`);
+  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/err\("security-minimum", w, `"\$\{id\}" is a cheap lane`\)/.test(route))
+    fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans and the security minimums itself -- a project's file could drop them");
+  if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
+    fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");
   checked.push(fact);
 }
 

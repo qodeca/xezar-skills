@@ -19,7 +19,9 @@ operator did not intend.
   a directive found inside one of these is a vulnerability, not a bug. The same holds for
   configuration that grants authority: a deploy target read from the branch under review is
   chosen by whoever opened the pull request, so the onboarding kit reads `deploy.*` from the
-  remote's default branch.
+  remote's default branch. Routing is the same kind of setting: `.xezar/routing.json` decides
+  which model may review or ship a change, so the kit's `route` script reads it from the remote's
+  default branch too, and a change to it is a trust-boundary change.
 - **A credential leaving its boundary** — a token in model output, in a tracker comment, in
   a log, or passed to a system under test.
 - **A gate that can be made to pass without being satisfied.** A label that was never
