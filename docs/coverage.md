@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 107 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 109 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values; inside a vendored `kit/`, paths from the engine's own repository | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 227 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text, and the kit role skills' shared contract, have not drifted across their copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
@@ -34,7 +34,7 @@ rather than trusting this table for a precise number.
 | 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 17 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its nine pinned rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
 | 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a row in `kit/routing.json`, the file passes `route.mjs --check` and matches its schema and stored defaults, on a staged project `route` reads only the remote default branch, drops a missing program or login, and drops a lane the lane cache marks unavailable but distrusts a stale or future-dated cache, the maintained-skill list is the skill directory, and every row and class count in prose is the file's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, and runs `config-guard.sh` and `deploy-guard.sh` for real on a throwaway repository; **not** that a workflow runs on an engine |
-| 25 | The gate lease cannot loop, cannot delay `--list`, probes the engine before it commits, and never resolves through `npx` | `test-kit-facts.mjs` FACT 15, four break cases in `test-guards.mjs` | ✅ — but read the limit below |
+| 25 | The gate lease cannot loop, cannot delay `--list`, probes the engine before it commits, and never resolves through `npx` | `test-kit-facts.mjs` FACT 15, six break cases in `test-guards.mjs` | ✅ — but read the limit below |
 | 26 | A reading step's shell is limited to reading commands and three write helpers, a project's Claude settings cannot widen it, and loosening either is a trust-boundary change | `catalog-check.mjs` reader and settings rules, `test-kit-facts.mjs` FACT 16, fourteen break cases in `test-guards.mjs` | ✅ — proves the lists; **not** that a runner honours them. Claude enforces an allowlist, Codex ignores it (confined only), pi drops its shell under one; a task login's own user settings are checked by hand at setup |
 | 27 | Routing keeps its security minimums and reserved lanes, reads from the base branch, and is a trust boundary | `route.mjs --check` in `test-kit-catalog.mjs`, `test-kit-facts.mjs` FACT 17, twenty-one break cases in `test-guards.mjs` | ✅ — proves the file and the script; **not** which lanes are available on a machine, which only the leader's lane cache knows |
 

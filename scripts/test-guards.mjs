@@ -327,6 +327,22 @@ breaks(
 );
 
 breaks(
+  "dropping the engine's published lease probe is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace('"$lease_bin" lease gates --probe', '"$lease_bin" lease gates --status-file "$lease_probe.status"'),
+  () => script("test-kit-facts.mjs"),
+  "the probe no longer carries BOTH",
+);
+
+breaks(
+  "a lease probe that takes exit 0 as proof, without reading the answer, is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace("answer.lease.gates === true", "true"),
+  () => script("test-kit-facts.mjs"),
+  "the published probe's answer is no longer read",
+);
+
+breaks(
   "a launcher that stops marking its session as the leader is rejected",
   "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
   (s) => s.replace("export XEZAR_LEADER=1", "export XEZAR_LEADER=0"),

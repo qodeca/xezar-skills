@@ -172,12 +172,14 @@ fi
 # after it there is no code of ours left to fall back to: every later failure would reach the
 # caller AS THE GATE VERDICT, with no gates run and an exit code indistinguishable from a real
 # gate failure. So nothing is committed until a probe has proved this binary can actually run the
-# verb with the flags used below. `lease gates` with no command after `--` exits 2 with a usage
-# line WITHOUT taking a slot, so the probe exercises the whole path - the binary runs, the engine
-# boots, `lease` is a verb, `gates` is a known subject and `--status-file` parses - and can never
-# queue behind another run. A fork that does not know the verb, an engine too old for the flag
-# (`parseArgs` is strict, so an unknown option throws), and an engine that dies during boot on a
-# bad setting or a truncated workspace.json all fail the probe, and we run unleased instead.
+# verb with the flags used below. From engine 0.19.0 that check is the engine's own published one:
+# `lease gates --probe` prints `{"lease":{"gates":true},"slots":<n>}` and exits 0, takes no slot and
+# writes no file, and older engines refuse the flag (xezar #866, `862ec8fa`). Before 0.19.0 there is
+# no probe, so the old check stays for those engines: `lease gates` with no command after `--` exits
+# 2 with a refusal WITHOUT taking a slot, and its `nothing to run` phrase is the one the engine's own
+# suite asserts. A fork that does not know the verb, an engine too old for the flags, and an engine
+# that dies during boot on a bad setting or a truncated workspace.json all fail both, and we run
+# unleased instead. Never match the `usage:` text: the engine declares that wording NOT a contract.
 #
 # Two fail-open paths are ours and proven here; the other two - an unwritable slot folder and a
 # lease that times out - are the engine's contract and are not exercised by this script.
@@ -247,6 +249,7 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
   # not `0.<digits>.` from the first character: `v0.16.0`, `0.16` and `0.9` all slipped through it.
   # Requiring three numeric components also rejects a banner-prefixed or truncated version, and
   # anything unparseable is treated as too old.
+  lease_has_probe=0
   if [ -n "$lease_bin" ]; then
     if lease_run_bounded 10 "$lease_probe" "$lease_bin" --version; then
       lease_version="$(tr -d '[:space:]' <"$lease_probe")"
@@ -262,36 +265,57 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
     ' "$lease_version" 2>/dev/null; then
       lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
       lease_bin=""
+    elif node -e '
+      const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(process.argv[1] || "").replace(/^v/, ""));
+      if (!m) process.exit(1);
+      const major = Number(m[1]), minor = Number(m[2]);
+      process.exit(major > 0 || (major === 0 && minor >= 19) ? 0 : 1);
+    ' "$lease_version" 2>/dev/null; then
+      # 0.19.0 and later answer the published `--probe`; older engines refuse the flag.
+      lease_has_probe=1
     fi
   fi
 
-  # Probe 2 - the verb and the flag, without taking a slot. Exit status is deliberately ignored:
-  # this call is MEANT to fail with 2, and the OUTPUT is what proves it failed for the right reason
-  # and got as far as the lease command.
+  # Probe 2 - the capability, without taking a slot. Two forms, and the engine version above says
+  # which one this binary answers.
   #
-  # The matched string is `nothing to run`, and the choice is the whole point of this comment.
-  # None of these strings is a DECLARED engine surface, so the question is only which one is least
-  # likely to be reworded without anyone noticing. The engine's own suite answers it:
+  # From 0.19.0: `lease gates --probe`, the engine's PUBLISHED check. Exit 0 with
+  # `lease.gates === true` in the JSON on stdout means this binary can lease; anything else means it
+  # cannot. It runs nothing, takes no slot and writes no file in any layout, and it is answered
+  # before the shared parser, so no mode line or first-run import can reach it. Unknown keys are
+  # ignored on purpose: the engine may add some.
   #
-  #   .xezar/checks/infra-tests.sh:5836-5838 (engine 0.18.0)
-  #     expect_fail "a lease with no command after -- is refused" \
-  #       'nothing to run' … lease gates
-  #
-  # and its `expect_fail` helper requires BOTH a non-zero exit and that phrase in the output. That
-  # is the same call this probe makes, so matching `nothing to run` inherits a test the engine team
-  # already runs on every change. The earlier `usage:` / `xezar lease:` pair was protected by
-  # nothing. This matters because a stopped probe loses gate serialisation for every onboarded
-  # project SILENTLY - no error, no slower run anyone notices, just contention coming back.
-  #
-  # `--status-file` does not affect this path: the refusal is raised before the flag is consulted,
-  # so the probe still exits without taking a slot, which is what keeps it from queueing.
+  # Before 0.19.0 there is no probe, so the old check stays for 0.17 and 0.18: `lease gates` with no
+  # command after `--` is refused WITHOUT taking a slot, and the refusal carries `nothing to run` -
+  # the one phrase in it the engine's own suite asserts. Exit status is ignored there, because that
+  # call is MEANT to fail with 2 and the output is what proves it got as far as the lease command.
+  # Never match the `usage:` line in either form: the engine declares that wording not a contract,
+  # and a probe that stops matching loses gate serialisation for every onboarded project SILENTLY -
+  # no error, no slower run anyone notices, just contention coming back.
   if [ -n "$lease_bin" ]; then
-    lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --status-file "$lease_probe.status"
-    if ! grep -qF 'nothing to run' "$lease_probe" 2>/dev/null; then
-      lease_why="the engine at $lease_bin cannot run \`lease gates --status-file\`"
-      lease_bin=""
+    if [ "$lease_has_probe" -eq 1 ]; then
+      if lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --probe; then
+        node -e '
+          const fs = require("node:fs");
+          let answer;
+          try { answer = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(1); }
+          process.exit(answer && answer.lease && answer.lease.gates === true ? 0 : 1);
+        ' "$lease_probe" 2>/dev/null || {
+          lease_why="the engine at $lease_bin answers \`lease gates --probe\` without lease.gates true"
+          lease_bin=""
+        }
+      else
+        lease_why="the engine at $lease_bin cannot run \`lease gates --probe\`"
+        lease_bin=""
+      fi
+    else
+      lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --status-file "$lease_probe.status"
+      if ! grep -qF 'nothing to run' "$lease_probe" 2>/dev/null; then
+        lease_why="the engine at $lease_bin cannot run \`lease gates --status-file\`"
+        lease_bin=""
+      fi
+      rm -f "$lease_probe.status" 2>/dev/null
     fi
-    rm -f "$lease_probe.status" 2>/dev/null
   fi
 
   if [ -n "$lease_bin" ]; then

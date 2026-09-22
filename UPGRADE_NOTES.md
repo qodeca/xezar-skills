@@ -17,6 +17,29 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – gate runs collide again after an engine upgrade
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0.
+
+**Symptom – two gate runs load the machine at once**, where they used to take turns. `repo-gates.sh`
+checked that the engine can lease a gate slot by matching a line of text the engine prints. Engine
+0.19.0 declares that wording not a contract, and publishes a real check instead
+(`xezar lease gates --probe`). The kit now uses the published check on 0.19.0 and later, and the old
+one on 0.17 and 0.18.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/repo-gates.sh .xezar/checks/
+```
+
+If your project edited `repo-gates.sh` (the gate command list at the top is meant to be edited),
+copy the lease block only, or re-apply your edits after copying.
+
+**What you lose by skipping it.** Nothing today. The day the engine rewords that line, gate runs stop
+taking turns – with no error, just a slower, busier machine.
+
 ## 2026-09-22 – my config has `paths.analysis` and an empty `.xezar/pipeline/analysis/`
 
 Applies to any repository set up by `xez-setup-agent-pipeline` before 3.0.0.

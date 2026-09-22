@@ -585,15 +585,22 @@ function walk(rel, match) {
   // The probe must come BEFORE the exec, and execfail must be set. Order is the whole point: a
   // probe after the exec is not a probe, it is dead code.
   const execAt = gates.indexOf('exec "$lease_bin"');
-  // The matched phrase is pinned, not just the presence of a probe. `nothing to run` is the one
-  // string in that refusal the ENGINE's own suite asserts (its infra-tests expect_fail case for
-  // `lease gates` with no command), so it is the only one a rewording cannot silently take from
-  // us. Reverting to `usage:` would look identical at run time and lose that protection.
-  const probeAt = gates.indexOf("grep -qF 'nothing to run'");
+  // Both probe forms are pinned, not just the presence of a probe. From engine 0.19.0 the check is
+  // the engine's PUBLISHED one (`lease gates --probe`, exit 0 with `lease.gates === true`, xezar
+  // #866); for 0.17 and 0.18 it is the refusal carrying `nothing to run`, the one string in it the
+  // engine's own suite asserts. Matching the `usage:` text instead would look identical at run time
+  // and lose both protections -- the engine declares that wording not a contract.
+  // `code` (comments stripped, above) is what carries the call: the comment block explains both
+  // probes, so searching the whole file would pass on the explanation alone.
+  const publishedAt = code.indexOf("lease gates --probe") === -1 ? -1 : gates.indexOf('"$lease_bin" lease gates --probe');
+  const legacyAt = gates.indexOf("grep -qF 'nothing to run'");
+  const probeAt = publishedAt === -1 || legacyAt === -1 ? -1 : Math.min(publishedAt, legacyAt);
+  if (publishedAt !== -1 && !gates.includes("answer.lease.gates === true"))
+    fail(fact, where, "the published probe's answer is no longer read -- exit 0 alone does not say the engine can lease");
   if (execAt === -1)
     fail(fact, where, "no `exec \"$lease_bin\"` found -- the lease no longer re-executes, so its release-on-any-exit property is gone");
   else if (probeAt === -1)
-    fail(fact, where, "the probe no longer matches `nothing to run` before the exec -- that phrase is the one the engine's own tests assert, and any other match leaves a fork or a too-old engine reaching the caller as the gate verdict, with no gates run");
+    fail(fact, where, "the probe no longer carries BOTH `lease gates --probe` (engine 0.19.0 and later) and `nothing to run` (0.17, 0.18) before the exec -- each is the check its engines assert, and any other match leaves a fork or a too-old engine reaching the caller as the gate verdict, with no gates run");
   else if (probeAt > execAt)
     fail(fact, where, "the engine probe sits AFTER the exec, where no code of ours ever runs -- fail-open is decorative");
   if (execAt !== -1 && !gates.includes("shopt -s execfail"))

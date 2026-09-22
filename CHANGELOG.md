@@ -44,6 +44,12 @@ session – in CI, or in a person's terminal. And the tidiness check now also re
 the engine's own list of state names (`xezar state-names --json`), so an engine release that adds a
 name no longer turns gates red.
 
+**The gate lease asks the engine a real question.** From engine 0.19.0 `repo-gates.sh` checks that
+the engine can serialise gate runs with the engine's own published check, `xezar lease gates
+--probe`, instead of matching a line of human-readable text. On 0.17 and 0.18 it keeps the old
+check. A project whose probe stops matching loses gate serialisation silently, which is why this
+moved to the supported form the day it existed.
+
 **`paths.analysis` is gone.** The setup declared it, created its folder and committed it, and no
 skill ever read it. A config that still has the key keeps working.
 
