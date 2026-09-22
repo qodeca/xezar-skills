@@ -1,9 +1,15 @@
-# Unreleased
+# 2.0.0 (2026-09-22)
 
-Two things the kit had no business shipping are gone, and the one document it kept
-pointing at is now written. **Three breaking changes**, the first this project has made
-deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an entry in
-`UPGRADE_NOTES.md` keyed by the symptom a reader sees.
+**The first major version, and the number is the message.** Four breaking changes, each with a row
+in `BACKWARD_COMPATIBILITY.md`'s ledger and an entry in `UPGRADE_NOTES.md` keyed by the symptom a
+reader sees. Two things the kit had no business shipping are gone, the one document it kept
+pointing at is now written, and the minimum engine version moved.
+
+Nobody is forced to follow today. Engine 0.16.0 and 0.17.0 remain published, an already-onboarded
+project is untouched until it re-runs the skill, and 1.6.1 remains a supported place to stay for
+anyone who cannot move the engine yet. What a major version buys is that an installer reading
+version numbers alone is told to go and look — which 1.7.0 would not have done, and for an engine
+0.16 user the difference is the skill refusing to start.
 
 ## Changed — breaking
 
