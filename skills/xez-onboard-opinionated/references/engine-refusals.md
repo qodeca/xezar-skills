@@ -14,9 +14,9 @@ untrusted-content boundary in `references/agentic-setup.md` governs it like any 
 
 1. **A refusal is a finding, not an error to retry.** Read it once and stop calling. Do not guess
    argument shapes either: an "Unrecognized key" answer means read the tool's own description for
-   that action, and one corrected call is the limit. Engine 0.18.0 — the minimum this kit supports
-   — answers a refusal FIRST and lists the keys an action accepts, so an argument complaint is an
-   argument complaint. (Before 0.18.0 it was not: a refused action still validated its arguments
+   that action, and one corrected call is the limit. Engine 0.18.0 and later (0.19.0 is the
+   minimum this kit supports) answer a refusal FIRST and list the keys an action accepts, so an
+   argument complaint is an argument complaint. (Before 0.18.0 it was not: a refused action still validated its arguments
    first, so an outright refusal arrived disguised as `Unrecognized keys`, and the first audited
    run spent four call shapes learning that. The heuristic that guarded against it is gone with
    the engines that needed it.)

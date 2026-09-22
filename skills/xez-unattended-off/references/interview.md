@@ -9,10 +9,10 @@ The leader appends one block per decision it made on the owner's behalf:
 ```markdown
 ## 2026-09-20T02:41Z — lane switch on the review row
 
-**Decided:** moved code review off the primary lane to the next lane in the routing table.
+**Decided:** dispatched code review on the next lane `route.mjs` listed, not the first.
 **Why:** the primary lane's window was spent at 02:38; four tasks were waiting on review.
 **Alternative:** wait for the window to reset at 07:00 and let the queue sit for four hours.
-**Undo:** put the review row back to its first lane in `model-routing.md`; nothing else changed.
+**Undo:** dispatch the review row on its first lane again once its window resets; no file changed.
 ```
 
 Four fields, always: **Decided · Why · Alternative · Undo**. An entry missing one is still

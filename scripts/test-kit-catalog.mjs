@@ -101,20 +101,10 @@ for (const name of routed) {
 {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { KNOWN, readingRow } = await import(pathToFileURL(ROUTE).href);
-  // Until the engine floor is 0.19.0, no runner blocks writes in a reading step, so every lane is
-  // honestly `enforcesToolLimits: false` and the tool-limits ban refuses the reading and release
-  // rows. That, and only that, is tolerated below the floor. Raising the floor ends the tolerance:
-  // the release cannot ship a file whose reviews all wait.
-  const floor = JSON.parse(readFileSync(join(root, "compat.json"), "utf8")).xezar.min.split(".").map(Number);
-  const beforeEnforcement = floor[0] === 0 && floor[1] < 19;
   try {
     execFileSync("node", [ROUTE, "--check", join(KIT, "routing.json")], { encoding: "utf8", stdio: "pipe" });
   } catch (error) {
-    const lines = (error.stderr ?? "").split("\n").filter((l) => l.startsWith("route: error "));
-    const other = lines.filter((l) => !l.startsWith("route: error [tool-limits] "));
-    if (!lines.length || other.length || !beforeEnforcement) {
-      fail(`route --check refuses ${ROUTING}:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
-    }
+    fail(`route --check refuses ${ROUTING}:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
   }
 
   // The script's key lists and the schema's properties are the same lists.
@@ -163,8 +153,7 @@ for (const name of routed) {
     const out = execFileSync("node", [ROUTE, "--file", join(KIT, "routing.json"), "--rows"], { cwd: lab, encoding: "utf8", stdio: "pipe" });
     for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
   } catch (error) {
-    // Below the floor the kit file itself is refused (see above); --rows is then proven on a copy.
-    if (!beforeEnforcement) fail(`route --rows failed:\n${error.stderr ?? ""}`);
+    fail(`route --rows failed:\n${error.stderr ?? ""}`);
   }
   // A staged project: every lane enforcing, two logins, one program missing.
   try {
@@ -183,7 +172,9 @@ for (const name of routed) {
     const cold = run("full-cold-review");
     const lanes = cold.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
     if (lanes.join(",") !== "claude/opus,claude/sonnet") fail(`route full-cold-review with codex missing gave [${lanes}], expected claude/opus,claude/sonnet`);
-    if (!/removed=codex\/gpt-5\.6-sol reason=the codex program is not installed here/.test(cold)) fail("route does not say why it removed a lane whose program is missing");
+    const build = run("multi-file-implementation");
+    if (!/removed=codex\/gpt-5\.6-sol reason=the codex program is not installed here/.test(build)) fail("route does not say why it removed a lane whose program is missing");
+    if (!/^lane=claude\/opus runner=claude model=opus\[1m\] /m.test(build)) fail("route does not print a lane's engineModel as the model to dispatch");
     if (!/logins=acct-one\b/.test(cold) || /acct-two/.test(cold)) fail("route does not narrow a rotation to the logins this machine has");
     if (!/^wait=a security or release row is never dispatched on unverified availability/m.test(run("security-review"))) fail("route dispatches a security row with no availability cache");
     const rowsOut = run("--rows");

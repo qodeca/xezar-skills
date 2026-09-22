@@ -17,6 +17,67 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – the onboarding skill says my engine is too old, and it ran yesterday
+
+Applies to anyone running engine **0.18.x** with `xez-onboard-opinionated` 3.0.0 or later.
+
+**Symptom – the preflight refuses and names 0.19.0.** The minimum engine version is now 0.19.0.
+It was 0.18.0.
+
+**What to do.**
+
+```bash
+npm install -g @qodeca/xezar
+xezar --version     # must print 0.19.0 or later
+```
+
+**Why the floor moved.** 0.19.0 is the first engine that makes a reading step read-only: on Claude
+it removes the Edit and Write tools and honours the step's `bashAllowlist`. The shipped routing
+marks the Claude lanes as enforcing because of that, and puts only them on review and release work.
+On an older engine those rows would run a reviewer that can still write.
+
+**What you lose by skipping it.** The skill, for now. Staying on xezar-skills 2.1.1 is a real
+option if you cannot upgrade the engine yet; it supports 0.18.0 and routes from the old table.
+
+## 2026-09-22 – my leader still reads `model-routing.md`
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0. Your leader keeps
+routing from the old table until you do this; nothing breaks meanwhile.
+
+**Symptom – the leader picks lanes from `.xezar/docs/model-routing.md`.** Routing is now data:
+`.xezar/routing.json`, read only through `node .xezar/checks/route.mjs`, which applies every ban a
+file can decide and removes a lane this machine lacks. The markdown table has no check, and a ban
+in it is a ban the leader has to remember.
+
+**What to do.** First copy what reads the file:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/routing.schema.json .xezar/
+cp $K/checks/route.mjs $K/checks/verdict-write.sh $K/checks/repository-checks.sh .xezar/checks/
+cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
+cp $K/docs/routing.md $K/docs/README.md $K/docs/account-limits.md $K/docs/leader-context-loading.md .xezar/docs/
+cp $K/loops.json .xezar/loops.json
+cp $K/workflows/*.yaml .xezar/workflows/
+cp $K/skills/xezar-*.md .xezar/skills/
+```
+
+Then run the skill's routing section. It writes `.xezar/routing.json` from the shipped defaults,
+carries your rotations over, shows your old chain beside the new order for each row, runs
+`route.mjs --check`, regenerates the leader guide's routing section, and deletes
+`model-routing.md` in the same pull request:
+
+```text
+/xez-onboard-opinionated --section routing
+```
+
+The new `loops.json` changes the L2 and L3 prompts, so the leader reports them as drifted once and
+re-creates them. That is expected.
+
+**What you lose by skipping it.** The checked bans, the security minimums enforced by a script, and
+routing read from the base branch rather than from whatever the leader has open. The old table
+keeps working as a table.
+
 ## 2026-09-22 – a review or triage task changed a file it was only meant to read
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0. Nothing changes

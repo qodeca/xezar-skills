@@ -167,7 +167,7 @@ export function check(file, { identities = [] } = {}) {
     if (!TIERS.includes(lane.tier)) err("shape", `${where}.tier`, `must be one of ${TIERS.join(", ")}`);
     for (const tag of TAGS) if (typeof lane[tag] !== "boolean") err("shape", `${where}.${tag}`, "is missing; a lane with an untagged property is rejected until it is tagged");
     if (lane.enabled !== undefined && typeof lane.enabled !== "boolean") err("shape", `${where}.enabled`, "must be true or false");
-    if (lane.engineModel !== undefined && (typeof lane.engineModel !== "string" || !/^[A-Za-z0-9._/:-]+$/.test(lane.engineModel))) err("shape", `${where}.engineModel`, "is not a model name");
+    if (lane.engineModel !== undefined && (typeof lane.engineModel !== "string" || !/^[A-Za-z0-9._/:[\]-]+$/.test(lane.engineModel))) err("shape", `${where}.engineModel`, "is not a model name");
     texts(lane.notes, `${where}.notes`);
   }
 

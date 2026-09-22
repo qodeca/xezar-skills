@@ -73,7 +73,7 @@ Browser automation uses the same descriptor pattern under `.xezar/pipeline/brows
 - One label-rationale comment per skill per PR or issue, rewritten in place; a missing label is a logged skip, never an error.
 - `xez-code-review` keeps a complete agent artifact and posts a bounded projection to the PR; every blocker and major finding always appears.
 - PR and issue bodies own the explanation (what changes for whom, why, how far it reaches); comments report new findings, state changes or hand-offs and link existing detail.
-- Executor placement and model tier are plan-time data in the loop engines' Tasks table; tiers are abstract (`cheap`, `standard`, `capable`), never vendor model names.
+- Executor placement and model tier are plan-time data in the loop engines' Tasks table; tiers are abstract (`cheap`, `standard`, `capable`), never vendor model names. The onboarding kit's leader routing is the one place that names models: its lanes are real runners and models, shipped as the owner's defaults ("The routing table ships as data").
 - `engine.loopStepThreshold` routes a plain run to the loop engine; `engine.stepReview` sets review granularity (`final`, `checkpoint`, `per-step`).
 - Bugs and feature requests are triaged differently: `xez-auto-fix-issue` classifies first, sends bugs down verify → root-cause → fix → open-pr, and takes features through spec-then-implement with autonomous, reversible defaults for open questions.
 - Definition of Ready is a gate at Intake in two tiers: ticket-level gaps stop a run with `NOT_READY`; spec-level gaps author a spec.
@@ -836,8 +836,9 @@ it before the one approval, and the report carries the call that undoes it. Reve
 pull request does not undo it — the state is outside git — which is why the undo is printed rather
 than implied.
 
-The routing rule is written by capability, not by name: *a provider that does not enforce a
-step's tool limits is in no read-only or security-and-release chain.* It therefore still holds
+The routing rule is written by capability, not by name: *a lane with `enforcesToolLimits: false`
+is in no reading row and in no security-and-release row* (`kit/routing.json`, `tool-limits`).
+`route.mjs` enforces it whatever a project's file says. It therefore still holds
 the day somebody switches the provider back on, and it covers the next provider with the same
 gap without an edit.
 
@@ -913,6 +914,7 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 - **The routing table** renumbered its rows and moved the security-sensitive review row (24 in
   1.4.0, 41 now) to a new workflow. It is a reference
   the interview expands into a project's own document; an existing `model-routing.md` is untouched.
+  (Superseded in 3.0.0: routing ships as data – "The routing table ships as data".)
 - **`security.provider`** still has no default. The kit now copies the scanner descriptor and the
   write step says in as many words that copying it never sets that key.
 - **The one behaviour edge** is `--verify` resuming a setup written by an older release. The new
@@ -945,6 +947,43 @@ different login, and rotating to another login of the same vendor never satisfie
 still tracked per tool × login. A routing table written the old way still dispatches — the leader
 reads whatever chain it is given — so this is a change to what the interview writes, not a
 breaking change to a protected surface; `UPGRADE_NOTES.md` says how to rebuild one.
+
+## The routing table ships as data
+
+Until 3.0.0 the leader routed from `.xezar/docs/model-routing.md`, a prose table the onboarding
+interview built from the lanes a machine had. The owner found it hard to work with and not clear
+enough for the leader: a ban that needed reading in a table was a ban that was sometimes missed,
+and nothing could check a prose chain.
+
+So routing is data. `kit/routing.json` ships the owner's own rows, lanes, bans and reserved lanes
+as everyone's default, and `kit/checks/route.mjs` is the only way the leader reads it: it applies
+every ban a file can decide and prints the order, so the leader decides only budget and never the
+author. The interview confirms what differs on a machine instead of building the table.
+
+What this supersedes, and why each was acceptable to give up:
+
+- **"A shipped table naming lanes that do not exist here fails on the first dispatch."** `route.mjs`
+  removes a lane whose program or login is missing, with the reason, before the leader sees it, and
+  preflight stops a setup where a row has no lane at all. The failure the old rule guarded against
+  is now caught by a machine.
+- **"Login names belong to the gitignored half."** The owner decided that login IDs are committed as
+  rotations. They are engine account IDs the owner chose; `route.mjs --check` refuses an email, a
+  path or the machine's own user name. Emails, real names and folders are still never committed.
+- **The kit ships the owner's local lanes.** A lane another machine lacks is removed at dispatch,
+  so shipping it costs nothing and keeps one file for everyone.
+
+**Which lanes may read and ship (owner, 2026-09-22).** Only lanes whose runner blocks writes in a
+reading step are marked `enforcesToolLimits: true`, and only they are in reading and release rows.
+On engine 0.19.0 that is Claude: `claude/opus`, run as `opus[1m]`, and `claude/sonnet`. Codex is
+only confined – it can still write in its own worktree and ignores the command list – and pi drops
+its whole shell under a command list, so both leave those rows until their runner enforces. The
+cost is accepted knowingly: Claude reviews Claude's work, so a risk-high change written on Claude
+gets no second vendor while this holds.
+
+What was kept on purpose: a lane is a runner plus a model and never a login; `wait` is a real
+terminator; routing text picks a lane and never grants an action. The file is a trust boundary –
+it decides which model may review a change – so it is read from the base branch, never from the
+branch under review, and the security minimums live in the script as well as in the file.
 
 ## A consented edit when the engine says no
 

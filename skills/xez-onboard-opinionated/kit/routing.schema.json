@@ -164,7 +164,7 @@
       "properties": {
         "tool": { "$ref": "#/$defs/runnerId" },
         "model": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },
-        "engineModel": { "description": "The model name as the engine's list_models reports it, when it differs from `model`.", "type": "string", "pattern": "^[A-Za-z0-9._/:-]+$" },
+        "engineModel": { "description": "The model name as the engine's list_models reports it, when it differs from `model`.", "type": "string", "pattern": "^[A-Za-z0-9._/:\\[\\]-]+$" },
         "vendor": { "$ref": "#/$defs/slug" },
         "tier": { "$ref": "#/$defs/tier" },
         "vision": { "type": "boolean" },

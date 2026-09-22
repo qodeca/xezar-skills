@@ -43,6 +43,8 @@ From this skill's `kit/` into the project:
 | `kit/xezar.gitignore` | `.xezar/.gitignore` |
 | `kit/github/**` | `.github/` |
 | `kit/loops.json` | `.xezar/loops.json` |
+| `kit/routing.schema.json` | `.xezar/routing.schema.json` |
+| `kit/routing.json` | `.xezar/routing.json`, then edited in place by interview screens 3 to 5 (`routing-interview.md`) |
 | `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
 | `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
 | `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, executable |
@@ -254,24 +256,20 @@ Never copied, because each depends on an answer:
   |---|---|---|
   | `{{REPOSITORY_SETUP}}` | the base branch; the gate command list; where source, tests and docs live; the one command that runs the gate | ≤ 12 |
   | `{{TASK_LIFECYCLE}}` | the stages a task passes through, in order, and which of them a label marks | ≤ 12 |
-  | `{{ROUTING_ACCOUNTS_LIMITS}}` | the path to `.xezar/docs/model-routing.md`; **which login is the reserved leader login and that it runs no tasks**; how a lane being out is recorded | ≤ 15 |
+  | `{{ROUTING_ACCOUNTS_LIMITS}}` | that routing is `.xezar/routing.json`, read only through `route.mjs` (`.xezar/docs/routing.md`); **which login is the reserved leader login and that it runs no tasks**; where the budget table lives and how a login being out is recorded | ≤ 12 |
   | `{{RELEASE_RUNBOOK}}` | who authorises a release, the steps in order, and what proves each one | ≤ 12 |
 
   A section with nothing true to say gets one honest line — "this project has no release process
   yet" — not invented content. The guide is read after every compaction, so a padded section costs
   tokens forever.
-- **`.xezar/docs/model-routing.md`** — from the routing interview. One line per row of
-  `references/routing-rows.md`, and **every column of the row survives**: the task kind, the
-  **workflow file**, the trigger sentence, the class, the row's own bans, and the chain the owner
-  confirmed. Every chain entry is `<tool>/<model>` and never a login; the login rotation per tool,
-  the escalation-only lanes and the single-purpose lanes are each written once, above the rows —
-  the rotation as *positions* only, because login names belong to the gitignored half. The leader picks a workflow by matching a trigger in this document, so a row written
-  without its workflow is a kind of work the leader can recognise and cannot start. Carry over the
-  global prohibitions, the rule for two matching triggers and the look-alike pairs as well — they
-  are how the leader chooses between rows, not commentary.
+- **`.xezar/routing.json`** — copied from `kit/routing.json`, then edited in place by the routing
+  screens: rotations, unlimited logins, switched-off lanes, tags for lanes the defaults lack, and
+  the owner's row-level edits. It is never generated from scratch and never rewritten as prose; the
+  leader reads it only through `route.mjs`. `node .xezar/checks/route.mjs --check` must pass on it
+  before the commit. No `.xezar/docs/model-routing.md` is written any more.
 - **`SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`** — generated together from the confirmed gate list
   so they agree from day one. `CODE_REVIEW.md` names the hook and its loader script as a **trust
-  boundary** in plain words, and the routing table sends any diff touching them to the
+  boundary** in plain words, and `.xezar/routing.json` sends any diff touching them to the
   security-review row: the risk is not removed, it is made visible and routed.
 
   The kit's workflows and role skills cite `SDLC.md` sections **by name**, so the generated file

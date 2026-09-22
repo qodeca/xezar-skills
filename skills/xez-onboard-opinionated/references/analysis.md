@@ -118,9 +118,18 @@ Three steps, in order:
    support is configuration; what is inside them is not. Record ids, providers and model names,
    and no value from either.
 
-The routing table is then **generated from the owner's answers** rather than copied from
-anywhere. Shipping a table naming accounts that exist on one machine guarantees a first dispatch
-to an account that does not exist on this one.
+Then **map what was found onto the shipped routing** (`kit/routing.json`):
+
+- Each found tool is recorded under its engine runner ID – `claude`, `codex`, `pi` (and `opencode`,
+  recorded and switched off) – and each model as the lane `<runner>/<model>`.
+- A found lane the defaults already have keeps its shipped tags. A found lane the defaults lack is
+  put on routing screen 4 to be tagged by the owner, never guessed.
+- A shipped lane this machine does not have stays in the file; `route.mjs` removes it at dispatch
+  because its program or its login is missing. Preflight has already stopped the setup if a row has
+  no lane at all here.
+- When the engine is running, compare each lane's `vision` tag with the `vision` flag
+  `project_config` `list_models` reports for that model, and put any mismatch on the facts screen.
+  The engine's answer wins unless the owner says otherwise.
 
 ## 6. The state the setup lands on
 

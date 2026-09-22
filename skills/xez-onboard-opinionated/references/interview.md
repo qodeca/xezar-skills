@@ -94,7 +94,7 @@ both security answers at once, and two of them are about dispatch rather than a 
 - **No second leader login means the leader's own limit ends the night.** That is the real fix for
   a leader running out — not a downgrade.
 - **The design gate answer is about enforcement only.** The whole design half installs either way.
-- **The leader's agent tool is always Claude Code.** Not derived from the routing table, and not a
+- **The leader's agent tool is always Claude Code.** Not derived from the routing file, and not a
   question.
 
 The branching *model* was an interview question once. It fed one later question — whether the
@@ -115,18 +115,19 @@ A placeholder that echoes a suggestion looks like a configured gate and enforces
 
 ### 3. `lanes` — one table: which logins run tasks
 
-**A lane is a tool plus a model; a login is not a lane** (`references/routing-interview.md`). This
+**A lane is a runner plus a model; a login is not a lane** (`references/routing-interview.md`). This
 screen is about the logins *under* the lanes: the task logins from screen 1, as a table the owner
-marks up in one pass — which may run tasks, in which **rotation order** per tool, which are
+marks up in one pass — which may run tasks, in which **rotation order** per runner, which are
 unlimited, and which single login is the engine's default for a task that names none. These are
-columns of one decision, not separate topics.
+columns of one decision, not separate topics. The rotation and the unlimited logins are written to
+`tools.<runner>.rotation` and `tools.<runner>.unlimitedLogins` in `.xezar/routing.json`.
 
 **The registry can be emptier than the machine**, and that was settled before this screen.
 `references/preflight.md` check 5 owns the question: the engine copies the owner's global logins
 in only when its one-time first-start question is answered `y`, and the default is No. By the time
 this table is drawn the answer is in the interview state — imported, declined, or "meant to be
 empty". Read it; do not ask again. If it says the import is still owed, this screen cannot be
-drawn honestly: go back to check 5's offer rather than building a routing table on a registry the
+drawn honestly: go back to check 5's offer rather than writing rotations from a registry the
 owner did not mean to be empty.
 
 **A default that names nothing.** The built-in login of a tool — for Claude Code, the `~/.claude`
@@ -158,23 +159,18 @@ With a single login there is nothing to choose: say so, carry the warning into t
 the screen. The answer is *set*, not only recorded — `references/verify.md` does it once the
 engine's tools are there, and reports what the default was before.
 
-### 4. `routing` — eight classes, one screen
+### 4. `routing` — what each model is for
 
-Handled in `references/routing-interview.md`: first what each model is *for* (daily, escalation
-only, single purpose, unused), then a proposed `<tool>/<model>` chain per task class, all eight classes
-confirmed or reordered together — mechanical, writing, design, visuals, implementation, testing, review,
-security and release.
+Handled in `references/routing-interview.md`: the lanes analysis found beside the shipped ones, and
+one question over them — daily, escalation only, single purpose, or not used here. It sets `enabled`,
+`reservedLanes` and the seven tags of any lane the defaults do not have.
 
-### 5. `table` — the expanded rows
+### 5. `table` — the rows, for edits
 
-The routing table as it expands, reviewed and edited. Most rows will be right; the two or three
-that are not are exactly the ones worth a minute. This is a review screen, not an interrogation,
-which is why it survives the diet.
-
-**Gone: `seeding`.** Whether the routing table started seeded or empty was asked and then read by
-nothing — not `write.md`, not `preview.md`, not `verify.md`, not the report. The table is written
-from the routing answers, and the leader asks about anything it does not find there. Say in the
-report that no day-one preferences were seeded.
+The shipped rows with this machine's answers applied, shown with
+`node .xezar/checks/route.mjs --file .xezar/routing.json --table` for row-level edits. Most rows
+will be right; the two or three that are not are exactly the ones worth a minute. This is a review
+screen, not an interrogation, which is why it survives the diet.
 
 ## How to ask
 

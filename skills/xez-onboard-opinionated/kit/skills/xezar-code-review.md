@@ -11,6 +11,8 @@ Inputs: immutable candidate head/base, accepted scope and existing validation ev
 
 Verdict vocabulary: `APPROVE` or `REQUEST CHANGES` (`SDLC.md` § Review loop — the reviewer approves or requests changes). Post it as a PR comment whose first line is `## Code review`, carrying the reviewed commit sha, the verdict and every finding; `gh pr review --approve` fails on your own account's PR, so the comment plus the label is the evidence.
 
+**You are not the author, and that is stated, not assumed.** You cannot read the run record that says who wrote the change; the leader puts the author's lane, login and vendor in the launch text. Report independence in your verdict as one of three words: **confirmed** – the launch text names the author and it is not your lane; **not confirmed** – it names your lane: say so in your first line and stop; **unknown** – the launch text does not say: review, and say unknown. Never write confirmed without that text.
+
 ## Record the verdict on the task record
 
 After the comment is posted and the labels you are authorized to move have been attempted, write ONE JSON packet to `${XEZ_HANDOFF_FILE}.verdict.json`. The engine reads it when this step settles and puts the verdict on the task record, where the leader reads it with `task_read view=task`. A verdict that exists only in a comment is one the leader must go and parse; this is the machine-readable half of the same report, never a replacement for it.

@@ -38,8 +38,9 @@ so they are re-read at the moment the mode is entered rather than only at sessio
 
 **Decided by the leader and parked — the run continues:**
 
-- **An account or provider lane switch.** The leader moves to the next lane in the routing
-  table and records the switch with its reason and time. Reversible in the morning. Accepted
+- **An account or provider lane switch.** The leader dispatches the next lane `route.mjs` lists
+  for the row, and records the switch with its reason and time. It is a dispatch choice: no file
+  changes, so the morning's undo is simply going back to the first lane. Accepted
   cost, stated plainly to the owner in step 2: a metered provider can accumulate spend
   overnight with nobody watching the bill.
 - **A scope trim.**

@@ -212,8 +212,8 @@ loop dies when the session ends or its context is cleared.
 **The loops ship as data, not as prose.** `.xezar/loops.json` carries each loop's id, mechanism,
 exact schedule and exact prompt. At every start, resume and compaction the leader lists what is
 actually scheduled, compares it against that file **by schedule and by prompt**, and re-creates
-anything that is **missing or drifted**. Comparing the file as a whole rather than loop by loop is
-deliberate: a partial comparison lets a drifted prompt survive because its schedule still matches.
+anything that is **missing or drifted**. The comparison is loop by loop, on both fields, on
+purpose: comparing schedules alone lets a drifted prompt survive because its schedule still matches.
 
 Prose alone was the old design and it failed in a predictable way — a prompt copied by hand drifts,
 and nothing notices, because there is nothing to compare against.
@@ -244,6 +244,9 @@ it needs a human.
 **Selection is by file overlap, not by priority.** The leader keeps a file-ownership table of what
 each running task owns (`<runId first 8> owns <path glob>`) and refreshes it at every dispatch. The
 next item is the ready one with the least overlap against that table; priority breaks ties only.
+L3 then takes its lane from `node .xezar/checks/route.mjs <row id>`, as `routing.md` says, and a
+`wait` line means the item waits. The same start, resume and compaction that re-checks the loops
+refreshes the lane cache and runs `route.mjs --check` before anything is dispatched.
 
 The accepted cost is real: a high-priority item can wait behind a lower-priority one that sits in a
 clean part of the tree, and the ownership table is state the leader must keep current. The rejected

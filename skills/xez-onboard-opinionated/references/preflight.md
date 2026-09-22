@@ -124,7 +124,7 @@ Three facts, each with its own fix. All three are **fixable stops**:
 | Pass when | Otherwise tell the owner |
 |---|---|
 | `command -v xezar` finds the binary | `npm install -g @qodeca/xezar` |
-| `xezar --version` is 0.18.0 or later — the version this kit was tested against | the same command; it upgrades |
+| `xezar --version` is 0.19.0 or later — the version this kit was tested against | the same command; it upgrades |
 | `.xezar/workspace.json` exists — the engine's single-project marker | the start line below |
 
 ```bash
@@ -151,13 +151,21 @@ Say three things with that line, because each one cost a run when it went unsaid
 question was answered. None or one is not a stop, and it is not a fault either — it may simply be
 one login on this machine — but say which you think it is, because the lanes and routing interviews
 are about to offer what that file contains. A run that only *told* the owner to answer `y`, and
-never looked, reaches the routing table before anybody notices the import did not happen.
+never looked, reaches the routing screens before anybody notices the import did not happen.
 **Empty or defaults-only here while the machine's global registry lists more is the declined
 import**, and it is never asked twice: offer to bring them in through
 `references/engine-refusals.md` **here**, not at screen 3 of the interview. This step owns that
 offer — screen 3 needs its answer to draw its table, and screens 1 to 3 go out together. An owner
 who says the project registry is meant to be empty is recorded in the interview state and never
 asked again in this run.
+
+**Then check that every routing row can run here.** For each row of this skill's
+`kit/routing.json` that is not handled by the leader, at least one of its lanes must be usable on
+this machine: its runner's program is installed (`claude`, `codex`, `pi`), and, for a runner that
+uses logins, `.xezar/agent-accounts.json` holds at least one account of that provider. A row with
+no usable lane is a **stop**: name the row and the runners that would serve it, because a row the
+leader can never dispatch is work that silently waits forever. This reads files and `PATH` only and
+needs no engine.
 
 Whether the engine is *running right now* is not a preflight fact: nothing before step 8 needs
 it. `references/verify.md` checks it where it matters.

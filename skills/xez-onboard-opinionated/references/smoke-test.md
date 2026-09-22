@@ -24,8 +24,9 @@ and a half minutes, and **287,000 tokens to change one line**. Those workflows a
 work. What needs proving splits cleanly in two, and only one half needs an agent.
 
 **Tier 1 — the engine can run a task here.** `task_create` with **inline steps**, not a named
-workflow: the kit's worktree preflight, then **one** agent step on the cheapest model the routing
-table has, told to append one line to a scratch file under `.local/xezar/scratch/`, then the
+workflow: the kit's worktree preflight, then **one** agent step on the first lane
+`node .xezar/checks/route.mjs --file .xezar/routing.json evidence-pass` lists – that row's order
+starts with the cheapest lanes – told to append one line to a scratch file under `.local/xezar/scratch/`, then the
 evidence step. Name the `agentProfile` explicitly — **never the default, and never the leader's
 login**. This proves dispatch, the worktree, the account, the permission file, and — when the
 task changes state — one pushed event (`references/verify.md` §2).
@@ -44,7 +45,7 @@ remote branch, then the local branch. **Then** report "setup complete". Not befo
 tier 1 cost in tokens: it is the owner's first real number for what a task costs.
 
 **One retry, announced, for one reason.** A dispatch refused for a usage limit says nothing
-about the setup. Say so, take the next lane in the routing chain, dispatch once more. Any other
+about the setup. Say so, take the next `lane=` line `route.mjs` printed, dispatch once more. Any other
 failure is the result.
 
 ## Cleaning up is not a rule violation

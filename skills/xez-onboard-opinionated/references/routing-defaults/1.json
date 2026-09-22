@@ -44,8 +44,9 @@
       "vision": true,
       "imageGeneration": false,
       "local": false,
-      "enforcesToolLimits": false,
-      "advisoryOnly": false
+      "enforcesToolLimits": true,
+      "advisoryOnly": false,
+      "engineModel": "opus[1m]"
     },
     "claude/sonnet": {
       "tool": "claude",
@@ -55,7 +56,7 @@
       "vision": true,
       "imageGeneration": false,
       "local": false,
-      "enforcesToolLimits": false,
+      "enforcesToolLimits": true,
       "advisoryOnly": false
     },
     "claude/haiku": {
@@ -307,7 +308,6 @@
       "writes": false,
       "trigger": "The whole change is tracker state; no file in the repository changes.",
       "lanes": [
-        "codex/gpt-5.6-luna",
         "claude/sonnet"
       ],
       "never": [
@@ -321,7 +321,8 @@
         }
       ],
       "notes": [
-        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856)."
+        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -334,7 +335,6 @@
       "writes": false,
       "trigger": "A single comment claims one record is wrong, and the check is reading two things and comparing them.",
       "lanes": [
-        "codex/gpt-5.6-luna",
         "claude/sonnet"
       ],
       "never": [
@@ -348,7 +348,8 @@
         }
       ],
       "notes": [
-        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856)."
+        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -474,13 +475,15 @@
       "writes": false,
       "trigger": "The question is about what to build or why, not how.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/opus"
       ],
       "never": [
         {
           "tier": "cheap"
         }
+      ],
+      "notes": [
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1109,7 +1112,6 @@
       "writes": false,
       "trigger": "One earlier finding is being re-checked, not the whole diff.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/sonnet",
         "claude/opus"
       ],
@@ -1125,7 +1127,8 @@
       ],
       "neverAuthor": true,
       "notes": [
-        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856)."
+        "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1138,7 +1141,6 @@
       "writes": false,
       "trigger": "The reviewer opens the diff with no prior context.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/opus",
         "claude/sonnet"
       ],
@@ -1154,7 +1156,8 @@
       "notes": [
         "A very large diff may escalate to codex/gpt-6-astra.",
         "Sonnet is never the only reviewer of risk-high work.",
-        "A pi second opinion returns when the engine honours a bash allowlist on pi (qodeca/xezar#856)."
+        "A pi second opinion returns when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1244,7 +1247,6 @@
       "writes": false,
       "trigger": "A plan, a spec or a diff has to be judged against the recorded architecture decisions.",
       "lanes": [
-        "codex/gpt-5.6-sol",
         "claude/opus"
       ],
       "never": [
@@ -1252,7 +1254,10 @@
           "tier": "cheap"
         }
       ],
-      "neverAuthor": true
+      "neverAuthor": true,
+      "notes": [
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+      ]
     },
     {
       "id": "acceptance-verification",
@@ -1287,8 +1292,7 @@
       "writes": false,
       "trigger": "The diff touches authentication, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, a CI workflow, .xezar/workflows, .xezar/checks or .xezar/routing.json.",
       "lanes": [
-        "claude/opus",
-        "codex/gpt-5.6-sol"
+        "claude/opus"
       ],
       "never": [
         {
@@ -1317,6 +1321,9 @@
       "neverAuthor": true,
       "alsoDispatch": [
         "full-cold-review"
+      ],
+      "notes": [
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1330,8 +1337,7 @@
       "trigger": "A cheaper lane reported something serious (a Major or a Blocker) and nothing has confirmed it.",
       "narrows": "full-cold-review",
       "lanes": [
-        "claude/opus",
-        "codex/gpt-5.6-sol"
+        "claude/opus"
       ],
       "never": [
         {
@@ -1354,7 +1360,8 @@
       "neverAuthor": true,
       "neverClaimant": true,
       "notes": [
-        "A merge-blocking claim is re-proven on the base branch with a throwaway test."
+        "A merge-blocking claim is re-proven on the base branch with a throwaway test.",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1368,7 +1375,6 @@
       "writes": true,
       "trigger": "The owner gave the release go, quoting the commit.",
       "lanes": [
-        "codex/gpt-5.6-terra",
         "claude/sonnet"
       ],
       "never": [
@@ -1387,7 +1393,8 @@
       "neverAuthor": true,
       "notes": [
         "Starts only on the owner's word, quoting the commit.",
-        "Security, design and Major-claim verdicts inside a release still go to their own rows."
+        "Security, design and Major-claim verdicts inside a release still go to their own rows.",
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
       ]
     },
     {
@@ -1400,8 +1407,7 @@
       "writes": true,
       "trigger": "The owner gave the go to deploy, naming the environment and quoting the full commit SHA. The leader copies those words into the launch text.",
       "lanes": [
-        "claude/opus",
-        "codex/gpt-5.6-sol"
+        "claude/opus"
       ],
       "never": [
         {
@@ -1415,7 +1421,10 @@
           "why": "Security and release work is never given to a cheap lane."
         }
       ],
-      "neverAuthor": true
+      "neverAuthor": true,
+      "notes": [
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+      ]
     },
     {
       "id": "rollback",
@@ -1427,8 +1436,7 @@
       "writes": true,
       "trigger": "The owner gave the go to roll back, naming the environment and the full SHA to return to, and, in their own words, any one-way migration they accept crossing. The leader copies those words into the launch text.",
       "lanes": [
-        "claude/opus",
-        "codex/gpt-5.6-sol"
+        "claude/opus"
       ],
       "never": [
         {
@@ -1442,7 +1450,10 @@
           "why": "Security and release work is never given to a cheap lane."
         }
       ],
-      "neverAuthor": true
+      "neverAuthor": true,
+      "notes": [
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+      ]
     }
   ]
 }

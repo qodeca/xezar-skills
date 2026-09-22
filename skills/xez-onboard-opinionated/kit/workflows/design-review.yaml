@@ -15,6 +15,6 @@ steps:
     resultScope: routine
   - id: review
     name: Design review
-    prompt: "Design review (see '## Review mode' in your skill): {{task}}. Follow the design system named by paths.designSystem in .xezar/pipeline/config.json through usage, recipes, verification, lifecycle and storage; where this project has none, judge against its existing screens and say so. Own only the read-only verdict and review evidence at the identified revision; the author owns mockup, README handoff and index updates. Preserve label authority and report unavailable checks honestly."
+    prompt: "Design review (see '## Review mode' in your skill): {{task}}. Follow the design system named by paths.designSystem in .xezar/pipeline/config.json through usage, recipes, verification, lifecycle and storage; where this project has none, judge against its existing screens and say so. Own only the read-only verdict and review evidence at the identified revision; the author owns mockup, README handoff and index updates. Preserve label authority and report unavailable checks honestly. Report independence as confirmed, not confirmed or unknown, from the author the launch text names; never confirmed without that text."
     skill: xezar-ux-design
     allowedTools: [Read, Grep, Glob, Bash]

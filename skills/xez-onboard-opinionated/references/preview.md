@@ -74,6 +74,10 @@ Group the entries the way the owner thinks about them, not by directory:
   name them, because an owner who already has either will want to say so before one is written.
 - **The leader** — the guide (a shipped half and a generated half), the one `SessionStart` hook
   and its context-loader script, the loops file.
+- **Routing** — `.xezar/routing.json` with this machine's answers applied, its schema, and the
+  `route.mjs` script that reads it. Show an excerpt of
+  `node <kit>/checks/route.mjs --file <draft routing.json> --table`: the rows the owner edited, and
+  every lane switched off.
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the
   launcher script.
 - **Records and working state** — the campaigns directory with its reserved future-campaign

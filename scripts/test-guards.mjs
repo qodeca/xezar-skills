@@ -367,8 +367,9 @@ breaks(
   "skills/xez-onboard-opinionated/references/preflight.md",
   // The mutated version must differ from `compat.json`'s minimum, so this string moves with the
   // floor. It said "0.16.0 -> 0.17.0" until the floor was raised to 0.18.0 on 2026-09-22, at which
-  // point the search text no longer existed and the case was breaking nothing.
-  (s) => s.replace("0.18.0 or later", "0.17.0 or later"),
+  // point the search text no longer existed and the case was breaking nothing; it moved again with
+  // the 0.19.0 floor.
+  (s) => s.replace("0.19.0 or later", "0.18.0 or later"),
   () => script("test-compat-pins.mjs"),
   "compat.json says",
 );
@@ -392,7 +393,7 @@ breaks(
 breaks(
   "a leader guide budget that makes the 200-line limit impossible is rejected",
   "skills/xez-onboard-opinionated/references/write.md",
-  (s) => s.replace("how a lane being out is recorded | ≤ 15 |", "how a lane being out is recorded | ≤ 40 |"),
+  (s) => s.replace("how a login being out is recorded | ≤ 12 |", "how a login being out is recorded | ≤ 40 |"),
   () => script("test-kit-facts.mjs"),
   "no run can comply",
 );
