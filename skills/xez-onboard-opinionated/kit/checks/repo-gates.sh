@@ -269,16 +269,25 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
   # this call is MEANT to fail with 2, and the OUTPUT is what proves it failed for the right reason
   # and got as far as the lease command.
   #
-  # TWO signals, and either is enough, because this is the kit's one undeclared dependency on an
-  # engine string. The engine's refusal carries both an `xezar lease:` prefix and a `usage: xezar
-  # lease gates` line. Matching only one of them means a reworded message stops the probe, and a
-  # stopped probe loses gate serialisation for every onboarded project SILENTLY - no error, no
-  # slower run anyone notices, just contention coming back. Requiring both to change at once is
-  # the cheapest protection available from this side, and it is deliberately not a promise the
-  # engine has made: as of 0.18.0 neither string is a declared surface.
+  # The matched string is `nothing to run`, and the choice is the whole point of this comment.
+  # None of these strings is a DECLARED engine surface, so the question is only which one is least
+  # likely to be reworded without anyone noticing. The engine's own suite answers it:
+  #
+  #   .xezar/checks/infra-tests.sh:5836-5838 (engine 0.18.0)
+  #     expect_fail "a lease with no command after -- is refused" \
+  #       'nothing to run' … lease gates
+  #
+  # and its `expect_fail` helper requires BOTH a non-zero exit and that phrase in the output. That
+  # is the same call this probe makes, so matching `nothing to run` inherits a test the engine team
+  # already runs on every change. The earlier `usage:` / `xezar lease:` pair was protected by
+  # nothing. This matters because a stopped probe loses gate serialisation for every onboarded
+  # project SILENTLY - no error, no slower run anyone notices, just contention coming back.
+  #
+  # `--status-file` does not affect this path: the refusal is raised before the flag is consulted,
+  # so the probe still exits without taking a slot, which is what keeps it from queueing.
   if [ -n "$lease_bin" ]; then
     lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --status-file "$lease_probe.status"
-    if ! grep -qE 'usage: xezar lease gates|^xezar lease:' "$lease_probe" 2>/dev/null; then
+    if ! grep -qF 'nothing to run' "$lease_probe" 2>/dev/null; then
       lease_why="the engine at $lease_bin cannot run \`lease gates --status-file\`"
       lease_bin=""
     fi
