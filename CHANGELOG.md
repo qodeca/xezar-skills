@@ -39,7 +39,8 @@ declares `verdictRole`. The code review, design review and QA workflows declare 
 refuses one that stops.
 
 **Two fixes for every onboarded project.** The documented-output check ran the leader loader
-without `XEZAR_LEADER=1`, so it failed every gate since 2.1.0. And the tidiness check now also reads
+without `XEZAR_LEADER=1`, so since 1.3.0 it failed wherever the gate ran outside the leader's own
+session – in CI, or in a person's terminal. And the tidiness check now also reads
 the engine's own list of state names (`xezar state-names --json`), so an engine release that adds a
 name no longer turns gates red.
 

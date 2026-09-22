@@ -19,9 +19,10 @@ symptom matches your repository.
 
 ## 2026-09-22 – my gate fails with "fixture execution failure for leader-context"
 
-Applies to any repository onboarded by `xez-onboard-opinionated` 2.1.0 or 2.1.1.
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.3.0 or later, before 3.0.0.
 
-**Symptom – `repository-checks.sh` fails every run.** The message is
+**Symptom – `repository-checks.sh` fails when it runs outside the leader's session** (in CI, or in
+your own terminal). The message is
 `documented-output: .xezar/docs/leader-context-loading.md:45: fixture execution failure for
 leader-context: script did not print exactly one JSON object`. Nothing is wrong with your project.
 The leader loader speaks only when `XEZAR_LEADER=1`, and the check ran it without that flag, so the
@@ -34,7 +35,8 @@ K=.claude/skills/xez-onboard-opinionated/kit
 cp $K/checks/documented-output.mjs .xezar/checks/
 ```
 
-**What you lose by skipping it.** A gate that is red for no reason, in every run.
+**What you lose by skipping it.** A gate that is red for no reason wherever it runs outside the
+leader's session.
 
 ## 2026-09-22 – on engine 0.19.0, a review or QA verdict is "refused" on the task record
 
