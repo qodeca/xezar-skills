@@ -81,12 +81,22 @@ step, which is the large share of a run's clock, is still parallel.
 
 ```bash
 cp .claude/skills/xez-onboard-opinionated/kit/checks/repo-gates.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/lib/gate-record.sh .xezar/checks/lib/
+cp .claude/skills/xez-onboard-opinionated/kit/docs/parallel-tasks.md .xezar/docs/
+cp .claude/skills/xez-onboard-opinionated/kit/docs/README.md .xezar/docs/
 ```
 
-Nothing else. It needs no configuration: how many gate runs go together is the engine's own
+The two documents matter as much as the check. `parallel-tasks.md` is what your leader reads to
+decide how wide to fan out, and the old copy does not know the gate queue exists — so it keeps
+advising a fan-out whose gate runs now queue, and the delay gets misdiagnosed as a slow machine.
+That misdiagnosis is the thing this change exists to prevent.
+
+It needs no configuration: how many gate runs go together is the engine's own
 `resources.gateSlots`, default 1, and the wait is bounded at 20 minutes. It **fails open** — no
-engine on your PATH, an engine older than 0.17.0, or an unwritable slot folder each print one line
-and run the gates anyway, so it cannot turn a working gate red.
+engine on your PATH, an engine older than 0.17.0, an engine that cannot run the verb, or a binary
+that does not answer each print one line and run the gates anyway, so it cannot turn a working gate
+red. Two of those four are checked by the kit before it commits to the engine; the other two are
+the engine's own contract.
 
 If the queue costs you more than the contention does on your machine, raise `resources.gateSlots`
 in the cockpit (Settings → Resources, 1–16). Raise it deliberately: the default comes from a
@@ -141,10 +151,14 @@ stops you, the kit just no longer asks.
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.
 
-**Symptom 1 – your integration role reads `outcome.json` for fields that no longer exist.** This is
-the one that bites: `.xezar/checks/ci-watch.sh` no longer writes `knownLoadFlakes` or
-`failedJobsAreKnownLoadFlakes`. If you copy the new check without the new role skill, the role
-looks for `failedJobsAreKnownLoadFlakes`, finds nothing, and has no rule to follow.
+**Symptom 1 – your integration role reads `outcome.json` for fields that no longer exist.**
+`.xezar/checks/ci-watch.sh` no longer writes `knownLoadFlakes` or `failedJobsAreKnownLoadFlakes`.
+If you copy the new check without the new role skill, the old role looks for
+`failedJobsAreKnownLoadFlakes` and does not find it — and a missing field is not true, so it takes
+its own "when it is false" branch and reports the red build instead of rerunning it. **That mixed
+state is safe**, which is worth saying plainly rather than implying a breakage there is not. What
+it leaves behind is a role whose written text still teaches a human reader that naming a job can
+excuse it.
 
 **Symptom 2 – a red CI job is re-run instead of reported.** The old role applied a "one rerun" rule
 whenever every failed job was named in `ci.knownLoadFlakes`. That list, and the rerun, are removed.
@@ -152,7 +166,10 @@ A job that fails under machine load rather than because of the change is a flaky
 test is rebuilt onto a mechanism that cannot fail on timing — never retried, never waited out,
 never excused by a list of names.
 
-**What to do.** Copy the check and the role **in the same pass**, never one without the other:
+**What to do.** Copy all three. The ordering constraint is **one-directional**, so if you can only
+do one thing today, copy the role first: the new role reads only `failedJobs`, `supersededBy` and
+`outcome`, all of which the old check still writes, so role-ahead-of-check is completely safe. It
+is the check that must not lead.
 
 ```bash
 cp .claude/skills/xez-onboard-opinionated/kit/checks/ci-watch.sh .xezar/checks/
@@ -169,9 +186,11 @@ branch wearing a green tick.
 
 ## 2026-09-21 – my check no longer picks up the fake command I set
 
-Applies to a repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier **that has copied
-kit check files since this note** — until you copy them, your installed checks keep the old names
-and there is nothing to fix.
+Applies to a repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier **whose own
+tooling, CI configuration or shell profile sets one of these four variables**. The rename lives in
+four kit check files, so nothing changes for you until you copy them — and then it changes all at
+once. Copy the files and rename your variables together; doing only the rename is worse than doing
+neither, because your installed checks still read the old names.
 
 **Symptom – a `DOGFOOD_*` environment variable you set is silently ignored.** Four variables were
 renamed. They fail quietly: no error, the check simply uses its default instead.
@@ -183,8 +202,18 @@ renamed. They fail quietly: no error, the check simply uses its default instead.
 | `DOGFOOD_GATE_LOG` | `KIT_TEST_GATE_LOG` | exported to the gate command so it can find its own log |
 | `DOGFOOD_ALLOW_ROOT_BOOTSTRAP` | `KIT_TEST_ALLOW_ROOT_BOOTSTRAP` | the named-run exception in the worktree preflight |
 
-**What to do.** Search your own scripts, CI configuration and shell profiles for `DOGFOOD_` and use
-the new name. The behaviour is unchanged.
+**What to do.** Copy the four files that carry the new names, then rename your own uses. No other
+entry in this document copies three of these, so doing it here is the only place it happens:
+
+```bash
+cp .claude/skills/xez-onboard-opinionated/kit/checks/integration-preflight.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/worktree-preflight.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/ci-watch.sh .xezar/checks/
+cp .claude/skills/xez-onboard-opinionated/kit/checks/lib/gate-record.sh .xezar/checks/lib/
+```
+
+Then search your own scripts, CI configuration and shell profiles for `DOGFOOD_` and use the new
+name. The behaviour is unchanged.
 
 **What you lose by skipping it.** Whatever the variable was doing stops happening, without a
 message. If you set `DOGFOOD_GH` to a wrapper, the check goes back to calling `gh` directly.
@@ -377,18 +406,19 @@ a CI job named after somebody else's pipeline. Two of those are not just confusi
 - `.xezar/checks/ci-watch.sh` carried two job names as "known load flakes". A real failure of a
   job with one of those names would have been offered as a candidate for a rerun.
 
-**What to do.** Add the three keys to `.xezar/pipeline/config.json` — your required check names
-exactly as GitHub reports them, an empty flake list, and your design-system folder if you have one:
+> **Later change, read this before you copy the block below.** This entry originally told you to
+> add a third key, `"knownLoadFlakes": []`. That key was removed from the kit on 2026-09-21 — see
+> the entry keyed "CI re-runs a failed job by itself, and my integration role reads fields that are
+> gone". Do not add it. If your config already carries it, nothing reads it any more and it is safe
+> to delete.
+
+**What to do.** Add the two keys to `.xezar/pipeline/config.json` — your required check names
+exactly as GitHub reports them, and your design-system folder if you have one:
 
 ```json
 "ci": { "requiredChecks": ["<your check name>"] },
 "paths": { "designSystem": "" }
 ```
-
-> **Later change, if you are reading this today.** This entry originally also told you to add
-> `"knownLoadFlakes": []`. That key was removed from the kit on 2026-09-21 — see the entry keyed
-> "CI re-runs a failed job by itself, and my integration role reads fields that are gone". Do not
-> add it. If your config already carries it, nothing reads it any more and it is safe to delete.
 
 Then copy the fixed scripts over the installed ones:
 

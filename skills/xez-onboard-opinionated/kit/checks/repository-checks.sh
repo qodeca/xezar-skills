@@ -2,10 +2,10 @@
 # Fast checks against the actual repository, run as the last gate command.
 #
 # Each check below is SKIPPED, loudly, when the thing it inspects is not part of this project.
-# That matters because this file is vendored into projects that do not all carry a changelog or a
-# contract test. Under `set -e` an unconditional call to a missing file
-# aborts the whole gate on the first one, and every check after it silently never runs - which
-# reads as "the gate passed" to anyone watching the exit code.
+# That matters because this file is vendored into projects that do not all carry a changelog, a
+# link checker or a contract test. Under `set -e` an unconditional call to a missing file aborts
+# the whole gate on the first one, and every check after it silently never runs - which reads as
+# "the gate passed" to anyone watching the exit code.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"

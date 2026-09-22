@@ -140,9 +140,12 @@ Never copied, because each depends on an answer:
   guesses a folder: with its key unset it says which key is missing and stops, which is what a
   project onboarded before the key existed sees until its owner adds it (`UPGRADE_NOTES.md`).
 
-  Two honest limits on "under `docs/`". The root process documents — `AGENTS.md`, `SDLC.md`,
+  Three honest limits on "under `docs/`". The root process documents — `AGENTS.md`, `SDLC.md`,
   `CODE_REVIEW.md` and their siblings — stay at the root, because that is where agents and people
-  look for them. And feature specifications stay where `plan-and-spec` has always put them.
+  look for them. **`SECURITY.md` and `CONTRIBUTING.md` stay at the root too**, and they are not
+  process documents, so they need naming separately: GitHub's advisory flow and its contributor
+  prompts look for them there and nowhere else, and the kit's own issue templates point at the
+  root path. And feature specifications stay where `plan-and-spec` has always put them.
 
   **Four lists wake a workflow up.** Deploy, rollback, performance and localisation are installed
   everywhere and run only where the owner has said something first. Each reads a list, its first
@@ -297,23 +300,46 @@ Never copied, because each depends on an answer:
   1. **Where to report privately, and which versions are covered.** The private address is already
      decided: `.github/ISSUE_TEMPLATE/config.yml` routes a reporter to this repository's own
      security advisories. Name that same route — never invent a second address, or the two
-     documents disagree and the reporter picks one. Say which versions get a fix; "the latest
-     release" is a real answer.
+     documents disagree and the reporter picks one. **Which versions get a fix is the owner's to
+     say, not yours**: it is a support commitment, and "Detected is never decided" applies to it
+     like everything else. Propose "the latest release" as the default, which is a real answer,
+     and let the interview confirm or change it.
   2. **What this project does not treat as a vulnerability.** From the interview. A report that
      names designed behaviour costs a reviewer a day; a project that never writes this down gets
      that report more than once.
   3. **What happens if nobody answers.** Blank issues are enabled in the kit's templates *because*
      this escalation fallback exists (`xezar-issue-create` says so), so the fallback has to be
-     real: who to reach, and after how long.
-  4. **What this project has promised** — its trust boundaries and the surfaces it will not weaken,
-     from the same analysis answers that generate `CODE_REVIEW.md` and `BACKWARD_COMPATIBILITY.md`.
-     This is the half the security-review role actually consumes.
+     real: who to reach, and after how long. Write it as an escalation of last resort and say in
+     the same line that it is **not a second reporting route** — part 1 forbids one, and a
+     contact named here without that sentence reads as exactly that.
+  4. **What this project has promised** — its trust boundaries and the surfaces it will not weaken.
+     Parts 2 and 4 are built from **`references/analysis.md` §7**, which exists for them: the entry
+     points input arrives through, the boundaries the project already names, and the behaviour it
+     already documents as designed. Do not source them from the answers that generate
+     `CODE_REVIEW.md` and `BACKWARD_COMPATIBILITY.md`; those cover review routing and protected
+     config surfaces, and neither enumerates a public surface or a trust boundary. This is the half
+     the security-review role actually consumes.
 
   Write what analysis found and nothing more. A promise this project has not made is worse than a
   missing line: the review role will spend its verdict defending a boundary nobody built. It is in
   the preview like every other generated file.
-- **`docs/README.md`** — the index for the seven folders the `paths.*` keys name. Without it a
-  project gets seven document folders and nothing saying which is which.
+
+  **If the project already has one of these three files, it is never replaced.** `SECURITY.md`,
+  `CONTRIBUTING.md` and `docs/README.md` each go into the preview's **needs your decision** group
+  when a copy exists, with keep-theirs as the proposal (`references/preview.md`). Write only what
+  the owner approved there: the whole file when there was none, the approved additions when there
+  was one, and nothing at all when they kept theirs. These three are addressed to people outside
+  the project, and overwriting a maintainer's own words is the one mistake here that cannot be
+  taken back from the reader who already read them.
+- **`docs/README.md`** — the index for the seven document folders: `paths.designs`,
+  `paths.architecture`, `paths.spikes`, `paths.runbooks`, `paths.deprecations`,
+  `paths.performance` and `paths.migrations`. Without it a project gets seven document folders and
+  nothing saying which is which.
+
+  **Those seven keys and no others.** The written config also carries `paths.qa`, which is
+  gitignored working state and does not belong in an index of committed documents, and
+  `paths.designSystem`, which has its own index and its own row in the table above. Generating a
+  row per `paths.*` key would list a scratch folder to contributors.
 
   It has a correctness condition, so it is not free. **Generate the rows from the `paths.*` values
   you just wrote into `.xezar/pipeline/config.json`, never from the default table above.** A
@@ -325,8 +351,8 @@ Never copied, because each depends on an answer:
   this index lists paths that are not there yet. A reader who does not know that reads the index
   as a description of a broken setup.
 
-  Three columns: the path, what lands there, and who it is for. The "what lands there" column is
-  already written in the table above; the third is the one that earns the file.
+  Three columns: the path, what lands there, and who it is for. "What lands there" is written for
+  each of the seven in the table above; the third column is the one that earns the file.
 - **`CONTRIBUTING.md`** — one page from idea to merge, for a **person**. Unlike every other file
   in this list it closes no dead pointer: nothing in the kit references it, so nothing will notice
   if it goes stale. It is here for one reason — this setup installs 37 workflows and a label state
@@ -344,10 +370,12 @@ Never copied, because each depends on an answer:
      the pipeline. End it the way the kit's own rules do — you never apply the pipeline's labels
      yourself.
   4. **Where a new document goes** — under `docs/`, by `paths.*` key, and a one-line pointer to
-     the index below.
-  5. **Conventional Commits, with the reason attached** — pull requests are squash-merged, so the
-     title becomes the commit on the base branch. A rule with its reason survives; a rule without
-     one gets argued about.
+     `docs/README.md`.
+  5. **Conventional Commits, with the reason attached** — the pipeline squash-merges, so the pull
+     request title becomes the commit on the base branch. Say it as the pipeline's merge method,
+     which is what it is: this setup configures required checks, never the repository's merge
+     settings, so asserting the repository squash-merges would be stating something nobody here
+     made true. A rule with its reason survives; a rule without one gets argued about.
   6. **A security problem goes to `SECURITY.md`, never a public issue**, matching the issue
      templates rather than restating them.
   7. **A closing table: every stage of the process, and what a person does at that stage**, under

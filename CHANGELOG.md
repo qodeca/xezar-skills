@@ -7,9 +7,10 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
 
 ## Removed
 
-- **The dogfooding fragment ledger.** 46 kit files told every writing role to record
-  observations into `.xezar/docs/dogfooding.d/`, and told the release role to fold them into
-  a `.xezar/docs/dogfooding.md` the kit never shipped. It was this project's own
+- **The dogfooding fragment ledger.** 37 role skills told every writing task to record
+  observations into `.xezar/docs/dogfooding.d/`, and the release role folded them into a
+  `.xezar/docs/dogfooding.md` the kit never shipped — a pointer carried by 40 kit files, out
+  of the 46 that named the practice at all. It was this project's own
   record-keeping habit, and `AGENTS.md` forbids a skill assuming a practice only its home
   project has. Three of those pointers were genuinely broken; the rest was a working,
   opt-in feature, and it goes too. **Stated plainly because it is a real loss:** nothing in
@@ -34,12 +35,19 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
   reaches that point sooner than most: one gate run already fans out to three lanes, so two runs
   is six processes. How many go together is the engine's own `resources.gateSlots`, default 1;
   the wait is bounded at 20 minutes and every run prints the slot it got or the wait it is paying.
-  **It fails open** — no engine, an engine older than 0.17.0, or an unwritable slot folder each
-  print one line and run the gates anyway. It is a re-exec rather than a lock around the phases so
-  the slot is released when the run ends by *any* path, including a kill; proven by running it,
-  a run killed mid-flight released its slot in under 0.2 seconds. Resolution is the project's own
-  `node_modules` first, then PATH — **never `npx`**, which would lease against a different build's
-  idea of the slots.
+  **It fails open, and the probes are what make that true.** `exec` replaces the script, so
+  after it no code of the kit's is left to fall back on. Nothing is committed until a probe has
+  proved the binary can run the verb: `lease gates` with no command exits 2 with a usage line
+  **without taking a slot**, which covers a fork that lacks the verb, an engine too old for the
+  flags used, and an engine that dies during boot. Those two conditions plus a wedged binary — cut
+  off by the probe's own time bound — are checked here; an unwritable slot folder and a timed-out
+  wait are the engine's contract, not the kit's, and are not exercised by this script. The version
+  is compared numerically rather than by a glob, which had been accepting `v0.16.0` and `0.16`.
+  It is a re-exec rather than a lock around the phases so the slot is released when the run ends by
+  *any* path, including a kill; proven by running it, a run killed mid-flight released its slot in
+  under 0.2 seconds. Resolution is the project's own `node_modules` first, then PATH — **never
+  `npx`**, which would lease against a different build's idea of the slots. What the run waited is
+  recorded as `leaseWaitMs` on the attempt, so a step killed mid-wait is diagnosable afterwards.
 - **Two documents written for people, not agents: `CONTRIBUTING.md` and `docs/README.md`.** The
   setup installs 37 workflows and a label taxonomy; a repository with all that and no human path
   tells a first-time contributor nothing, and its load-bearing sentence is the one nobody thinks
@@ -62,7 +70,9 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
   read it before it opens the diff, so what the file says this project promised is what that
   review defends. It carries four parts, and the private reporting route is not asked — the
   issue templates already decide it, and a second address would make the two documents
-  disagree.
+  disagree. **The interview is two questions longer** because of it — what this project does
+  *not* treat as a vulnerability, and who to reach if a private report goes unanswered — and
+  five of screen one's facts now carry a consequence rather than four.
 
 ## Changed
 
@@ -76,9 +86,10 @@ deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an e
 
 - **A half-removal can no longer ship silently.** `lint.sh`'s reference check matches only
   tokens containing `references/`, so a kit pointer at `.xezar/docs/dogfooding.md` never
-  matched it — which is how that dead pointer survived four releases in 46 files. A new
-  pinned fact rejects either removed concept reappearing anywhere in the kit, with two
-  deliberate-break cases in the guard harness.
+  matched it — which is how that dead pointer survived four releases in 40 files. A new
+  pinned fact rejects either removed concept reappearing anywhere in the kit, with four
+  deliberate-break cases in the guard harness: two for the identifiers, and two for the
+  idea returning as prose, which is how it first got past the identifier check.
 
 # 1.6.1 (2026-09-21)
 

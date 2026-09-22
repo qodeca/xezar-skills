@@ -9,8 +9,8 @@
 # a parked session and an unbounded wait; a workspace slot is NOT freed.
 #
 # WHAT IT DOES NOT DO. It never merges, never pushes, never reruns a job and never writes to
-# GitHub. It reads one run and records what it saw. Every decision that follows — flake or real
-# red, rerun or revert or forward-fix — belongs to the agent step after it, which is where
+# GitHub. It reads one run and records what it saw. Every decision that follows — revert or
+# forward-fix; rerunning is not among them — belongs to the agent step after it, which is where
 # `XEZ:ASK` is still live and where the leader's `execution_control` `send_message` can reach a
 # session at all.
 #
@@ -44,7 +44,7 @@
 # A red CI exits 0 ON PURPOSE, and this is the one place this script departs from the brief that
 # asked for it. A non-zero check step with no `onFail` ends the run (`run.ts`, the break after
 # `finishStep(... 'failed' ...)`), so exiting non-zero on red would mean the report step never
-# runs: no flake adjudication, no `XEZ:ASK`, no question to the leader at the only moment
+# runs: no adjudication, no `XEZ:ASK`, no question to the leader at the only moment
 # integration ever needs one — and `onFail.retry` cannot help, because every step earlier than
 # this one is earlier than the merge, so retrying would re-run the merge. Red is therefore
 # OBSERVED (exit 0, outcome `failure`) and judged by the agent; unobservable and out-of-time are

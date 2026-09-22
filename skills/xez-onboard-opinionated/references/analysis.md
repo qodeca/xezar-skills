@@ -141,7 +141,35 @@ each was found the hard way in the first test:
 - **Does an update bot target the default branch while work lands on another?** Note it; the
   owner decides.
 
-## 7. What analysis must not do
+## 7. What this project exposes, and to whom
+
+Three read-only looks, and they exist for one reason: `references/write.md` §2 generates
+`SECURITY.md`, whose fourth part states **what this project has promised** — the trust boundaries
+and the surfaces it will not weaken — and whose second part states **what is not a vulnerability**.
+Two role skills then read that file as input. Without a section producing this, the generator has
+nothing to propose from and invents a promise, which `write.md` calls the worst failure that file
+has. Propose; never decide. The owner confirms every line of it in the interview.
+
+- **Where input from outside arrives.** Entry points a caller who is not a maintainer can reach:
+  an HTTP route or handler directory, a CLI whose arguments a caller supplies, a published package
+  or library's exported surface, a webhook receiver, a file or upload parser. Name what was read.
+  A project with none is a real and common answer — say that rather than reaching.
+- **What the project already treats as a boundary.** Two places already say so, and neither is a
+  guess: the kit's security scan names `.xezar/pipeline/config.json`, `.xezar/config.json` and
+  `.github/workflows/` (`references/write.md` §2), and the repository's own existing `SECURITY.md`,
+  `THREAT_MODEL.md` or an ADR naming one, if it has any. Quote what is there; do not extend it.
+- **What is already documented as designed behaviour.** A README or docs page saying a thing is
+  intentional — a permissive default, a trusted local path, a debug mode — is the honest raw
+  material for "what this project does not treat as a vulnerability". A behaviour nobody wrote
+  down is not a finding here; it is a question for the interview.
+
+**The hardest limit, and it is the point of the section.** What was read is the whole of what may
+be proposed. A boundary nobody built is worse than a blank line: the security-review role spends
+its verdict defending it, and an outside reporter is told a promise this project never made. Where
+nothing was found, the proposal is "nothing found — what do you want to say here?", not a sentence
+that sounds right.
+
+## 8. What analysis must not do
 
 - **No writes.** Not a directory, not a placeholder, not a `.gitkeep`.
 - **No network calls** beyond reading the repository's own remote.

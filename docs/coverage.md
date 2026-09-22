@@ -12,7 +12,7 @@ rather than trusting this table for a precise number.
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 66 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 68 deliberate defects | ✅ |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values; inside a vendored `kit/`, paths from the engine's own repository | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 227 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text, and the kit role skills' shared contract, have not drifted across their copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
@@ -34,24 +34,48 @@ rather than trusting this table for a precise number.
 | 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 15 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its nine pinned rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
 | 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a routing row, the maintained-skill list is the skill directory, and every row and class count in prose is the table's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, and runs `config-guard.sh` and `deploy-guard.sh` for real on a throwaway repository; **not** that a workflow runs on an engine |
-| 25 | The gate lease cannot loop, cannot delay `--list`, and never resolves the engine through `npx` | `test-kit-facts.mjs` FACT 15, two break cases in `test-guards.mjs` | ✅ — but read the limit below |
+| 25 | The gate lease cannot loop, cannot delay `--list`, probes the engine before it commits, and never resolves through `npx` | `test-kit-facts.mjs` FACT 15, four break cases in `test-guards.mjs` | ✅ — but read the limit below |
 
 **Row 25 is thinner than it looks, and deliberately so.** What CI checks is the *shape* of the
-lease block: that the re-entry guard exists, that it sits after the `--list` exit, and that no code
-line resolves through `npx`. All three break quietly — the gates still run and nothing goes red —
-which is why they are pinned at all.
+lease block: that the re-entry guard exists, that it sits after the `--list` exit, that the engine
+probe runs **before** the `exec` and `execfail` is set, and that no code line resolves through
+`npx`. All of them break quietly — the gates still run and nothing goes red — which is why they are
+pinned at all.
+
+The probe assertions were added on 2026-09-21 after a review found the promise was not being kept.
+The block said "fail open, always" and did not: `exec` replaces the script, so a fork engine that
+did not know the verb, an engine too old for `--status-file` and an engine that died during boot
+each reached the caller **as the gate verdict**, with zero gates run and an exit code
+indistinguishable from a real failure. A probe after an `exec` is not a probe, so the order is
+pinned, not just the presence.
 
 What CI does **not** check is that the lease works. It cannot: that needs an engine 0.17.0 or later
 on the machine, and the kit never installs one. Those properties were verified by hand on
 2026-09-21 against engine 0.17.0 — a lease taken from a plain folder, a second project waiting 4s
-for the first, a waiting notice at 30s, the slot released in under 0.2s after a `kill -TERM`, and
-both fail-open paths naming their reason. That is a dated observation, not a gate, and it will not
-notice the day the engine changes the verb. The fail-open contract is what makes that acceptable:
-the worst outcome of the lease silently ceasing to work is the behaviour this kit had before it.
+for the first, a waiting notice at 30s, the slot released in under 0.2s after a `kill -TERM`, all
+four fail-open paths naming their reason (no engine, too old, a wedged binary cut off by the
+probe's own time bound, and a fork that lacks the verb), a held slot reported as `slot 1 of 1`, and
+`leaseWaitMs` landing on the attempt record as a number when leased and `null` when not. That is a
+dated observation, not a gate, and it will not notice the day the engine changes the verb. The
+fail-open contract is what makes that acceptable: the worst outcome of the lease silently ceasing
+to work is the behaviour this kit had before it.
+
+**Two lease limits are not covered by anything, here or by hand.** A `SIGKILL` aimed at the
+*wrapper* skips the engine's release and orphans a still-running gate run, so the slot is handed to
+a waiter while the machine is still loaded — the over-subscription the lease exists to prevent, and
+a cost the lease itself introduced, since before it the supervisor's direct child was the gate
+script. And `XEZ_GATE_LEASE` set in a shell profile or a CI environment turns leasing off for every
+run there; it is a re-entry guard being used as an off switch, and the engine deliberately offers
+no such switch. Both are written into the block's own comment. Neither is reachable from CI.
+
+**FACT 14 guards a concept through two of its phrasings, not the concept.** It greps the
+identifiers and the two sentences that actually shipped. It cannot decide whether a new sentence
+excuses a red build — that is reading, not matching — and the kit legitimately says true things
+about flaky tests that must keep passing.
 
 ## What this says
 
-**The thin row is 20.** Twenty-three checks read what the skills *say*; one runs a
+**The thin row is 20.** Twenty-four checks read what the skills *say*; one runs a
 skill and watches what it *does*, and that one cannot run in CI — it needs a CLI and a
 sandbox with full access, and granting a pull request's own code full access is exactly
 what CI must not do.
@@ -63,11 +87,11 @@ is not hypothetical, it shipped: one file said campaign folders were committed w
 beside it said they never were, and prose promising `decisions.md` is never cut shipped alongside
 a script that cut it at 8 KB.
 
-`test-kit-facts.mjs` now pins thirteen facts that already caused such a contradiction, asserted in
+`test-kit-facts.mjs` now pins fifteen facts that already caused such a contradiction, asserted in
 every place that states them. **What it does not do is compare meaning.** Deciding whether two
 English sentences agree is the actual problem, and no grep does it. So a fact nobody pinned is
 still unchecked, and adding a pin is a deliberate act — the check cannot discover the next
-contradiction on its own, only re-catch the kinds it was taught. The honest scope is: these thirteen
+contradiction on its own, only re-catch the kinds it was taught. The honest scope is: these fifteen
 cannot silently drift again.
 
 So: everything above the line is a check on instructions. That is worth a great deal for a

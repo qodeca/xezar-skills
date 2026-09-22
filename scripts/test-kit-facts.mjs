@@ -499,6 +499,22 @@ function walk(rel, match) {
     ["knownLoadFlakes", "the known-load-flake register -- a list of CI jobs allowed a rerun"],
     ["failedJobsAreKnownLoadFlakes", "the record field the one-rerun rule read"],
   ];
+  // The identifiers above are not the concept. A pin that greps only identifiers lets the idea
+  // back in as English, and it did: after the removal `xezar-deploy.md` still told a reader "a
+  // failed job is never rerun as a known flake" -- the third clause of a three-way contrast whose
+  // premise had been deleted, so it now taught that the integration path DOES excuse jobs by name.
+  // Every gate was green.
+  //
+  // So these patterns reject the EXCUSING SENSE only, never the word. The kit must stay free to
+  // say the true things it says today: "flaky is not PASS" (xezar-ui-tests.md), "never excused by
+  // a list of names" (xezar-integration.md), "there is no permanent known-flake allowance"
+  // (xezar-release-publish.md). Those are the opposite of the removed idea and are load-bearing.
+  // The limit is honest and worth stating: this catches the two phrasings that shipped, not the
+  // idea. Deciding whether a sentence excuses a red build is not something a grep can do.
+  const bannedPhrases = [
+    [/known[ -]load[ -]flakes?/i, 'the phrase "known load flake" -- the register, named in prose'],
+    [/rerun[^.\n]{0,40}as a known flake/i, '"rerun ... as a known flake" -- excusing a red job by name'],
+  ];
   const walk = (rel) => {
     const out = [];
     for (const e of readdirSync(join(root, rel), { withFileTypes: true })) {
@@ -510,10 +526,15 @@ function walk(rel, match) {
   };
   const kit = `${SKILL}/kit`;
   for (const file of has(kit) ? walk(kit) : []) {
-    const text = read(file).toLowerCase();
+    const raw = read(file);
+    const text = raw.toLowerCase();
     for (const [needle, what] of banned) {
       if (text.includes(needle.toLowerCase()))
         fail(fact, file, `names "${needle}" -- ${what}. It was removed from the kit on 2026-09-21; see DECISIONS.md. A project onboarded tomorrow must not learn it exists.`);
+    }
+    for (const [pattern, what] of bannedPhrases) {
+      if (pattern.test(raw))
+        fail(fact, file, `carries ${what}. The identifiers are gone but the idea is back in prose; see DECISIONS.md. A project onboarded tomorrow must not learn it exists.`);
     }
   }
   // The skill's own generator must not write the key back into a new project's config either.
@@ -534,8 +555,16 @@ function walk(rel, match) {
 //     make the command-list id wait behind somebody else's test suite.
 //   * never `npx`. It would fetch an arbitrary build from the registry and lease against a
 //     different build's idea of the slots -- the one mistake the engine's own wrapper calls out.
+//   * the PROBE runs before the `exec`, and `execfail` is set. These two are what make the
+//     block's "fail open, always" promise true rather than decorative. `exec` replaces the
+//     script, so after it there is no code of ours left: without the probe, a fork engine that
+//     lacks the verb, an engine too old for `--status-file` (the engine's parseArgs is strict, so
+//     an unknown option throws) and an engine that dies during boot each arrive at the caller AS
+//     THE GATE VERDICT -- zero gates run, exit code indistinguishable from a real failure.
+//     Measured, not assumed: `set -uo pipefail` plus a failed `exec` exits at rc=126 and never
+//     reaches the next line, so `shopt -s execfail` is load-bearing too.
 {
-  const fact = "FACT 15: the gate lease re-exec is guarded, skips --list, and never resolves through npx";
+  const fact = "FACT 15: the gate lease re-exec is guarded, skips --list, probes before it commits, and never resolves through npx";
   const where = `${SKILL}/kit/checks/repo-gates.sh`;
   const gates = read(where);
   const listExit = gates.indexOf('if [ "$LIST" -eq 1 ]');
@@ -553,6 +582,18 @@ function walk(rel, match) {
     fail(fact, where, "resolves the engine through npx -- that fetches another build and leases against a different build's idea of the slots");
   if (leaseAt !== -1 && !gates.includes("lease gates --"))
     fail(fact, where, "the lease block no longer invokes `lease gates --`");
+  // The probe must come BEFORE the exec, and execfail must be set. Order is the whole point: a
+  // probe after the exec is not a probe, it is dead code.
+  const execAt = gates.indexOf('exec "$lease_bin"');
+  const probeAt = gates.indexOf("usage: xezar lease gates");
+  if (execAt === -1)
+    fail(fact, where, "no `exec \"$lease_bin\"` found -- the lease no longer re-executes, so its release-on-any-exit property is gone");
+  else if (probeAt === -1)
+    fail(fact, where, "nothing checks the engine's usage line before the exec -- a fork or a too-old engine now reaches the caller as the gate verdict, with no gates run");
+  else if (probeAt > execAt)
+    fail(fact, where, "the engine probe sits AFTER the exec, where no code of ours ever runs -- fail-open is decorative");
+  if (execAt !== -1 && !gates.includes("shopt -s execfail"))
+    fail(fact, where, "no `shopt -s execfail` before the exec -- a failed exec exits this shell at rc=126 and the fail-open line below is unreachable");
   checked.push(fact);
 }
 
