@@ -51,11 +51,20 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 #
 # The lesson for whoever extends this next: a listing shows what the features you ENABLED write.
 # Reading the source shows what every feature CAN write, and that is the larger set.
+#
+# So the list below was then rebuilt from a full SOURCE enumeration of engine 0.18.0 rather than
+# from any run - every path built from `dataDir`, with filename constants resolved, production code
+# only. That found a whole class no exact list can hold: the engine's atomic writes and locks land
+# beside its state files under names containing a pid and random hex, and the audit trail rotates
+# through numbered suffixes. Hence the prefix match below. Repeat the enumeration, not a listing,
+# when this is next revisited.
 ENGINE_DIRS=""
 ENGINE_FILES=""
 if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
   ENGINE_DIRS="ipc mcp mcp-owner-claims runs writer-claims tmp campaigns"
-  ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json runs.json.tmp ui-state.json ui-state.json.tmp todos.json todos.json.tmp pi-leader.json automations.json automation-state.json automation-receipts.ndjson automation-log.ndjson automation-poll.lock"
+  # BASE names only. The match below is a prefix match, so `<name>.tmp`, `<name>.lock`,
+  # `<name>.<pid>.<hex>.tmp` and `audit.ndjson.1`..`.4` are all covered without being listed.
+  ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json ui-state.json todos.json pi-leader.json automations.json automation-state.json automation-receipts.ndjson automation-log.ndjson automation-poll.lock"
 fi
 
 # Only the primary checkout has the full tree. A task worktree creates the one or two subfolders
@@ -85,6 +94,24 @@ for entry in "$LOCAL"/* "$LOCAL"/.[!.]* "$LOCAL"/..?*; do
     esac
     loose="$loose  $name/ (unexpected directory)"$'\n'
   else
+    # PREFIX match, not exact. The engine writes transient siblings beside its state files whose
+    # names cannot be enumerated: atomic writes land at `<file>.<pid>.<hex>.tmp`, locks at
+    # `<file>.lock`, and the audit trail rotates to `audit.ndjson.1` through `.4` past 10 MB. These
+    # exist DURING normal operation, and this check runs as a gate command while the engine is
+    # live, so a run that races an atomic write would fail on a file that is gone a millisecond
+    # later - the worst kind of flake, and one no exact list can prevent. Matching `<known>` or
+    # `<known>.*` covers every one of them in a single rule.
+    #
+    # The trade, stated: a stray file a person names `runs.json.notes` is skipped. That is worth
+    # it. A missed stray file is untidiness; a false failure is every project's gate going red on
+    # a timing coincidence.
+    matched=""
+    for known in $ENGINE_FILES; do
+      case "$name" in
+        "$known" | "$known".*) matched=1; break ;;
+      esac
+    done
+    [ -n "$matched" ] && continue
     case " $ENGINE_FILES " in
       *" $name "*) continue ;;
     esac
