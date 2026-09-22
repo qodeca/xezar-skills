@@ -368,10 +368,10 @@ Everything the skills write into a consuming repository lives under two director
 | `.xezar/pipeline/trackers/<tracker>.md` | tracker descriptor(s) – the commands behind every issue/PR/label operation | yes |
 | `.xezar/pipeline/browsers/<provider>.md` | browser-provider descriptor | yes |
 | `.xezar/pipeline/overrides/<skill>.md` | your repo-local extensions, one flat file per skill | yes |
-| `.xezar/pipeline/{runs,specs,analysis,scripts}/` | execution plans, specs, analyses and generated launcher scripts | yes |
+| `.xezar/pipeline/{runs,specs,scripts}/` | execution plans, specs and generated launcher scripts | yes |
 | `.local/qa/` | the test-env descriptor and per-run QA artifacts | no – add `.local/` to `.gitignore` |
 
-The four working directories under `.xezar/pipeline/` are the defaults of the config's `paths` block; point them elsewhere if your repo already has a home for specs or plans.
+The three working directories under `.xezar/pipeline/` are the defaults of the config's `paths` block; point them elsewhere if your repo already has a home for specs or plans.
 
 ## 🎨 Make it yours
 

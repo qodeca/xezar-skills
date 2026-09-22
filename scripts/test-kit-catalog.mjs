@@ -8,7 +8,7 @@
 // that validator: a workflow that is installed and valid and named by no routing row. The leader
 // picks work by a row's trigger sentence, so such a workflow can never be selected by anything.
 //
-// Seven checks, each one a way the kit went wrong or could:
+// Nine checks, each one a way the kit went wrong or could:
 //
 //   1. the kit's own validator passes on the kit, staged the way a project holds it;
 //   2. the validator's list of maintained skills IS the set of skill files -- a name left off

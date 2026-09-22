@@ -76,7 +76,7 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | The task logins available | the account registry, minus the reserved login |
 | The lanes available | every `<tool>/<model>` analysis found, each marked cloud or local, and whether it can see a picture |
 
-Seven consequences below are ones the owner cannot see from the fact alone, so state each beside
+Five consequences below are ones the owner cannot see from the fact alone, so state each beside
 its fact rather than in a question of its own. (Counted as bullets, not as rows: the first covers
 both security answers at once, and two of them are about dispatch rather than a single row.)
 

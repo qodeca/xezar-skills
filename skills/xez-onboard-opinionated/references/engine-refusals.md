@@ -80,17 +80,15 @@ think" and a go-ahead given earlier for something else are all no.
 
 **On yes, in this order:**
 
-1. **Make the target safe to write first.** Both targets must be regular files — a symlink at
-   either path stops the run and is reported. For the project registry, the entry that keeps it
+1. **Make the target safe to write first.** The target must be a regular file — a symlink at
+   that path stops the run and is reported. For the project registry, the entry that keeps it
    out of git is written by the *write* step, long after this: so write that one ignore line now,
    or verify `git check-ignore .xezar/agent-accounts.json` passes, **before** the copy. Until that
    holds, the file carries the owner's login labels and home paths in an untracked, uncovered file.
    This copy is the one write `references/agentic-setup.md` permits before the preview is approved,
    and it is permitted only in that order.
-2. Back up the target beside itself as `<name>.pre-<what>.bak`. A backup inside `.xezar/` is
-   removed again before the commit; one under `~/.xezar/` stays, and the **session report** names
-   its path. A path under the owner's home folder never goes into a pull request body or a tracker
-   comment — there the undo is the call.
+2. Back up the target beside itself as `<name>.pre-<what>.bak`. The backup is inside `.xezar/`
+   and is removed again before the commit; the undo is the call.
 3. Make the smallest edit that does the job. Never a rewrite of the file.
 4. **Do not repair what the copy brought with it.** A copied default that names an id with no
    record is most likely the tool's built-in login (`references/interview.md` screen 3) — ask,
@@ -104,5 +102,5 @@ think" and a go-ahead given earlier for something else are all no.
    that reverses it.
 
 **Never:** a file that holds a secret; any path outside the two in the table and their backups;
-any key in `~/.xezar/config.json` other than the provider switch; a change the owner did not see
+any key in `~/.xezar/config.json`; a change the owner did not see
 in full, values included; a second edit to "tidy up" the first.

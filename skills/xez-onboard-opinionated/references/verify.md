@@ -112,9 +112,8 @@ In order:
      OpenCode lane in any chain of `.xezar/docs/model-routing.md`. Switching the provider off
      under such a lane turns its dispatches into refusals. Either condition false → **leave it
      on**, report "found, left on" with which condition failed, and keep it out of any row this
-     run writes. Never reach for a machine-wide setting from a per-project setup — the one
-     exception is the owner naming that change themselves, under
-     `references/engine-refusals.md`, where these same two conditions still hold.
+     run writes. Never reach for a machine-wide setting from a per-project setup: if the owner
+     wants one, give them the place to make it themselves (`references/engine-refusals.md`).
   3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
      then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
      fresh `operationId` — the argument names that action takes **from engine 0.17.0 on**, where

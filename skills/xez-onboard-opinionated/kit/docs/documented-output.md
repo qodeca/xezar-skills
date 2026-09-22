@@ -33,7 +33,7 @@ change plus the corresponding fixed fixture and producer in `documented-output.m
 to a document alone can never authorize an executable.
 
 To add a row, implement the bounded fixture and output producer first, add the allowlist row, add
-passing and refusal fixtures to `infra-tests.sh`, then add the document marker. The script is copied
+passing and refusal cases to the tests that run `documented-output.mjs`, then add the document marker. The script is copied
 into a fresh directory beneath the current process's temporary directory and runs only there. It is
 never run in the primary checkout or in the document's directory.
 

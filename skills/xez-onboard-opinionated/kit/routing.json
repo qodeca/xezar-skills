@@ -1352,7 +1352,7 @@
       ],
       "class": "security-and-release",
       "writes": false,
-      "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings.json.",
+      "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings.json or settings.local.json.",
       "lanes": [
         "claude/opus"
       ],

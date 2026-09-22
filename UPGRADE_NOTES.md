@@ -175,7 +175,7 @@ names, so the role writes its verdict packet, `BLOCKED` and evidence through a n
 `git-read.sh`. A role skill from before this entry still tries `mv` or `gh pr comment` and is
 refused.
 
-**What to do.** Copy the two helpers, the checks that know about them, the five workflows and
+**What to do.** Copy the three helpers, the checks that know about them, the five workflows and
 their role skills, together:
 
 ```bash
