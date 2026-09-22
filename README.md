@@ -33,11 +33,23 @@ claude --dangerously-load-development-channels server:xezar
 
 Accept the development-channel warning, then paste the prompt from
 [`docs/bootstrap-prompt.md`](docs/bootstrap-prompt.md). It checks that the engine is installed
-and new enough, installs these skills, runs `xezar init`, opens a terminal window for the engine,
+and new enough, installs these skills, opens a terminal window for the engine,
 and runs [`xez-onboard-opinionated`](docs/skills/xez-onboard-opinionated.md): an interview, a
 preview of every file, **one** pull request, then the proof – in the same session. It asks before
 anything global and before anything on GitHub, never uses `sudo`, and never pipes a download into
 a shell. Paste it again at any time; it continues where it stopped.
+
+That first session is the **setup** session. Once setup is done, you work through the **leader**:
+a Claude Code session started with **`XEZAR_LEADER=1`**, which is the one thing that makes a
+session the leader. The setup installs a launcher that sets it:
+
+```bash
+./scripts/xezar-leader.sh                                                     # the usual way
+XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # by hand
+```
+
+A session started without `XEZAR_LEADER=1` is an ordinary Claude Code session in the same
+repository – no leader guide, no leader rules.
 
 You need Node 20 or later, `git`, the GitHub CLI logged in, and a GitHub remote. Claude Code and
 GitHub only; on Windows, use WSL.

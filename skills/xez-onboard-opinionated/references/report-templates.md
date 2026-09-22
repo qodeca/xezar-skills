@@ -48,8 +48,10 @@ the six. Nothing is less safe; it is just less useful overnight.
 npx skills add <collection-source> --skill xez-unattended-on --skill xez-unattended-off --skill xez-add-rule --agent claude-code --agent codex
 ```
 
-**Next:** from tomorrow, open the leader with `<launcher>` — the full command, including
-`--dangerously-load-development-channels`, so you can see what it turns on before you run it.
+**Next:** from tomorrow, open the leader with `./scripts/xezar-leader.sh`. It runs
+`XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar` — print that line too,
+so the owner sees what it turns on before running it. **`XEZAR_LEADER=1` is what makes a session
+the leader**; the same command without it is an ordinary session that gets no leader guide.
 One leader per project: to move it to a new session, exit this one first.
 <when push was not seen:> Events are read by polling, not pushed: <the reason found>.
 
@@ -90,9 +92,11 @@ owner deferred:>
 **Next, in this order:**
 1. Merge <PR>.
 2. `git switch <base> && git pull`
-3. `<launcher> "/xez-onboard-opinionated --verify"` — the full command, including
-   `--dangerously-load-development-channels`, so you can see what it turns on before you run it.
-   Claude Code shows its development-channel warning on every launch; accept it.
+3. `./scripts/xezar-leader.sh "/xez-onboard-opinionated --verify"` — it runs
+   `XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar`; print that line
+   too, so the owner sees what it turns on before running it. By hand, keep `XEZAR_LEADER=1`: without
+   it the session is not the leader. Claude Code shows its development-channel warning on every
+   launch; accept it.
 4. Approve the `xezar` MCP server when Claude Code asks.
 
 Keep the engine running in its own terminal the whole time. Closing this session does not
@@ -130,9 +134,10 @@ changes for a contributor tomorrow>. No file under <the project's source folders
 
 ## ⚠️ Worth a second look
 
-<the trust boundary: the session-start hook, its loader script and the launcher's
-`--dangerously-load-development-channels` flag, in plain words — and anything the run reported as a
-cross>
+<the trust boundary: the session-start hook, its loader script, the launcher's
+`--dangerously-load-development-channels` flag, and the `XEZAR_LEADER=1` variable it sets, which is
+the one thing deciding whether a session gets the leader guide — in plain words — and anything the
+run reported as a cross>
 ```
 
 ## Setup rejected

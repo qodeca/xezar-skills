@@ -8,7 +8,7 @@ Three limits, all stated before anything is touched. **Claude Code only** — th
 
 It analyses the repository read-only (the real branching model, the gate commands, the design signal, which agent tools and accounts this machine actually has), interviews you in five screens — one confirmation of every detected fact, each carrying its evidence, then the gate commands, the task logins, the routing classes and the expanded table — builds the routing table from the lanes that exist here rather than shipping one — a lane is a tool plus a model, and your logins are only the rotation under a tool — and previews every file bound to a content digest before anything is written.
 
-Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch and opens a pull request for you to merge, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
+Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch, opens a pull request and – once its checks are green – offers to merge it for you, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
 ## What the leader can route afterwards
 
@@ -29,7 +29,7 @@ The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves r
 
 **Three of the documents are written for people rather than agents.** `SECURITY.md` says where to report a vulnerability privately, what this project does not treat as one, and what it has promised — the security-review role reads that last part before it opens a diff. `CONTRIBUTING.md` is the human path through the same process, and its most useful sentence is the one that is easy to get wrong: a contributor triggers **none** of the 37 workflows, and the checks gating their pull request are the ones in `ci.requiredChecks`, not the gate list the agents run. Any of the three that your project already has is left alone.
 
-**When the engine refuses a call**, the skill stops calling, tries the engine's own tool, then points you at the place a person does it — and only on your yes to one question showing the exact change does it make a backed-up edit of one of two named engine files (a recorded exception in `SECURITY.md`). **When you want to read the setup pull request before merging**, that is a normal answer: its body sorts the files by origin so you can see which dozen to read, and the run ends cleanly with the one line that resumes it.
+**When the engine refuses a call**, the skill stops calling, tries the engine's own tool, then points you at the place a person does it — and only on your yes to one question showing the exact change does it make a backed-up edit of one file inside the project, its account list (a recorded exception in `SECURITY.md`). It writes nothing under `~/.xezar/`. **When you want to read the setup pull request before merging**, that is a normal answer: its body sorts the files by origin so you can see which dozen to read, and the run ends cleanly with the one line that resumes it.
 
 **OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it. It is left on, and reported, when the engine is not in single-project mode or when an existing routing table still uses it.
 
@@ -45,7 +45,18 @@ gh auth login                         # if you are not logged in
 
 The engine's first start asks one question – whether to copy your global setup in. Answer it: it is asked once, and only in a real terminal. A stop you can fix in a minute does not end the run; the skill waits and checks again.
 
-The smoke test needs the engine's tools inside the Claude Code session, and Claude Code loads them only when a session starts. So a run usually has two halves: the setup pull request, then – in a session started with the launcher it installed – `/xez-onboard-opinionated --verify`.
+The smoke test needs the engine's tools inside the Claude Code session, and Claude Code loads them only when a session starts. A run started from the [bootstrap prompt](../bootstrap-prompt.md) has them, so it finishes in one session: the skill offers the merge once checks are green, then proves the setup. A session without the engine's tools, or an owner who wants to read the pull request first, finishes later with `./scripts/xezar-leader.sh "/xez-onboard-opinionated --verify"`.
+
+### Starting the leader
+
+The leader is a Claude Code session started with the environment variable **`XEZAR_LEADER=1`**. That variable is the only thing that makes a session the leader: it is what tells the session-start hook to load the leader guide. The setup installs a launcher that sets it for you:
+
+```bash
+./scripts/xezar-leader.sh                                                     # the usual way
+XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # by hand
+```
+
+The launcher also checks that the engine is running first (`xezar --single-project --no-open`, in its own terminal). A Claude Code session started **without** `XEZAR_LEADER=1` is an ordinary session in the same repository – no leader guide, no leader rules – so you can still open a normal session for a quick question or a review.
 
 ## Parameters
 

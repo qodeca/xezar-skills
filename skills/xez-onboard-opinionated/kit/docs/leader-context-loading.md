@@ -87,10 +87,11 @@ one-line message rather than a leader session that quietly cannot reach the engi
 the only thing that matters to the hook, and it belongs to the process, so it survives `/clear` and
 a compaction.
 
-One exception, and it is deliberate: **while an onboarding is unfinished, every session in this
-checkout gets one fixed line** saying so, leader or not. That check sits above the `XEZAR_LEADER`
-rule because a session that starts working on an unproved setup should know it, whoever it is. It
-stops once `/xez-onboard-opinionated --verify` completes.
+One exception, and it is deliberate: **while an onboarding is unfinished, every ordinary session in
+the primary checkout gets one fixed line** saying so, leader or not (task sessions, worktrees and a
+checkout with no guide stay silent, because those checks run first). That check sits above the
+`XEZAR_LEADER` rule because a session that starts working on an unproved setup should know it,
+whoever it is. It stops once `/xez-onboard-opinionated --verify` finishes with every line ticked.
 
 `leader-context.sh` prints nothing when any of these is true, and prints the block only when none is:
 
@@ -109,6 +110,9 @@ stops once `/xez-onboard-opinionated --verify` completes.
    `[ -z "${VAR:-}" ]`, which silences a non-empty value and lets the empty one fall through.
 4. **The guide is missing** — a project without a guide gets silence, not an error and not a
    half-loaded block.
+5. **`XEZAR_LEADER` is not `1`** — the session was not started as the leader (see above). This is
+   what keeps an ordinary Claude Code session in the same checkout ordinary. It is checked after the
+   unfinished-onboarding line, so that line still reaches every ordinary session.
 
 Everything else is loud. The silent cases matter as much as the loud one: they are what makes it safe
 to commit the hook at all, and the test pins each of them.

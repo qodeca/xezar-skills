@@ -284,8 +284,10 @@ plus a model; the thing that runs out is a **login**, and a lane is only out whi
 its tool's rotation is. With the old wording, one exhausted login parks every lane on that tool.
 
 Fix: open `.xezar/loops.json`, replace the L2 prompt with the one in
-`.claude/skills/xez-onboard-opinionated/kit/loops.json`, then start a new leader session so the
-loop is re-created from the new text (the leader compares both fields at every start).
+`.claude/skills/xez-onboard-opinionated/kit/loops.json`, then start a new leader session
+(`./scripts/xezar-leader.sh`, or `XEZAR_LEADER=1 claude --dangerously-load-development-channels
+server:xezar`) so the loop is re-created from the new text (the leader compares both fields at
+every start).
 
 Skipping it costs throughput, not correctness: nothing runs on an exhausted login either way.
 
@@ -553,7 +555,9 @@ slot between them; and a gate that is red on a healthy tree, so every task fails
 skill over your `.xezar/checks/` copies, and `kit/scripts/xezar-leader.sh` over
 `scripts/xezar-leader.sh` — or add `export XEZAR_LEADER=1` above its `exec` line if you have
 edited it. Refresh their digests in `.xezar/onboarding.json`. From then on, start the leader with
-the launcher; a session started any other way is an ordinary session.
+`./scripts/xezar-leader.sh`, or by hand with
+`XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar`. A session started
+without `XEZAR_LEADER=1` is an ordinary session.
 
 ## 2026-09-21 – a project onboarded with 1.2.0: skills out of git, labels on the tracker
 

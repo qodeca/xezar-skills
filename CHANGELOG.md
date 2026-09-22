@@ -1,3 +1,24 @@
+# 2.1.1 (2026-09-22)
+
+**Documentation that now matches what the skill actually does.** No behaviour of an installed
+project changes.
+
+**`XEZAR_LEADER=1` is shown wherever the leader is started.** It is the one thing that makes a
+Claude Code session the leader, and most places that told you how to start one never named it.
+Worst was the skill's own final report, which asked the agent to print "the full command including
+the flag" — easy to render as a bare command that starts an ordinary session. Every place now shows
+`./scripts/xezar-leader.sh` and the by-hand form with the variable. The setup launch line stays
+without it on purpose, and says why.
+
+**The bootstrap prompt had five steps that disagreed with the skill it runs.** A finished setup was
+sent to the proving step instead of stopping. It left a `.gitignore` edit uncommitted, which the
+skill's clean-tree check stops on — the temporary ignore lines now go to `.git/info/exclude`, which
+git never commits. It ran `xezar init`, which the skill says is not needed. It told you to reopen
+the leader without closing the setup session that holds the one leader slot. And it promised one
+interruption where there can be three.
+
+Also removed: two leftover descriptions of the `~/.xezar/config.json` write that 2.1.0 retired.
+
 # 2.1.0 (2026-09-22)
 
 **Three fixes that each removed something rather than adding it**, and one of them removed a
