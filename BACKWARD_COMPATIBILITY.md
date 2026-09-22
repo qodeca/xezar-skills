@@ -18,7 +18,6 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | Key | Default |
 |---|---|
 | `paths.runs` | `.xezar/pipeline/runs` |
-| `paths.analysis` | `.xezar/pipeline/analysis` (**reserved, deprecated 2026-09-20** — resolved by the loader, read by nothing; kept because removing a `paths` key is breaking) |
 | `paths.specs` | `.xezar/pipeline/specs` |
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
@@ -133,12 +132,13 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Eight breaks have shipped, all deliberate. Each gets a row here on the day it ships:
+Nine breaks have shipped, all deliberate. Each gets a row here on the day it ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
 | 2026-09-22 | the minimum engine version in `compat.json` raised from 0.18.0 to 0.19.0 | anyone running engine 0.18.x: the onboarding skill's preflight refuses until they upgrade | `npm install -g @qodeca/xezar`, or stay on xezar-skills 2.1.1, which supports 0.18.0 | 0.19.0 is the first engine that makes a reading step read-only on Claude, and the shipped routing gives review and release work only to lanes that rely on it |
 | 2026-09-22 | the leader's routing moved from the prose table `.xezar/docs/model-routing.md` to `.xezar/routing.json`, read through `route.mjs`; the onboarding skill no longer writes the markdown table, and its `references/routing-rows.md` is gone | a project onboarded by `xez-onboard-opinionated` before 3.0.0 that copies the new `loops.json` or leader docs without migrating: the new L3 prompt runs `route.mjs`, which refuses when there is no `routing.json` on the base branch | run `/xez-onboard-opinionated --section routing`, which writes the file from the shipped defaults, carries the rotations over and deletes the markdown table; or keep the old `loops.json` and docs until you do (`UPGRADE_NOTES.md`) | a prose table cannot be checked, so a ban in it was a ban the leader had to remember; as data, every ban a file can decide is applied by a script, and routing is read from the base branch so a change under review cannot reroute its own review |
+| 2026-09-22 | `paths.analysis` removed: no longer in the config the setup writes, not resolved by the loading snippet, no directory created | nobody in practice – nothing ever read it. A committed config that still has the key keeps working, because readers ignore it | nothing; optionally delete the key and the empty `.xezar/pipeline/analysis/` (`UPGRADE_NOTES.md`) | a key nothing reads misleads every reader of the config, and a major version is the one time removing it is allowed |
 | 2026-09-22 | the kit's `catalog-check.mjs` refuses a `code-review`, `design-review` or `qa` workflow whose agent steps declare no `verdictRole`, and accepts the new step key | a project that kept its own copy of one of those three workflows | add `verdictRole: <role>` to the verdict step, or copy the kit's workflow (`UPGRADE_NOTES.md`) | engine 0.19.0 refuses every verdict packet from a step that declares no role, so the workflow would lose its verdicts in silence; the checker says so at load time instead |
 | 2026-09-22 | the kit's `catalog-check.mjs` refuses a workflow step whose `allowedTools` holds neither `Edit` nor `Write` unless it carries a `bashAllowlist` of reading prefixes, or its workflow is one of the three that run code (`qa`, `acceptance-verification`, `design-review`); five kit workflows gained that allowlist, and a Bash rule in the project's `.claude/settings*.json` that is not a reading prefix is refused too | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and has **its own** reading workflow – its gate turns red until the step is fixed | give the step `bashAllowlist` entries from the table in `catalog-check.mjs` (`READER_BASH_PREFIXES`), or add `Edit`/`Write` if it is really a writing step | no backend made such a step read-only: every one still gave it an open shell (xezar #849), so "read-only" was a label, and a reviewer that can write can change the thing it is judging |
 | 2026-09-22 | the minimum engine version in `compat.json` raised from 0.16.0 to 0.18.0 | anyone running engine 0.16.x or 0.17.x: the onboarding skill's preflight now refuses until they upgrade | `npm install -g @qodeca/xezar` — 0.16.0 and 0.17.0 remain published, so nothing is forced on an existing project until it re-runs the skill | 0.18.0 is the first engine that answers a refusal before validating arguments and that exposes `import_global_accounts`; supporting engines without them meant carrying fallback branches nobody could test and a security exception wider than it needed to be |
@@ -153,18 +153,7 @@ later" has the same success rate everywhere.
 
 Things that are wrong, that we are not fixing yet, because fixing them is a break.
 
-- **`paths.analysis`** — declared in the config schema, created with a `.gitkeep`, committed,
-  and read by nothing. Deprecated 2026-09-20 and marked reserved; the loader still resolves
-  it and the default is unchanged.
-
-  It is **not** removed, and this is the part worth reading. Removing a `paths` key is
-  breaking by the rule two sections up, and the benefit is tidiness. So it waits for a major
-  version, or stays reserved indefinitely if no major version is ever worth cutting for it.
-  A key that costs one line of loader code is cheaper than a migration every consumer has to
-  perform.
-
-  The lesson is recorded under "Zero config is a design law" in `DECISIONS.md`: a key that
-  nothing reads is unremovable the moment it ships.
+None. `paths.analysis`, the one entry here, was removed in 3.0.0 (see the ledger).
 
 ## Out of scope
 

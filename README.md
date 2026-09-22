@@ -339,7 +339,6 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
   "security": { "provider": null },
   "paths": {
     "runs": ".xezar/pipeline/runs",
-    "analysis": ".xezar/pipeline/analysis",
     "specs": ".xezar/pipeline/specs",
     "scripts": ".xezar/pipeline/scripts",
     "qa": ".local/qa"

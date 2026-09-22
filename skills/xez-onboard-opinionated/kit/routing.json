@@ -230,13 +230,6 @@
     },
     {
       "rows": [
-        "bounded-bug-fix",
-        "hotfix"
-      ],
-      "rule": "hotfix only when people hit the fault now; if it can wait for the full fix, it is bounded-bug-fix."
-    },
-    {
-      "rows": [
         "refactor",
         "kit-refactor"
       ],
@@ -295,6 +288,24 @@
         "rollback"
       ],
       "rule": "Each needs its own go from the owner; none implies another."
+    },
+    {
+      "rows": [
+        "diagnose-bug",
+        "bounded-bug-fix",
+        "hotfix"
+      ],
+      "rule": "bounded-bug-fix when the failing test and the file are known; diagnose-bug when the cause still has to be found; hotfix when people hit the fault right now.",
+      "test": "\"Fix this crash\" is diagnose-bug until someone can name the file and write a failing test."
+    },
+    {
+      "rows": [
+        "unit-tests",
+        "integration-tests",
+        "regression-suite"
+      ],
+      "rule": "unit-tests prove one part alone with fakes; integration-tests prove two real parts together; regression-suite curates the tests that pin past bugs.",
+      "test": "\"Add tests for the parser\" is unit-tests; \"test the parser against the real files on disk\" is integration-tests."
     }
   ],
   "rows": [
@@ -738,6 +749,33 @@
       ]
     },
     {
+      "id": "diagnose-bug",
+      "title": "Bug fix whose cause is not known yet",
+      "workflows": [
+        "bug-fix.yaml"
+      ],
+      "class": "implementation",
+      "writes": true,
+      "trigger": "Something is broken and nobody can yet name the file or write the failing test: the cause has to be found and proved before it is fixed.",
+      "lanes": [
+        "claude/opus",
+        "codex/gpt-5.6-sol",
+        "claude/sonnet"
+      ],
+      "never": [
+        {
+          "local": true
+        },
+        {
+          "tier": "cheap",
+          "why": "cheap models have stopped after the diagnosis and fixed nothing"
+        }
+      ],
+      "notes": [
+        "Once the cause is named and a failing test exists, a follow-up is bounded-bug-fix."
+      ]
+    },
+    {
       "id": "multi-file-implementation",
       "title": "Multi-file implementation, not UI",
       "workflows": [
@@ -1038,6 +1076,30 @@
           "lane": "pi/deepseek-api/deepseek-flash",
           "why": "owner's preference"
         }
+      ]
+    },
+    {
+      "id": "unit-tests",
+      "title": "Unit tests for one part on its own",
+      "workflows": [
+        "feature-implementation.yaml"
+      ],
+      "class": "testing",
+      "writes": true,
+      "trigger": "The job is tests for one function, module or class with its collaborators faked, and no product behaviour changes.",
+      "lanes": [
+        "codex/gpt-5.6-terra",
+        "pi/deepseek-api/deepseek-flash",
+        "codex/gpt-5.6-sol",
+        "claude/sonnet"
+      ],
+      "never": [
+        {
+          "local": true
+        }
+      ],
+      "notes": [
+        "A pi write opens a draft PR that needs a full Claude review."
       ]
     },
     {

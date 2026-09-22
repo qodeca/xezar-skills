@@ -1,11 +1,11 @@
 # 3.0.0 (unreleased – ships the day engine 0.19.0 is on npm)
 
 **The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with
-engine 0.19.0, which this release requires. Four breaking changes, each with a row in
+engine 0.19.0, which this release requires. Five breaking changes, each with a row in
 `BACKWARD_COMPATIBILITY.md` and an entry in `UPGRADE_NOTES.md`; a project that must stay on engine
 0.18 stays on 2.1.1.
 
-**Routing is a file with a checker, not a table in prose.** `.xezar/routing.json` lists 45 kinds of
+**Routing is a file with a checker, not a table in prose.** `.xezar/routing.json` lists 47 kinds of
 work, the lanes each may use in order (a lane is a runner plus a model), the bans, the reserved
 lanes and the login rotation per runner. The owner's own routing ships as everyone's default. The
 leader reads it only through `node .xezar/checks/route.mjs`:
@@ -43,6 +43,9 @@ without `XEZAR_LEADER=1`, so since 1.3.0 it failed wherever the gate ran outside
 session – in CI, or in a person's terminal. And the tidiness check now also reads
 the engine's own list of state names (`xezar state-names --json`), so an engine release that adds a
 name no longer turns gates red.
+
+**`paths.analysis` is gone.** The setup declared it, created its folder and committed it, and no
+skill ever read it. A config that still has the key keeps working.
 
 More files are trust boundaries, so a change to them needs a security review: the routing file and
 its schema, `loops.json`, `.xezar/docs/`, `.xezar/skills/` and `.claude/settings*.json`.

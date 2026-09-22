@@ -17,6 +17,19 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – my config has `paths.analysis` and an empty `.xezar/pipeline/analysis/`
+
+Applies to any repository set up by `xez-setup-agent-pipeline` before 3.0.0.
+
+**Symptom – a key and a folder that nothing uses.** No skill ever read or wrote `paths.analysis`.
+3.0.0 stops writing it and stops resolving it. A config that still has it keeps working.
+
+**What to do (optional).** Delete the `"analysis"` line from `paths` in
+`.xezar/pipeline/config.json`, and delete `.xezar/pipeline/analysis/` if it holds only
+`.gitkeep`.
+
+**What you lose by skipping it.** Nothing. The key and the folder stay unused.
+
 ## 2026-09-22 – my gate fails with "fixture execution failure for leader-context"
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.3.0 or later, before 3.0.0.

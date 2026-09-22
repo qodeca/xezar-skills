@@ -9,7 +9,7 @@ leader only through `.xezar/checks/route.mjs` (`kit/docs/routing.md`).
 
 The shipped file is the owner's own routing, used as the default everywhere:
 
-- **Forty-five rows over eight classes**, each with the workflows it runs, a written trigger, the
+- **Forty-seven rows over eight classes**, each with the workflows it runs, a written trigger, the
   lanes it may use in order of preference, and its bans. A row without a trigger is a row the
   leader guesses at.
 - **The lanes**, each a `<runner>/<model>` with seven tags (vendor, tier, vision, image

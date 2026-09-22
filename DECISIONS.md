@@ -364,8 +364,8 @@ added it. So:
 - **Absent, off, and unreadable are three different things**, and a key that collapses them
   is worse than no key.
 - **A key that nothing reads is deleted**, or marked reserved with a date. `paths.analysis`
-  is the cautionary example: declared, created, committed and read by nothing, and now
-  unremovable without a major version because removing a `paths` key is breaking.
+  is the cautionary example: declared, created, committed and read by nothing, so it could
+  only go in a major version. It was reserved in 2.x and removed in 3.0.0.
 
 The test before adding one: *what does this repository do if the key never exists?* If the
 answer is "the right thing", do not add the key.
