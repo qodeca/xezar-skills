@@ -39,11 +39,23 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 # A SUBDIRECTORY is not the same risk: `ENGINE_DIRS` covers the engine's folders, and anything the
 # engine writes INSIDE one of them is invisible to this check by construction. Only the top level
 # is closed.
+#
+# THE SIX ADDED ON 2026-09-22 SHOW HOW THIS LIST GOES STALE, and it is not by the engine changing.
+# A measured listing of engine 0.18.0 covered every name already here — the list was CORRECT for
+# everything that exercise produced. The gap was in the names it could not produce: `pi-leader.json`
+# needs a pi leader attached, and the five `automation*` entries need an opt-in flag nobody had
+# turned on. So they were missing for as long as this check has existed, at every engine version,
+# and no amount of watching releases would have surfaced them — the first project to switch on
+# automations would have found them instead, as a gate failing on every run. All six are
+# `join(dataDir, …)` in the engine source, verified before being added rather than taken on report.
+#
+# The lesson for whoever extends this next: a listing shows what the features you ENABLED write.
+# Reading the source shows what every feature CAN write, and that is the larger set.
 ENGINE_DIRS=""
 ENGINE_FILES=""
 if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
   ENGINE_DIRS="ipc mcp mcp-owner-claims runs writer-claims tmp campaigns"
-  ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json runs.json.tmp ui-state.json ui-state.json.tmp todos.json todos.json.tmp"
+  ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json runs.json.tmp ui-state.json ui-state.json.tmp todos.json todos.json.tmp pi-leader.json automations.json automation-state.json automation-receipts.ndjson automation-log.ndjson automation-poll.lock"
 fi
 
 # Only the primary checkout has the full tree. A task worktree creates the one or two subfolders
