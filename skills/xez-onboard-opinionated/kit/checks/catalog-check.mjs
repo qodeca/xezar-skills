@@ -125,6 +125,47 @@ const READ_ONLY_SKILLS = new Set([
   "xezar-security-review",
 ]);
 
+// A reading step: its `allowedTools` holds neither Edit nor Write, which is the engine's own signal
+// for a step that must not change files (xezar #849). A tool list alone never made that true –
+// every backend still offered a shell – so a reading step also carries a `bashAllowlist`, and every
+// entry must be one of these prefixes. Git goes through `git-read.sh` and every file a reader must
+// write goes through `verdict-write.sh`, because a prefix such as `git diff` cannot refuse
+// `--output=<file>` and a reader has no other way to write its verdict.
+const READER_BASH_PREFIXES = new Set([
+  "gh pr view",
+  "gh pr diff",
+  "gh pr checks",
+  "gh pr list",
+  "gh pr comment",
+  "gh pr edit",
+  "gh issue view",
+  "gh issue list",
+  "gh issue comment",
+  "gh issue edit",
+  "gh label list",
+  "gh repo view",
+  "bash .xezar/checks/git-read.sh",
+  "bash .xezar/checks/verdict-write.sh",
+  "bash .xezar/checks/phase-record.sh",
+  "bash .xezar/checks/worktree-setup.sh --readonly-init",
+  "bash .xezar/checks/security-scan.sh",
+]);
+
+// The kit's reading workflows. Named, so that a pull request adding Edit or Write to one of them
+// turns it into a writing workflow in plain sight instead of quietly escaping the rule above.
+const READ_ONLY_WORKFLOWS = new Set([
+  "architecture-review",
+  "business-analysis",
+  "code-review",
+  "issue-triage",
+  "security-review",
+]);
+
+// Steps that hold neither Edit nor Write but must RUN code – a build, a test, a dev server, a
+// browser – and so cannot live inside a prefix list. They run in their own detached worktree and
+// never touch the author's branch; that, not a shell limit, is their guarantee.
+const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "design-review", "qa"]);
+
 // the engine's `configSchema`.
 const CONFIG_KEYS = new Set([
   "skillsRepos",
@@ -264,6 +305,32 @@ function parseInlineList(value) {
 }
 
 // --- The rules ---------------------------------------------------------------------------
+
+// A reading step is only as read-only as its shell. See READER_BASH_PREFIXES.
+function checkReaderStep(at, workflow, step) {
+  const tools = step.allowedTools;
+  const writes = Array.isArray(tools) && (tools.includes("Edit") || tools.includes("Write"));
+  if (READ_ONLY_WORKFLOWS.has(workflow) && (!Array.isArray(tools) || writes)) {
+    err(at, `"${workflow}" is a reading workflow: its allowedTools must be listed and hold neither Edit nor Write`);
+    return;
+  }
+  if (!Array.isArray(tools) || writes) return;
+  const list = step.bashAllowlist;
+  if (!Array.isArray(list) || list.length === 0) {
+    if (RUNS_CODE_WORKFLOWS.has(workflow)) return;
+    err(
+      at,
+      "holds neither Edit nor Write, so it is a reading step, and it has no bashAllowlist – every backend still gives it a shell that can write",
+    );
+    return;
+  }
+  for (const entry of list) {
+    if (!READER_BASH_PREFIXES.has(entry)) {
+      err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh and writes through verdict-write.sh`);
+    }
+  }
+}
+
 function checkWorkflow(file, doc) {
   if (!doc.name) err(file, 'missing "name"');
   if (Boolean(doc.steps) === Boolean(doc.skills)) {
@@ -295,6 +362,7 @@ function checkWorkflow(file, doc) {
         const skillPath = join(skillsDir, `${step.skill}.md`);
         if (!existsSync(skillPath)) err(at, `names skill "${step.skill}", which has no file at ${skillPath}`);
       }
+      checkReaderStep(at, doc.name, step);
     }
     if (isCheck) {
       // A check step's command must be a script this repo actually ships, so a renamed or

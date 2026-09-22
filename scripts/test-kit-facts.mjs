@@ -601,6 +601,29 @@ function walk(rel, match) {
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// FACT 16 -- a reading step is read-only because of its shell, not its tool list.
+// No backend made a step without Edit and Write read-only (xezar #849): the shell was still open.
+// The fix is three pieces that only work together, so each is pinned: the five reading workflows
+// carry a bashAllowlist; git-read.sh refuses the flag that makes git write; and the security scan
+// flags a pull request that loosens either, because it would otherwise pass as an ordinary edit.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 16: reading steps are limited by their shell, and loosening that is a trust-boundary change";
+  for (const wf of ["architecture-review", "business-analysis", "code-review", "issue-triage", "security-review"]) {
+    const text = read(`${SKILL}/kit/workflows/${wf}.yaml`);
+    if (!/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\/verdict-write\.sh".*\]$/m.test(text))
+      fail(fact, `kit/workflows/${wf}.yaml`, "the reading step has no bashAllowlist naming verdict-write.sh -- its shell can write anywhere");
+  }
+  const gitRead = read(`${SKILL}/kit/checks/git-read.sh`);
+  if (!/--output \| --output=\*/.test(gitRead))
+    fail(fact, "kit/checks/git-read.sh", "it no longer refuses --output, so an allowed `git diff` can write a file");
+  const scan = read(`${SKILL}/kit/checks/lib/security-scan.mjs`);
+  if (!scan.includes("/^\\.xezar\\/(workflows|checks)\\//"))
+    fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/workflows/ and .xezar/checks/ -- a PR that loosens a reading step passes as an ordinary edit");
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

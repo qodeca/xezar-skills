@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# The only way a reading role writes a file.
+#
+# A reading step carries a `bashAllowlist` of command prefixes and no Edit or Write tool, so it
+# cannot redirect into a file or run `mv`. It still has three things it must write: the verdict
+# packet the engine reads when the step settles, the `BLOCKED` file that stops readiness, and its
+# own evidence. Each goes through this script, which reads the content on stdin and writes only
+# where that kind of file belongs – never into the author's tree.
+#
+# Usage:
+#   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON)
+#   verdict-write.sh blocked           stdin → <evidence dir>/BLOCKED
+#   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name>
+#
+# <evidence dir> is this run's primary `.local/xezar/tasks/<runId>/`, resolved by lib/common.sh.
+# Phase records (upper-case names) are not written here: `phase-record.sh set` owns them.
+#
+# Exit 0 on success, 1 on a refusal, 2 on usage.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/common.sh
+. "$SCRIPT_DIR/lib/common.sh"
+
+PACKET_MAX_BYTES=40960
+
+usage() {
+  echo "usage: verdict-write.sh packet | blocked | evidence <name>   (content on stdin)" >&2
+  exit 2
+}
+
+refuse() {
+  echo "verdict-write.sh: refused: $*" >&2
+  exit 1
+}
+
+# Write stdin to <target> through a temporary file in the same directory, then rename it, so a
+# reader never sees half a file.
+atomic_from_stdin() {
+  local target="$1" tmp
+  [ -L "$target" ] && refuse "$target is a symlink"
+  mkdir -p "$(dirname "$target")" || refuse "cannot create $(dirname "$target")"
+  tmp="$target.tmp.$$"
+  cat >"$tmp" || { rm -f "$tmp"; refuse "could not read stdin"; }
+  printf '%s' "$tmp"
+}
+
+evidence_dir() {
+  resolve_task_paths >/dev/null 2>&1 || true
+  [ -n "${TASK_ID:-}" ] || refuse "no task id: this is not a task run"
+  [ -z "${TASK_ID_CONFLICT:-}" ] || refuse "$TASK_ID_CONFLICT"
+  task_evidence_dir || refuse "cannot resolve the evidence directory"
+}
+
+[ $# -ge 1 ] || usage
+kind="$1"
+shift
+
+case "$kind" in
+  packet)
+    [ $# -eq 0 ] || usage
+    [ -n "${XEZ_HANDOFF_FILE:-}" ] || refuse "XEZ_HANDOFF_FILE is not set: a packet belongs to a workflow step"
+    target="${XEZ_HANDOFF_FILE}.verdict.json"
+    tmp="$(atomic_from_stdin "$target")" || exit 1
+    size="$(wc -c <"$tmp" | tr -d ' ')"
+    if [ "$size" -gt "$PACKET_MAX_BYTES" ]; then
+      rm -f "$tmp"
+      refuse "the packet is $size bytes; the engine refuses anything over $PACKET_MAX_BYTES"
+    fi
+    if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$tmp" 2>/dev/null; then
+      rm -f "$tmp"
+      refuse "the packet is not valid JSON"
+    fi
+    mv -f "$tmp" "$target" || refuse "could not rename the packet into place"
+    echo "verdict-write.sh: wrote $target"
+    ;;
+  blocked)
+    [ $# -eq 0 ] || usage
+    dir="$(evidence_dir)" || exit 1
+    tmp="$(atomic_from_stdin "$dir/BLOCKED")" || exit 1
+    mv -f "$tmp" "$dir/BLOCKED" || refuse "could not write BLOCKED"
+    echo "verdict-write.sh: wrote $dir/BLOCKED"
+    ;;
+  evidence)
+    [ $# -eq 1 ] || usage
+    name="$1"
+    case "$name" in
+      *[!A-Za-z0-9._-]* | "" | .* ) refuse "\"$name\" is not a plain file name" ;;
+    esac
+    [ "${#name}" -le 64 ] || refuse "\"$name\" is longer than 64 characters"
+    case "$name" in
+      *[a-z]*) ;;
+      *) refuse "\"$name\" is an upper-case phase-record name; use phase-record.sh set" ;;
+    esac
+    dir="$(evidence_dir)" || exit 1
+    tmp="$(atomic_from_stdin "$dir/$name")" || exit 1
+    mv -f "$tmp" "$dir/$name" || refuse "could not write $name"
+    echo "verdict-write.sh: wrote $dir/$name"
+    ;;
+  *) usage ;;
+esac

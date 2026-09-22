@@ -95,6 +95,7 @@ const TRUST_BOUNDARIES = [
   { pattern: /^\.github\/workflows\//, why: "what CI is allowed to do with the repository's credentials" },
   { pattern: /^\.xezar\/pipeline\/config\.json$/, why: "the deploy and rollback targets, and the commands every gate run trusts" },
   { pattern: /^\.xezar\/config\.json$/, why: "the base branch every run forks from and merges into" },
+  { pattern: /^\.xezar\/(workflows|checks)\//, why: "which steps may write, and the scripts a reading step is allowed to run" },
   { pattern: /(^|\/)\.env\.example$/, why: "the env contract" },
 ];
 

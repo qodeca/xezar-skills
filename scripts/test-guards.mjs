@@ -585,6 +585,65 @@ breaks(
   "xezar-quality-assurance",
 );
 
+// A reading step is read-only because of its shell (FACT 16, catalog-check's reader rule). Each way
+// a pull request could quietly give one back its writing shell is a break of its own.
+const CR = "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml";
+breaks(
+  "a reading step with no bashAllowlist is rejected",
+  CR,
+  (s) => s.replace(/^\s+bashAllowlist: \[.*\]\n/m, ""),
+  () => script("test-kit-catalog.mjs"),
+  "has no bashAllowlist",
+);
+
+breaks(
+  "a reading step allowed `git push` is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["git push", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"git push" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed plain `git diff`, which can write with --output, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["git diff", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"git diff" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed `gh api`, which can POST, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh api", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh api" is not a reading prefix',
+);
+
+breaks(
+  "a reading workflow given the Write tool is rejected",
+  CR,
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
+  () => script("test-kit-catalog.mjs"),
+  '"code-review" is a reading workflow',
+);
+
+breaks(
+  "git-read.sh that stops refusing --output is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/git-read.sh",
+  (s) => s.replace("--output | --output=* | ", ""),
+  () => script("test-kit-facts.mjs"),
+  "refuses --output",
+);
+
+breaks(
+  "dropping .xezar/workflows and .xezar/checks from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.xezar\\\/\(workflows\|checks\)\\\/\/.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names",
+);
+
 breaks(
   "a kit workflow that no routing row names is rejected",
   "skills/xez-onboard-opinionated/references/routing-rows.md",

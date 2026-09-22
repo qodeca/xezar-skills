@@ -17,6 +17,42 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – a review or triage task changed a file it was only meant to read
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0. Nothing changes
+until you copy the files below.
+
+**Symptom 1 – a reviewer wrote something.** A code review, security review, architecture review,
+business analysis or issue triage is meant to read and post a verdict. Its workflow step lists no
+`Edit` and no `Write` tool, and that looked like a guarantee. It was not: every backend still gave
+the step a shell, so `git commit`, `> file` or `git diff --output=file` all worked (xezar #849).
+
+**Symptom 2 – after copying only the workflows, the verdict packet stopped arriving.** The five
+reading workflows now carry a `bashAllowlist`. Their shell may run only the reading prefixes it
+names, so the role writes its verdict packet, `BLOCKED` and evidence through a new helper,
+`verdict-write.sh`, and reads git through `git-read.sh`. A role skill from before this entry still
+tries `mv` and is refused.
+
+**What to do.** Copy the two helpers, the checks that know about them, the five workflows and
+their role skills, together:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/git-read.sh $K/checks/verdict-write.sh $K/checks/catalog-check.mjs .xezar/checks/
+cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
+for w in code-review architecture-review security-review business-analysis issue-triage; do
+  cp $K/workflows/$w.yaml .xezar/workflows/
+done
+cp $K/skills/xezar-*.md .xezar/skills/
+```
+
+If your project has **its own** workflow with a step that lists neither `Edit` nor `Write`, the
+new `catalog-check.mjs` refuses it until you give it a `bashAllowlist` from the table in that
+file, or add `Edit`/`Write` if it really writes.
+
+**What you lose by skipping it.** A reviewer that can change what it reviews. Nothing fails, and
+that is why this entry exists.
+
 ## 2026-09-22 – my gate fails on a `kit` directory, or my gate lease quietly stopped taking slots
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 2.0.0 or earlier, **once you copy
