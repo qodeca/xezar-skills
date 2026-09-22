@@ -1,3 +1,39 @@
+# 2.1.0 (2026-09-22)
+
+**Three fixes that each removed something rather than adding it**, and one of them removed a
+permission this collection had no business holding. None of it is breaking; a project upgrades by
+copying two check files, and the upgrade note says which.
+
+**The gate lease was one reworded sentence away from dying silently.** Its probe matched
+`usage: xezar lease gates` — a string no test of the engine's asserts. Had that line ever been
+reworded, the probe would have stopped matching, the lease would have stopped being taken, and gate
+runs would have gone back to starving each other with no error in any log. It now matches
+`nothing to run`, which the engine's own suite asserts for this exact call. A rewording now turns
+*their* build red before it reaches anyone here. Pinned on the code line, with a deliberate-break
+case: reverting to an unasserted string fails this repository's build. That break is invisible at
+run time, which is exactly why it needed a guard.
+
+**A standing permission to write outside the repository is gone.** `SECURITY.md` allowed a
+consented edit to the provider enable/disable key of `~/.xezar/config.json`. Reading engine 0.18.0
+showed it never did anything: in the project state layout this setup creates, the engine takes that
+key from `<project>/.xezar/workspace.json` with no merge and no fallback, and never opens the home
+file for it; in the global layout our own rule already forbade touching it. So the permission
+bought nothing, and nothing would have failed visibly if it had been abused — which is the argument
+for deleting it rather than narrowing it. The skill now writes nothing under `~/.xezar/` at all.
+
+**The account list is re-read before it is written from.** Since engine 0.18.0 a leader may add
+accounts mid-run, so the list the owner approved could be stale by the time configuration was
+written — and nothing noticed, because that file is gitignored machine state and never a previewed
+path. It is now compared at both write points, which straddle the merge. Accounts appearing are
+reported; the owner's chosen login going missing is a stop.
+
+Also: `kit` is allowed at the top of `.local/xezar/` — the engine writes it when a repository root
+is the user's home directory, which an onboarded project never is, so it is permitted precisely
+because being wrong about "never" would cost every project a red gate. Found by the engine team's
+own source scan. `.lock.takeover` needed no change; the prefix rule already covered it before
+either side knew the engine wrote it on every lock release, which is the case for keeping a shape
+rule instead of a longer list.
+
 # 2.0.0 (2026-09-22)
 
 **The first major version, and the number is the message.** Four breaking changes, each with a row
