@@ -24,6 +24,21 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 # Single-project mode (`.xezar/workspace.json` present): the ENGINE keeps its own working files at
 # the top level of `.local/xezar/`. They are the engine's, not loose work, and nothing here may move
 # them. The list is closed and exact on purpose: a name that is not on it is still reported.
+#
+# THAT MAKES THIS LIST A CROSS-REPOSITORY SURFACE, and it is worth knowing which way it cuts. The
+# engine can add a state file here as a routine change — its own contributor guidance says a
+# blanket `.local/` ignore means a new state file needs no entry anywhere, which is true of git and
+# false of this check. The cost lands entirely on the consumer: a name this list does not carry
+# fails a gate in EVERY onboarded project, on EVERY run, for a file nobody did anything wrong to
+# create. So the list is extended by a release of this kit, never by editing an installed copy, and
+# the engine team has undertaken to announce a new top-level name before it ships (agreed for
+# engine 0.19.0 onward, 2026-09-22). Until they record it on their side that is an intention, not a
+# guarantee — so the failure message below names this as the likely cause rather than leaving
+# somebody to work it out mid-gate.
+#
+# A SUBDIRECTORY is not the same risk: `ENGINE_DIRS` covers the engine's folders, and anything the
+# engine writes INSIDE one of them is invisible to this check by construction. Only the top level
+# is closed.
 ENGINE_DIRS=""
 ENGINE_FILES=""
 if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
@@ -90,6 +105,14 @@ if [ -n "$loose" ]; then
   echo "    cache/     anything re-derivable"
   echo "    qa/        QA artefacts: screenshots, recordings, reports"
   echo "  Move each entry into the right one, or delete it. This check never deletes anything."
+  if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
+    echo
+    echo "  DID YOU JUST UPGRADE THE ENGINE? Then this may not be loose work at all. The list of"
+    echo "  engine files allowed here is CLOSED and exact, so a state file a new engine release"
+    echo "  adds at this level is reported exactly like a stray file - in every project, on every"
+    echo "  run. If the name above looks like the engine's rather than yours, do not move it:"
+    echo "  report it so the allowed list is extended, and skip this check until it is."
+  fi
   status=1
 fi
 
