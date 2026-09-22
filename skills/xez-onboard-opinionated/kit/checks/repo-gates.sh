@@ -266,11 +266,19 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
   fi
 
   # Probe 2 - the verb and the flag, without taking a slot. Exit status is deliberately ignored:
-  # this call is MEANT to fail with 2, and the usage line is what proves it failed for the right
-  # reason and got as far as the lease command.
+  # this call is MEANT to fail with 2, and the OUTPUT is what proves it failed for the right reason
+  # and got as far as the lease command.
+  #
+  # TWO signals, and either is enough, because this is the kit's one undeclared dependency on an
+  # engine string. The engine's refusal carries both an `xezar lease:` prefix and a `usage: xezar
+  # lease gates` line. Matching only one of them means a reworded message stops the probe, and a
+  # stopped probe loses gate serialisation for every onboarded project SILENTLY - no error, no
+  # slower run anyone notices, just contention coming back. Requiring both to change at once is
+  # the cheapest protection available from this side, and it is deliberately not a promise the
+  # engine has made: as of 0.18.0 neither string is a declared surface.
   if [ -n "$lease_bin" ]; then
     lease_run_bounded 20 "$lease_probe" "$lease_bin" lease gates --status-file "$lease_probe.status"
-    if ! grep -q 'usage: xezar lease gates' "$lease_probe" 2>/dev/null; then
+    if ! grep -qE 'usage: xezar lease gates|^xezar lease:' "$lease_probe" 2>/dev/null; then
       lease_why="the engine at $lease_bin cannot run \`lease gates --status-file\`"
       lease_bin=""
     fi
