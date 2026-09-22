@@ -351,7 +351,10 @@ breaks(
 breaks(
   "a preflight that demands a different engine version than the prompt installs is rejected",
   "skills/xez-onboard-opinionated/references/preflight.md",
-  (s) => s.replace("0.16.0 or later", "0.17.0 or later"),
+  // The mutated version must differ from `compat.json`'s minimum, so this string moves with the
+  // floor. It said "0.16.0 -> 0.17.0" until the floor was raised to 0.18.0 on 2026-09-22, at which
+  // point the search text no longer existed and the case was breaking nothing.
+  (s) => s.replace("0.18.0 or later", "0.17.0 or later"),
   () => script("test-compat-pins.mjs"),
   "compat.json says",
 );

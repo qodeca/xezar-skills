@@ -95,11 +95,7 @@ In order:
 
   1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
      and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
-  2. **Check it is safe to switch.** Three conditions, all read, none assumed. **The engine is
-     0.17.0 or later** — `health` reports the version. On 0.16.0 the action takes no arguments and
-     is refused outright, whatever it carries, so there is nothing to correct and nothing to
-     consent to: leave the provider on, report "found, left on — this engine cannot switch it",
-     and keep OpenCode out of every chain this run writes. Then:
+  2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
      `capabilities.singleProjectRoot` is `true` (above). And `.xezar/docs/model-routing.md` names
      no OpenCode lane in any chain — a setup written before this rule may, and switching the
      provider off under it turns those dispatches into refusals. Either condition false → **leave

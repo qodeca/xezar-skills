@@ -17,6 +17,34 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – the onboarding skill says my engine is too old, and it used to run
+
+Applies to anyone running engine **0.16.x or 0.17.x** with `xez-onboard-opinionated` 1.7.0 or later.
+
+**Symptom – the preflight refuses and names a version you do not have.** The minimum engine version
+is now 0.18.0. It was 0.16.0.
+
+**What to do.**
+
+```bash
+npm install -g @qodeca/xezar
+xezar --version     # must print 0.18.0 or later
+```
+
+0.16.0 and 0.17.0 are still published, so an already-onboarded project keeps working exactly as it
+did — nothing upgrades itself. This bites only when you next run the skill.
+
+**What you lose by skipping it.** The skill, for now — it will not start against an older engine.
+Staying on 1.6.1 is a real option if you cannot upgrade the engine yet; it supports 0.16.0 and is
+unaffected by this change.
+
+**Why the floor moved.** 0.18.0 is the first engine that answers a refusal *before* validating
+arguments, so a refused call no longer arrives disguised as `Unrecognized keys` — the skill used to
+carry a guess for that and now does not. It is also the first that can copy the machine's accounts
+into a project through its own tool (`import_global_accounts`) rather than the skill editing a file
+on the owner's say-so. Supporting older engines meant keeping fallback paths that no test could
+reach, which is the worst kind of code to keep: it runs only for the people you can least help.
+
 ## 2026-09-21 – my repository has no CONTRIBUTING.md, SECURITY.md or docs index, and a new setup would have written them
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 1.6.1 or earlier.

@@ -5,6 +5,15 @@ pointing at is now written. **Three breaking changes**, the first this project h
 deliberately — each has a row in `BACKWARD_COMPATIBILITY.md`'s ledger and an entry in
 `UPGRADE_NOTES.md` keyed by the symptom a reader sees.
 
+## Changed — breaking
+
+- **The minimum engine version is now 0.18.0**, raised from 0.16.0. 0.18.0 is the first engine that
+  answers a refusal before validating arguments, and the first that can copy the machine's accounts
+  into a project through its own tool. Supporting older ones meant carrying two fallback branches
+  no test could reach and a security exception wider than it needed to be; both are gone. 0.16.0
+  and 0.17.0 remain published, and an already-onboarded project is untouched until it re-runs the
+  skill. `UPGRADE_NOTES.md` has the entry, and `BACKWARD_COMPATIBILITY.md` the ledger row.
+
 ## Removed
 
 - **The dogfooding fragment ledger.** 37 role skills told every writing task to record
