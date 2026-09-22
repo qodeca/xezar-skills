@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qodeca/xezar-skills/skills/xez-onboard-opinionated/kit/routing.schema.json",
+  "title": "Xezar leader routing",
+  "description": "Which lane the leader dispatches for each kind of work. A lane is a tool plus a model. This schema checks the shape only. The cross-references (every lane named in a row exists, no lane breaks a row's `never` or a file-checked global ban, lookAlikes name real rows, the leader login is in no rotation) are checked by the kit's route check, because JSON Schema cannot express them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "defaults", "leader", "tools", "lanes", "reservedLanes", "globalBans", "tieRule", "lookAlikes", "rows"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "$comment": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+
+    "defaults": {
+      "description": "Which shipped defaults this file started from. The upgrade diff compares against it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "version"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "leader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "login", "rule"],
+      "properties": {
+        "tool": { "$ref": "#/$defs/toolId" },
+        "login": { "$ref": "#/$defs/loginId" },
+        "rule": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "tools": {
+      "description": "Every tool a lane uses. `command` is what the route script looks for on this machine.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/toolId" },
+      "additionalProperties": { "$ref": "#/$defs/tool" }
+    },
+
+    "lanes": {
+      "description": "Every lane, listed once, with its seven tags. Keyed by `<tool>/<model>`.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/laneId" },
+      "additionalProperties": { "$ref": "#/$defs/lane" }
+    },
+
+    "reservedLanes": {
+      "description": "Lanes kept out of ordinary orders. A reserved lane may appear only in the orders of the rows it lists. With escalation: true, the owner or the leader may also name it by hand on any row for unusually hard work.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/laneId" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["escalation", "rows"],
+        "properties": {
+          "escalation": { "type": "boolean" },
+          "rows": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } }
+        }
+      }
+    },
+
+    "globalBans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "checkedAt", "rule"],
+        "properties": {
+          "id": { "$ref": "#/$defs/slug" },
+          "checkedAt": {
+            "description": "file: the route check rejects the file. dispatch: the leader checks it when it starts a task. merge: checked before a PR merges.",
+            "enum": ["file", "dispatch", "merge"]
+          },
+          "rule": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "tieRule": { "type": "string", "minLength": 1 },
+
+    "lookAlikes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rows", "rule"],
+        "properties": {
+          "rows": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/slug" } },
+          "rule": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/row" }
+    }
+  },
+
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "toolId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "laneId": {
+      "description": "`<tool>/<model>`; the model is the tool's own short name and may itself contain a slash.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[A-Za-z0-9._/-]+$"
+    },
+    "tier": {
+      "description": "very-strong: the most capable models, normally reserved (see reservedLanes). strong: trusted with judgement and verdicts. mid: everyday work with strong reasoning. cheap: bounded, procedural work.",
+      "enum": ["very-strong", "strong", "mid", "cheap"]
+    },
+    "loginId": {
+      "description": "A login ID the owner chose. Committed, so never an email, a real name or a folder path: no `@`, no `/`, no spaces.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "usesLogins"],
+      "properties": {
+        "command": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+        "usesLogins": { "type": "boolean" },
+        "rotation": {
+          "description": "Logins tried in this order when one runs out. Filled by setup from this machine's account list.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/loginId" }
+        }
+      },
+      "if": { "properties": { "usesLogins": { "const": true } } },
+      "then": { "required": ["rotation"] },
+      "else": { "not": { "required": ["rotation"] } }
+    },
+
+    "lane": {
+      "description": "A lane. Every tag is required: a lane with a missing tag is rejected until it is tagged.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "model", "vendor", "tier", "vision", "imageGeneration", "local", "enforcesToolLimits", "advisoryOnly"],
+      "properties": {
+        "tool": { "$ref": "#/$defs/toolId" },
+        "model": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$" },
+        "vendor": { "$ref": "#/$defs/slug" },
+        "tier": { "$ref": "#/$defs/tier" },
+        "vision": { "type": "boolean" },
+        "imageGeneration": { "type": "boolean" },
+        "local": { "type": "boolean" },
+        "enforcesToolLimits": { "type": "boolean" },
+        "advisoryOnly": { "type": "boolean" }
+      }
+    },
+
+    "match": {
+      "description": "A lane matches when every key given here equals the lane's value. A row bans every lane that matches any one of its `never` entries.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "lane": { "$ref": "#/$defs/laneId" },
+        "tool": { "$ref": "#/$defs/toolId" },
+        "vendor": { "$ref": "#/$defs/slug" },
+        "tier": { "$ref": "#/$defs/tier" },
+        "vision": { "type": "boolean" },
+        "imageGeneration": { "type": "boolean" },
+        "local": { "type": "boolean" },
+        "enforcesToolLimits": { "type": "boolean" },
+        "advisoryOnly": { "type": "boolean" }
+      }
+    },
+
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "workflows", "class", "writes", "trigger", "lanes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1 },
+        "workflows": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.yaml$" }
+        },
+        "class": { "enum": ["mechanical", "writing", "design", "visuals", "implementation", "testing", "review", "security-and-release"] },
+        "writes": { "description": "True when the task changes files on a branch.", "type": "boolean" },
+        "trigger": { "type": "string", "minLength": 1 },
+        "handledBy": { "description": "The leader does this itself; no lane is dispatched.", "const": "leader" },
+        "lanes": {
+          "description": "Lanes in order of preference. The leader takes the first one that is available.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/laneId" }
+        },
+        "never": { "type": "array", "items": { "$ref": "#/$defs/match" } },
+        "neverAuthor": { "description": "The lane, login and vendor that wrote the work are banned; checked at dispatch.", "type": "boolean" },
+        "neverClaimant": { "description": "The lane that made the claim being verified is banned; checked at dispatch.", "type": "boolean" },
+        "secondOpinion": {
+          "description": "A lane run in parallel with the chosen one, read-only.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lane", "when", "advisory"],
+          "properties": {
+            "lane": { "$ref": "#/$defs/laneId" },
+            "when": { "enum": ["always", "risk-high"] },
+            "advisory": { "type": "boolean" }
+          }
+        },
+        "notes": { "description": "Bans and conditions that need judgement, for the leader to read.", "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "if": { "required": ["handledBy"] },
+      "then": { "properties": { "lanes": { "type": "array", "maxItems": 0 } } },
+      "else": { "properties": { "lanes": { "type": "array", "minItems": 1 } } }
+    }
+  }
+}
