@@ -11,6 +11,12 @@
 #   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON)
 #   verdict-write.sh blocked           stdin → <evidence dir>/BLOCKED
 #   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name>
+#   verdict-write.sh                   any of the three, as one JSON request on stdin:
+#     {"kind":"packet","packet":{…}}   {"kind":"blocked","text":"…"}   {"kind":"evidence","name":"notes.md","text":"…"}
+#
+# Use the last form from a pipe: the engine's shared read-only lock (pi, Codex) allows one pipe
+# only into an argument-free `bash <script>`, so `jq -n '{kind:"packet",packet:{…}}' | bash
+# .xezar/checks/verdict-write.sh` passes on every runner and `… | verdict-write.sh packet` does not.
 #
 # <evidence dir> is this run's primary `.local/xezar/tasks/<runId>/`, resolved by lib/common.sh.
 # Phase records (upper-case names) are not written here: `phase-record.sh set` owns them.
@@ -29,6 +35,7 @@ RESERVED_NAMES="manifest.json merge-intent.json blocked"
 
 usage() {
   echo "usage: verdict-write.sh packet | blocked | evidence <name>   (content on stdin)" >&2
+  echo "       verdict-write.sh                                    (one JSON request on stdin)" >&2
   exit 2
 }
 
@@ -61,7 +68,29 @@ evidence_dir() {
   task_evidence_dir || refuse "cannot resolve the evidence directory"
 }
 
-[ $# -ge 1 ] || usage
+# The JSON form: take the kind and name from the request, and hand the content on as stdin, so
+# every check below applies to it unchanged.
+if [ $# -eq 0 ]; then
+  request="$(head -c $((EVIDENCE_MAX_BYTES + 4096)))" || refuse "could not read stdin"
+  jq -e 'type == "object"' >/dev/null 2>&1 <<<"$request" || refuse "stdin is not one JSON request object"
+  j_kind="$(jq -r 'if (.kind | type) == "string" then .kind else "" end' <<<"$request")"
+  case "$j_kind" in
+    packet)
+      jq -e '(.packet | type) == "object"' >/dev/null <<<"$request" || refuse "a packet request needs a packet object"
+      exec bash "$SCRIPT_DIR/verdict-write.sh" packet < <(jq -c '.packet' <<<"$request")
+      ;;
+    blocked)
+      jq -e '(.text | type) == "string"' >/dev/null <<<"$request" || refuse "a blocked request needs a string text"
+      exec bash "$SCRIPT_DIR/verdict-write.sh" blocked < <(jq -j '.text' <<<"$request")
+      ;;
+    evidence)
+      jq -e '(.text | type) == "string" and (.name | type) == "string"' >/dev/null <<<"$request" || refuse "an evidence request needs a string name and text"
+      exec bash "$SCRIPT_DIR/verdict-write.sh" evidence "$(jq -r '.name' <<<"$request")" < <(jq -j '.text' <<<"$request")
+      ;;
+    *) usage ;;
+  esac
+fi
+
 kind="$1"
 shift
 

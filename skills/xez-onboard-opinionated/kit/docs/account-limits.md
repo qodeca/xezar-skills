@@ -1,15 +1,18 @@
 # Account limit probing and recovery
 
-Xezar can run tasks under several agent accounts (Settings → agent profiles). None of them expose current usage to a project leader. This page is the recipe for finding a dead account by probing it, and for recovering the lane once you know.
+Xezar can run tasks under several agent accounts (Settings → agent profiles). From engine 0.19.0 the leader reads each login's budget before it dispatches; this page says how, what to do when the answer is `unknown`, and how to recover the lane once a login is out.
+
+## Read the budget first
+
+Call `project_config` action `read_quota` (optionally with `provider` or `accountId`). It returns one row per Claude or Codex login, with `status` `ok`, `out` or `unknown`, and `resetsAt` when it is out. Route away from an `out` login until `resetsAt`. `unknown` means the engine could not read it – never that the login has budget. `check_quota` forces a fresh check, at most once per five minutes per login. A failed run still marks its login out. Only Claude and Codex logins have a row.
 
 ## What cannot be read
 
-- The MCP `project_config` tool's `get_account` action shows only the currently selected account for a provider. It has no list action and no usage field.
 - `check_account_status` and `get_account_details` are refused for a leader. Account identity is not served to a project leader; accounts are person-administered.
 - The cockpit's "Connected" / "Check again" state is a login check, not a quota check. An account can show "Connected" and still be over its limit.
 - Claude Code itself only shows usage through the interactive `/usage` command, run per login, inside a terminal session. There is no headless command and no API for it.
 
-So the only working signal is: dispatch a task under the account and see whether it runs.
+So when `read_quota` and `check_quota` still say `unknown` for a login you need, the only working signal left is: dispatch a task under the account and see whether it runs.
 
 ## The probe
 

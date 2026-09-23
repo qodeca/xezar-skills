@@ -37,7 +37,7 @@ tells the leader to send "continue" when an unattended Opus 5.5 run ends with on
 issue triage run with a short list of allowed commands. On engine 0.19.0 Claude enforces that list
 and removes the file tools. Three kit scripts are the only ways to write: `verdict-write.sh` for the
 verdict packet and evidence, `gh-write.sh` for a comment or a label change on this repository only
-(it never adds an approval label and never lifts a blocking one), and `phase-record.sh`. Git is read
+(it never adds an approval label and never lifts a blocking one), and `phase-record.sh`. A reviewer writes by piping one JSON request, built with `jq -n`, into the bare script: the engine's shared lock allows a pipe only into a script with nothing after its name. Git is read
 through `git-read.sh`, which refuses every flag that can write or run a program. The kit's checker
 refuses a reading step with a writing command, and a Bash rule in the project's own
 `.claude/settings*.json` that would widen every reviewer's shell. On 0.19.0 Codex enforces the list

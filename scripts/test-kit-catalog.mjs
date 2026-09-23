@@ -88,6 +88,62 @@ try {
   rmSync(stage, { recursive: true, force: true });
 }
 
+// --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
+// The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
+// `bash <script>`, so a reader writes by piping ONE JSON request into the bare script. Two halves:
+// every pipe the kit's docs teach has nothing after the script's name, and the JSON form works.
+{
+  const docs = [...readdirSync(join(KIT, "skills")).map((f) => `skills/${f}`), ...readdirSync(join(KIT, "docs")).map((f) => `docs/${f}`)]
+    .filter((f) => f.endsWith(".md"));
+  for (const rel of docs) {
+    const text = readFileSync(join(KIT, rel), "utf8");
+    for (const m of text.matchAll(/\|\s*bash \.xezar\/checks\/([a-z-]+\.sh)[ \t]+([^`\s|][^`\n]*)`/g))
+      fail(`kit/${rel} teaches "| bash .xezar/checks/${m[1]} ${m[2].trim()}": the engine's lock refuses a pipe into a script with arguments; pipe one JSON request into the bare script`);
+    if (/printf '%s'/.test(text)) fail(`kit/${rel} teaches printf, which no reading step's allowlist holds; build the text with jq -n`);
+  }
+
+  const lab = mkdtempSync(join(tmpdir(), "kit-writers-"));
+  try {
+    const repo = join(lab, "repo");
+    mkdirSync(join(repo, ".xezar"), { recursive: true });
+    cpSync(join(KIT, "checks"), join(repo, ".xezar/checks"), { recursive: true });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
+    execFileSync("git", ["-C", repo, "remote", "add", "origin", "https://github.com/acme/widget.git"], { stdio: "pipe" });
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const log = join(lab, "gh.log");
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\nprintf 'ARGS %s\\n' "$*" >>"${log}"\ncase " $* " in *" --body-file - "*) { printf 'BODY '; cat; echo; } >>"${log}" ;; esac\nexit 0\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff") };
+    const pipe = (script, request) => {
+      try {
+        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
+        return 0;
+      } catch (error) {
+        return error.status;
+      }
+    };
+    const read = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+    if (pipe("gh-write.sh", { action: "comment", kind: "pr", number: 12, body: "## Security review\nline two" }) !== 0 ||
+        !read().includes("ARGS pr comment 12 --repo acme/widget --body-file -") || !read().includes("BODY ## Security review\nline two"))
+      fail(`gh-write.sh does not post a JSON comment request on this repository's origin:\n${read()}`);
+    rmSync(log, { force: true });
+    if (pipe("gh-write.sh", { action: "label", kind: "pr", number: 12, add: ["qa-approved"] }) !== 1 || read() !== "")
+      fail("gh-write.sh lets a JSON label request add an approval label");
+    if (pipe("gh-write.sh", { action: "label", kind: "issue", number: 7, add: ["risk-low"], remove: ["needs-qa"] }) !== 1)
+      fail("gh-write.sh lets a JSON label request lift a blocking label");
+    if (pipe("gh-write.sh", { action: "comment", kind: "pr", number: "12; rm -rf /", body: "x" }) !== 1)
+      fail("gh-write.sh accepts a JSON request whose number is not a number");
+    if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }) !== 0 ||
+        readFileSync(join(lab, "handoff.verdict.json"), "utf8") !== '{"verdict":"APPROVE"}\n')
+      fail("verdict-write.sh does not write a JSON packet request as the verdict packet");
+    if (pipe("verdict-write.sh", { kind: "packet", packet: "not an object" }) !== 1)
+      fail("verdict-write.sh accepts a packet request whose packet is not an object");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
 // --- 2. Maintained skills: the list is the directory --------------------------------------------
 const checker = readFileSync(join(KIT, "checks/catalog-check.mjs"), "utf8");
 const listed = /const MAINTAINED_SKILLS = new Set\(\[([\s\S]*?)\]\);/.exec(checker);

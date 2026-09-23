@@ -130,10 +130,12 @@ In order:
 - **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action
   `get_limits` → `workspace.skillsAutoUpdate.effective`; already `false` → say so and write
   nothing. Otherwise record the entry (`"setting": "skillsAutoUpdate"`), call
-  `set_workspace_config` with `skillsAutoUpdate: false`, and read `get_limits` again. The engine
+  `set_workspace_config` with `workspaceConfig: { skillsAutoUpdate: false }` and a fresh
+  `operationId`, and read `get_limits` again. The engine
   otherwise updates installed skills at every start under a thirty-second limit, and the first
   test found fifteen of forty-five updated and the rest not — invisible once the skill folders are
-  ignored. Undo: the same call with `true`.
+  ignored. Undo: the same call with
+  `skillsAutoUpdate: true`.
 - **The labels exist.** Tracker operation **list-labels** against `.xezar/pipeline/labels.json`.
   Anything missing → **ensure-label-taxonomy**, which creates only what is absent and never
   recolours. They were approved in the preview; this is the read-back.

@@ -9,11 +9,18 @@
 #
 #   gh-write.sh comment pr|issue <number>            post a NEW comment; the text comes on stdin
 #   gh-write.sh label pr|issue <number> --add <l>… --remove <l>…
+#   gh-write.sh                                      either one, as one JSON request on stdin:
+#     {"action":"comment","kind":"pr","number":12,"body":"…"}
+#     {"action":"label","kind":"pr","number":12,"add":["…"],"remove":["…"]}
+#
+# Use the last form from a pipe: the engine's shared read-only lock (pi, Codex) allows one pipe
+# only into an argument-free `bash <script>`, so `jq -n --arg body '…' '{…}' | bash
+# .xezar/checks/gh-write.sh` passes on every runner and `… | gh-write.sh comment pr 12` does not.
 #
 # A label change never adds an approval label and never removes a label that blocks a merge: those
 # are the labels `lib/project-policy.mjs` trusts, and a reviewer that could move them would be
-# passing the merge gate on its own word. Feed the comment text with `printf '%s' '…' |` or
-# `jq -n -r '…' |`, never a heredoc.
+# passing the merge gate on its own word. Build the request with `jq -n`, never a heredoc or
+# `printf`, which no reading step's allowlist holds.
 #
 # Exit: gh's own status on a run, 1 on a refusal, 2 on usage.
 set -uo pipefail
@@ -26,6 +33,7 @@ COMMENT_MAX_BYTES=65536
 usage() {
   echo "usage: gh-write.sh comment pr|issue <number>   (text on stdin)" >&2
   echo "       gh-write.sh label pr|issue <number> [--add <label>]… [--remove <label>]…" >&2
+  echo "       gh-write.sh                               (one JSON request on stdin)" >&2
   exit 2
 }
 
@@ -55,6 +63,30 @@ origin_repo() {
   printf '%s' "$slug"
 }
 
+# The JSON form becomes the same arguments, so one set of checks below covers both forms.
+json_body=""
+if [ $# -eq 0 ]; then
+  request="$(head -c $((COMMENT_MAX_BYTES + 4096)))" || refuse "could not read stdin"
+  [ "${#request}" -le $((COMMENT_MAX_BYTES + 4095)) ] || refuse "the request is too large"
+  jq -e 'type == "object"' >/dev/null 2>&1 <<<"$request" || refuse "stdin is not one JSON request object"
+  field() { jq -r --arg k "$1" 'if (.[$k] | type) == "string" or (.[$k] | type) == "number" then .[$k] | tostring else "" end' <<<"$request"; }
+  j_action="$(field action)"
+  set -- "$j_action" "$(field kind)" "$(field number)"
+  case "$j_action" in
+    comment)
+      jq -e '(.body | type) == "string"' >/dev/null <<<"$request" || refuse "a comment request needs a string body"
+      json_body="$(jq -r '.body' <<<"$request")"
+      ;;
+    label)
+      jq -e '[(.add // []), (.remove // [])] | all(type == "array" and all(.[]; type == "string"))' >/dev/null <<<"$request" ||
+        refuse "add and remove must be lists of label names"
+      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --add "$l"; done < <(jq -r '(.add // [])[]' <<<"$request")
+      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --remove "$l"; done < <(jq -r '(.remove // [])[]' <<<"$request")
+      ;;
+  esac
+  from_json=1
+fi
+
 [ $# -ge 3 ] || usage
 action="$1"
 kind="$2"
@@ -68,7 +100,11 @@ repo="$(origin_repo)" || exit 1
 case "$action" in
   comment)
     [ $# -eq 0 ] || usage
-    body="$(head -c $((COMMENT_MAX_BYTES + 1)))" || refuse "could not read stdin"
+    if [ -n "${from_json:-}" ]; then
+      body="$json_body"
+    else
+      body="$(head -c $((COMMENT_MAX_BYTES + 1)))" || refuse "could not read stdin"
+    fi
     [ -n "$body" ] || refuse "the comment on stdin is empty"
     [ "${#body}" -le "$COMMENT_MAX_BYTES" ] || refuse "the comment is over $COMMENT_MAX_BYTES bytes"
     printf '%s' "$body" | gh "$kind" comment "$number" --repo "$repo" --body-file -

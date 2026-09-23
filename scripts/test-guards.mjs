@@ -732,6 +732,30 @@ breaks(
 );
 
 breaks(
+  "a role doc that pipes into a write script with arguments is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
+  (s) => s.replace("| bash .xezar/checks/verdict-write.sh`: one JSON request", "| bash .xezar/checks/verdict-write.sh packet`: one JSON request"),
+  () => script("test-kit-catalog.mjs"),
+  "the engine's lock refuses a pipe into a script with arguments",
+);
+
+breaks(
+  "gh-write.sh that drops a JSON comment's body is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('body="$json_body"', 'body="(empty)"'),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh does not post a JSON comment request",
+);
+
+breaks(
+  "verdict-write.sh that files a JSON packet as BLOCKED is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('exec bash "$SCRIPT_DIR/verdict-write.sh" packet', 'exec bash "$SCRIPT_DIR/verdict-write.sh" blocked'),
+  () => script("test-kit-catalog.mjs"),
+  "verdict-write.sh does not write a JSON packet request",
+);
+
+breaks(
   "a Codex rule that allows a command is rejected",
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
   (s) => s.replace('if (decision !== "prompt" && decision !== "forbidden") {', 'if (decision !== "prompt" && decision !== "forbidden" && decision !== "allow" && decision !== undefined) {'),
