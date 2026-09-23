@@ -254,6 +254,13 @@ for (const name of routed) {
       const out = execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", "multi-file-implementation"], {
         cwd: bare, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
       if (!/^lane=codex\/\S+ runner=codex .* logins=default$/m.test(out)) fail(`route drops the built-in default login when no account file exists:\n${out}`);
+      const seat = structuredClone(own);
+      seat.leader.login = "leader-seat";
+      seat.tools.claude.rotation = ["default"];
+      writeFileSync(join(bare, ".xezar/routing-seat.json"), JSON.stringify(seat));
+      const seatOut = execFileSync("node", [ROUTE, "--file", ".xezar/routing-seat.json", "multi-file-implementation"], {
+        cwd: bare, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+      if (/^lane=claude\/\S+ .*logins=default$/m.test(seatOut)) fail("route counts the leader's tool's built-in default as a task login");
     } catch (error) {
       fail(`route refused a codex rotation of ["default"] with no account file:\n${error.stderr ?? error.message}`);
     }

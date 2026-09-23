@@ -30,6 +30,7 @@ starts with the cheapest lanes – told to append one line to a scratch file und
 evidence step. Give each step only `runner` and `model`: with inline steps the engine refuses `agentProfile`, `worktree` and `autonomous`.
 So the agent step runs on the login this project selected for that step's tool (`get_account` →
 `accounts`). Read the agent step's `profileId` from `task_read view=task` and name it in the report.
+A `profileId` that is the leader's login under the leader's tool is ❌.
 This proves dispatch, the worktree, the account, the permission file, and — when the
 task changes state — one pushed event (`references/verify.md` §2).
 

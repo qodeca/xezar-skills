@@ -496,7 +496,7 @@ function route(file, ids, root, source) {
     const tool = file.tools[lane.tool];
     if (!tool?.usesLogins) return [];
     const have = accounts?.get(lane.tool) ?? new Set();
-    return tool.rotation.filter((l) => have.has(l) || l === "default");
+    return tool.rotation.filter((l) => have.has(l) || (l === "default" && lane.tool !== file.leader?.tool));
   };
   const line = (name, id) => {
     const lane = file.lanes[id];
