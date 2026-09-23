@@ -25,7 +25,6 @@ Every key in the schema, one bullet each.
 - `engine.loopStepThreshold` — the Step count above which `xez-auto-create-pr` hands a run off to `xez-auto-create-pr-loop` (default 20). Raise it to keep more runs on the cheaper plain engine; `--loop` always forces the loop regardless.
 - `engine.stepReview` — optional; how often the loop skills code-review landed work mid-run: `final` (default), `checkpoint`, or `per-step`. Trade-offs and the fix-now/defer split: `references/config-fields.md`.
 - `paths.runs` — where execution plans of autonomous runs are stored.
-- `paths.analysis` — where generated reports are stored.
 - `paths.specs` — where feature specifications live (default `.xezar/pipeline/specs`). Spec filenames follow `{YYYY-MM-DD}-{kebab-case-title}.md`. `xez-spec-writing` writes here, `xez-prepare-issue` links from here, `xez-followup-issue-from-pr` checks here first in design-doc mode, and `xez-brainstorm` writes handoff briefs under `<paths.specs>/briefs/`.
 - `paths.scripts` — where reusable environment scripts are generated (default `.xezar/pipeline/scripts`); `xez-prepare-test-env` writes the env bring-up/teardown scripts here.
 - `paths.qa` — where QA working state and artifacts live (default `.local/qa`): the shared `test-env.json` descriptor, and QA reports/screenshots under `<paths.qa>/artifacts_<runId>/`.

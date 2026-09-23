@@ -107,13 +107,13 @@ In order:
   1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
      and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
   2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
-     `capabilities.singleProjectRoot` is `true` (above). And `.xezar/docs/model-routing.md` names
-     no OpenCode lane in any chain — a setup written before this rule may, and switching the
-     provider off under it turns those dispatches into refusals. Either condition false → **leave
-     it on**, report "found, left on" with which condition failed, and keep it out of any chain
-     this run writes. Never reach for a machine-wide setting from a per-project setup — the one
-     exception is the owner naming that change themselves, under
-     `references/engine-refusals.md`, where these same two conditions still hold.
+     `capabilities.singleProjectRoot` is `true` (above). And no enabled `opencode/<model>` lane
+     is in any row of `.xezar/routing.json` – or, on a setup written before routing was data, no
+     OpenCode lane in any chain of `.xezar/docs/model-routing.md`. Switching the provider off
+     under such a lane turns its dispatches into refusals. Either condition false → **leave it
+     on**, report "found, left on" with which condition failed, and keep it out of any row this
+     run writes. Never reach for a machine-wide setting from a per-project setup: if the owner
+     wants one, give them the place to make it themselves (`references/engine-refusals.md`).
   3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
      then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
      fresh `operationId` — the argument names that action takes **from engine 0.17.0 on**, where
@@ -130,10 +130,12 @@ In order:
 - **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action
   `get_limits` → `workspace.skillsAutoUpdate.effective`; already `false` → say so and write
   nothing. Otherwise record the entry (`"setting": "skillsAutoUpdate"`), call
-  `set_workspace_config` with `skillsAutoUpdate: false`, and read `get_limits` again. The engine
+  `set_workspace_config` with `workspaceConfig: { skillsAutoUpdate: false }` and a fresh
+  `operationId`, and read `get_limits` again. The engine
   otherwise updates installed skills at every start under a thirty-second limit, and the first
   test found fifteen of forty-five updated and the rest not — invisible once the skill folders are
-  ignored. Undo: the same call with `true`.
+  ignored. Undo: the same call with
+  `skillsAutoUpdate: true`.
 - **The labels exist.** Tracker operation **list-labels** against `.xezar/pipeline/labels.json`.
   Anything missing → **ensure-label-taxonomy**, which creates only what is absent and never
   recolours. They were approved in the preview; this is the read-back.
@@ -151,7 +153,8 @@ In order:
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
-on the base branch · labels · default task account · OpenCode off, or left on and why · protection read back · connection state
+on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 

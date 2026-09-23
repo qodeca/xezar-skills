@@ -17,6 +17,212 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-22 – gate runs collide again after an engine upgrade
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0.
+
+**Symptom – two gate runs load the machine at once**, where they used to take turns. `repo-gates.sh`
+checked that the engine can lease a gate slot by matching a line of text the engine prints. Engine
+0.19.0 declares that wording not a contract, and publishes a real check instead
+(`xezar lease gates --probe`). The kit now uses the published check on 0.19.0 and later, and the old
+one on 0.17 and 0.18.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/repo-gates.sh .xezar/checks/
+```
+
+If your project edited `repo-gates.sh` (the gate command list at the top is meant to be edited),
+copy the lease block only, or re-apply your edits after copying.
+
+**What you lose by skipping it.** Nothing today. The day the engine rewords that line, gate runs stop
+taking turns – with no error, just a slower, busier machine.
+
+## 2026-09-22 – my config has `paths.analysis` and an empty `.xezar/pipeline/analysis/`
+
+Applies to any repository set up by `xez-setup-agent-pipeline` before 3.0.0.
+
+**Symptom – a key and a folder that nothing uses.** No skill ever read or wrote `paths.analysis`.
+3.0.0 stops writing it and stops resolving it. A config that still has it keeps working.
+
+**What to do (optional).** Delete the `"analysis"` line from `paths` in
+`.xezar/pipeline/config.json`, and delete `.xezar/pipeline/analysis/` if it holds only
+`.gitkeep`.
+
+**What you lose by skipping it.** Nothing. The key and the folder stay unused.
+
+## 2026-09-22 – my gate fails with "fixture execution failure for leader-context"
+
+Applies to any repository onboarded by `xez-onboard-opinionated` 1.3.0 or later, before 3.0.0.
+
+**Symptom – `repository-checks.sh` fails when it runs outside the leader's session** (in CI, or in
+your own terminal). The message is
+`documented-output: .xezar/docs/leader-context-loading.md:45: fixture execution failure for
+leader-context: script did not print exactly one JSON object`. Nothing is wrong with your project.
+The leader loader speaks only when `XEZAR_LEADER=1`, and the check ran it without that flag, so the
+loader correctly printed nothing and the check called that a failure.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/documented-output.mjs .xezar/checks/
+```
+
+**What you lose by skipping it.** A gate that is red for no reason wherever it runs outside the
+leader's session.
+
+## 2026-09-22 – on engine 0.19.0, a review or QA verdict is "refused" on the task record
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0 that runs engine
+0.19.0 or later.
+
+**Symptom – the leader sees no verdict from code review, design review or QA,** and the task record
+lists the packet as refused. From 0.19.0 the engine accepts a verdict packet only from a workflow
+step that declares its role with `verdictRole`, so a packet from an older workflow is refused, as
+the engine intends.
+
+**What to do.** Copy the three workflows and the checker that knows the new key:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/workflows/code-review.yaml $K/workflows/design-review.yaml $K/workflows/qa.yaml .xezar/workflows/
+cp $K/checks/catalog-check.mjs .xezar/checks/
+```
+
+If your project has **its own** workflow whose step writes a verdict packet, add
+`verdictRole: <role>` to that step, where the role is `code-review`, `design-review`, `qa` or
+`architecture-review`.
+
+**What you lose by skipping it.** Every verdict on the task record. The PR comment still lands, so
+a person can read it, but the leader has to parse it.
+
+## 2026-09-22 – the tidiness check calls a new engine file "loose"
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0.
+
+**Symptom – `local-tree.sh` reports an engine file at the top of `.local/xezar/` as loose** after an
+engine upgrade. Its list of engine names was fixed in the kit. It now also reads the names the
+engine publishes (`xezar state-names --json`, engine 0.19.0 and later) whenever `xezar` is on PATH.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/local-tree.sh .xezar/checks/
+```
+
+**What you lose by skipping it.** A red gate each time an engine release adds a name, until the next
+kit release.
+
+## 2026-09-22 – the onboarding skill says my engine is too old, and it ran yesterday
+
+Applies to anyone running engine **0.18.x** with `xez-onboard-opinionated` 3.0.0 or later.
+
+**Symptom – the preflight refuses and names 0.19.0.** The minimum engine version is now 0.19.0.
+It was 0.18.0.
+
+**What to do.**
+
+```bash
+npm install -g @qodeca/xezar
+xezar --version     # must print 0.19.0 or later
+```
+
+**Why the floor moved.** 0.19.0 is the first engine that makes a reading step read-only: on Claude
+it removes the Edit and Write tools, and turns the step's `bashAllowlist` into Claude permission
+rules. A `permissions.allow` Bash rule in the project's `.claude/settings*.json` still widens those
+rules, so the kit's catalog check now refuses one that is not a reading command. On Codex it denies
+any other command through a hook; a project's `.codex/rules/*.rules` rule with decision `allow`
+still runs its command outside the sandbox, so the check refuses any decision but `prompt` or
+`forbidden`. The shipped routing marks the Claude lanes and `codex/gpt-6-astra` as enforcing
+because of that, and puts only them on review and release work.
+On an older engine those rows would run a reviewer that can still write.
+
+**What you lose by skipping it.** The skill, for now. Staying on xezar-skills 2.1.1 is a real
+option if you cannot upgrade the engine yet; it supports 0.18.0 and routes from the old table.
+
+## 2026-09-22 – my leader still reads `model-routing.md`
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0. Your leader keeps
+routing from the old table until you do this; nothing breaks meanwhile.
+
+**Symptom – the leader picks lanes from `.xezar/docs/model-routing.md`.** Routing is now data:
+`.xezar/routing.json`, read only through `node .xezar/checks/route.mjs`, which applies every ban a
+file can decide and removes a lane this machine lacks. The markdown table has no check, and a ban
+in it is a ban the leader has to remember.
+
+**What to do.** First copy what reads the file:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/routing.schema.json .xezar/
+cp $K/checks/route.mjs $K/checks/verdict-write.sh $K/checks/git-read.sh $K/checks/gh-write.sh \
+   $K/checks/catalog-check.mjs $K/checks/repository-checks.sh .xezar/checks/
+cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
+cp $K/docs/routing.md $K/docs/README.md $K/docs/account-limits.md $K/docs/leader-context-loading.md .xezar/docs/
+cp $K/loops.json .xezar/loops.json
+cp $K/workflows/*.yaml .xezar/workflows/
+cp $K/skills/xezar-*.md .xezar/skills/
+```
+
+Then run the skill's routing section. It writes `.xezar/routing.json` from the shipped defaults,
+carries your rotations over, shows your old chain beside the new order for each row, runs
+`route.mjs --check`, regenerates the leader guide's routing section, and deletes
+`model-routing.md` in the same pull request:
+
+```text
+/xez-onboard-opinionated --section routing
+```
+
+The new `loops.json` changes the L2 and L3 prompts, so the leader reports them as drifted once and
+re-creates them. That is expected.
+
+**What you lose by skipping it.** The checked bans, the security minimums enforced by a script, and
+routing read from the base branch rather than from whatever the leader has open. The old table
+keeps working as a table.
+
+## 2026-09-22 – a review or triage task changed a file it was only meant to read
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0. Nothing changes
+until you copy the files below.
+
+**Symptom 1 – a reviewer wrote something.** A code review, security review, architecture review,
+business analysis or issue triage is meant to read and post a verdict. Its workflow step lists no
+`Edit` and no `Write` tool, and that looked like a guarantee. It was not: every backend still gave
+the step a shell, so `git commit`, `> file` or `git diff --output=file` all worked (xezar #849).
+
+**Symptom 2 – after copying only the workflows, the verdict packet stopped arriving.** The five
+reading workflows now carry a `bashAllowlist`. Their shell may run only the reading prefixes it
+names, so the role writes its verdict packet, `BLOCKED` and evidence through a new helper,
+`verdict-write.sh`, posts comments and moves labels through `gh-write.sh`, and reads git through
+`git-read.sh`. A role skill from before this entry still tries `mv` or `gh pr comment` and is
+refused.
+
+**What to do.** Copy the three helpers, the checks that know about them, the five workflows and
+their role skills, together:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/git-read.sh $K/checks/gh-write.sh $K/checks/verdict-write.sh $K/checks/catalog-check.mjs .xezar/checks/
+cp $K/checks/lib/security-scan.mjs .xezar/checks/lib/
+for w in code-review architecture-review security-review business-analysis issue-triage; do
+  cp $K/workflows/$w.yaml .xezar/workflows/
+done
+cp $K/skills/xezar-*.md .xezar/skills/
+```
+
+If your project has **its own** workflow with a step that lists neither `Edit` nor `Write`, the
+new `catalog-check.mjs` refuses it until you give it a `bashAllowlist` from the table in that
+file, or add `Edit`/`Write` if it really writes. It also refuses a Bash rule in the project's
+`.claude/settings.json` or `.claude/settings.local.json` that is not a reading command, because
+Claude adds that rule to every reading step's shell.
+
+**What you lose by skipping it.** A reviewer that can change what it reviews. Nothing fails, and
+that is why this entry exists.
+
 ## 2026-09-22 – my gate fails on a `kit` directory, or my gate lease quietly stopped taking slots
 
 Applies to any repository onboarded by `xez-onboard-opinionated` 2.0.0 or earlier, **once you copy
@@ -365,7 +571,7 @@ row's trigger sentence.
    ```
 
 3. Add the rows to `.xezar/docs/model-routing.md`: one line per new row of
-   `references/routing-rows.md`, **with its workflow file**, under a chain you choose. There are three
+   `references/routing-rows.md` (a 2.x file; 3.0.0 replaced it with `kit/routing.json`), **with its workflow file**, under a chain you choose. There are three
    new classes — `design`, `visuals` and `testing`. The security-sensitive review row (row 24 in
    1.4.0, row 41 now) changed its workflow from `code-review.yaml` to `security-review.yaml`, and the two visuals rows now run `visual-asset.yaml`. Copy the fifth
    global prohibition and the look-alike pairs as well.

@@ -221,8 +221,11 @@ function setupLeaderContextFixture(row, scratch) {
   return root;
 }
 
+// The loader speaks only in a session the launcher started (`XEZAR_LEADER=1`); every other Claude
+// Code session in the checkout gets nothing. So the fixture runs AS the leader, and each guard below
+// must still silence it with the flag set – plus one case proving it is silent without the flag.
 function cleanEnvironment() {
-  const env = { ...process.env };
+  const env = { ...process.env, XEZAR_LEADER: '1' };
   delete env.XEZ_HANDOFF_FILE;
   delete env.XEZ_TODOS_FILE;
   delete env.XEZ_TASK_ID;
@@ -263,6 +266,10 @@ function produceLeaderContextOutput(root, row, scratch) {
       `${variable} guard`,
     );
   }
+
+  const notLeader = cleanEnvironment();
+  delete notLeader.XEZAR_LEADER;
+  assertSilent(executeFixtureScript(root, row, { env: notLeader }), 'not-the-leader guard');
 
   const nested = path.join(root, '.local/xezar/worktrees/fixture-run');
   mkdirSync(nested, { recursive: true });

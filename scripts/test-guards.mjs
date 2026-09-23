@@ -222,6 +222,30 @@ breaks(
 );
 
 breaks(
+  "a tidiness check that stops reading the engine's published names is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/local-tree.sh",
+  (s) => s.replace("  if command -v xezar >/dev/null 2>&1 && command -v node", "  if false && command -v node"),
+  () => script("test-kit-catalog.mjs"),
+  "refused a name the installed engine publishes",
+);
+
+breaks(
+  "a tidiness check that forgets one of the engine's 0.19.0 names is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/local-tree.sh",
+  (s) => s.replace(" pi-leader.json ", " "),
+  () => script("test-kit-catalog.mjs"),
+  'does not know the engine\'s file "pi-leader.json"',
+);
+
+breaks(
+  "a documented-output fixture that runs the leader loader outside a leader session is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/documented-output.mjs",
+  (s) => s.replace("const env = { ...process.env, XEZAR_LEADER: '1' };", "const env = { ...process.env };"),
+  () => script("test-kit-catalog.mjs"),
+  "documented-output check fails on the kit",
+);
+
+breaks(
   "injecting a campaign file the contract says is read on demand is rejected",
   "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
   (s) => s.replace('note_tail "${campaign}parked.md"', 'note_tail "${campaign}merges.md"'),
@@ -303,6 +327,22 @@ breaks(
 );
 
 breaks(
+  "dropping the engine's published lease probe is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace('"$lease_bin" lease gates --probe', '"$lease_bin" lease gates --status-file "$lease_probe.status"'),
+  () => script("test-kit-facts.mjs"),
+  "the probe no longer carries BOTH",
+);
+
+breaks(
+  "a lease probe that takes exit 0 as proof, without reading the answer, is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repo-gates.sh",
+  (s) => s.replace("answer.lease.gates === true", "true"),
+  () => script("test-kit-facts.mjs"),
+  "the published probe's answer is no longer read",
+);
+
+breaks(
   "a launcher that stops marking its session as the leader is rejected",
   "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
   (s) => s.replace("export XEZAR_LEADER=1", "export XEZAR_LEADER=0"),
@@ -367,8 +407,9 @@ breaks(
   "skills/xez-onboard-opinionated/references/preflight.md",
   // The mutated version must differ from `compat.json`'s minimum, so this string moves with the
   // floor. It said "0.16.0 -> 0.17.0" until the floor was raised to 0.18.0 on 2026-09-22, at which
-  // point the search text no longer existed and the case was breaking nothing.
-  (s) => s.replace("0.18.0 or later", "0.17.0 or later"),
+  // point the search text no longer existed and the case was breaking nothing; it moved again with
+  // the 0.19.0 floor.
+  (s) => s.replace("0.19.0 or later", "0.18.0 or later"),
   () => script("test-compat-pins.mjs"),
   "compat.json says",
 );
@@ -392,7 +433,7 @@ breaks(
 breaks(
   "a leader guide budget that makes the 200-line limit impossible is rejected",
   "skills/xez-onboard-opinionated/references/write.md",
-  (s) => s.replace("how a lane being out is recorded | ≤ 15 |", "how a lane being out is recorded | ≤ 40 |"),
+  (s) => s.replace("how a login being out is recorded | ≤ 12 |", "how a login being out is recorded | ≤ 40 |"),
   () => script("test-kit-facts.mjs"),
   "no run can comply",
 );
@@ -562,13 +603,19 @@ breaks(
   "has no SHA-256 digest for kit/pipeline/toolchains/cargo.md",
 );
 
+const ROUTING = "skills/xez-onboard-opinionated/kit/routing.json";
+const ROUTE_MJS = "skills/xez-onboard-opinionated/kit/checks/route.mjs";
+// Edits routing.json as data, so a case names the change and not the file's layout.
+const routingEdit = (change) => (s) => {
+  const file = JSON.parse(s);
+  change(file, (id) => file.rows.find((row) => row.id === id));
+  return `${JSON.stringify(file, null, 2)}\n`;
+};
+
 breaks(
-  "the provider prohibition moved out of the global prohibitions is rejected",
-  "skills/xez-onboard-opinionated/references/routing-rows.md",
-  (s) => {
-    const phrase = "does not enforce a step's tool limits is in no chain";
-    return `${s.replace(phrase, "is best avoided")}\n<!-- a provider that ${phrase} -->\n`;
-  },
+  "the tool-limits prohibition softened in routing.json is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "tool-limits").rule = "A lane that ignores tool limits is best avoided."; }),
   () => script("test-kit-facts.mjs"),
   "lost the global prohibition",
 );
@@ -585,12 +632,340 @@ breaks(
   "xezar-quality-assurance",
 );
 
+// A reading step is read-only because of its shell (FACT 16, catalog-check's reader rule). Each way
+// a pull request could quietly give one back its writing shell is a break of its own.
+const CR = "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml";
+breaks(
+  "a reading step with no bashAllowlist is rejected",
+  CR,
+  (s) => s.replace(/^\s+bashAllowlist: \[.*\]\n/m, ""),
+  () => script("test-kit-catalog.mjs"),
+  "has no bashAllowlist",
+);
+
+breaks(
+  "a reading step allowed `git push` is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["git push", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"git push" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed plain `git diff`, which can write with --output, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["git diff", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"git diff" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed `gh api`, which can POST, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh api", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh api" is not a reading prefix',
+);
+
+breaks(
+  "a verdict workflow that stops declaring its verdictRole is rejected",
+  CR,
+  (s) => s.replace("    verdictRole: code-review\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "no agent step declares verdictRole: code-review",
+);
+
+breaks(
+  "a reading workflow given the Write tool is rejected",
+  CR,
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
+  () => script("test-kit-catalog.mjs"),
+  '"code-review" is a reading workflow',
+);
+
+breaks(
+  "git-read.sh that stops refusing --output is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/git-read.sh",
+  (s) => s.replace('BLOCKED_LONG="output ', 'BLOCKED_LONG="'),
+  () => script("test-kit-facts.mjs"),
+  "refuses --output",
+);
+
+breaks(
+  "a reading step allowed raw `gh pr comment`, which takes -R and -F <any file>, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh pr comment", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh pr comment" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed security-scan.sh, whose --out writes anywhere, is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["bash .xezar/checks/security-scan.sh", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"bash .xezar/checks/security-scan.sh" is not a reading prefix',
+);
+
+breaks(
+  "a reading step allowed a compound entry is rejected",
+  CR,
+  (s) => s.replace('bashAllowlist: ["gh pr view",', 'bashAllowlist: ["gh pr view; rm -rf .", "gh pr view",'),
+  () => script("test-kit-catalog.mjs"),
+  '"gh pr view; rm -rf ." is not a reading prefix',
+);
+
+breaks(
+  "a reading workflow given a writing tool with another name is rejected",
+  CR,
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit]"),
+  () => script("test-kit-catalog.mjs"),
+  '"code-review" is a reading workflow',
+);
+
+breaks(
+  "gh-write.sh that lets a reviewer add qa-approved is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('NEVER_ADD="qa-approved ', 'NEVER_ADD="'),
+  () => script("test-kit-facts.mjs"),
+  "no longer refuses an approval label",
+);
+
+breaks(
+  "a role doc that pipes into a write script with arguments is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
+  (s) => s.replace("| bash .xezar/checks/verdict-write.sh`: one JSON request", "| bash .xezar/checks/verdict-write.sh packet`: one JSON request"),
+  () => script("test-kit-catalog.mjs"),
+  "the engine's lock refuses a pipe into a script with arguments",
+);
+
+breaks(
+  "gh-write.sh that drops a JSON comment's body is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('body="$json_body"', 'body="(empty)"'),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh does not post a JSON comment request",
+);
+
+breaks(
+  "verdict-write.sh that files a JSON packet as BLOCKED is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('exec bash "$SCRIPT_DIR/verdict-write.sh" packet', 'exec bash "$SCRIPT_DIR/verdict-write.sh" blocked'),
+  () => script("test-kit-catalog.mjs"),
+  "verdict-write.sh does not write a JSON packet request",
+);
+
+breaks(
+  "a Codex rule that allows a command is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('if (decision !== "prompt" && decision !== "forbidden") {', 'if (decision !== "prompt" && decision !== "forbidden" && decision !== "allow" && decision !== undefined) {'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a Codex prefix_rule",
+);
+
+breaks(
+  "kit Claude settings that allow a broad Bash rule are rejected",
+  "skills/xez-onboard-opinionated/kit/claude/settings.json",
+  (s) => s.replace('{\n  "hooks"', '{\n  "permissions": { "allow": ["Bash(npm test:*)"] },\n  "hooks"'),
+  () => script("test-kit-catalog.mjs"),
+  "widens every reading step's shell",
+);
+
+breaks(
+  "dropping .claude/settings.json from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.claude.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .claude/settings.json",
+);
+
+breaks(
+  "dropping .codex/ from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.codex.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .codex/",
+);
+
+breaks(
+  "dropping .xezar/workflows and .xezar/checks from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.xezar\\\/\(workflows\|checks\)\\\/\/.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names",
+);
+
 breaks(
   "a kit workflow that no routing row names is rejected",
-  "skills/xez-onboard-opinionated/references/routing-rows.md",
-  (s) => s.replace("| `root-sync.yaml` |", "| the leader itself |"),
+  ROUTING,
+  routingEdit((f, row) => { row("root-sync").workflows = ["issue-triage.yaml"]; }),
   () => script("test-kit-catalog.mjs"),
   "installed, valid, and unreachable",
+);
+
+// The routing file is read by a script that applies every ban a file can decide (FACT 17). Each
+// way a pull request could reroute work past a ban is a break of its own.
+breaks(
+  "a cheap lane in the security review is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("security-review").lanes.push("codex/gpt-5.6-luna"); }),
+  () => script("test-kit-catalog.mjs"),
+  '"codex/gpt-5.6-luna" is a cheap lane',
+);
+
+breaks(
+  "a row that narrows a security row, with a cheap lane, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("docs-writing").narrows = "security-review"; row("docs-writing").neverAuthor = true; }),
+  () => script("test-kit-catalog.mjs"),
+  '"pi/deepseek-api/deepseek-flash" is a cheap lane',
+);
+
+breaks(
+  "a reserved lane in an ordinary row is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("docs-writing").lanes.unshift("codex/gpt-6-astra"); }),
+  () => script("test-kit-catalog.mjs"),
+  "is reserved and this row is not one of its rows",
+);
+
+breaks(
+  "a login that is an email address is rejected",
+  ROUTING,
+  routingEdit((f) => { f.tools.claude.rotation = ["owner@example.com"]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is not an engine account ID",
+);
+
+breaks(
+  "a login that is this machine's own user name is rejected",
+  ROUTING,
+  routingEdit((f) => { f.tools.codex.rotation = [(process.env.USER || "runner").toLowerCase().replace(/\s+/g, "-")]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is this machine's own user name",
+);
+
+breaks(
+  "a row naming a lane that does not exist is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("refactor").lanes.push("claude/opus-9"); }),
+  () => script("test-kit-catalog.mjs"),
+  '"claude/opus-9" is not a lane',
+);
+
+breaks(
+  "a never entry that is only a reason, and so matches every lane, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("refactor").never.push({ why: "too risky" }); }),
+  () => script("test-kit-catalog.mjs"),
+  "names no match key",
+);
+
+breaks(
+  "routing text that points at a URL is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("spike").trigger += " See https://example.com first."; }),
+  () => script("test-kit-catalog.mjs"),
+  "holds a URL",
+);
+
+breaks(
+  "a pi lane that claims to enforce tool limits is rejected",
+  ROUTING,
+  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].enforcesToolLimits = true; }),
+  () => script("test-kit-catalog.mjs"),
+  "the pi runner does not hold a reading step read-only",
+);
+
+breaks(
+  "a deploy row renamed out of the security class is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("deploy").class = "implementation"; }),
+  () => script("test-kit-catalog.mjs"),
+  "runs a security or release workflow, so its class is security-and-release",
+);
+
+breaks(
+  "a row two narrowing steps below a security row keeps the security minimums",
+  ROUTING,
+  routingEdit((f, row) => { row("bounded-bug-fix").narrows = "release"; }),
+  () => script("test-kit-catalog.mjs"),
+  "rows.hotfix: a security or release row, or one that narrows one, keeps neverAuthor",
+);
+
+breaks(
+  "routing text with a newline, which could forge an output line, is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("release").never[0].why += "\nlane=codex/forged"; }),
+  () => script("test-kit-catalog.mjs"),
+  "holds a control character",
+);
+
+breaks(
+  "route that prints a lane cache reason as it is is rejected",
+  ROUTE_MJS,
+  // Both places that make it one line: where the cache is read, and where a removal is printed.
+  (s) => s
+    .replace('typeof v.reason === "string" ? oneLine(v.reason).slice(0, 120)', 'typeof v.reason === "string" ? v.reason.slice(0, 120)')
+    .replace("out.push(`removed=${lid} reason=${oneLine(reason)}`);", "out.push(`removed=${lid} reason=${reason}`);"),
+  () => script("test-kit-catalog.mjs"),
+  "a lane cache reason or an unknown cache lane reached route's output",
+);
+
+breaks(
+  "route that offers an escalation lane past the row's bans is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("const ban = banReasons(rowById, row, id, lane, { advisory })[0];", "const ban = escalation ? undefined : banReasons(rowById, row, id, lane, { advisory })[0];"),
+  () => script("test-kit-catalog.mjs"),
+  "route offers an escalation lane without tool limits on a reading row",
+);
+
+breaks(
+  "route that reads routing without an origin/HEAD is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('  if (!remote) throw new Error("the remote default branch is unknown here', '  if (false) throw new Error("the remote default branch is unknown here'),
+  () => script("test-kit-catalog.mjs"),
+  "route reads routing without an origin/HEAD instead of refusing",
+);
+
+breaks(
+  "route that trusts a lane cache older than a day is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (now - at > CACHE_MAX_AGE_MS)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "route dispatches a security row on a lane cache older than 24 hours",
+);
+
+breaks(
+  "route --rows that leaks lane data is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("trigger: r.trigger, ...(r.narrows", "trigger: r.trigger, lanes: r.lanes, ...(r.narrows"),
+  () => script("test-kit-catalog.mjs"),
+  "route --rows leaks lane data",
+);
+
+breaks(
+  "route --check that passes a broken working-tree file is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (errors.length) { process.stderr.write(`route: ${path} is refused", "if (false) { process.stderr.write(`route: ${path} is refused"),
+  () => script("test-kit-catalog.mjs"),
+  "route --check passed a broken working-tree file",
+);
+
+breaks(
+  "dropping routing.json from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.xezar\\\/routing.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .xezar/routing.json",
+);
+
+breaks(
+  "a routing.json edited without storing its defaults version is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("hotfix").lanes.reverse(); }),
+  () => script("test-kit-catalog.mjs"),
+  "raises defaults.version and stores the new copy",
 );
 
 breaks(

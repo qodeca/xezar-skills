@@ -211,7 +211,7 @@ Interactive helpers — the other half of the naming convention: they act once, 
 | [`xez-prepare-issue`](docs/skills/xez-prepare-issue.md) | Files a single well-formed tracker issue for deferred work: dedupes against existing issues and PRs, links (or authors) a covering spec, otherwise embeds step-by-step guidance, and applies the SDLC labels on creation. |
 | [`xez-integration-tests`](docs/skills/xez-integration-tests.md) | Creates and runs integration/E2E tests by exploring the running app first — real locators, runtime fixtures, no hardcoded IDs — and reports failures with artifact-based per-test diagnosis. Reuses the shared [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md) instance so QA and tests hit the same booted app. |
 | [`xez-onboard`](docs/skills/xez-onboard.md) | Optional first-time project setup, and the re-check after an update. Inspects what is already there, resolves the choices nobody made, previews the minimal set of project files before writing them, and preserves policy you wrote yourself. Ordinary work needs none of it. |
-| [`xez-onboard-opinionated`](docs/skills/xez-onboard-opinionated.md) | The full opinionated setup: a project leader on Claude Code, the task engine with its workflows and gates, a campaign record, and the rules that hold them together. Analyses the repository, interviews you with every detected fact shown as a proposal, builds the routing table from the lanes your machine actually has, and previews every file before writing. Claude Code only, GitHub only, clean projects only. |
+| [`xez-onboard-opinionated`](docs/skills/xez-onboard-opinionated.md) | The full opinionated setup: a project leader on Claude Code, the task engine with its workflows and gates, a campaign record, and the rules that hold them together. Analyses the repository, interviews you with every detected fact shown as a proposal, confirms the shipped routing (`routing.json`, read by the leader only through its `route` script) against the lanes your machine actually has, and previews every file before writing. Claude Code only, GitHub only, clean projects only. |
 | [`xez-unattended-on`](docs/skills/xez-unattended-on.md) | Hands a project's leader a narrower set of hard stops for a stretch when you are unreachable. Reads the contract back first — what still stops the leader dead, what it will decide alone and park for the morning, and what that costs — and writes nothing without a clear yes. Dispatches no work. |
 | [`xez-unattended-off`](docs/skills/xez-unattended-off.md) | Ends unattended mode and runs the morning interview: every decision the leader parked while you were away, asked back one at a time, with what it chose, why, the alternative and the undo. Your answer is written into the campaign record in your own words, never a paraphrase. |
 | [`xez-add-rule`](docs/skills/xez-add-rule.md) | Adds a standing rule for the leader by writing it into the committed leader guide, in your exact words, so it loads at every session start, resume, clear and compaction. A rule told to an agent in a chat is forgotten by the next session; a rule in the guide is not. |
@@ -339,7 +339,6 @@ Nothing here assumes JavaScript, or any particular product. The base branch, the
   "security": { "provider": null },
   "paths": {
     "runs": ".xezar/pipeline/runs",
-    "analysis": ".xezar/pipeline/analysis",
     "specs": ".xezar/pipeline/specs",
     "scripts": ".xezar/pipeline/scripts",
     "qa": ".local/qa"
@@ -369,10 +368,10 @@ Everything the skills write into a consuming repository lives under two director
 | `.xezar/pipeline/trackers/<tracker>.md` | tracker descriptor(s) – the commands behind every issue/PR/label operation | yes |
 | `.xezar/pipeline/browsers/<provider>.md` | browser-provider descriptor | yes |
 | `.xezar/pipeline/overrides/<skill>.md` | your repo-local extensions, one flat file per skill | yes |
-| `.xezar/pipeline/{runs,specs,analysis,scripts}/` | execution plans, specs, analyses and generated launcher scripts | yes |
+| `.xezar/pipeline/{runs,specs,scripts}/` | execution plans, specs and generated launcher scripts | yes |
 | `.local/qa/` | the test-env descriptor and per-run QA artifacts | no – add `.local/` to `.gitignore` |
 
-The four working directories under `.xezar/pipeline/` are the defaults of the config's `paths` block; point them elsewhere if your repo already has a home for specs or plans.
+The three working directories under `.xezar/pipeline/` are the defaults of the config's `paths` block; point them elsewhere if your repo already has a home for specs or plans.
 
 ## 🎨 Make it yours
 

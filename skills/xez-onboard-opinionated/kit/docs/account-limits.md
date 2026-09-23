@@ -1,15 +1,18 @@
 # Account limit probing and recovery
 
-Xezar can run tasks under several agent accounts (Settings → agent profiles). None of them expose current usage to a project leader. This page is the recipe for finding a dead account by probing it, and for recovering the lane once you know.
+Xezar can run tasks under several agent accounts (Settings → agent profiles). From engine 0.19.0 the leader reads each login's budget before it dispatches; this page says how, what to do when the answer is `unknown`, and how to recover the lane once a login is out.
+
+## Read the budget first
+
+Call `project_config` action `read_quota` (optionally with `provider` or `accountId`). It returns one row per Claude or Codex login, with `status` `ok`, `out` or `unknown`, and `resetsAt` when it is out. Route away from an `out` login until `resetsAt`. `unknown` means the engine could not read it – never that the login has budget. `check_quota` forces a fresh check, at most once per five minutes per login. A failed run still marks its login out. Only Claude and Codex logins have a row.
 
 ## What cannot be read
 
-- The MCP `project_config` tool's `get_account` action shows only the currently selected account for a provider. It has no list action and no usage field.
 - `check_account_status` and `get_account_details` are refused for a leader. Account identity is not served to a project leader; accounts are person-administered.
 - The cockpit's "Connected" / "Check again" state is a login check, not a quota check. An account can show "Connected" and still be over its limit.
 - Claude Code itself only shows usage through the interactive `/usage` command, run per login, inside a terminal session. There is no headless command and no API for it.
 
-So the only working signal is: dispatch a task under the account and see whether it runs.
+So when `read_quota` and `check_quota` still say `unknown` for a login you need, the only working signal left is: dispatch a task under the account and see whether it runs.
 
 ## The probe
 
@@ -46,8 +49,8 @@ Example shape: a machine carries the leader's own login plus one task account pe
 
 1. Read the reset time from the error text itself, not from any schedule the engine shows you. See the known defect below.
 2. For every failed probe, call `execution_control` `cancel_auto_resume` with that run's `runId` and `expectedVersion` (from `task_read`). Do this for a weekly limit and for every probe alike: a probe run must never be allowed to auto-resume on its own.
-3. For a short session limit, if the reset is close, you can leave that account idle until it resets. For a weekly limit, or any long wait, rotate: re-dispatch the exact same brief on the next account in that tool's rotation (`agentProfile`). The lane — the tool and the model — stays the same; only the login under it changes. A lane is out only when every account in its rotation is.
-4. Keep a table of account → state → reset time in the campaign note, and update it on every probe. That table is the record of the check; nothing else remembers it.
+3. For a short session limit, if the reset is close, you can leave that account idle until it resets. For a weekly limit, or any long wait, rotate: re-dispatch the exact same brief on the next login in that runner's rotation (`agentProfile`), in the order `route.mjs` prints under `logins=`; the rotation lives in `.xezar/routing.json`. The lane — the tool and the model — stays the same; only the login under it changes. A lane is out only when every account in its rotation is.
+4. Keep the budget table in the budget section of the live campaign's `README.md`, keyed runner × login (`claude` / `<login>` → `ok`, `unknown` or `out` with its reset time), and update it on every probe. That table is the record of the check; nothing else remembers it, and `routing.md` reads it at every dispatch.
 5. Run one stream of work per account. That way a single limited account stalls one stream, not the whole campaign.
 6. If two accounts show the same reset minute, they are probably the same underlying login window, not two independent limits.
 7. The leader's own login (`default`, `~/.claude`) never gets probe or work tasks. Probing it would spend the leader's own session on a check it does not need.

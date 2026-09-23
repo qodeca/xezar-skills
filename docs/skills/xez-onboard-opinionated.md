@@ -6,13 +6,13 @@ Configures a clean project the opinionated way: a project leader running on Clau
 
 Three limits, all stated before anything is touched. **Claude Code only** — the leader design is a Claude Code design, and on any other harness it stops and names [`xez-setup-agent-pipeline`](xez-setup-agent-pipeline.md). **GitHub only** — branch protection, the label flow and the smoke test are GitHub mechanics and were never designed against another tracker. **Clean projects only** — it refuses rather than merging into a setup somebody already has, so a half-applied opinionated setup cannot exist. Gate commands are detected from whatever build files exist, so any stack can onboard; TypeScript/npm is the only stack tested so far, and the skill says so rather than refusing the rest.
 
-It analyses the repository read-only (the real branching model, the gate commands, the design signal, which agent tools and accounts this machine actually has), interviews you in five screens — one confirmation of every detected fact, each carrying its evidence, then the gate commands, the task logins, the routing classes and the expanded table — builds the routing table from the lanes that exist here rather than shipping one — a lane is a tool plus a model, and your logins are only the rotation under a tool — and previews every file bound to a content digest before anything is written.
+It analyses the repository read-only (the real branching model, the gate commands, the design signal, which agent tools and accounts this machine actually has), interviews you in five screens — one confirmation of every detected fact, each carrying its evidence, then the gate commands, the task logins, what each model is for and the routing rows for edits — confirms the shipped routing against the lanes that exist here: `.xezar/routing.json` lists every kind of work with the lanes it may use in order, and the leader reads it only through `.xezar/checks/route.mjs`, which removes a lane this machine lacks. A lane is a runner plus a model, and your logins are only the rotation under a runner — and previews every file bound to a content digest before anything is written.
 
 Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch, opens a pull request and – once its checks are green – offers to merge it for you, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
 ## What the leader can route afterwards
 
-A workflow for every kind of work a project meets, each with a role skill that says what it owns and what it never does, and a routing row that says how the leader recognises it:
+A workflow for every kind of work a project meets, each with a role skill that says what it owns and what it never does, and a routing row in `.xezar/routing.json` that says how the leader recognises it and which lanes may run it:
 
 | Stage | Workflows |
 |---|---|
@@ -31,14 +31,14 @@ The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves r
 
 **When the engine refuses a call**, the skill stops calling, tries the engine's own tool, then points you at the place a person does it — and only on your yes to one question showing the exact change does it make a backed-up edit of one file inside the project, its account list (a recorded exception in `SECURITY.md`). It writes nothing under `~/.xezar/`. **When you want to read the setup pull request before merging**, that is a normal answer: its body sorts the files by origin so you can see which dozen to read, and the run ends cleanly with the one line that resumes it.
 
-**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it. It is left on, and reported, when the engine is not in single-project mode or when an existing routing table still uses it.
+**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it. It is left on, and reported, when the engine is not in single-project mode or when a routing row still uses it.
 
 ## Before you run it
 
 Three things, each of which otherwise stops the run in its first minute:
 
 ```bash
-npm install -g @qodeca/xezar          # the engine, 0.18.0 or later
+npm install -g @qodeca/xezar          # the engine, 0.19.0 or later
 xezar --single-project --no-open      # in its own terminal, in the project folder – leave it open
 gh auth login                         # if you are not logged in
 ```

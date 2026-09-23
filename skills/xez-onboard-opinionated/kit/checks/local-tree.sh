@@ -30,17 +30,17 @@ ALLOWED="runtime tasks worktrees scratch cache qa"
 # blanket `.local/` ignore means a new state file needs no entry anywhere, which is true of git and
 # false of this check. The cost lands entirely on the consumer: a name this list does not carry
 # fails a gate in EVERY onboarded project, on EVERY run, for a file nobody did anything wrong to
-# create. So the list is extended by a release of this kit, never by editing an installed copy, and
-# the engine team has undertaken to announce a new top-level name before it ships (agreed for
-# engine 0.19.0 onward, 2026-09-22).
+# create. So the kit's own list is extended by a release of this kit, never by editing an installed
+# copy. From engine 0.19.0 the engine also publishes its names (`xezar state-names --json`), and
+# where `xezar` is on PATH this check adds them (below), so a new engine name passes the day it ships.
 #
 # THREE THINGS ARE INTENTIONS, NOT GUARANTEES, as of engine 0.18.0, and they are listed together
 # so none gets promoted by repetition: (1) that announcement; (2) their documenting this top level
 # as a surface at all; (3) their recording it as a SHAPE — base names plus the suffixes below —
 # rather than as a fixed set of names. All three were agreed between sessions on 2026-09-22 and
 # none is recorded in the engine's own compatibility document yet. Treat each as goodwill until it
-# is. That is why this check does not lean on any of them: the list is extended by a release of
-# this kit, the match is by prefix, and the failure message below names a new engine file as the
+# is. That is why this check does not lean on any of them alone: the kit keeps its own list for
+# machines without `xezar` (CI), the match is by prefix, and the failure message below names a new engine file as the
 # likely cause rather than leaving somebody to work it out mid-gate.
 #
 # A SUBDIRECTORY is not the same risk: `ENGINE_DIRS` covers the engine's folders, and anything the
@@ -78,6 +78,37 @@ if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
   # BASE names only. The match below is a prefix match, so `<name>.tmp`, `<name>.lock`,
   # `<name>.<pid>.<hex>.tmp` and `audit.ndjson.1`..`.4` are all covered without being listed.
   ENGINE_FILES="audit.ndjson mcp-audit.ndjson launch-key machine-state.json mcp-connection.json mcp-operations.ndjson mcp-operations.json onboarding-state.json runs.json ui-state.json todos.json pi-leader.json automations.json automation-state.json automation-receipts.ndjson automation-log.ndjson automation-poll.lock"
+
+  # From engine 0.19.0 the engine publishes this list itself: `xezar state-names --json` (xezar
+  # #852) prints every top-level name it can write, generated from its own source, and prints
+  # nothing else. Its names are ADDED to the lists above, so a name a newer engine brings is allowed
+  # the day it ships, with no kit release. The lists above stay: they are the engine's 0.19.0 names
+  # (a test holds them equal to the published fixture) plus `campaigns`, which is this kit's own,
+  # and they are all a machine without `xezar` on PATH has – CI, most of all. Only a plain name is
+  # taken; anything else in the output is ignored, never interpreted.
+  if command -v xezar >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    engine_names="$(xezar state-names --json 2>/dev/null | node -e '
+      let t = "";
+      process.stdin.on("data", (c) => (t += c)).on("end", () => {
+        try {
+          const p = JSON.parse(t);
+          if (p.schemaVersion !== 1 || p.scope !== "local-xezar-top-level" || !Array.isArray(p.names)) return;
+          for (const e of p.names) {
+            if (typeof e?.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(e.name)) continue;
+            if (e.kind === "directory") console.log(`d ${e.name}`);
+            else if (e.kind === "file") console.log(`f ${e.name}`);
+          }
+        } catch { /* not the published form: keep the kit list alone */ }
+      });' 2>/dev/null)" || engine_names=""
+    while read -r kind engine_name; do
+      case "$kind" in
+        d) ENGINE_DIRS="$ENGINE_DIRS $engine_name" ;;
+        f) ENGINE_FILES="$ENGINE_FILES $engine_name" ;;
+      esac
+    done <<EOF_NAMES
+$engine_names
+EOF_NAMES
+  fi
 fi
 
 # Only the primary checkout has the full tree. A task worktree creates the one or two subfolders
@@ -165,11 +196,11 @@ if [ -n "$loose" ]; then
   echo "  Move each entry into the right one, or delete it. This check never deletes anything."
   if [ -f "$REPO_ROOT/.xezar/workspace.json" ]; then
     echo
-    echo "  DID YOU JUST UPGRADE THE ENGINE? Then this may not be loose work at all. The list of"
-    echo "  engine files allowed here is CLOSED and exact, so a state file a new engine release"
-    echo "  adds at this level is reported exactly like a stray file - in every project, on every"
-    echo "  run. If the name above looks like the engine's rather than yours, do not move it:"
-    echo "  report it so the allowed list is extended, and skip this check until it is."
+    echo "  DID YOU JUST UPGRADE THE ENGINE? Then this may not be loose work at all. Engine names"
+    echo "  come from this kit's list plus \`xezar state-names --json\` when xezar is on PATH. Where"
+    echo "  it is not (CI), a name a newer engine added is reported like a stray file. If the name"
+    echo "  above looks like the engine's rather than yours, do not move it: run the check where"
+    echo "  xezar is installed, or report it so the kit's list is extended."
   fi
   status=1
 fi

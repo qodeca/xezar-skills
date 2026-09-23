@@ -24,7 +24,7 @@
 //
 // Run: node scripts/check-gate-list.mjs
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -84,7 +84,8 @@ for (const command of commands) enqueueFromCommand(command);
 const seenFiles = new Set();
 while (queue.length) {
   const file = queue.shift();
-  if (seenFiles.has(file) || !existsSync(join(root, file))) continue;
+  // A path such as `scripts/fixtures/…` names a folder of data, not something the gate executes.
+  if (seenFiles.has(file) || !existsSync(join(root, file)) || !statSync(join(root, file)).isFile()) continue;
   seenFiles.add(file);
   const body = read(file);
   // Anything this file executes: another script by path, or an npm script by name.

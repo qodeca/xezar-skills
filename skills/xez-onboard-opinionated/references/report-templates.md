@@ -17,10 +17,10 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🎯 Base branch | `<name>`, protected — <n> required checks, administrators **not** enforced |
 | 🧪 Gates | `<command>`, … — run by the smoke test, not only written down |
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
-| 📋 Routing | <n> rows, chains ending in `wait`; tasks that name no account run on `<login>`, not the leader's login |
+| 📋 Routing | `.xezar/routing.json`: <n> rows, defaults version <n>, `route.mjs --check` passes<; <n> lanes switched off; <n> rows edited>; tasks that name no account run on `<login>`, not the leader's login |
 | 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
 | 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update `<before>` → off; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
-| ⛔ OpenCode | <not installed · already off · found, switched off for this project in `.xezar/workspace.json` — undo: `project_config` `set_provider_enabled`, `provider: "opencode"`, `enabled: true` · found, **left on** because <the engine is not in single-project mode · the existing routing table still uses it>> |
+| ⛔ OpenCode | <not installed · already off · found, switched off for this project in `.xezar/workspace.json` — undo: `project_config` `set_provider_enabled`, `provider: "opencode"`, `enabled: true` · found, **left on** because <the engine is not in single-project mode · a routing row still uses it>> |
 | 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
 
@@ -194,7 +194,7 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 | 📝 Design gate | on / off — <the UI evidence behind it>; the whole design half installs either way |
 | 🤖 Leader | <model>, second login: yes / **none — its own limit ends the night** |
 | 🔀 Lanes | <n> task logins, <n> unlimited; leader's login reserved and never dispatched to |
-| 📋 Routing | <n> rows across 8 classes, each chain ending in `wait` |
+| 📋 Routing | the shipped rows (<n> across 8 classes)<, with the owner's edits: <row ids>>; <n> lanes switched off here |
 | 📝 Documents | under `docs/` — <the folders that differ from the default, or "all defaults"> |
 | 📸 Browser tool | `<descriptor>` <only when the machine had both and the owner chose> |
 | 🚀 Deploy, rollback, locales | <the confirmed lists, or "none — those three workflows install asleep"> |

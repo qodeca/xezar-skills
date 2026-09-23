@@ -18,7 +18,6 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | Key | Default |
 |---|---|
 | `paths.runs` | `.xezar/pipeline/runs` |
-| `paths.analysis` | `.xezar/pipeline/analysis` (**reserved, deprecated 2026-09-20** — resolved by the loader, read by nothing; kept because removing a `paths` key is breaking) |
 | `paths.specs` | `.xezar/pipeline/specs` |
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
@@ -106,6 +105,7 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
 - **The `Gate:` verdict line and the gate `NAME=value` lines** emitted by `merge-gate.sh` and `gate-status.sh` – line-anchored `^Gate: ` (and `Status=` from the status script), one line per gate plus a `Blocking=` list. Parsers split a `NAME=value` line on the **first** `=` and never source the output as shell. `Status:` is reserved and is not the verdict keyword; renaming `Gate:` is breaking.
 - **The verification record** (a fenced `text` block of `NAME=value` lines carrying `Head=`, `Base=`, `Skill=`, `At=`, repeated `Gate=`/`Status=` pairs and `Verdict=`) – written through **put-verification-record**, read through **get-verification-record**. Parsers split on the **first** `=` only, never source it as shell, and ignore names they do not know, so the grammar can grow without breaking a reader. A tracker with no record support, or a pull request with no record, is **not** a failure: the record was never a gate input, so a consumer reports it as unavailable and decides from the tracker API as it always did.
 - **The five gate statuses** (`pass`, `findings`, `unknown`, `not-applicable`, `evidence-unavailable`) – produced by `gate-status.sh` and read by every gate consumer. Hyphenated, because the consumer is POSIX `sh` and an unquoted `case` word-splits on a space. Only `pass` and `not-applicable` are satisfied; renaming one, or adding a sixth that a consumer's `case` does not handle, is breaking.
+- **The onboarding kit's routing file** (`.xezar/routing.json`, `schemaVersion: 1`, shape in `kit/routing.schema.json`) – written by `xez-onboard-opinionated`, edited by the owner through pull requests, read by `kit/checks/route.mjs`, and through it by the leader (`kit/docs/routing.md`) and the L2/L3 loops. It grows **additively**: a new field is optional, and `route.mjs` ignores a key it does not know and warns. Renaming or removing a field, changing what a field means, or adding a required one is breaking, and so is changing the `NAME=value` lines `route.mjs <row id>` prints (`lane=`, `removed=`, `wait=`, `also=` and the rest), which the leader parses after the first `=`. `defaults.version` is raised only when the shipped defaults change, and every version is kept under `references/routing-defaults/` for the upgrade comparison.
 - **Discovery output lines from `xez-discover`** (`Product brief:`, `Coverage:`, `Collection plan:`, `Next:`) – line-anchored like the chaining lines; `product-brief.md` is read by `xez-brainstorm`, `xez-spec-writing` and `xez-prepare-issue` when present.
 
 **Breaking:** changing any of these formats so an unmodified consumer skill can no longer parse output produced by a modified producer (or vice versa). **Required path:** update producer and all consumers in one PR, and keep the parser tolerant of the previous format when consumer repos may hold old artifacts (committed plans, descriptors).
@@ -132,11 +132,15 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Three breaks have shipped, all on one day and all deliberate. Each gets a row here on the day it
-ships:
+Nine breaks have shipped, all deliberate. Each gets a row here on the day it ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
+| 2026-09-22 | the minimum engine version in `compat.json` raised from 0.18.0 to 0.19.0 | anyone running engine 0.18.x: the onboarding skill's preflight refuses until they upgrade | `npm install -g @qodeca/xezar`, or stay on xezar-skills 2.1.1, which supports 0.18.0 | 0.19.0 is the first engine that makes a reading step read-only on Claude, and the shipped routing gives review and release work only to lanes that rely on it |
+| 2026-09-22 | the leader's routing moved from the prose table `.xezar/docs/model-routing.md` to `.xezar/routing.json`, read through `route.mjs`; the onboarding skill no longer writes the markdown table, and its `references/routing-rows.md` is gone | a project onboarded by `xez-onboard-opinionated` before 3.0.0 that copies the new `loops.json` or leader docs without migrating: the new L3 prompt runs `route.mjs`, which refuses when there is no `routing.json` on the base branch | run `/xez-onboard-opinionated --section routing`, which writes the file from the shipped defaults, carries the rotations over and deletes the markdown table; or keep the old `loops.json` and docs until you do (`UPGRADE_NOTES.md`) | a prose table cannot be checked, so a ban in it was a ban the leader had to remember; as data, every ban a file can decide is applied by a script, and routing is read from the base branch so a change under review cannot reroute its own review |
+| 2026-09-22 | `paths.analysis` removed: no longer in the config the setup writes, not resolved by the loading snippet, no directory created | nobody in practice – nothing ever read it. A committed config that still has the key keeps working, because readers ignore it | nothing; optionally delete the key and the empty `.xezar/pipeline/analysis/` (`UPGRADE_NOTES.md`) | a key nothing reads misleads every reader of the config, and a major version is the one time removing it is allowed |
+| 2026-09-22 | the kit's `catalog-check.mjs` refuses a `code-review`, `design-review` or `qa` workflow whose agent steps declare no `verdictRole`, and accepts the new step key | a project that kept its own copy of one of those three workflows | add `verdictRole: <role>` to the verdict step, or copy the kit's workflow (`UPGRADE_NOTES.md`) | engine 0.19.0 refuses every verdict packet from a step that declares no role, so the workflow would lose its verdicts in silence; the checker says so at load time instead |
+| 2026-09-22 | the kit's `catalog-check.mjs` refuses a workflow step whose `allowedTools` holds neither `Edit` nor `Write` unless it carries a `bashAllowlist` of reading prefixes, or its workflow is one of the three that run code (`qa`, `acceptance-verification`, `design-review`); five kit workflows gained that allowlist, and a Bash rule in the project's `.claude/settings*.json` that is not a reading prefix is refused too, and so is a `prefix_rule` in `.codex/rules/*.rules` whose decision is not `prompt` or `forbidden` | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and has **its own** reading workflow – its gate turns red until the step is fixed | give the step `bashAllowlist` entries from the table in `catalog-check.mjs` (`READER_BASH_PREFIXES`), or add `Edit`/`Write` if it is really a writing step | no backend made such a step read-only: every one still gave it an open shell (xezar #849), so "read-only" was a label, and a reviewer that can write can change the thing it is judging |
 | 2026-09-22 | the minimum engine version in `compat.json` raised from 0.16.0 to 0.18.0 | anyone running engine 0.16.x or 0.17.x: the onboarding skill's preflight now refuses until they upgrade | `npm install -g @qodeca/xezar` — 0.16.0 and 0.17.0 remain published, so nothing is forced on an existing project until it re-runs the skill | 0.18.0 is the first engine that answers a refusal before validating arguments and that exposes `import_global_accounts`; supporting engines without them meant carrying fallback branches nobody could test and a security exception wider than it needed to be |
 | 2026-09-21 | `ci.knownLoadFlakes` removed from `.xezar/pipeline/config.json`, with the `knownLoadFlakes` and `failedJobsAreKnownLoadFlakes` fields of `ci-watch.sh`'s `outcome.json` and the one-rerun rule that read them | a project onboarded by `xez-onboard-opinionated` 1.4.0–1.6.1 (the release the key arrived in) that copies the new kit checks without the new role skills | copy `kit/skills/xezar-integration.md` **before or with** `kit/checks/ci-watch.sh` — the role is safe to copy first, the check is the one that must not lead; then delete the now-unread key | the mechanism taught a new project that a red build can be excused by naming a job, which is the opposite of the owner's rule that a flaky test is rebuilt, never retried |
 | 2026-09-21 | the `DOGFOOD_GH`, `DOGFOOD_WORKFLOW`, `DOGFOOD_GATE_LOG` and `DOGFOOD_ALLOW_ROOT_BOOTSTRAP` environment variables renamed to `KIT_TEST_*` | anyone whose own tooling sets one of the four; they fail **silently**, not loudly | set the `KIT_TEST_` name instead, after copying the new check files | the word named a practice being removed from the kit entirely, and leaving four variables carrying it would have kept the thing findable and copyable |
@@ -149,18 +153,7 @@ later" has the same success rate everywhere.
 
 Things that are wrong, that we are not fixing yet, because fixing them is a break.
 
-- **`paths.analysis`** — declared in the config schema, created with a `.gitkeep`, committed,
-  and read by nothing. Deprecated 2026-09-20 and marked reserved; the loader still resolves
-  it and the default is unchanged.
-
-  It is **not** removed, and this is the part worth reading. Removing a `paths` key is
-  breaking by the rule two sections up, and the benefit is tidiness. So it waits for a major
-  version, or stays reserved indefinitely if no major version is ever worth cutting for it.
-  A key that costs one line of loader code is cheaper than a migration every consumer has to
-  perform.
-
-  The lesson is recorded under "Zero config is a design law" in `DECISIONS.md`: a key that
-  nothing reads is unremovable the moment it ships.
+None. `paths.analysis`, the one entry here, was removed in 3.0.0 (see the ledger).
 
 ## Out of scope
 

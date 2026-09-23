@@ -56,16 +56,17 @@ rest.
    that no gate covers, and which linters or licence checks scan the folders it will add.
 
 3. **Interview the owner** — follow `references/interview.md`. **Five screens**: confirm the
-   detected facts in one screen, the gate commands alone, the login table, the eight routing classes
-   together, the expanded rows. Every answer is saved to
+   detected facts in one screen, the gate commands alone, the login table, what each model is for,
+   the shipped rows for edits. Every answer is saved to
    `.local/xezar/runtime/onboarding-interview.json` the moment it is given, so an interrupted run
    resumes rather than restarting. Detected facts are shown as proposals to confirm or correct,
    never as decisions already taken — a confirmation screen is still a confirmation.
 
-4. **Build the routing table with the owner** — follow `references/routing-interview.md`. The
-   table is *not* shipped as a fixed file: preference chains are built from the lanes this
-   machine actually has. A lane is a tool plus a model; logins are only the rotation under a
-   tool. Shipping a table naming lanes that do not exist here would fail on the first dispatch.
+4. **Confirm the routing with the owner** — follow `references/routing-interview.md`. Routing
+   ships as data (`kit/routing.json`): the owner's rows, lanes and bans. Only what differs on this
+   machine is confirmed – rotations, lanes to switch off, tags for lanes the defaults lack – and
+   `route.mjs --check` must pass. A lane is a runner plus a model; logins are only the rotation
+   under a runner.
 
 5. **Preview everything, bound to digests** — follow `references/preview.md`. Every file the
    setup will write, grouped create / delete / leave alone / needs-your-decision, each bound to the
@@ -137,9 +138,10 @@ there, whether this session carries on or a later `--verify` run resumes.
   answered by pushing through, and the questions pushed through are the late ones — which are
   the unattended-safety ones. The interview is short for the same reason: it asks about decisions,
   and confirms detected facts together in one screen rather than one at a time.
-- **No personal identity reaches a committed file.** Account names, profile values and absolute
-  paths belong in the gitignored half of the manifest; the committed half records the *shape* of
-  the answers — which lanes exist, not which accounts.
+- **No personal identity reaches a committed file.** Emails, real names, profile folders and
+  absolute paths belong in the gitignored half of the manifest. Login IDs are the one exception:
+  engine account IDs the owner chose, committed in `.xezar/routing.json` as rotations, and refused
+  by `route.mjs --check` when one is an email, a path or this machine's user name.
 - **Refuse rather than merge.** Any real prior configuration stops the run. This skill has no
   merge mode, no `--force`, and no partial install: a half-applied opinionated setup cannot exist.
   Finishing its **own** unfinished run is not a merge: `--verify` writes no setup file, it only

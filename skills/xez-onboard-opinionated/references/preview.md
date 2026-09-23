@@ -74,6 +74,10 @@ Group the entries the way the owner thinks about them, not by directory:
   name them, because an owner who already has either will want to say so before one is written.
 - **The leader** — the guide (a shipped half and a generated half), the one `SessionStart` hook
   and its context-loader script, the loops file.
+- **Routing** — `.xezar/routing.json` with this machine's answers applied, its schema, and the
+  `route.mjs` script that reads it. Show an excerpt of
+  `node <kit>/checks/route.mjs --file <draft routing.json> --table`: the rows the owner edited, and
+  every lane switched off.
 - **Wiring** — the MCP registration at the project root, the gitignored permission file, the
   launcher script.
 - **Records and working state** — the campaigns directory with its reserved future-campaign
@@ -106,10 +110,9 @@ that surprise people:
   other project on this machine is touched — and that the provider switch is skipped, and
   reported, when the engine says it is not in single-project mode or when an existing routing
   table still uses OpenCode.
-- **A machine-wide engine change is possible later, and this preview does not cover it.** This
-  skill never proposes one. If the owner later names such a change themselves, it is asked in its
-  own question that shows the file and the exact values
-  (`references/engine-refusals.md`), and it is reported on its own line with its undo.
+- **This skill makes no machine-wide engine change**, and never writes `~/.xezar/config.json`. If
+  the owner wants one, it names the place so they can make it themselves
+  (`references/engine-refusals.md`).
 - **The smoke test creates a real branch and a real pull request**, then closes and deletes them.
 - **The interview state file** under `.local/xezar/runtime/` was already written, before this preview.
   It is the only thing written so far, and the owner should know it exists — unless the owner

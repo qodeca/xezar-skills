@@ -1,3 +1,72 @@
+# 3.0.0 (2026-09-23)
+
+**The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with
+engine 0.19.0, which this release requires. Five breaking changes, each with a row in
+`BACKWARD_COMPATIBILITY.md` and an entry in `UPGRADE_NOTES.md`; a project that must stay on engine
+0.18 stays on 2.1.1.
+
+**Routing is a file with a checker, not a table in prose.** `.xezar/routing.json` lists 47 kinds of
+work, the lanes each may use in order (a lane is a runner plus a model), the bans, the reserved
+lanes and the login rotation per runner. The owner's own routing ships as everyone's default. The
+leader reads it only through `node .xezar/checks/route.mjs`:
+
+- `route --rows` gives the kinds of work to classify against, with no lane data in it;
+- `route <row id>` gives the lane order, and names every lane it removed and why – banned, reserved,
+  program not installed, no login on this machine, or marked unavailable by the leader's lane cache;
+- `route --check` is a gate on the file.
+
+It reads the file from the remote default branch, so a change under review cannot reroute its own
+review. It enforces the security minimums itself, whatever the file says: no cheap, local or
+advisory lane on security, release and deploy work, and never the author. A security or release row
+waits until lane availability is verified. The new leader manual, `.xezar/docs/routing.md`, walks
+the leader from classifying the work to the exact `task_create` fields. Onboarding confirms the
+shipped routing instead of building a table, and `--section routing` migrates an old
+`model-routing.md`, showing the old order beside the new one.
+
+**The shipped routing is ranked for Opus 5.5.** Claude Code's `opus` alias now means Opus 5.5, which
+matches or beats Fable 5.1 on most published coding, review and knowledge-work tests at 40% of its
+price. The `claude/opus` lane is now `very-strong` and comes first in the 13 rows GPT-5.6 sol used
+to lead – specs, refactors, multi-file work, design review and acceptance among them – with sol
+second. `claude/fable` is gone from the defaults: Opus 5.5 is faster and cheaper for the same
+work. GPT-6 astra stays for every kind of generated image and as the by-hand escalation lane, and
+is now the automatic fallback for security review, because Anthropic re-routes most cyber-security
+work on Opus 5.5 to an older Opus. A lane note
+tells the leader to send "continue" when an unattended Opus 5.5 run ends with only a progress note.
+
+**Reviewers really read.** Code review, architecture review, security review, business analysis and
+issue triage run with a short list of allowed commands. On engine 0.19.0 Claude enforces that list
+and removes the file tools. Three kit scripts are the only ways to write: `verdict-write.sh` for the
+verdict packet and evidence, `gh-write.sh` for a comment or a label change on this repository only
+(it never adds an approval label and never lifts a blocking one), and `phase-record.sh`. A reviewer writes by piping one JSON request, built with `jq -n`, into the bare script: the engine's shared lock allows a pipe only into a script with nothing after its name. Git is read
+through `git-read.sh`, which refuses every flag that can write or run a program. The kit's checker
+refuses a reading step with a writing command, and a Bash rule in the project's own
+`.claude/settings*.json` that would widen every reviewer's shell. On 0.19.0 Codex enforces the list
+too, and the checker refuses a `.codex/rules/*.rules` rule that allows a command. pi lanes leave
+the reading and release rows until its lock is proven live. Most reviews are still a different
+Claude model reviewing Claude's work, and the reviewer says "same vendor".
+
+**Verdicts carry their role.** Engine 0.19.0 records a verdict packet only from a workflow step that
+declares `verdictRole`. The code review, design review and QA workflows declare it, and the checker
+refuses one that stops.
+
+**Two fixes for every onboarded project.** The documented-output check ran the leader loader
+without `XEZAR_LEADER=1`, so since 1.3.0 it failed wherever the gate ran outside the leader's own
+session – in CI, or in a person's terminal. And the tidiness check now also reads
+the engine's own list of state names (`xezar state-names --json`), so an engine release that adds a
+name no longer turns gates red.
+
+**The gate lease asks the engine a real question.** From engine 0.19.0 `repo-gates.sh` checks that
+the engine can serialise gate runs with the engine's own published check, `xezar lease gates
+--probe`, instead of matching a line of human-readable text. On 0.17 and 0.18 it keeps the old
+check. A project whose probe stops matching loses gate serialisation silently, which is why this
+moved to the supported form the day it existed.
+
+**`paths.analysis` is gone.** The setup declared it, created its folder and committed it, and no
+skill ever read it. A config that still has the key keeps working.
+
+More files are trust boundaries, so a change to them needs a security review: the routing file and
+its schema, `loops.json`, `.xezar/docs/`, `.xezar/skills/`, `.claude/settings*.json` and `.codex/`.
+
 # 2.1.1 (2026-09-22)
 
 **Documentation that now matches what the skill actually does.** No behaviour of an installed

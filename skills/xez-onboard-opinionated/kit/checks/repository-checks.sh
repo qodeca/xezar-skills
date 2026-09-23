@@ -17,6 +17,13 @@ bash "$SCRIPT_DIR/local-tree.sh"
 
 node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 
+# The routing file is checked as the working tree holds it, so a pull request that breaks it fails.
+if [ -f "$REPO_ROOT/.xezar/routing.json" ]; then
+  node "$SCRIPT_DIR/route.mjs" --check "$REPO_ROOT/.xezar/routing.json"
+else
+  skip route-check "no .xezar/routing.json in this project"
+fi
+
 # `--diff-base auto` refuses a direct `# Unreleased` edit: inside the gate run it resolves the
 # attempt's own base; run bare it falls back to the remote default branch then the local one, and
 # says so when neither exists. `--fragments` parses the per-pull-request changelog fragments.

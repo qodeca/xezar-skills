@@ -4,8 +4,8 @@ These are the operational documents for a project whose work is coordinated by a
 carried out by dispatched task agents. They describe **how this project is run**, not what it
 builds. The product's own documentation lives elsewhere.
 
-`leader-guide.md` and `model-routing.md` are written for this project during onboarding; the rest
-ship as they are.
+`leader-guide.md` is written for this project during onboarding; the rest ship as they are. The
+routing itself is data, not a document: `.xezar/routing.json`, read through `.xezar/checks/route.mjs`.
 
 ## Read these first
 
@@ -15,7 +15,7 @@ ship as they are.
 | `leader-context-loading.md` | How the guide gets reloaded at every session start and compaction, the guard that keeps it out of task agents, and the three standing loops. |
 | `leader-guide-detail.md` | The reasoning behind each rule in the leader guide. The guide loads at every session start, so it carries rules only; open this when a rule looks wrong. |
 | `campaign-notes.md` | What a campaign folder is, its seven file kinds, and which of them load at session start. |
-| `model-routing.md` | Which lane — a tool plus a model — the leader dispatches for each task kind, and the login rotation under each tool. **Built with the owner during onboarding**, because lanes exist on a machine, not in a repository. |
+| `routing.md` | How the leader picks the lane — a runner plus a model — and the login for each task: classify with `route.mjs --rows`, order with `route.mjs <row id>`, then budget and never the author. |
 
 ## Running the work
 
@@ -23,7 +23,7 @@ ship as they are.
 |---|---|
 | `worktrees.md` | How a task gets its own checkout, and how one is cleaned up. |
 | `parallel-tasks.md` | How to decide whether to fan work out at all, and why the gate tail is a queue even when the tasks are not. The numeric ceilings are in `.xezar/loops.json`, not here. |
-| `account-limits.md` | What usage cannot be read, how a lane is probed for its limit, and how to recover one that is out. |
+| `account-limits.md` | How to read each login's budget with `read_quota`, how to probe a login still `unknown`, and how to recover a lane that is out. |
 | `recovery.md` | What to do when a task, a merge or a session fails part-way. |
 | `phase-record.md` | What each phase of a task writes down, and where. |
 | `close-out.md` | How a campaign ends and what has to be true before it does. |

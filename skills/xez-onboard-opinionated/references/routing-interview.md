@@ -1,146 +1,101 @@
-# Building the routing table
+# Confirming the routing
 
-Called from step 4. The routing table is what the leader consults on every single dispatch, and
-it is the one artifact this skill **cannot** ship as a file.
+Called from step 4, and on its own by `--section routing`. Routing is what the leader consults on
+every single dispatch: which lane – a runner plus a model – runs each kind of work, and which login
+under it. It ships as data: `kit/routing.json`, written to `.xezar/routing.json`, read by the
+leader only through `.xezar/checks/route.mjs` (`kit/docs/routing.md`).
 
-## Why it is built here and not shipped
+## What is shipped, and what is confirmed here
 
-A routing table names lanes, and **a lane is a tool plus a model** — `<tool>/<model>`, nothing
-else. Those exist on a machine, not in a repository. A shipped table would name models and tools
-that exist somewhere else, and the failure mode is a first dispatch to a lane that does not exist
-here — after onboarding reported success.
+The shipped file is the owner's own routing, used as the default everywhere:
 
-**An account is not a lane.** Accounts are the *rotation* underneath a tool: the order its logins
-are tried in when the current one runs out of tokens. The rotation is one line per tool, written
-beside the table, and the reserved leader login is never in it. The first real run of this
-interview proposed chains of logins, and the owner had to stop it and explain this; four takes of
-one screen followed. Do not repeat it: a chain never names a login.
+- **Forty-seven rows over eight classes**, each with the workflows it runs, a written trigger, the
+  lanes it may use in order of preference, and its bans. A row without a trigger is a row the
+  leader guesses at.
+- **The lanes**, each a `<runner>/<model>` with seven tags (vendor, tier, vision, image
+  generation, local, enforces tool limits, advisory only). A lane with a missing tag is rejected
+  until it is tagged.
+- **The global bans**, stated once, and the **security minimums**, which `route.mjs` enforces
+  whatever the file says: a security or release row keeps `neverAuthor`, and never takes a cheap,
+  local or advisory-only lane.
+- **Reserved lanes** – the very-strong models – kept out of ordinary orders and named by hand for
+  escalation only, plus the rows a single-purpose one owns (Astra: generated images and diagrams).
 
-So the skill ships the table's **shape** and builds its **content** from the lanes the analysis
-step actually found.
+What is confirmed with the owner is only what differs on this machine. **A login is not a lane**:
+logins are the rotation under a runner (screen 3), and a lane order never names one.
 
-## What is shipped
+## The three screens
 
-- **The rows** — the full set, in [routing-rows.md](routing-rows.md). Forty-five rows over
-  eight classes, each carrying the workflow it runs and a written trigger: one
-  sentence saying how the leader recognises that this row is the one. A row without a trigger is
-  a row the leader guesses at.
-- **The global prohibitions**, stated once in `routing-rows.md` rather than repeated per row:
-  never the authoring model for its own review; a locally hosted model never touches a branch; a
-  cloud-lane write needs another vendor's review; a high-risk change needs a different vendor from
-  the author's; a provider that does not enforce a step's tool limits is in no
-  read-only or security-and-release chain, and one the setup switched off is in no chain at all.
-- **The Never column**, which carries only row-specific bans, plus the precedence rule for the
-  rows that deliberately overlap. A prohibition that applies everywhere belongs above, not repeated on every row.
+**Screen 3 (`lanes`)** writes each runner's `rotation` and `unlimitedLogins` into
+`.xezar/routing.json`. The leader's own login is never in a rotation.
 
-## What is built with the owner
+**Screen 4 (`routing`)** shows the lanes analysis found against the shipped ones and asks one
+question over that list: *which of these models are your daily workhorses, which is escalation
+only, which is single purpose, and which should not be used at all?* The answers set:
 
-**One ordered preference chain per row**, ending in `wait`.
+- a lane's `enabled: false` for a model not to be used here;
+- the seven tags for a lane analysis found that the defaults do not have – asked on this screen,
+  never guessed, because a wrong `vision` or `enforcesToolLimits` puts it in a row it must not
+  reach. `enforcesToolLimits` is asked only for a `claude` or `codex` lane: on any other runner it is
+  `false`, and `route.mjs --check` refuses `true`;
+- `reservedLanes` for a model kept for escalation or for one purpose.
 
-```
-review (full cold) → strongest lane → second lane → advisory lane → wait
-```
+**Screen 5 (`table`)** shows the result for row-level edits:
 
-Worked through, with placeholder names — every entry is `<tool>/<model>`, and the rotation is its
-own line:
-
-```
-implementation      → tool-a/strong-model → tool-b/strong-model → tool-a/mid-model → wait
-review              → tool-b/strong-model → tool-a/strong-model → wait
-rotation, tool-a    → login-1 → login-2 → login-3        (never the reserved leader login)
+```bash
+node .xezar/checks/route.mjs --file .xezar/routing.json --table
 ```
 
-The leader walks the chain top down and takes the first lane whose budget is available. Three
-consequences worth stating in the interview:
+Most rows will be right; the two or three that are not are exactly the ones worth a minute. A
+row-level edit changes that row's `lanes` or `never` in place.
 
-- **A lane being out is one entry failing, not a new column.** An earlier design had a column
-  per lane state; budget is per tool × login × model, one vendor's window is shared across its
-  models, one model can carry a sub-cap inside that window, and several logins can exist per
-  tool. Columns multiply under all that. Chains do not — and a lane is only *out* when every
-  login in its tool's rotation is.
-- **`wait` is a real terminator.** When every lane in a chain is unavailable, the work waits.
-  There is no invented fallback, and "wait" is never silently replaced by the reserved leader
-  login.
-- **Adding a login later lengthens a rotation; adding a model later adds a lane.** Neither
-  changes the table's shape.
+**A third take of one screen is a defect, not diligence.** Two takes is a correction; three means
+the proposal rested on something the owner knows and was never asked. Stop proposing, ask that one
+thing in plain words, and name the screen and the reason in the run report.
 
-**Lanes outside the chains.** Two kinds of lane are deliberately in no ranking, and the screen
-offers both by name:
+## The check that ends the section
 
-- **escalation only** — a model the owner keeps for work that is unusually important or hard. It is
-  never picked because a budget ran out; the owner or the leader names it by hand, on any row.
-- **single purpose** — a model used for one kind of output only (generated pictures, say). It
-  appears in the rows that need that output and in no other.
+The section is done only when this passes on the written file:
 
-## How to ask without a question per row
+```bash
+node .xezar/checks/route.mjs --check .xezar/routing.json
+```
 
-**A third take of this screen is a defect, not diligence.** Two takes is a correction; three
-means the proposal rested on something the owner knows and was never asked. Stop proposing, ask
-that one thing in plain words, and name the screen and the reason in the run report. The first
-audited run took four, and the last two were owner-only knowledge about how a tool behaves on
-this machine — so ask for that directly rather than proposing into it.
+A refusal names the row and the rule. Fix the file, never the check. Every row must keep at least
+one lane this machine has – preflight already stopped the setup if one could not (`preflight.md`).
 
-**Ask what each model is for before proposing anything.** One question, first on the screen:
-*which of these models are your daily workhorses, which is escalation only, which is single
-purpose, and which should not be used at all?* — over the `<tool>/<model>` list analysis found.
-"Strongest first" is the wrong default for an owner who keeps the strongest model for special
-occasions, and guessing it costs a full re-take of the screen per wrong guess.
+## Upgrading a project
 
-**One screen, eight classes, then expand.** Each class gets a proposed chain — strongest to cheapest
-among the lanes this machine has, ending in `wait`, with the global prohibitions already applied —
-and the owner confirms or reorders all of them together. One screen per class was the old shape and
-bought nothing: the classes do not depend on each other, so nobody answers the fourth differently
-for having answered the third.
+`--section routing` on a project that already has routing:
 
-Eight classes cover the rows:
+- **It has `.xezar/docs/model-routing.md`** (the markdown table from before). Write
+  `.xezar/routing.json` from the shipped defaults, carry the rotation lines into `tools.*.rotation`,
+  and show the owner the old chain beside the new order for each row, in one table. Apply the edits
+  they ask for, run the check, then delete `model-routing.md` in the same pull request.
+- **It has `.xezar/routing.json` with an older `defaults.version`.** Do a three-way comparison:
+  the project's file, the stored copy of its version
+  (`references/routing-defaults/<version>.json`), and the new defaults. A change only the new
+  defaults made is offered; a change only the project made is kept; where both changed one field,
+  show both and let the owner choose. Never overwrite the file wholesale. Then raise
+  `defaults.version`.
 
-| class | rows it covers | what the owner is really choosing |
-|---|---|---|
-| mechanical | tracker-only work, evidence passes, mechanical docs edits (root-sync sits in this class and takes no chain: the leader does it) | the cheapest lane that can be trusted with it |
-| writing | docs with real writing, analysis, specs, research, business analysis, architecture decisions, spikes, deprecation plans | quality of judgement and prose over cost |
-| design | designing a surface, its visual layer, the design system, and reviewing a design | a lane that can actually **see** a screen |
-| visuals | generated images and illustrations, diagrams and charts | a lane that can make a picture, or get a figure right |
-| implementation | bounded fixes and hotfixes, multi-file work, UI work, refactors, migrations, observability, localisation, conflicts, merge chains, dependencies | the working horse of the project |
-| testing | automated UI tests, integration tests, the regression suite, performance and load | who can be trusted to write a test that fails for the right reason |
-| review | scoped re-checks, full cold reviews, review responses, browser QA, architecture review, acceptance verification | who is allowed to judge whose work |
-| security and release | security-sensitive review, verifying a strong claim, the release role, deploy and rollback | the strongest lane, and never the author's |
+Either way the result goes through a pull request: the routing file is a trust boundary, and the
+security review sees the change.
 
-**Why design and visuals are their own classes.** They were rows inside `writing` and `review`, and
-that made the wrong lane look acceptable. Design work needs a lane that can look at a screen, which
-is nothing to do with how well a lane writes prose; and a picture that must be *invented* needs a
-different capability from a figure that must be *correct*. Folding either into a prose class means
-one ranking decides both, and the one that loses is the one nobody checks.
+## Budget is not in this file
 
-**Why testing is a class, and where it bends.** Writing a test that fails for the right reason is a
-different skill from writing the feature, and a lane that is good at one is often careless at the
-other. One row inside the class needs more than that: automated UI tests need a lane that can see a
-screen and drive a browser. That is a row-level ban in the table, not an eighth-and-a-half class —
-the ranking still holds for the row, minus the lanes that cannot do it.
+Routing is preference; budget is availability. The leader keeps the budget table in the live
+campaign's `README.md`, keyed runner × login, and dispatch filters the order through it: a lane is
+available while any login in its rotation has budget. Two rules the interview states because they
+decide behaviour at 03:00:
 
-The row-to-class mapping is in the `Class` column of [routing-rows.md](routing-rows.md), so the
-expansion is a lookup rather than a judgement.
-
-The owner confirms or reorders the proposed chains on that one screen. The skill then expands
-them into the full row set, applies the global prohibitions, and **shows the whole table for
-row-level edits** — the last screen of the interview. Most rows will be right; the two or three
-that are not are exactly the ones worth a minute.
-
-## Budget is not in this table
-
-Routing is preference; budget is availability. The leader keeps a separate budget table keyed by
-tool × login, and dispatch filters the chain through it: a lane is available while any login in
-its tool's rotation has budget. Two rules the interview should state
-because they decide behaviour at 03:00:
-
-- **Unlimited logins are exempt** from budget tracking entirely, and so is any lane whose tool
-  has one.
+- **Unlimited logins are exempt** from budget tracking entirely.
 - **Unknown is never "out" and never "fine".** A quota entry carries a reset time and expires to
   `unknown`, which means the next real dispatch that prefers that lane finds out. Nothing probes
   in a loop: a probe *is* a first use, and a first use opens a fresh window.
 
-## What is recorded where
+## What is committed
 
-The committed half of the manifest records the table's **shape** — which lanes exist, how rows
-map to classes. The rotation lines, login names and profile values go to the gitignored half. A teammate cloning
-the repository gets a table that explains the project's routing policy without naming anybody's
-logins.
+`.xezar/routing.json` is committed, rotations included. Login IDs are engine account IDs chosen by
+the owner, and `route.mjs --check` refuses one that is an email, a path, or this machine's own user
+name. Emails, real names and folder paths are never committed (`rules.md`).

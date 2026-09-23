@@ -44,7 +44,6 @@
   "engine": { "loopStepThreshold": 20, "executorTier": "standard", "stepReview": "final" },
   "paths": {
     "runs": ".xezar/pipeline/runs",
-    "analysis": ".xezar/pipeline/analysis",
     "specs": ".xezar/pipeline/specs",
     "scripts": ".xezar/pipeline/scripts",
     "qa": ".local/qa"

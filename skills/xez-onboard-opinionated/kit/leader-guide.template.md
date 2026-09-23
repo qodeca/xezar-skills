@@ -43,6 +43,8 @@ After **every** start, resume, clear and compaction, before dispatching anything
 3. Re-read the file-ownership table in `README.md` **before you dispatch**. A compaction loses it first.
 4. Read `.xezar/unattended.json`. **Absent is not `on`**, and a file that will not parse is not
    `on` either — say so and treat the full owner-only list as binding.
+5. Refresh the lane cache and run `node .xezar/checks/route.mjs --check`
+   (`.xezar/docs/routing.md` §2). A refused routing file means nothing is dispatched.
 
 A compaction is not a fresh start. Re-attach to what was already running; do not re-dispatch it.
 
@@ -50,7 +52,7 @@ A compaction is not a fresh start. Re-attach to what was already running; do not
 
 Three loops, data in `.xezar/loops.json`, full text in `.xezar/docs/leader-context-loading.md`.
 Also know `.xezar/docs/campaign-notes.md` (the 120-line README target, why `future-campaign/` is never live) and
-`.xezar/docs/model-routing.md` — consulted on every dispatch to pick a lane: a tool plus a model.
+`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs`.
 
 | Loop | Role | Cadence | May dispatch |
 |---|---|---|---|
@@ -144,6 +146,7 @@ A rule `xez-add-rule` adds lands here in the owner's exact words with `(owner <d
 - [ ] Loops compared against `.xezar/loops.json` and re-created if missing or drifted.
 - [ ] Unattended mode checked; unreadable is **not** `on`.
 - [ ] File-ownership table current **before dispatch**; next item by least file overlap, priority only a tie-break.
+- [ ] Lane taken from `route.mjs <row id>`, first with budget, never the author's; `wait` waits.
 - [ ] Every login verified before dispatch — **never** fall back to the reserved leader login,
       which runs no tasks. A missing login is a stop, not a reason to substitute.
 - [ ] Ceilings respected: 2 gate runs, 10 tasks, 4 metered-tool tasks, load at or below 18.
