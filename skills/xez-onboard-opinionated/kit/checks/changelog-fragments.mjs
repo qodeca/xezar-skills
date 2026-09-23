@@ -20,8 +20,8 @@
 // The refusal of a direct `# Unreleased` edit lives in `changelog-check.sh`, which owns the
 // changelog's heading rules; this script never edits `# Unreleased`.
 
-import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** CHANGELOG.md's own group headings, in the order a release section emits them. */
@@ -400,6 +400,7 @@ function main(argv) {
   return 2;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isMain = (() => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } })();
+if (isMain) {
   process.exit(main(process.argv.slice(2)));
 }

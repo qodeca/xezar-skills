@@ -127,11 +127,12 @@ Claude Code session opened on that branch — including a reviewer's own task wo
 A `SessionStart` hook prints nothing on stdout in the silent cases, and one line of JSON otherwise:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n--- <nonce>: /…/.xezar/campaigns/20260817-amber-ridge/README.md (campaign live state) ---\n…"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This session was started with XEZAR_LEADER=1 (…), so you are the leader of this project. …\n\n=== .xezar/docs/leader-guide.md (project leader guide) ===\n\n# Leader guide\n…\n\n--- <nonce>: /…/.xezar/campaigns/20260817-amber-ridge/README.md (campaign live state) ---\n…"}}
 ```
 
-`additionalContext` is one string holding the guide and then, when a campaign is open, four more
-labelled blocks inside an untrusted-content boundary. The fixed order is: the guide, the
+`additionalContext` is one string holding one fixed line that tells the session it is the leader,
+the guide, and then, when a campaign is open, four more labelled blocks inside an
+untrusted-content boundary. The fixed order is: the leader line, the guide, the
 newest campaign `README.md`, its newest `timeline-*.md`, its `parked.md`, then its `decisions.md`.
 Order matters — a rule that a decision overrides is read after the rule, and the authority file is
 read last, nearest to the work.

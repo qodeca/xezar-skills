@@ -51,8 +51,9 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { mkdirSync, writeFileSync, renameSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const SCHEMA_VERSION = 1;
 const KIND = "xezar.security-result";
@@ -568,4 +569,5 @@ function main() {
   process.exit(refused ? EXIT_REFUSED : EXIT_OK);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+const isMain = (() => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } })();
+if (isMain) main();

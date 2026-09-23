@@ -1,3 +1,33 @@
+# 3.0.1 (2026-09-23)
+
+**Six focused fixes from the first real 3.0.0 onboarding.** No behaviour of an installed project
+changes unless you apply the upgrade notes.
+
+**A second tool can use its built-in login.** The engine gives every tool a login called `default`
+that is in no account file. `route.mjs` refused `default` in every tool's rotation, not only the
+leader's own tool, and it dropped every login when no account file existed. Now only the leader's
+own tool is barred, and `default` always counts as present.
+
+**Four kit scripts ran when reached through a link.** `route.mjs`, `changelog-fragments.mjs`,
+`lib/project-policy.mjs` and `lib/security-scan.mjs` compared an unresolved path to decide whether
+to run. Through a linked `.xezar/checks`, or a path with a space, they did nothing and exited 0 –
+which reads as a pass.
+
+**The smoke test makes a call engine 0.19.0 accepts.** It sent `agentProfile` with inline steps,
+which the engine refuses. It now sends only `runner` and `model`, reads the login back from
+`profileId`, and checks every other rotation login with `check_account_status` – a login nobody
+signed in to is now a ❌, not a hidden pass.
+
+**The engine's lock and backup files stay out of git.** `.xezar/.gitignore` and the bootstrap
+exclude list now cover `workspace.json.*`, `workspace-ui.json.*` and `agent-accounts.json.*`.
+
+**The bootstrap prompt drops its own engine entry.** The final "ready" text tells you to run
+`claude mcp remove --scope local xezar` before you start the leader; the committed `.mcp.json`
+keeps the engine.
+
+**The leader is told it is the leader.** The session-start hook now opens with one fixed line: this
+session was started with `XEZAR_LEADER=1`, so it is the leader.
+
 # 3.0.0 (2026-09-23)
 
 **The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with

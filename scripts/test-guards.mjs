@@ -190,6 +190,38 @@ breaks(
 );
 
 breaks(
+  "a smoke test that sends agentProfile with inline steps is rejected",
+  "skills/xez-onboard-opinionated/references/smoke-test.md",
+  (s) => s.replace("Give each step only `runner` and `model`:", "Give each step `runner`, `model` and `agentProfile: \"<login>\"`:"),
+  () => script("test-kit-facts.mjs"),
+  "sends agentProfile, worktree or autonomous with inline steps",
+);
+
+breaks(
+  "an ignore file that lets the engine's lock and backup files into git is rejected",
+  "skills/xez-onboard-opinionated/kit/xezar.gitignore",
+  (s) => s.replace("/workspace.json.*\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "does not ignore /workspace.json.*",
+);
+
+breaks(
+  "a bootstrap prompt that never drops the setup's own engine entry is rejected",
+  "docs/bootstrap-prompt.md",
+  (s) => s.replace("   run claude mcp remove --scope local xezar (the committed .mcp.json keeps the engine), then start the leader\n", "   then start the leader\n"),
+  () => script("test-compat-pins.mjs"),
+  "the prompt lost the rule \"run claude mcp remove --scope local xezar\"",
+);
+
+breaks(
+  "a leader hook that never tells the leader it is the leader is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace(/^  printf '%s\\n\\n' 'This session was started with XEZAR_LEADER=1.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "does not tell the leader session it is the leader",
+);
+
+breaks(
   "calling a committed campaign file runtime is rejected",
   "skills/xez-onboard-opinionated/kit/docs/leader-context-loading.md",
   (s) => `${s}\n| \`.xezar/campaigns/x/README.md\` | live state | no — runtime |\n`,
@@ -950,6 +982,23 @@ breaks(
   (s) => s.replace("if (errors.length) { process.stderr.write(`route: ${path} is refused", "if (false) { process.stderr.write(`route: ${path} is refused"),
   () => script("test-kit-catalog.mjs"),
   "route --check passed a broken working-tree file",
+);
+
+breaks(
+  "route that refuses the leader's login in every tool's rotation is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("const own = has(tools, file.leader.tool) ? tools[file.leader.tool] : null;\n    if (Array.isArray(own?.rotation) && own.rotation.includes(file.leader.login))",
+    "for (const own of Object.values(tools)) if (Array.isArray(own?.rotation) && own.rotation.includes(file.leader.login))"),
+  () => script("test-kit-catalog.mjs"),
+  "route check refuses codex rotation [\"default\"] with a claude leader",
+);
+
+breaks(
+  "a kit script that does nothing when reached through a link is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (isMain) main(process.argv.slice(2));", "if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) main(process.argv.slice(2));\nimport { pathToFileURL } from \"node:url\";"),
+  () => script("test-kit-catalog.mjs"),
+  "kit/checks/route.mjs run through a link did not run",
 );
 
 breaks(

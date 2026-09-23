@@ -31,7 +31,7 @@
 // Run: node scripts/test-kit-catalog.mjs
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -181,7 +181,7 @@ for (const name of routed) {
 // --- 3b. The routing file passes its own check, and agrees with the schema and the catalog -------
 {
   const ROUTE = join(KIT, "checks/route.mjs");
-  const { KNOWN, readingRow } = await import(pathToFileURL(ROUTE).href);
+  const { KNOWN, readingRow, check } = await import(pathToFileURL(ROUTE).href);
   try {
     execFileSync("node", [ROUTE, "--check", join(KIT, "routing.json")], { encoding: "utf8", stdio: "pipe" });
   } catch (error) {
@@ -235,6 +235,28 @@ for (const name of routed) {
     for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
   } catch (error) {
     fail(`route --rows failed:\n${error.stderr ?? ""}`);
+  }
+  // The engine's built-in login `default` exists for every tool and is in no account file. The
+  // leader's login is refused only in the leader's own tool; another tool may rotate on `default`.
+  {
+    const own = structuredClone(routing);
+    own.tools.codex.rotation = ["default"];
+    const ownErrors = check(own).errors;
+    if (ownErrors.length) fail(`route check refuses codex rotation ["default"] with a claude leader:\n${ownErrors.join("\n")}`);
+    own.tools.claude.rotation = ["default"];
+    if (!check(own).errors.some((e) => e.includes("tools.claude.rotation"))) fail("route check lets the leader's own login into the leader's tool rotation");
+    const bare = join(lab, "bare");
+    mkdirSync(join(bare, ".xezar"), { recursive: true });
+    writeFileSync(join(bare, ".xezar/workspace.json"), "{}\n");
+    own.tools.claude.rotation = [];
+    writeFileSync(join(bare, ".xezar/routing.json"), JSON.stringify(own));
+    try {
+      const out = execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", "multi-file-implementation"], {
+        cwd: bare, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+      if (!/^lane=codex\/\S+ runner=codex .* logins=default$/m.test(out)) fail(`route drops the built-in default login when no account file exists:\n${out}`);
+    } catch (error) {
+      fail(`route refused a codex rotation of ["default"] with no account file:\n${error.stderr ?? error.message}`);
+    }
   }
   // A staged single-project workspace: two logins, one program missing.
   try {
@@ -324,6 +346,41 @@ for (const name of routed) {
     }
   } catch (error) {
     fail(`the staged route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// --- 3c. The kit's node scripts run when reached through a link, or a path with a space ----------
+// A script that asks "am I the main module" by comparing an unresolved path does nothing at all,
+// and exits 0, when `.xezar/checks` is a link -- which reads as a pass.
+{
+  const lab = mkdtempSync(join(tmpdir(), "kit-main-"));
+  try {
+    const real = join(lab, "with space", "checks");
+    mkdirSync(join(lab, "with space"), { recursive: true });
+    cpSync(join(KIT, "checks"), real, { recursive: true });
+    symlinkSync(real, join(lab, "link"), "dir");
+    mkdirSync(join(lab, "empty"));
+    for (const base of [join(lab, "link"), real]) {
+      const node = (script, args, input) => {
+        try {
+          return { code: 0, out: execFileSync("node", [join(base, script), ...args], { cwd: lab, input: input ?? "", encoding: "utf8", stdio: "pipe" }) };
+        } catch (error) {
+          return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+        }
+      };
+      const cases = [
+        ["route.mjs", ["--check", join(KIT, "routing.json")], undefined, (r) => r.code === 0 && /route: ok –/.test(r.out)],
+        ["lib/project-policy.mjs", [], '{"labels":[]}', (r) => r.code === 0 && r.out.includes('{"passed":true}')],
+        ["changelog-fragments.mjs", ["--check", join(lab, "empty")], undefined, (r) => r.code === 0 && /changelog-fragments: OK/.test(r.out)],
+        ["lib/security-scan.mjs", [], undefined, (r) => r.code !== 0 && /--cwd is required/.test(r.out)],
+      ];
+      for (const [script, args, input, ok] of cases) {
+        const r = node(script, args, input);
+        if (!ok(r)) fail(`kit/checks/${script} run through ${base === real ? "a path with a space" : "a link"} did not run (exit ${r.code}): ${r.out.trim() || "(no output)"}`);
+      }
+    }
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }

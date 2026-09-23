@@ -27,9 +27,16 @@ work. What needs proving splits cleanly in two, and only one half needs an agent
 workflow: the kit's worktree preflight, then **one** agent step on the first lane
 `node .xezar/checks/route.mjs --file .xezar/routing.json evidence-pass` lists – that row's order
 starts with the cheapest lanes – told to append one line to a scratch file under `.local/xezar/scratch/`, then the
-evidence step. Name the `agentProfile` explicitly — **never the default, and never the leader's
-login**. This proves dispatch, the worktree, the account, the permission file, and — when the
+evidence step. Give each step only `runner` and `model`: with inline steps the engine refuses `agentProfile`, `worktree` and `autonomous`.
+So the agent step runs on the login this project selected for that step's tool (`get_account` →
+`accounts`). Read the agent step's `profileId` from `task_read view=task` and name it in the report.
+This proves dispatch, the worktree, the account, the permission file, and — when the
 task changes state — one pushed event (`references/verify.md` §2).
+
+Then, with no tokens spent: for each tool with `usesLogins: true`, call `project_config
+check_account_status {provider, accountId, refresh: true}` for every other login of its rotation.
+Any status other than `connected` is ❌ — a login nobody signed in to fails here, not on the first
+real task.
 
 **Tier 2 — the gates and the tracker flow work.** No agent. On a scratch branch with a one-line
 change: run `.xezar/checks/repo-gates.sh` as a plain command — it prints `run id none — standalone
