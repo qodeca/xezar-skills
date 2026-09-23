@@ -17,6 +17,20 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-23 – my routing still sends Codex work to GPT-5.6 Sol and Luna
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – `route.mjs` prints `codex/gpt-5.6-sol` or `codex/gpt-5.6-luna` lanes.** The shipped
+defaults (version 2) route that work to `codex/gpt-6-sol` and `codex/gpt-6-luna`, which cost half
+as much. Your `.xezar/routing.json` still says `defaults.version: 1`.
+
+**What to do.** Run `/xez-onboard-opinionated --section routing`. It compares your file, the
+version 1 defaults and the version 2 defaults, keeps your own edits, offers the model swap, and
+opens a pull request. Your Codex CLI must list GPT-6 Sol and Luna (0.156.1 or later).
+
+**What you lose by skipping it.** Nothing breaks. Codex work stays on the older, pricier models.
+
 ## 2026-09-23 – the leader session says it is not the leader
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.

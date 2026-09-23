@@ -81,7 +81,7 @@ Then start the task with the lane's `runner` and `model`, and the login as `agen
 
 ```text
 task_create { runner: "claude", model: "opus[1m]",    agentProfile: "<login>", … }
-task_create { runner: "codex",  model: "gpt-5.6-sol", agentProfile: "<login>", … }
+task_create { runner: "codex",  model: "gpt-6-sol",   agentProfile: "<login>", … }
 task_create { runner: "pi",     model: "deepseek-api/deepseek-flash", … }
 ```
 

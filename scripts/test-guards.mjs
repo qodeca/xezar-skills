@@ -840,9 +840,9 @@ breaks(
 breaks(
   "a cheap lane in the security review is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("security-review").lanes.push("codex/gpt-5.6-luna"); }),
+  routingEdit((f, row) => { row("security-review").lanes.push("codex/gpt-6-luna"); }),
   () => script("test-kit-catalog.mjs"),
-  '"codex/gpt-5.6-luna" is a cheap lane',
+  '"codex/gpt-6-luna" is a cheap lane',
 );
 
 breaks(

@@ -287,7 +287,7 @@ for (const name of routed) {
     const lanes = cold.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
     if (lanes.join(",") !== "claude/opus,claude/sonnet") fail(`route full-cold-review with codex missing gave [${lanes}], expected claude/opus,claude/sonnet`);
     const build = run("multi-file-implementation");
-    if (!/removed=codex\/gpt-5\.6-sol reason=the codex program is not installed here/.test(build)) fail("route does not say why it removed a lane whose program is missing");
+    if (!/removed=codex\/gpt-6-sol reason=the codex program is not installed here/.test(build)) fail("route does not say why it removed a lane whose program is missing");
     if (!/^lane=claude\/opus runner=claude model=opus\[1m\] /m.test(build)) fail("route does not print a lane's engineModel as the model to dispatch");
     if (!/logins=acct-one\b/.test(cold) || /acct-two/.test(cold)) fail("route does not narrow a rotation to the logins this machine has");
     if (!/^wait=a security or release row is never dispatched on unverified availability/m.test(run("security-review"))) fail("route dispatches a security row with no availability cache");
