@@ -70,11 +70,12 @@ Take the **first** `lane=` line that passes both checks:
   different vendor when a lane of one has budget, and never on the author's login.
   `never-author` and `never-claimant`: not the lane or login that wrote the work or made the
   claim.
-- **Same vendor, for now.** Only lanes tagged `enforcesToolLimits` may run a reading or security
-  row, and today those are Claude lanes only: Codex is confined, not held read-only, and pi drops
-  its shell. So Claude's work is reviewed by a different Claude model. The owner accepted this
-  until another runner holds a reviewer read-only. The reviewer then reports "confirmed, same
-  vendor"; that is expected, not a failure.
+- **Mostly same vendor, for now.** Only lanes tagged `enforcesToolLimits` may run a reading or
+  security row. Claude and Codex hold a reviewer read-only; pi does not yet. The shipped defaults
+  tag one Codex lane, `codex/gpt-6-astra`, and list it only in the security review, as the fallback
+  after `claude/opus`. Every other review is Claude's work reviewed by a different Claude model,
+  which the owner accepted. The reviewer then reports "confirmed, same vendor"; that is expected,
+  not a failure.
 
 Then start the task with the lane's `runner` and `model`, and the login as `agentProfile`:
 

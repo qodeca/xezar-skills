@@ -497,6 +497,25 @@ for (const name of ["settings.json", "settings.local.json"]) {
   }
 }
 
+// A project's own Codex rules re-widen a reading step the same way: an exec-policy rule in
+// `.codex/rules/*.rules` whose decision is "allow" (the default when none is given) runs its command
+// outside the sandbox with no approval, and the engine cannot switch the layer off (xezar #862). So
+// every `prefix_rule` here must say "prompt" or "forbidden" in plain text.
+const codexRules = join(root, ".codex", "rules");
+if (existsSync(codexRules)) {
+  for (const name of readdirSync(codexRules).filter((f) => f.endsWith(".rules")).sort()) {
+    const text = readFileSync(join(codexRules, name), "utf8").replace(/#.*$/gm, "");
+    const calls = text.split(/\bprefix_rule\s*\(/).slice(1);
+    if (calls.length === 0 && text.trim() !== "") err(`.codex/rules/${name}`, "has no prefix_rule this check can read; write each rule as a plain prefix_rule(...) call");
+    for (const call of calls) {
+      const decision = /\bdecision\s*=\s*["']([a-z]+)["']/.exec(call)?.[1];
+      if (decision !== "prompt" && decision !== "forbidden") {
+        err(`.codex/rules/${name}`, `has a prefix_rule with decision ${decision ? `"${decision}"` : "missing (allow)"}, which runs a reading step's command outside its sandbox; use "prompt" or "forbidden"`);
+      }
+    }
+  }
+}
+
 // Every skill file must be well-formed. That is the whole scope, and the comment used to claim
 // more than the code does: it said every skill must be "reachable", which no loop below checks.
 // It is not checked because it would be wrong to check — a skill named by no workflow is normal

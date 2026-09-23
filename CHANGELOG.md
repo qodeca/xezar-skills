@@ -27,9 +27,11 @@ shipped routing instead of building a table, and `--section routing` migrates an
 matches or beats Fable 5.1 on most published coding, review and knowledge-work tests at 40% of its
 price. The `claude/opus` lane is now `very-strong` and comes first in the 13 rows GPT-5.6 sol used
 to lead – specs, refactors, multi-file work, design review and acceptance among them – with sol
-second. Security review may now fall back to `claude/fable`, because Anthropic re-routes most
-cyber-security work on Opus 5.5 to an older Opus. A lane note tells the leader to send "continue"
-when an unattended Opus 5.5 run ends with only a progress note.
+second. `claude/fable` is gone from the defaults: Opus 5.5 is faster and cheaper for the same
+work. GPT-6 astra stays for every kind of generated image and as the by-hand escalation lane, and
+is now the automatic fallback for security review, because Anthropic re-routes most cyber-security
+work on Opus 5.5 to an older Opus. A lane note
+tells the leader to send "continue" when an unattended Opus 5.5 run ends with only a progress note.
 
 **Reviewers really read.** Code review, architecture review, security review, business analysis and
 issue triage run with a short list of allowed commands. On engine 0.19.0 Claude enforces that list
@@ -38,9 +40,10 @@ verdict packet and evidence, `gh-write.sh` for a comment or a label change on th
 (it never adds an approval label and never lifts a blocking one), and `phase-record.sh`. Git is read
 through `git-read.sh`, which refuses every flag that can write or run a program. The kit's checker
 refuses a reading step with a writing command, and a Bash rule in the project's own
-`.claude/settings*.json` that would widen every reviewer's shell. Codex and pi lanes leave the
-reading and release rows until their runner enforces the list too, so for now a different Claude
-model reviews Claude's work, and the reviewer says "same vendor".
+`.claude/settings*.json` that would widen every reviewer's shell. On 0.19.0 Codex enforces the list
+too, and the checker refuses a `.codex/rules/*.rules` rule that allows a command. pi lanes leave
+the reading and release rows until its lock is proven live. Most reviews are still a different
+Claude model reviewing Claude's work, and the reviewer says "same vendor".
 
 **Verdicts carry their role.** Engine 0.19.0 records a verdict packet only from a workflow step that
 declares `verdictRole`. The code review, design review and QA workflows declare it, and the checker
@@ -62,7 +65,7 @@ moved to the supported form the day it existed.
 skill ever read it. A config that still has the key keeps working.
 
 More files are trust boundaries, so a change to them needs a security review: the routing file and
-its schema, `loops.json`, `.xezar/docs/`, `.xezar/skills/` and `.claude/settings*.json`.
+its schema, `loops.json`, `.xezar/docs/`, `.xezar/skills/`, `.claude/settings*.json` and `.codex/`.
 
 # 2.1.1 (2026-09-22)
 

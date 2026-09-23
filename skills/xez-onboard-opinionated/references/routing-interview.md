@@ -36,8 +36,8 @@ only, which is single purpose, and which should not be used at all?* The answers
 - a lane's `enabled: false` for a model not to be used here;
 - the seven tags for a lane analysis found that the defaults do not have – asked on this screen,
   never guessed, because a wrong `vision` or `enforcesToolLimits` puts it in a row it must not
-  reach. `enforcesToolLimits` is asked only for a `claude` lane: on any other runner it is `false`,
-  and `route.mjs --check` refuses `true`;
+  reach. `enforcesToolLimits` is asked only for a `claude` or `codex` lane: on any other runner it is
+  `false`, and `route.mjs --check` refuses `true`;
 - `reservedLanes` for a model kept for escalation or for one purpose.
 
 **Screen 5 (`table`)** shows the result for row-level edits:

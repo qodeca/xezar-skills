@@ -732,6 +732,14 @@ breaks(
 );
 
 breaks(
+  "a Codex rule that allows a command is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('if (decision !== "prompt" && decision !== "forbidden") {', 'if (decision !== "prompt" && decision !== "forbidden" && decision !== "allow" && decision !== undefined) {'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a Codex prefix_rule",
+);
+
+breaks(
   "kit Claude settings that allow a broad Bash rule are rejected",
   "skills/xez-onboard-opinionated/kit/claude/settings.json",
   (s) => s.replace('{\n  "hooks"', '{\n  "permissions": { "allow": ["Bash(npm test:*)"] },\n  "hooks"'),
@@ -745,6 +753,14 @@ breaks(
   (s) => s.replace(/^  \{ pattern: \/\^\\\.claude.*\n/m, ""),
   () => script("test-kit-facts.mjs"),
   "TRUST_BOUNDARIES no longer names .claude/settings.json",
+);
+
+breaks(
+  "dropping .codex/ from the trust boundaries is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs",
+  (s) => s.replace(/^  \{ pattern: \/\^\\\.codex.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "TRUST_BOUNDARIES no longer names .codex/",
 );
 
 breaks(
@@ -784,7 +800,7 @@ breaks(
 breaks(
   "a reserved lane in an ordinary row is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("docs-writing").lanes.unshift("claude/fable"); }),
+  routingEdit((f, row) => { row("docs-writing").lanes.unshift("codex/gpt-6-astra"); }),
   () => script("test-kit-catalog.mjs"),
   "is reserved and this row is not one of its rows",
 );
@@ -830,11 +846,11 @@ breaks(
 );
 
 breaks(
-  "a codex lane that claims to enforce tool limits is rejected",
+  "a pi lane that claims to enforce tool limits is rejected",
   ROUTING,
-  routingEdit((f) => { f.lanes["codex/gpt-5.6-sol"].enforcesToolLimits = true; }),
+  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].enforcesToolLimits = true; }),
   () => script("test-kit-catalog.mjs"),
-  "the codex runner does not hold a reading step read-only",
+  "the pi runner does not hold a reading step read-only",
 );
 
 breaks(
@@ -877,7 +893,7 @@ breaks(
   ROUTE_MJS,
   (s) => s.replace("const ban = banReasons(rowById, row, id, lane, { advisory })[0];", "const ban = escalation ? undefined : banReasons(rowById, row, id, lane, { advisory })[0];"),
   () => script("test-kit-catalog.mjs"),
-  "route offers a codex escalation lane on a reading row",
+  "route offers an escalation lane without tool limits on a reading row",
 );
 
 breaks(

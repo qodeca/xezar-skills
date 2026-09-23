@@ -54,9 +54,10 @@ const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // must still state them, so the leader reads the same rule this script applies.
 const FILE_BANS = ["local-never-writes", "tool-limits"];
 // The runners that hold a reading step read-only on the engine floor (0.19.0): Claude removes the
-// file tools and applies the allowlist. Codex is only confined and pi drops its shell, so a lane on
-// them that claims `enforcesToolLimits` is refused: the tag is a fact about the runner, not a wish.
-const ENFORCING_RUNNERS = new Set(["claude"]);
+// file tools and applies the allowlist, and Codex denies any other command or patch through a
+// per-thread PreToolUse hook (qodeca/xezar#863). pi is not listed until its lock is proven live, so
+// a pi lane that claims `enforcesToolLimits` is refused: the tag is a fact about the runner, not a wish.
+const ENFORCING_RUNNERS = new Set(["claude", "codex"]);
 // A row that runs one of these workflows is a security or release row whatever its `class` says,
 // so a file cannot drop the security minimums by renaming a row's class.
 const SECURITY_WORKFLOWS = new Set(["security-review.yaml", "release.yaml", "release-prep.yaml", "deploy.yaml"]);

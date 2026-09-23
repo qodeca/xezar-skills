@@ -25,17 +25,6 @@
     }
   },
   "lanes": {
-    "claude/fable": {
-      "tool": "claude",
-      "model": "fable",
-      "vendor": "anthropic",
-      "tier": "very-strong",
-      "vision": true,
-      "imageGeneration": false,
-      "local": false,
-      "enforcesToolLimits": true,
-      "advisoryOnly": false
-    },
     "claude/opus": {
       "tool": "claude",
       "model": "opus",
@@ -81,7 +70,7 @@
       "vision": true,
       "imageGeneration": true,
       "local": false,
-      "enforcesToolLimits": false,
+      "enforcesToolLimits": true,
       "advisoryOnly": false
     },
     "codex/gpt-5.6-sol": {
@@ -155,17 +144,12 @@
     }
   },
   "reservedLanes": {
-    "claude/fable": {
-      "escalation": true,
-      "rows": [
-        "security-review"
-      ]
-    },
     "codex/gpt-6-astra": {
       "escalation": true,
       "rows": [
         "generated-images",
-        "diagrams"
+        "diagrams",
+        "security-review"
       ]
     }
   },
@@ -478,7 +462,7 @@
         "when": "always"
       },
       "notes": [
-        "Work larger than one sitting may escalate to claude/fable or codex/gpt-6-astra."
+        "Work larger than one sitting may escalate to codex/gpt-6-astra."
       ]
     },
     {
@@ -521,7 +505,7 @@
         }
       ],
       "notes": [
-        "May escalate to claude/fable or codex/gpt-6-astra."
+        "May escalate to codex/gpt-6-astra."
       ]
     },
     {
@@ -832,9 +816,6 @@
           "lane": "pi/deepseek-api/deepseek-flash",
           "why": "owner's preference"
         }
-      ],
-      "notes": [
-        "Escalate to claude/fable only if opus at high effort fell short twice."
       ]
     },
     {
@@ -911,10 +892,6 @@
         },
         {
           "lane": "claude/opus",
-          "why": "owner's preference"
-        },
-        {
-          "lane": "claude/fable",
           "why": "owner's preference"
         }
       ],
@@ -1357,10 +1334,10 @@
       ],
       "class": "security-and-release",
       "writes": false,
-      "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings.json or settings.local.json.",
+      "trigger": "The diff touches auth, secrets, permissions, anything reachable from outside, or what the pipeline trusts: a deploy target, the base branch, CI, .xezar/workflows, checks, docs or skills, .xezar/routing.json, routing.schema.json or loops.json, or .claude/settings*.json or .codex/.",
       "lanes": [
         "claude/opus",
-        "claude/fable"
+        "codex/gpt-6-astra"
       ],
       "never": [
         {
@@ -1391,8 +1368,8 @@
         "full-cold-review"
       ],
       "notes": [
-        "Anthropic re-routes most cyber-security work on Opus 5.5 to an older Opus; when the run reports a re-route or a refusal, re-dispatch the same brief on claude/fable.",
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Anthropic re-routes most cyber-security work on Opus 5.5 to an older Opus; when the run reports a re-route or a refusal, re-dispatch the same brief on codex/gpt-6-astra.",
+        "pi lanes leave this row until their runner's read-only lock is proven live; codex/gpt-6-astra is the one Codex lane here."
       ]
     },
     {

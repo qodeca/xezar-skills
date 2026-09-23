@@ -134,8 +134,11 @@ xezar --version     # must print 0.19.0 or later
 **Why the floor moved.** 0.19.0 is the first engine that makes a reading step read-only: on Claude
 it removes the Edit and Write tools, and turns the step's `bashAllowlist` into Claude permission
 rules. A `permissions.allow` Bash rule in the project's `.claude/settings*.json` still widens those
-rules, so the kit's catalog check now refuses one that is not a reading command. The shipped routing
-marks the Claude lanes as enforcing because of that, and puts only them on review and release work.
+rules, so the kit's catalog check now refuses one that is not a reading command. On Codex it denies
+any other command through a hook; a project's `.codex/rules/*.rules` rule with decision `allow`
+still runs its command outside the sandbox, so the check refuses any decision but `prompt` or
+`forbidden`. The shipped routing marks the Claude lanes and `codex/gpt-6-astra` as enforcing
+because of that, and puts only them on review and release work.
 On an older engine those rows would run a reviewer that can still write.
 
 **What you lose by skipping it.** The skill, for now. Staying on xezar-skills 2.1.1 is a real

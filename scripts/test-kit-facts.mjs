@@ -630,6 +630,8 @@ function walk(rel, match) {
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/workflows/ and .xezar/checks/ -- a PR that loosens a reading step passes as an ordinary edit");
   if (!scan.includes("/^\\.claude\\/settings(\\.local)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .claude/settings.json -- a PR could widen every reading step's shell as an ordinary edit");
+  if (!scan.includes("/^\\.codex\\//"))
+    fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .codex/ -- a PR could add a Codex allow rule, config or hook as an ordinary edit");
   const ghWrite = read(`${SKILL}/kit/checks/gh-write.sh`);
   if (!/^NEVER_ADD=".*qa-approved.*design-approved.*"$/m.test(ghWrite) || !/^NEVER_REMOVE=".*blocked.*do-not-merge.*"$/m.test(ghWrite))
     fail(fact, "kit/checks/gh-write.sh", "it no longer refuses an approval label or the removal of a blocking one -- a reviewer could pass the merge gate on its own word");
@@ -642,8 +644,8 @@ function walk(rel, match) {
 
 // ---------------------------------------------------------------------------
 // FACT 17 -- routing decides which model may review or ship a change, so the file and the script
-// hold the floor together. The shipped rows state the security minimums, the owner's two reserved
-// lanes stay reserved (Fable may run security-review only: Anthropic re-routes cyber work on Opus 5.5), the route script enforces the minimums whatever a project's file says, and
+// hold the floor together. The shipped rows state the security minimums, the owner's reserved
+// lane stays reserved, the route script enforces the minimums whatever a project's file says, and
 // a pull request that edits the routing file is a trust-boundary change.
 // ---------------------------------------------------------------------------
 {
@@ -656,12 +658,10 @@ function walk(rel, match) {
       fail(fact, "kit/routing.json", `row ${row.id} lost a security minimum (neverAuthor, no handledBy, bans ${missing.join(" ") || "all present"})`);
   }
   const reserved = routing.reservedLanes ?? {};
-  if (reserved["claude/fable"]?.escalation !== true || JSON.stringify(reserved["claude/fable"]?.rows) !== '["security-review"]')
-    fail(fact, "kit/routing.json", "claude/fable is no longer reserved to security-review, plus escalation");
-  if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams"]')
-    fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images and diagrams, plus escalation");
+  if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams","security-review"]')
+    fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images, diagrams and security-review, plus escalation");
   const route = read(`${SKILL}/kit/checks/route.mjs`);
-  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude"\]\);$/m.test(route))
+  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude", "codex"\]\);$/m.test(route))
     fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans, the security minimums and the enforcing-runner list itself -- a project's file could drop them");
   if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");

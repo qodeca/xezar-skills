@@ -65,6 +65,25 @@ try {
   } catch (error) {
     fail(`the kit's catalog-check refuses the kit:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
   }
+  // A project's Codex exec-policy rules: "prompt" and "forbidden" pass, "allow" or no decision is refused.
+  mkdirSync(join(stage, ".codex/rules"), { recursive: true });
+  const codexRule = join(stage, ".codex/rules/project.rules");
+  writeFileSync(codexRule, '# reading only\nprefix_rule(pattern=["git", "push"], decision="forbidden")\nprefix_rule(pattern=["npm"], decision="prompt")\n');
+  try {
+    execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    fail(`catalog-check refuses Codex rules that only prompt or forbid:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+  }
+  for (const [label, rule] of [["allow", 'prefix_rule(pattern=["npm", "test"], decision="allow")\n'], ["no decision", 'prefix_rule(pattern=["npm", "test"])\n']]) {
+    writeFileSync(codexRule, rule);
+    let out = "";
+    try {
+      execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
+    } catch (error) {
+      out = (error.stdout ?? "") + (error.stderr ?? "");
+    }
+    if (!/runs a reading step's command outside its sandbox/.test(out)) fail(`catalog-check accepts a Codex prefix_rule with ${label}, which runs a reading step's command outside its sandbox`);
+  }
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
@@ -204,11 +223,18 @@ for (const name of routed) {
     cache(new Date(Date.now() + 3600 * 1000).toISOString(), {});
     if (!/^availability=unverified reason=the lane cache is not valid and is ignored \(checkedAt is in the future\)/m.test(run("full-cold-review"))) fail("route trusts a lane cache dated in the future");
     cache(now, {});
-    // An escalation lane meets every ban a listed lane meets: never a codex lane on a reading row.
-    const esc = execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", "full-cold-review"], {
+    // An escalation lane meets every ban a listed lane meets: never a lane without tool limits on a reading row.
+    const noLimits = structuredClone(copy);
+    noLimits.lanes["codex/gpt-6-astra"].enforcesToolLimits = false;
+    noLimits.rows.find((row) => row.id === "security-review").lanes = ["claude/opus"];
+    noLimits.reservedLanes["codex/gpt-6-astra"].rows = noLimits.reservedLanes["codex/gpt-6-astra"].rows.filter((id) => id !== "security-review");
+    writeFileSync(join(project, ".xezar/routing-no-limits.json"), JSON.stringify(noLimits));
+    const esc = execFileSync("node", [ROUTE, "--file", ".xezar/routing-no-limits.json", "full-cold-review"], {
       cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
-    if (/^escalation=codex\//m.test(esc)) fail("route offers a codex escalation lane on a reading row, where tool limits ban it");
-    if (!/^escalation=claude\/fable .* by=hand$/m.test(esc)) fail("route no longer offers the reserved claude/fable lane for escalation by hand");
+    if (/^escalation=codex\//m.test(esc)) fail("route offers an escalation lane without tool limits on a reading row, where tool limits ban it");
+    const escWrite = execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", "analysis-specs-research"], {
+      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+    if (!/^escalation=codex\/gpt-6-astra .* by=hand$/m.test(escWrite)) fail("route no longer offers the reserved codex/gpt-6-astra lane for escalation by hand on a writing row");
     if (!/"constructor" is not a row/.test(runFails("--file", ".xezar/routing.json", "constructor"))) fail("route answers a row id that only Object.prototype has");
 
     const rowsOut = run("--rows");

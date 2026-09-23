@@ -100,6 +100,7 @@ const TRUST_BOUNDARIES = [
   { pattern: /^\.xezar\/loops\.json$/, why: "what the leader does unattended, and how often" },
   { pattern: /^\.xezar\/(docs|skills)\//, why: "the instructions every leader and role agent follows" },
   { pattern: /^\.claude\/settings(\.local)?\.json$/, why: "a permissions.allow rule here widens what a reading step's shell may run" },
+  { pattern: /^\.codex\//, why: "a Codex rule, config or hook here can run a reading step's command outside its sandbox" },
   { pattern: /(^|\/)\.env\.example$/, why: "the env contract" },
 ];
 
