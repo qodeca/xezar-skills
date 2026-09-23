@@ -17,6 +17,118 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-23 – my routing still sends Codex work to GPT-5.6 Sol and Luna
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – `route.mjs` prints `codex/gpt-5.6-sol` or `codex/gpt-5.6-luna` lanes.** The shipped
+defaults (version 2) route that work to `codex/gpt-6-sol` and `codex/gpt-6-luna`, which cost half
+as much. Your `.xezar/routing.json` still says `defaults.version: 1`.
+
+**What to do.** Run `/xez-onboard-opinionated --section routing`. It compares your file, the
+version 1 defaults and the version 2 defaults, keeps your own edits, offers the model swap, and
+opens a pull request. Your Codex CLI must list GPT-6 Sol and Luna (0.156.1 or later).
+
+**What you lose by skipping it.** Nothing breaks. Codex work stays on the older, pricier models.
+
+## 2026-09-23 – the leader session says it is not the leader
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – a leader started with `XEZAR_LEADER=1` doubts its role**, because the project's own
+`CLAUDE.md` says only the launcher starts the leader. The hook loaded the guide but never said why.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/leader-context.sh .xezar/checks/
+cp $K/docs/leader-context-loading.md .xezar/docs/
+```
+
+If `.xezar/onboarding.json` records a digest for a copied file, refresh it.
+
+**What you lose by skipping it.** The leader may refuse to lead until you tell it to.
+
+## 2026-09-23 – "Another client already uses this project" when the leader starts
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – the leader cannot attach to the engine.** The bootstrap registered the engine in your
+own Claude Code settings, and setup committed the same entry in `.mcp.json`. Nothing removed the
+first one. Another session still open in the folder gives the same message.
+
+**What to do.** Close every other Claude Code session in the folder. Then, outside any session:
+
+```bash
+claude mcp remove --scope local xezar
+```
+
+The committed `.mcp.json` keeps the engine.
+
+**What you lose by skipping it.** Nothing if it works today. The two entries name the same
+package, but a leader may report the project as occupied.
+
+## 2026-09-23 – `git status` shows `.xezar/workspace.json.bak` or `.lock` files
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – engine files appear as untracked.** Every engine settings write leaves backup, lock and
+temp files beside `workspace.json` and `agent-accounts.json`. They hold this machine's paths.
+
+**What to do.** Add these lines to `.xezar/.gitignore`:
+
+```
+/workspace.json.*
+/workspace-ui.json.*
+/agent-accounts.json.*
+```
+
+**What you lose by skipping it.** A `git add .` can commit this machine's paths and accounts.
+
+## 2026-09-23 – a kit check passes but printed nothing
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – `route.mjs`, `changelog-fragments.mjs`, `project-policy.mjs` or `security-scan.mjs`
+exits 0 with no output** when `.xezar/checks` is reached through a link, or the path has a space.
+The script never ran.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/route.mjs $K/checks/changelog-fragments.mjs .xezar/checks/
+cp $K/checks/lib/project-policy.mjs $K/checks/lib/security-scan.mjs .xezar/checks/lib/
+```
+
+If `.xezar/onboarding.json` records a digest for a copied file, refresh it.
+
+**What you lose by skipping it.** A check that did not run reads as a pass.
+
+## 2026-09-23 – `route.mjs` refuses `default` in a second tool's rotation
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
+
+**Symptom – `route --check` says a rotation "holds the leader's own login "default""** for a tool
+that is not the leader's, or a Codex lane prints no `logins=` when there is no account file. The
+engine's built-in `default` login exists for every tool; only the leader's own tool must not rotate
+on it.
+
+**What to do.**
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/route.mjs .xezar/checks/
+cp $K/routing.schema.json .xezar/
+cp $K/docs/routing.md .xezar/docs/
+```
+
+If `.xezar/onboarding.json` records a digest for a copied file, refresh it.
+
+**What you lose by skipping it.** A second tool needs a named extra login, even when its built-in
+login would do.
+
 ## 2026-09-22 – gate runs collide again after an engine upgrade
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.0.

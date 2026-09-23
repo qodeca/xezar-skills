@@ -25,7 +25,8 @@ the whole point:
 - **A login the owner chose is gone, or its provider changed.** Hard stop, re-ask screen 3. This is
   the same defect `references/verify.md` §3 describes finding in a real test — a default naming a
   login the registry does not contain — and it surfaces as a task that fails at dispatch with
-  nothing to point at. Cheap to catch here; expensive to debug later.
+  nothing to point at. Cheap to catch here; expensive to debug later. A tool's built-in `default`
+  is in no registry, so it is never counted as gone.
 
 Comparing **ids and providers only**. Never a label, and never anything from inside a profile.
 

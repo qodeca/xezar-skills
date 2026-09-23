@@ -1,5 +1,6 @@
 // Xezar SDLC's additional project merge gate. Hosting policy is independently enforced.
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 export function projectPolicy(pr) {
   if(!Array.isArray(pr?.labels) || pr.labels.some(l=>typeof l?.name!=='string')) return {unavailable:'PR labels missing or malformed'};
   const labels=new Set(pr.labels.map(l=>l.name));
@@ -11,4 +12,5 @@ export function projectPolicy(pr) {
   if(labels.has('needs-design')&&!labels.has('design-approved'))return {refused:'needs-design requires design-approved backed by the "## Design review" evidence'};
   return {passed:true};
 }
-if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href){let input='';for await(const chunk of process.stdin)input+=chunk;try{console.log(JSON.stringify(projectPolicy(JSON.parse(input))));}catch{console.log(JSON.stringify({unavailable:'PR response is not valid JSON'}));}}
+const isMain = (() => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } })();
+if(isMain){let input='';for await(const chunk of process.stdin)input+=chunk;try{console.log(JSON.stringify(projectPolicy(JSON.parse(input))));}catch{console.log(JSON.stringify({unavailable:'PR response is not valid JSON'}));}}

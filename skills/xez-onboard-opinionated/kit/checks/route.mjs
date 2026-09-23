@@ -32,11 +32,11 @@
 // it is data about lanes, never an instruction to the reader. No dependencies: `node:` built-ins.
 // Exit: 0 answered or valid, 1 refused or invalid, 2 usage.
 
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, realpathSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 export const RUNNERS = ["claude", "codex", "opencode", "pi"];
 const PROGRAM = { claude: "claude", codex: "codex", opencode: "opencode", pi: "pi" };
@@ -208,9 +208,8 @@ export function check(file, { identities = [] } = {}) {
     if (!has(tools, file.leader.tool)) err("ref", "leader.tool", `"${file.leader.tool}" is not in tools`);
     login(file.leader.login, "leader.login");
     text(file.leader.rule, "leader.rule");
-    for (const [id, tool] of Object.entries(tools)) {
-      if (Array.isArray(tool?.rotation) && tool.rotation.includes(file.leader.login)) err("login", `tools.${id}.rotation`, `holds the leader's own login "${file.leader.login}", which runs no tasks`);
-    }
+    const own = has(tools, file.leader.tool) ? tools[file.leader.tool] : null;
+    if (Array.isArray(own?.rotation) && own.rotation.includes(file.leader.login)) err("login", `tools.${file.leader.tool}.rotation`, `holds the leader's own login "${file.leader.login}", which runs no tasks`);
   }
 
   // lanes
@@ -486,7 +485,7 @@ function route(file, ids, root, source) {
     if (ban) return `banned (${ban[0]}): ${ban[1]}`;
     if (!programs.has(PROGRAM[lane.tool])) return `the ${PROGRAM[lane.tool]} program is not installed here`;
     if (file.tools[lane.tool]?.usesLogins) {
-      if (!accounts) return `cannot read the engine's account file ${accountsFile}`;
+      if (!accounts && file.tools[lane.tool].rotation.some((l) => l !== "default")) return `cannot read the engine's account file ${accountsFile}`;
       if (!logins(lane).length) return `no login of the rotation is in ${accountsFile}`;
     }
     const c = cache.lanes.get(id);
@@ -497,7 +496,7 @@ function route(file, ids, root, source) {
     const tool = file.tools[lane.tool];
     if (!tool?.usesLogins) return [];
     const have = accounts?.get(lane.tool) ?? new Set();
-    return tool.rotation.filter((l) => have.has(l));
+    return tool.rotation.filter((l) => have.has(l) || (l === "default" && lane.tool !== file.leader?.tool));
   };
   const line = (name, id) => {
     const lane = file.lanes[id];
@@ -640,4 +639,5 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) main(process.argv.slice(2));
+const isMain = (() => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } })();
+if (isMain) main(process.argv.slice(2));

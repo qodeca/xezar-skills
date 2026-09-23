@@ -1,3 +1,41 @@
+# 3.0.1 (2026-09-23)
+
+**Six focused fixes from the first real 3.0.0 onboarding, and the new GPT-6 Codex models.** No
+behaviour of an installed project changes unless you apply the upgrade notes.
+
+**Codex work moves to GPT-6 Sol and GPT-6 Luna.** Both came out on 2026-09-22, at half the price
+of the models they replace. Every row that listed `codex/gpt-5.6-sol` now lists `codex/gpt-6-sol`
+in the same place, and every `codex/gpt-5.6-luna` became `codex/gpt-6-luna`, bans included.
+`codex/gpt-5.6-terra` stays, because there is no GPT-6 Terra. The two GPT-5.6 lanes stay defined
+but no row lists them, as a fallback you can add back. The Claude lanes do not change: `opus`,
+`sonnet` and `haiku` already run Opus 5.5, Sonnet 5 and Haiku 4.5. The shipped defaults are now
+version 2.
+
+**A second tool can use its built-in login.** The engine gives every tool a login called `default`
+that is in no account file. `route.mjs` refused `default` in every tool's rotation, not only the
+leader's own tool, and it dropped every login when no account file existed. Now only the leader's
+own tool is barred, and `default` always counts as present.
+
+**Four kit scripts ran when reached through a link.** `route.mjs`, `changelog-fragments.mjs`,
+`lib/project-policy.mjs` and `lib/security-scan.mjs` compared an unresolved path to decide whether
+to run. Through a linked `.xezar/checks`, or a path with a space, they did nothing and exited 0 –
+which reads as a pass.
+
+**The smoke test makes a call engine 0.19.0 accepts.** It sent `agentProfile` with inline steps,
+which the engine refuses. It now sends only `runner` and `model`, reads the login back from
+`profileId`, and checks every other rotation login with `check_account_status` – a login nobody
+signed in to is now a ❌, not a hidden pass.
+
+**The engine's lock and backup files stay out of git.** `.xezar/.gitignore` and the bootstrap
+exclude list now cover `workspace.json.*`, `workspace-ui.json.*` and `agent-accounts.json.*`.
+
+**The bootstrap prompt drops its own engine entry.** The final "ready" text tells you to run
+`claude mcp remove --scope local xezar` before you start the leader; the committed `.mcp.json`
+keeps the engine.
+
+**The leader is told it is the leader.** The session-start hook now opens with one fixed line: this
+session was started with `XEZAR_LEADER=1`, so it is the leader.
+
 # 3.0.0 (2026-09-23)
 
 **The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with

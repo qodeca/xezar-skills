@@ -40,3 +40,6 @@
 /agent-accounts.json
 /workspace.json
 /workspace-ui.json
+/workspace.json.*
+/workspace-ui.json.*
+/agent-accounts.json.*

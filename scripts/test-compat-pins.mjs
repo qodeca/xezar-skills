@@ -52,6 +52,7 @@ const promised = [
   ["Never start the engine as a background process", "keeps the engine outside the session"],
   ["Never delete .xezar/ or .local/", "never removes engine state"],
   ["The default is No", "warns that the engine's one-time account question declines on Enter"],
+  ["run claude mcp remove --scope local xezar", "tells the owner to drop the setup's own engine entry before the leader starts"],
 ];
 for (const [line, why] of promised)
   if (!prompt.includes(line)) problems.push(`docs/bootstrap-prompt.md: the prompt lost the rule "${line}" (${why})`);

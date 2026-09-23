@@ -34,7 +34,8 @@ Setup results use four words, and none implies the next: **files prepared**, **c
    from the bootstrap prompt has the server registered at **local scope** (the owner's own
    settings) as well as in the committed `.mcp.json`; both name the same package, so either one
    serving the tools is fine. Say which one it is, and leave the local entry for the owner to
-   remove — it is their setting, not the project's.
+   remove — it is their setting, not the project's. Print the exact line for them, to run after this
+   session exits: `claude mcp remove --scope local xezar`. Never run it yourself.
 2. **Call `health`.** Read the status word, not the prose:
    - `not-registered` — the engine has not run in this folder, *or* the tools started before it
      first did and are still looking in the old place. After the owner starts the engine, they
@@ -80,7 +81,7 @@ In order:
 - **The default task account.** Engine tool `project_config`, action `select_account`, with the
   **login** the owner chose on screen 3 — an account handle, never a lane, which is a tool and a
   model; read it back with `get_account`. It must not be the
-  leader's login. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
+  leader's login under the leader's tool. The engine writes the choice into `.xezar/agent-accounts.json` keyed by this
   checkout's absolute path, which is why the kit's ignore file lists it.
 
   **Compare the registry against screen 3's answer once more, immediately before this call.**
@@ -88,7 +89,8 @@ In order:
   **after** it, so an arbitrary amount of time has passed and a leader may have called
   `project_config import_global_accounts` inside the gap. Re-read the account ids and compare them
   to `.local/xezar/runtime/onboarding-interview.json`. Accounts that merely appeared are reported,
-  not a stop. **The chosen login missing is a stop** — do not call `select_account` with it, because
+  not a stop. **The chosen login missing is a stop** (a tool's built-in `default` is never in the file,
+  and is never missing) — do not call `select_account` with it, because
   the engine accepts the write and the failure surfaces later as a dispatch with nothing to point
   at. This is the last moment the check is cheap.
 

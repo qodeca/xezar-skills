@@ -27,7 +27,8 @@ logins are the rotation under a runner (screen 3), and a lane order never names 
 ## The three screens
 
 **Screen 3 (`lanes`)** writes each runner's `rotation` and `unlimitedLogins` into
-`.xezar/routing.json`. The leader's own login is never in a rotation.
+`.xezar/routing.json`. The leader's own login is never in the leader's tool's rotation; another tool
+may rotate on its built-in `default`.
 
 **Screen 4 (`routing`)** shows the lanes analysis found against the shipped ones and asks one
 question over that list: *which of these models are your daily workhorses, which is escalation

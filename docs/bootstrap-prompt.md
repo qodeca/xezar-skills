@@ -79,9 +79,12 @@ Both --agent values matter: together they put the files in .agents/skills/ with 
   /.xezar/agent-accounts.json
   /.xezar/workspace.json
   /.xezar/workspace-ui.json
+  /.xezar/workspace.json.*
+  /.xezar/workspace-ui.json.*
+  /.xezar/agent-accounts.json.*
 Use .git/info/exclude, NOT .gitignore: it is a local ignore file git never commits, so the tree
 stays clean for the skill's own clean-tree check. The skill writes the permanent entries into
-committed ignore files itself, in its own pull request. The last three are engine files holding
+committed ignore files itself, in its own pull request. The last six are engine files holding
 this machine's accounts and paths - they must never be committed, and step 3 creates them.
 Do not ignore .claude/skills/ as a whole - my own skills may live there. Commit nothing.
 
@@ -145,7 +148,8 @@ accept that offer - run `git switch <base branch> && git pull`, then follow the 
 references/verify.md (the same as /xez-onboard-opinionated --verify). Finish with its checklist: a tick or a cross per
 line, with the evidence. Any cross: name the one next action. All ticks: delete
 .local/xezar/runtime/bootstrap.json and say:
-  "Xezar is ready. From now on, work through the leader: exit this session, then start the leader
+  "Xezar is ready. From now on, work through the leader: exit this session,
+   run claude mcp remove --scope local xezar (the committed .mcp.json keeps the engine), then start the leader
    with ./scripts/xezar-leader.sh (by hand:
    XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar) and keep the
    engine window open. XEZAR_LEADER=1 is what makes a session the leader."

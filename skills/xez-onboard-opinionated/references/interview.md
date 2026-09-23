@@ -73,7 +73,7 @@ correct, or change one of them. Say plainly that changing one is normal and cost
 | The model the leader runs on | the strongest this machine has |
 | A second leader login, or "none" | the engine's account registry |
 | The login reserved for the leader | **the login this session itself runs on**, which is what almost every owner means |
-| The task logins available | the account registry, minus the reserved login |
+| The task logins available | the account registry, minus the reserved login, plus every other tool's built-in `default` |
 | The lanes available | every `<tool>/<model>` analysis found, each marked cloud or local, and whether it can see a picture |
 
 Five consequences below are ones the owner cannot see from the fact alone, so state each beside

@@ -227,6 +227,14 @@ const fail = (fact, where, detail) =>
     fail(fact, "kit/scripts/xezar-leader.sh", "the launcher does not export XEZAR_LEADER=1, so its own session gets no guide");
   if (!read(`${SKILL}/references/write.md`).includes("XEZAR_LEADER=1"))
     fail(fact, "references/write.md", "never says what makes a session the leader");
+  // The session is told it IS the leader, before the guide, so the project's own "only the
+  // launcher starts the leader" never reads as "not you".
+  const IDENTITY = "printf '%s\\n\\n' 'This session was started with XEZAR_LEADER=1";
+  const at = loader.indexOf(IDENTITY);
+  const gate = loader.indexOf('[ "${XEZAR_LEADER:-}" = "1" ] || silent');
+  const guide = loader.indexOf("=== .xezar/docs/leader-guide.md");
+  if (at < 0 || !(gate < at && at < guide))
+    fail(fact, "kit/checks/leader-context.sh", "does not tell the leader session it is the leader, after the XEZAR_LEADER check and before the guide");
   checked.push(fact);
 }
 
@@ -362,6 +370,13 @@ const fail = (fact, where, detail) =>
 
   if (!/repo-gates\.sh/.test(smoke))
     fail(fact, "references/smoke-test.md", "no longer runs repo-gates.sh, so nothing proves the standalone path");
+  // Engine 0.19.0 refuses a step-list start that carries agentProfile, worktree or autonomous;
+  // the step runs on the project's selected login, and every other login is checked for free.
+  const REFUSED = "the engine refuses `agentProfile`, `worktree` and `autonomous`";
+  if (!smoke.includes(REFUSED) || /agentProfile|`worktree`|`autonomous`/.test(smoke.replace(REFUSED, "")))
+    fail(fact, "references/smoke-test.md", "sends agentProfile, worktree or autonomous with inline steps, which engine 0.19.0 refuses");
+  for (const word of ["profileId", "check_account_status", "`connected`"])
+    if (!smoke.includes(word)) fail(fact, "references/smoke-test.md", `does not name ${word}, so a login nobody signed in to passes tier 1`);
   checked.push(fact);
 }
 
@@ -665,6 +680,24 @@ function walk(rel, match) {
     fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans, the security minimums and the enforcing-runner list itself -- a project's file could drop them");
   if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 18 -- the engine's machine files stay out of git, siblings included.
+//
+// Every engine settings write leaves `.bak`, `.lock`, `.lock.takeover` and `<pid>.<hex>.tmp`
+// files beside workspace.json and agent-accounts.json. Ignoring only the files themselves put
+// those siblings -- this machine's paths and accounts -- into the first `git status`.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 18: the engine's machine files and their siblings are ignored";
+  const ignore = read(`${SKILL}/kit/xezar.gitignore`).split("\n");
+  const exclude = read("docs/bootstrap-prompt.md").split("\n").map((l) => l.trim());
+  for (const name of ["workspace.json", "workspace-ui.json", "agent-accounts.json"]) {
+    if (!ignore.includes(`/${name}.*`)) fail(fact, "kit/xezar.gitignore", `does not ignore /${name}.*, the engine's backup, lock and temp files`);
+    if (!exclude.includes(`/.xezar/${name}.*`)) fail(fact, "docs/bootstrap-prompt.md", `the exclude list does not hold /.xezar/${name}.*`);
+  }
   checked.push(fact);
 }
 

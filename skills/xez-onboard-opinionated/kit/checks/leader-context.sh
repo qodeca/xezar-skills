@@ -139,6 +139,7 @@ note_tail() {
 }
 
 {
+  printf '%s\n\n' 'This session was started with XEZAR_LEADER=1 (by ./scripts/xezar-leader.sh or by hand), so you are the leader of this project. This hook checked that variable before loading anything below.'
   printf '%s\n\n' '=== .xezar/docs/leader-guide.md (project leader guide) ==='
   cat "$GUIDE"
   if [ -n "$campaign" ]; then
