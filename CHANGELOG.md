@@ -1,4 +1,4 @@
-# 3.0.0 (unreleased – ships the day engine 0.19.0 is on npm)
+# 3.0.0 (2026-09-23)
 
 **The leader routes from data, and a reviewer can no longer change what it reviews.** Paired with
 engine 0.19.0, which this release requires. Five breaking changes, each with a row in
