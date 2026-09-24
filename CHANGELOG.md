@@ -1,3 +1,46 @@
+# 3.0.2 (2026-09-24)
+
+**Fixes from two leaders running on real projects, 8cli and cmplus, plus monorepo support and a
+browser for agents.** No behaviour of an installed project changes unless you apply the upgrade
+notes; they are one ordered block for 3.0.2.
+
+**Reviewers can report.** Claude runs reading steps in don't-ask mode, which never matches an allow
+rule to a command holding a `$`. The kit told reviewers to post with `jq --arg … $body`, so every
+Claude review comment was refused. The text now goes in the filter as a JSON string. Reviewers also
+no longer read their own task id: `verdict-write.sh` stamps `taskId` and `stepId`, and refuses a
+packet that names different ones. QA and design verdicts use the same path.
+
+**The leader runs the project's workflows.** `route.mjs` prints `workflow=` for each row, and the
+routing guide starts every task from it. Before, a new leader started tasks from bare `xez-auto-*`
+skills, which skip the kit, the gates and the verdict step.
+
+**The leader can merge.** Auto mode blocked `gh pr merge` even with an allow rule, and a project
+rule reached read-only reviewers too. `scripts/xezar-leader-settings.json`, loaded only by the
+launcher, carries the merge rule and an auto-mode note, and denies `--admin` and `--repo`.
+
+**Issue filing works.** Filing was routed to the read-only triage job, which cannot create issues.
+A new `issue-filing` workflow and routing row run the filing role, which no longer names the
+Xezar repository.
+
+**Owner rules live in one place.** `xez-add-rule` writes every rule under `## Owner's rules`, and
+creates the section in an older guide.
+
+**Four quieter failures.** A task no longer fails with "existing task asset differs" when the
+leader's checkout lags a kit change; a file the branch itself changed is still refused. The budget
+loop L2 runs on cron and reads the quota before a lane is chosen. Conflict repair pushes to the PR
+branch instead of ending in `target.missing`. Security briefs name untrusted input up front, and a
+repair fixes the whole class of a finding.
+
+**A browser for agents.** `chrome-devtools-mcp` 1.10.1 is the ad-hoc browser for Claude and Codex:
+online sources, designs, smoke checks, a click through the UI. It is not an e2e tool. Steps get an
+exact tool list (no uploads, no page scripts), the version is pinned, and `config-guard.sh` refuses
+a change to the entry. Codex drives it from inside its sandbox. Browser QA now tries Claude first.
+
+**Monorepos.** A repository with no single root manifest lists its installs in
+`dependencies.units` – npm, Yarn 1 or dotnet, one entry per folder. The list is read from the base
+branch, installed through `deps-restore.sh`, and checked for freshness per unit. A single-root
+project is unchanged. The shipped routing defaults are now version 3.
+
 # 3.0.1 (2026-09-23)
 
 **Six focused fixes from the first real 3.0.0 onboarding, and the new GPT-6 Codex models.** No
