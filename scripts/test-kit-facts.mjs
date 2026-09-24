@@ -186,18 +186,18 @@ const fail = (fact, where, detail) =>
 }
 
 // ---------------------------------------------------------------------------
-// FACT 6 -- the guide's section headings are the ones xez-add-rule routes into.
-// xez-add-rule matches a heading BY NAME to decide where an owner's new rule goes. A reworded
-// heading in the template sends the rule into the "nothing fits" branch, and the owner is asked
-// to create a section that already exists under a different name.
+// FACT 6 -- the guide has the section xez-add-rule writes into.
+// xez-add-rule puts every owner rule under "## Owner's rules", found BY NAME. A reworded or
+// missing heading in the template makes every new project create it on the first rule instead.
 // ---------------------------------------------------------------------------
 {
-  const fact = "FACT 6: guide headings match the sections xez-add-rule routes into";
+  const fact = "FACT 6: guide carries the Owner's rules section xez-add-rule writes into";
   const sectionsFile = "skills/xez-add-rule/references/sections.md";
-  if (!has(sectionsFile)) fail(fact, sectionsFile, "missing -- xez-add-rule cannot route a rule");
+  if (!has(sectionsFile)) fail(fact, sectionsFile, "missing -- xez-add-rule cannot place a rule");
   else {
     const names = [...read(sectionsFile).matchAll(/^\|\s*\*\*(.+?)\*\*\s*\|/gm)].map((m) => m[1].trim());
-    if (names.length === 0) fail(fact, sectionsFile, "no section names found in the table");
+    if (names.length !== 1 || names[0] !== "Owner's rules")
+      fail(fact, sectionsFile, "the table must name exactly one section, Owner's rules");
     const guide = read(`${SKILL}/kit/leader-guide.template.md`);
     const headings = [...guide.matchAll(/^##\s+(.+)$/gm)].map((m) => m[1].trim());
     for (const n of names)
@@ -698,6 +698,115 @@ function walk(rel, match) {
     if (!ignore.includes(`/${name}.*`)) fail(fact, "kit/xezar.gitignore", `does not ignore /${name}.*, the engine's backup, lock and temp files`);
     if (!exclude.includes(`/.xezar/${name}.*`)) fail(fact, "docs/bootstrap-prompt.md", `the exclude list does not hold /.xezar/${name}.*`);
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 19 -- verdict ids are stamped by the script, never typed by a reviewer.
+//
+// A reading step is denied any command holding a `$`, so a skill that told the reviewer to read
+// `$XEZ_TASK_ID` or `$XEZ_STEP_ID` was a skill the reviewer could not follow. `verdict-write.sh` stamps
+// both from the environment and refuses a packet that names another task or step.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 19: verdict packets are stamped with taskId and stepId by verdict-write.sh, and no kit skill asks for them";
+  for (const f of readdirSync(join(root, SKILL, "kit/skills")).filter((n) => n.endsWith(".md"))) {
+    const text = read(`${SKILL}/kit/skills/${f}`);
+    for (const bad of ["$XEZ_TASK_ID", "$XEZ_STEP_ID", "verdict.json.tmp"])
+      if (text.includes(bad)) fail(fact, `kit/skills/${f}`, `holds ${bad} -- the packet ids come from verdict-write.sh, and a reading step cannot run a command with a $ or an mv`);
+  }
+  const vw = read(`${SKILL}/kit/checks/verdict-write.sh`);
+  if (!vw.includes('[ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse') || !vw.includes("JSON.stringify({ ...p, taskId, stepId })"))
+    fail(fact, "kit/checks/verdict-write.sh", "no longer refuses an unset XEZ_TASK_ID or XEZ_STEP_ID, or no longer stamps both into the packet");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 20 -- the leader's merge permission cannot bypass the checks or leave the repository.
+// `Bash(gh pr merge *)` also matches `--admin`, which merges over red checks while admin
+// enforcement is off, and `--repo` / `-R`, which merges somewhere else.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 20: the leader settings deny gh pr merge with --admin, --repo or -R";
+  const deny = JSON.parse(read(`${SKILL}/kit/scripts/xezar-leader-settings.json`)).permissions?.deny ?? [];
+  for (const rule of ["Bash(gh pr merge *--admin*)", "Bash(gh pr merge *--repo*)", "Bash(gh pr merge *-R *)"])
+    if (!deny.includes(rule)) fail(fact, "kit/scripts/xezar-leader-settings.json", `permissions.deny lacks ${rule}`);
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 21 -- every standing loop is a cron job. A self-paced wake-up is not a job the leader can
+// list, so it cannot be compared against loops.json at session start; a cron job can.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 21: every standing loop is cron with a five-field schedule";
+  for (const loop of JSON.parse(read(`${SKILL}/kit/loops.json`)).loops)
+    if (loop.mechanism !== "cron" || String(loop.schedule).trim().split(/\s+/).length !== 5)
+      fail(fact, "kit/loops.json", `${loop.id} is ${loop.mechanism} "${loop.schedule}", not cron with a five-field schedule`);
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 22 -- conflict repair pushes to the PR branch and never merges. Routed to
+// integration.yaml, it ran the merge-and-watch steps on a PR whose conflict it was sent to fix.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 22: conflict-repair routes to no workflow that merges or watches the base branch";
+  const row = JSON.parse(read(`${SKILL}/kit/routing.json`)).rows.find((r) => r.id === "conflict-repair");
+  for (const wf of row?.workflows ?? []) {
+    const text = has(`${SKILL}/kit/workflows/${wf}`) ? read(`${SKILL}/kit/workflows/${wf}`) : "";
+    if (!text || /ci-watch\.sh|skill: xezar-integration\b/.test(text))
+      fail(fact, "kit/routing.json", `conflict-repair routes to ${wf}, which is missing or has a merge-target step (ci-watch.sh or xezar-integration)`);
+  }
+  if (!row?.workflows?.length) fail(fact, "kit/routing.json", "conflict-repair names no workflow");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT 23 -- the ad-hoc browser is one pinned server with one exact tool list. Its MCP server runs
+// outside every runner sandbox, so the tool names, the pin and the config guard are the limits: no
+// wildcard, no banned tool, no `@latest`, the same pin for Claude and Codex, and never in the e2e
+// workflows, which keep the project's own tooling.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT 23: chrome-devtools is pinned, listed by exact tool name, and kept out of e2e";
+  const ALLOWED = ["navigate_page", "new_page", "list_pages", "select_page", "close_page", "take_snapshot", "take_screenshot",
+    "list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "click", "fill", "fill_form",
+    "hover", "press_key", "type_text", "wait_for", "handle_dialog", "resize_page", "get_css_styles"];
+  const DEBUG = new Set(["list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "get_css_styles"]);
+  const WANT = Object.fromEntries(["qa", "design-review", "acceptance-verification", "design", "ui-design", "design-system"].map((w) => [w, ALLOWED]));
+  WANT.research = ALLOWED.filter((t) => !DEBUG.has(t));
+  const same = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  const wfDir = `${SKILL}/kit/workflows`;
+  for (const rel of walk(wfDir, /\.ya?ml$/)) {
+    const name = rel.slice(wfDir.length + 1).replace(/\.ya?ml$/, "");
+    const listed = [...read(rel).matchAll(/^\s*allowedTools: \[(.*)\]$/gm)].flatMap((m) => m[1].split(",").map((t) => t.trim()))
+      .filter((t) => t.startsWith("mcp__chrome-devtools"));
+    const tools = listed.map((t) => t.replace(/^mcp__chrome-devtools__/, ""));
+    if (listed.some((t) => !/^mcp__chrome-devtools__[a-z_]+$/.test(t))) fail(fact, rel, `lists a chrome-devtools wildcard or server-wide entry: ${listed.filter((t) => !/^mcp__chrome-devtools__[a-z_]+$/.test(t)).join(", ")}`);
+    if (!WANT[name]) { if (listed.length) fail(fact, rel, `lists chrome-devtools tools, and only the browser workflows may (never ui-tests or regression-suite)`); continue; }
+    if (!same(tools, WANT[name])) fail(fact, rel, `lists chrome-devtools tools [${tools.join(", ")}], expected exactly [${WANT[name].join(", ")}]`);
+  }
+  const local = JSON.parse(read(`${SKILL}/kit/claude/settings.local.json`));
+  const allow = (local.permissions?.allow ?? []).filter((t) => t.startsWith("mcp__chrome-devtools"));
+  if (!same(allow, ALLOWED.map((t) => `mcp__chrome-devtools__${t}`))) fail(fact, "kit/claude/settings.local.json", "permissions.allow must name exactly the allowed chrome-devtools tools, never the whole server");
+  if (!(local.enabledMcpjsonServers ?? []).includes("chrome-devtools")) fail(fact, "kit/claude/settings.local.json", "enabledMcpjsonServers lacks chrome-devtools");
+  const codexRel = `${SKILL}/kit/codex/config.toml`;
+  const codex = has(codexRel) ? read(codexRel) : "";
+  if (!codex) fail(fact, codexRel, "is missing, so Codex runs get no browser and no tool limit is written down");
+  const enabled = [...(/^enabled_tools = \[([\s\S]*?)\]/m.exec(codex)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  if (codex && !same(enabled, ALLOWED)) fail(fact, codexRel, `enabled_tools is [${enabled.join(", ")}], expected exactly the allowed set`);
+  if (codex && !/^default_tools_approval_mode = "approve"$/m.test(codex))
+    fail(fact, codexRel, "has no default_tools_approval_mode = \"approve\"; the engine runs Codex with approvals set to never, so every browser call would fail");
+  const mcpArgs = JSON.parse(read(`${SKILL}/kit/mcp.json`)).mcpServers?.["chrome-devtools"]?.args ?? [];
+  const codexArgs = JSON.parse(/^args = (\[.*\])$/m.exec(codex)?.[1] ?? "[]");
+  for (const [where, args] of [["kit/mcp.json", mcpArgs], [codexRel, codexArgs]]) {
+    if (!args.some((a) => /^chrome-devtools-mcp@\d+\.\d+\.\d+$/.test(a)) || !args.includes("--isolated") || !args.includes("--headless") || args.some((a) => /@latest/.test(a)))
+      fail(fact, where, `chrome-devtools args ${JSON.stringify(args)} must pin an exact version with --isolated --headless, never @latest`);
+  }
+  if (JSON.stringify(mcpArgs) !== JSON.stringify(codexArgs)) fail(fact, codexRel, `args ${JSON.stringify(codexArgs)} differ from kit/mcp.json ${JSON.stringify(mcpArgs)}`);
+  if (!/^\| `kit\/codex\/config\.toml` \| `\.codex\/config\.toml`/m.test(read(`${SKILL}/references/write.md`))) fail(fact, "references/write.md", "does not map kit/codex/config.toml to .codex/config.toml");
+  if (!/^bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(read(`${SKILL}/kit/checks/repository-checks.sh`))) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base, so a changed browser entry passes the gate");
   checked.push(fact);
 }
 

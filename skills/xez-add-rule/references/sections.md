@@ -1,49 +1,40 @@
-# Choosing the section
+# Where the rule goes
 
-Called from step 3. The leader guide is read at every session start and every compaction, and a
-rule is applied at the moment its section is read. Placement is therefore about *when* the rule
-fires, not about tidiness.
+Called from step 3. Every rule goes into one section of the leader guide:
 
-## The six sections a rule can go in
+| Section | Takes |
+|---|---|
+| **Owner's rules** | every standing rule the owner adds, in the order they were added |
 
-| Section | Takes rules about | Fires when |
-|---|---|---|
-| **Who the leader is, and is not** | scope — what the leader does itself and what it hands to a task | every read, as framing |
-| **Session start, re-attach and compaction recovery** | what to read, in what order, before doing anything | at the start of every session and after every compaction |
-| **Standing loops** | the loops, their pacing, their ceilings | when a loop fires |
-| **Review discipline** | what a review must check, who may approve what | at every review |
-| **Owner-only decisions, and how to ask** | what stops the leader, and how it asks | when a decision comes up |
-| **What to log where, and the honesty rule** | what gets written, where, and how truthfully | at every write |
+One section, not the section a rule governs. Spread through the guide, the owner's rules were hard
+to find and hard to tell from the shipped text, and a reader could not see at a glance what the
+owner had decided. In one place they are read together, at every session start and every
+compaction, and they bind the leader exactly as hard as anything shipped.
 
-The last two are frequently confused, and are separate rows on purpose: a rule about *asking* belongs in owner-only decisions; a rule about *recording* an
-answer belongs in what-to-log.
+## When the section is missing
 
-## How to propose
+A guide written before 3.0.2 has no `## Owner's rules` heading. Create it once, directly before
+`## One-page checklist`, or at the end of the file when that heading is absent too, with the
+template's one-line intro under it:
 
-Read the rule and name the section whose *moment* it belongs to, with a one-line reason:
+```markdown
+## Owner's rules
 
-> "Always check the CI result before saying a task is done" → **Review discipline**, because it
-> constrains what counts as a finished verdict.
+Standing rules the owner added with `xez-add-rule`, each in their exact words with `(owner <date>)`. Each binds you exactly as hard as anything shipped above.
+```
 
-> "Never start more than two gate runs at once" → **Standing loops**, because the pacing loop is
-> what would break it.
+Show the new heading in the step-4 preview. Leave rules an earlier version wrote into other
+sections where they are: moving them is an edit to the owner's record, and it is the owner's call.
 
-Then let the owner correct it. They know which moment they were thinking of, and the cost of a
-wrong guess is a rule read at a moment when it does not apply.
+## When it is not a leader rule
 
-## When nothing fits
-
-Two honest outcomes, and no third:
-
-- **It is not a leader rule.** A rule about how code should be written belongs in the repository's
-  own conventions, not in the leader guide. Say so and stop — the guide is loaded on every single
-  session, and filling it with rules that belong elsewhere is how it becomes too expensive to load.
-- **It needs a new section.** Rare, and a real change to a shipped document. Propose the heading
-  and where it would sit, and get an explicit yes before writing it.
+A rule about how code should be written belongs in the repository's own conventions, not in the
+leader guide. Say so and stop — the guide is loaded on every single session, and filling it with
+rules that belong elsewhere is how it becomes too expensive to load.
 
 ## The insertion itself
 
-At the **end** of the chosen section, on its own line, in the guide's existing convention:
+At the **end** of the section, on its own line, in the guide's existing convention:
 
 ```markdown
 - Always check the CI result before calling a task done (owner 2026-09-21).

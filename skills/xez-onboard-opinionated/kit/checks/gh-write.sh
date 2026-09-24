@@ -14,8 +14,10 @@
 #     {"action":"label","kind":"pr","number":12,"add":["…"],"remove":["…"]}
 #
 # Use the last form from a pipe: the engine's shared read-only lock (pi, Codex) allows one pipe
-# only into an argument-free `bash <script>`, so `jq -n --arg body '…' '{…}' | bash
+# only into an argument-free `bash <script>`, so `jq -n '{…,body:"…"}' | bash
 # .xezar/checks/gh-write.sh` passes on every runner and `… | gh-write.sh comment pr 12` does not.
+# Keep every `$` out of the command: Claude Code denies a command holding one in a reading step,
+# so the text goes in the filter as a JSON string (`\u0024` for a dollar sign), never `--arg`.
 #
 # A label change never adds an approval label and never removes a label that blocks a merge: those
 # are the labels `lib/project-policy.mjs` trusts, and a reviewer that could move them would be

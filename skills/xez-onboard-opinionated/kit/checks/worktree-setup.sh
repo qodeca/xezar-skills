@@ -146,19 +146,29 @@ printf '\n=== worktree setup ===\n'
 # --- Toolchain ----------------------------------------------------------------------
 # The repo requires Node >= 20 and pins npm through `packageManager`. A worktree
 # inherits the shell's PATH, so this catches a cockpit started under the wrong Node.
+# With `dependencies.units` (lib/deps.mjs) each unit's tool is checked instead — npm, Yarn 1,
+# the .NET SDK — and a numeric root .nvmrc pins the Node major (lib/common.sh applied it).
 command -v node >/dev/null 2>&1 || fatal "node is not on PATH"
-command -v npm >/dev/null 2>&1 || fatal "npm is not on PATH"
+deps_units_mode
+DEPS_UNITS=$?
+[ "$DEPS_UNITS" -ne 2 ] || fatal "dependencies.units was refused (reason above); nothing was installed"
 
-node -e '
-  const [major, minor] = process.versions.node.split(".").map(Number);
-  if (major < 20) {
-    console.error(`node ${process.versions.node} is below the required 20`);
-    process.exit(1);
-  }
-' || fatal "unsupported Node version"
+if [ "$DEPS_UNITS" -eq 0 ]; then
+  node "$SCRIPT_DIR/lib/deps.mjs" tools --root "$TASK_CWD" || fatal "a dependency unit's toolchain is not usable here (reason above)"
+else
+  command -v npm >/dev/null 2>&1 || fatal "npm is not on PATH"
 
-printf '  node          %s\n' "$(node --version)"
-printf '  npm          %s\n' "$(npm --version)"
+  node -e '
+    const [major, minor] = process.versions.node.split(".").map(Number);
+    if (major < 20) {
+      console.error(`node ${process.versions.node} is below the required 20`);
+      process.exit(1);
+    }
+  ' || fatal "unsupported Node version"
+
+  printf '  node          %s\n' "$(node --version)"
+  printf '  npm          %s\n' "$(npm --version)"
+fi
 
 # --- Base freshness ------------------------------------------------------------------
 # Xezar resolves the fork point without fetching — "agents fetch, they never pull"
@@ -179,8 +189,19 @@ else
 fi
 
 # --- Dependencies ---------------------------------------------------------------------
+# In units mode the install is deps-restore.sh: the same script the gates run first, so setup
+# and the gates can never install two different sets.
 if deps_are_fresh; then
-  printf '  deps          already current for this lockfile — install skipped\n'
+  if [ "$DEPS_UNITS" -eq 0 ]; then
+    printf '  deps          already current for every unit in dependencies.units — install skipped\n'
+  else
+    printf '  deps          already current for this lockfile — install skipped\n'
+  fi
+elif [ "$DEPS_UNITS" -eq 0 ]; then
+  "$SCRIPT_DIR/deps-restore.sh" || fatal "the dependency install failed (deps-restore.sh)"
+  deps_resolve_in_task || fatal "the install left dependencies missing or resolving outside this task"
+  write_deps_stamp || fatal "could not write the dependency stamps"
+  printf '  deps          installed\n'
 else
   printf '  deps          installing (npm ci)\n'
   npm ci || fatal "npm ci failed"

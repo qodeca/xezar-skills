@@ -67,6 +67,21 @@ if (!line) {
   }
 }
 
+const yarnLine = /^yarn_allow="([^"]*)"/m.exec(lint);
+if (!yarnLine) {
+  problems.push("scripts/lint.sh no longer defines yarn_allow -- this binding needs updating");
+} else {
+  const inShell = yarnLine[1].trim().split(/\s+/).filter(Boolean).sort();
+  const inJson = Object.keys(data.yarnLiteral?.entries ?? {}).sort();
+  if (JSON.stringify(inShell) !== JSON.stringify(inJson)) {
+    problems.push(
+      "scripts/lint.sh yarn_allow does not match allowlists.json yarnLiteral.\n" +
+      `  lint.sh:        ${JSON.stringify(inShell)}\n` +
+      `  allowlists.json ${JSON.stringify(inJson)}`,
+    );
+  }
+}
+
 if (problems.length) {
   for (const p of problems) console.error(p);
   console.error(`\nallowlists: ${problems.length} problem(s)`);

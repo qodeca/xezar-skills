@@ -302,8 +302,8 @@ gate_run() {
 }
 
 # Record a gate that was deliberately not executed. Only the allowance encoded in
-# `gate-results.mjs` (`PERMITTED_SKIPS`) can still satisfy a required gate; every other reason
-# leaves the attempt uncertifiable, which is the point.
+# `gate-results.mjs` (`permittedSkipNames`: the install gate, named by the caller) can still
+# satisfy a required gate; every other reason leaves the attempt uncertifiable, which is the point.
 gate_note_skip() {
   local name="$1" reason="$2" now
   now="$(_gate_iso_now)"
@@ -324,7 +324,9 @@ gate_note_skip() {
 gate_attempt_complete() {
   local ended result
   ended="$(_gate_iso_now)"
-  result="$(node "$GATE_RESULTS_MJS" complete --dir "$GATE_ATTEMPT_DIR" --json "$(_gate_json \
+  # The install gate's name comes from the list that ran (repo-gates.sh's GATE_NAMES), never from
+  # the record: it is the one gate a verified-current skip may satisfy.
+  result="$(node "$GATE_RESULTS_MJS" complete --dir "$GATE_ATTEMPT_DIR" --install-gate "${GATE_NAMES[0]:-}" --json "$(_gate_json \
     "endedAt=$ended" \
     "durationMs:n=$(( $(_gate_epoch_ms) - GATE_STARTED_MS ))" \
     "after:j=$(_gate_json "headSha=$( cd "$TASK_CWD" && git rev-parse HEAD 2>/dev/null )" \

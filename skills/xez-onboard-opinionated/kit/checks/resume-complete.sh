@@ -181,6 +181,7 @@ if reuse_out="$(node "$SCRIPT_DIR/lib/gate-results.mjs" verify \
   --run-id "$TASK_ID" \
   --command-list-id "$COMMAND_LIST_ID" \
   --deps-fingerprint "$(deps_fingerprint)" \
+  --install-gate "$(install_gate_name)" \
   --current-head "$CURRENT_HEAD" \
   --current-tree-fingerprint "$CURRENT_TREE_FP" \
   --require-current 2>&1)"; then

@@ -26,9 +26,15 @@ for(const rel of ['checks','skills','workflows','docs','config.json','CLAUDE.md'
 const lock=path.join(local,'bootstrap-lock');fs.mkdirSync(lock);
 try{
  const content=entries.map(rel=>({rel,bytes:fs.readFileSync(path.join(source,rel)),mode:fs.statSync(path.join(source,rel)).mode&0o777}));
- for(const f of content){safeParents(target,f.rel);const dest=path.join(target,f.rel);if(fs.existsSync(dest)&&(!fs.lstatSync(dest).isFile()||!fs.readFileSync(dest).equals(f.bytes)))throw Error(`existing task asset differs: ${f.rel}; reconcile deliberately`);}
+ // A differing task copy is kept only when it is the fork base's own blob (the primary checkout lags a merged kit PR);
+ // a file the branch itself changed is refused. No origin/<base> or merge base: refuse (fail closed).
+ let forkBase;const atBase=(rel,dest)=>{if(forkBase===undefined){let base='';try{base=JSON.parse(fs.readFileSync(path.join(source,'config.json'),'utf8')).baseBranch?.trim()||'';}catch{}
+  try{if(!base)base=git('symbolic-ref','--quiet','--short','refs/remotes/origin/HEAD').replace(/^origin\//,'');forkBase=git('merge-base','HEAD',`refs/remotes/origin/${base}`);}catch{forkBase='';}}
+  if(!forkBase)return false;try{return git('rev-parse',`${forkBase}:.xezar/${rel.split(path.sep).join('/')}`)===git('hash-object','--',dest);}catch{return false;}};
+ let kept=0;
+ for(const f of content){safeParents(target,f.rel);const dest=path.join(target,f.rel);if(fs.existsSync(dest)&&(!fs.lstatSync(dest).isFile()||!fs.readFileSync(dest).equals(f.bytes))){if(fs.lstatSync(dest).isFile()&&atBase(f.rel,dest)){kept++;continue;}throw Error(`existing task asset differs: ${f.rel}; reconcile deliberately`);}}
  for(const f of content){const dest=path.join(target,f.rel);fs.mkdirSync(path.dirname(dest),{recursive:true});if(!fs.existsSync(dest))fs.writeFileSync(dest,f.bytes,{flag:'wx',mode:f.mode});}
  const digest=crypto.createHash('sha256');for(const f of content){digest.update(f.rel+'\0');digest.update(f.bytes);}
  fs.writeFileSync(record,JSON.stringify({version:1,run,digest:digest.digest('hex'),files:content.map(f=>f.rel)},null,2)+'\n',{flag:'wx',mode:0o600});
- console.log(`KIT SNAPSHOTTED: ${content.length} assets; no application code or runtime copied`);
+ console.log(`KIT SNAPSHOTTED: ${content.length} assets (${kept} kept at the fork base); no application code or runtime copied`);
 }finally{fs.rmdirSync(lock);}

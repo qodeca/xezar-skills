@@ -208,7 +208,9 @@ preflight report, where the owner can still walk away:
 - **One agent account, or none.** The rule "the leader's login never runs tasks" cannot hold
   with a single login. Carry on, and record the warning in the report.
 - **Windows.** The launcher is a shell script and the engine's socket is a Unix socket: WSL only.
-- **A monorepo.** The setup installs at the repository root and knows nothing of the packages.
+- **A monorepo.** Supported via units: with no root manifest, each folder's install is listed in
+  `dependencies.units` (analysis §2). A monorepo with a root manifest installs at the root, as
+  before.
 ## Reporting a stop
 
 One sentence of cause, one of consequence, one concrete next action, and the list of what was

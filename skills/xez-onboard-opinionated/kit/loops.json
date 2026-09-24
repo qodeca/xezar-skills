@@ -14,10 +14,10 @@
     {
       "id": "L2",
       "role": "budget",
-      "mechanism": "self-paced-wakeup",
-      "schedule": "3600s",
+      "mechanism": "cron",
+      "schedule": "7 * * * *",
       "mayDispatch": false,
-      "prompt": "Walk the budget table. It is in the live campaign's README.md, keyed by runner and login: move any metered **login** whose reset time has passed from `out` to `unknown`. Do not probe - the next real dispatch that prefers a lane on that login is the probe. A lane is a tool plus a model, and it is out only while EVERY login in its tool's rotation is out. If work is paused only because every preferred lane was out, and a login is now `unknown` or available, wake the pacing loop so it can resume that work - never start it yourself; keep at most one such wake pending, replacing any earlier one. Read each tool's rotation from .xezar/routing.json, and skip the logins it lists under unlimitedLogins entirely. If nothing changed, do nothing and say so."
+      "prompt": "Walk the budget table. It is in the live campaign's README.md, keyed by runner and login: call `project_config` action `read_quota` and copy its rows into the table, status and reset time; never call `check_quota` and never start a probe task here. A lane is a tool plus a model, and it is out only while EVERY login in its tool's rotation is out. If work is paused only because every preferred lane was out, and a login is now `unknown` or available, wake the pacing loop so it can resume that work - never start it yourself; keep at most one such wake pending, replacing any earlier one. Read each tool's rotation from .xezar/routing.json, and skip the logins it lists under unlimitedLogins entirely. If nothing changed, do nothing and say so."
     },
     {
       "id": "L3",

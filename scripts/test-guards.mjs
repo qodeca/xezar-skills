@@ -471,9 +471,9 @@ breaks(
 );
 
 breaks(
-  "rewording a guide heading xez-add-rule routes into is rejected",
+  "rewording the guide heading xez-add-rule writes into is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
-  (s) => s.replace("## Review discipline", "## Reviewing"),
+  (s) => s.replace("\n## Owner's rules\n", "\n## Owner rules\n"),
   () => script("test-kit-facts.mjs"),
   "lands nowhere",
 );
@@ -1115,6 +1115,54 @@ breaks(
 );
 
 breaks(
+  "a browser workflow that allows chrome-devtools by wildcard is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/qa.yaml",
+  (s) => s.replace("mcp__chrome-devtools__navigate_page,", "mcp__chrome-devtools__*,"),
+  () => script("test-kit-facts.mjs"),
+  "lists a chrome-devtools wildcard",
+);
+
+breaks(
+  "a browser workflow that allows upload_file is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/qa.yaml",
+  (s) => s.replace("mcp__chrome-devtools__navigate_page,", "mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__upload_file,"),
+  () => script("test-kit-facts.mjs"),
+  "expected exactly",
+);
+
+breaks(
+  "a chrome-devtools server on @latest is rejected",
+  "skills/xez-onboard-opinionated/kit/mcp.json",
+  (s) => s.replace("chrome-devtools-mcp@1.10.1", "chrome-devtools-mcp@latest"),
+  () => script("test-kit-facts.mjs"),
+  "never @latest",
+);
+
+breaks(
+  "a kit with no Codex browser config is rejected",
+  "skills/xez-onboard-opinionated/kit/codex/config.toml",
+  () => "",
+  () => script("test-kit-facts.mjs"),
+  "Codex runs get no browser",
+);
+
+breaks(
+  "a Codex browser config whose tools still need approval is rejected",
+  "skills/xez-onboard-opinionated/kit/codex/config.toml",
+  (s) => s.replace('default_tools_approval_mode = "approve"\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "every browser call would fail",
+);
+
+breaks(
+  "a config guard that no longer refuses a changed browser entry is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
+  (s) => s.replace('base === "" || base === entry(process.env.TREE_TEXT) ? "same" : "changed"', '"same"'),
+  () => script("test-kit-catalog.mjs"),
+  "the chrome-devtools entry in .mcp.json differs",
+);
+
+breaks(
   "a grammar that refuses an unknown neighbour beside a key that is set is rejected",
   "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs",
   (s) => s.replace("  if (value === undefined) {\n", "  for (const sibling of Object.keys(node ?? {})) {\n    if (!GRAMMAR[`${group}.${sibling}`]) return { status: \"malformed\", detail: \"unknown sibling\", values: [] };\n  }\n  if (value === undefined) {\n"),
@@ -1128,6 +1176,132 @@ breaks(
   (s) => s.replace(/\b\d+ classes\b/, "3 classes"),
   () => script("test-kit-catalog.mjs"),
   "3 classes",
+);
+
+// The kit bootstrap keeps a differing kit file only when it is the fork base's blob. Each half of
+// that rule breaks on its own: keep nothing (a lagging primary refuses every task), keep anything
+// (a branch-edited gate is snapshotted), or keep when the fork base cannot be found.
+breaks(
+  "a bootstrap that refuses a kit file equal to the fork base is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/bootstrap.mjs",
+  (s) => s.replace("if(fs.lstatSync(dest).isFile()&&atBase(f.rel,dest)){kept++;continue;}", ""),
+  () => script("test-bootstrap.mjs"),
+  "a kit file that equals the fork base is kept",
+);
+
+breaks(
+  "a bootstrap that keeps a kit file the branch changed is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/bootstrap.mjs",
+  (s) => s.replace("isFile()&&atBase(f.rel,dest)", "isFile()"),
+  () => script("test-bootstrap.mjs"),
+  "a kit file the branch committed itself is refused",
+);
+
+breaks(
+  "a bootstrap that keeps a differing kit file with no fork base is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/bootstrap.mjs",
+  (s) => s.replace("if(!forkBase)return false;", "if(!forkBase)return true;"),
+  () => script("test-bootstrap.mjs"),
+  "with no reachable fork base a differing kit file is refused",
+);
+
+// Dependency units (kit/checks/lib/deps.mjs): which folders install, from where, and what counts
+// as installed. Each property breaks on its own, and the skip allowance with them.
+breaks(
+  "a unit whose folder is gone passing as resolved is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace("const unresolvable = (problems, u, why) => { problems.push(", "const unresolvable = (problems, u, why) => { void ("),
+  () => script("test-deps-units.mjs"),
+  "no-unit failure",
+);
+
+breaks(
+  "a permitted skip named by the record instead of the caller is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-results.mjs",
+  (s) => s.replace("permittedSkipNames(installGate).has(command.name)", "permittedSkipNames(command.name).has(command.name)"),
+  () => script("test-deps-units.mjs"),
+  "whatever the record says",
+);
+
+breaks(
+  "a yarn literal exemption that is not the allowlisted one is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace('yarn_allow=" skills/', 'yarn_allow=" skills/xez-fix/SKILL.md skills/'),
+  () => script("check-allowlists.mjs"),
+  "yarn_allow does not match",
+);
+
+breaks(
+  "a symlinked unit folder that is followed is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace("if (lstat(cur)?.isSymbolicLink()) throw new Refusal(", "if (false) throw new Refusal("),
+  () => script("test-deps-units.mjs"),
+  "a symlinked unit folder is refused",
+);
+
+breaks(
+  "units read from the working tree instead of the base branch are rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace("text = git(root, [\"show\", `refs/remotes/origin/${remote}:${CONFIG}`]);", "text = readFileSync(join(root, CONFIG), \"utf8\");"),
+  () => script("test-deps-units.mjs"),
+  "a unit added in the working tree is not installed",
+);
+
+// verdict-write.sh stamps the packet ids; each property breaks separately.
+breaks(
+  "a verdict writer that no longer stamps taskId and stepId is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("JSON.stringify({ ...p, taskId, stepId })", "JSON.stringify(p)"),
+  () => script("test-kit-catalog.mjs"),
+  "stamped with the step's taskId and stepId",
+);
+
+breaks(
+  "a verdict writer that writes a packet with XEZ_STEP_ID unset is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('[ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse', () => '[ -n "${XEZ_TASK_ID:-}" ] || refuse'),
+  () => script("test-kit-catalog.mjs"),
+  "with XEZ_STEP_ID unset",
+);
+
+breaks(
+  "a verdict writer that overwrites a packet naming another task is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("if (p[k] !== undefined && p[k] !== v)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "names another task",
+);
+
+breaks(
+  "a reviewer skill that asks for the task id from the environment again is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("Leave `taskId` and `stepId` out:", () => "Set `taskId` to `$XEZ_TASK_ID`. Leave `taskId` and `stepId` out:"),
+  () => script("test-kit-facts.mjs"),
+  "holds $XEZ_TASK_ID",
+);
+
+breaks(
+  "leader settings that let gh pr merge --admin through are rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader-settings.json",
+  (s) => s.replace('"Bash(gh pr merge *--admin*)", ', ""),
+  () => script("test-kit-facts.mjs"),
+  "permissions.deny lacks Bash(gh pr merge *--admin*)",
+);
+
+breaks(
+  "a budget loop back on a self-paced 3600s wake-up is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace('"mechanism": "cron",\n      "schedule": "7 * * * *",', '"mechanism": "self-paced-wakeup",\n      "schedule": "3600s",'),
+  () => script("test-kit-facts.mjs"),
+  "L2 is self-paced-wakeup",
+);
+
+breaks(
+  "conflict repair routed back to the merging integration workflow is rejected",
+  "skills/xez-onboard-opinionated/kit/routing.json",
+  (s) => s.replace('"id": "conflict-repair",\n      "title": "Conflict repair",\n      "workflows": [\n        "address-review-findings.yaml"', '"id": "conflict-repair",\n      "title": "Conflict repair",\n      "workflows": [\n        "integration.yaml"'),
+  () => script("test-kit-facts.mjs"),
+  "conflict-repair routes to integration.yaml",
 );
 
 // --- the tree is left exactly as it was found --------------------------------

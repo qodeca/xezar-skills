@@ -28,6 +28,14 @@
 # own default branch (`refs/remotes/origin/HEAD`), and a config that disagrees with it is refused
 # by name rather than believed. The name is validated before it reaches a git argument: git
 # parses options after the remote name, so an unvalidated branch name is an option injection.
+#
+#   config-guard.sh browser --from-base
+#
+# The ad-hoc browser (`chrome-devtools` in `.mcp.json` and `.codex/config.toml`) runs outside
+# every runner sandbox with the operator's file and network reach, so its entry — command, args,
+# tools — is refused here (exit 1) when it differs from the one the base branch already carries.
+# Such a change needs a security review and a human merge. A base with no entry yet is the setup
+# or upgrade pull request, which the security-review row already takes.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -47,6 +55,10 @@ if ! resolve_task_paths; then
 fi
 
 CFG_REL=".xezar/pipeline/config.json"
+if [ "$KEY" = "browser" ] && [ "$FROM_BASE" -eq 0 ]; then
+  printf 'config-guard: usage: config-guard.sh browser --from-base (the browser entry is compared with the base branch only)\n' >&2
+  exit 2
+fi
 if [ "$FROM_BASE" -eq 1 ]; then
   REMOTE_DEFAULT="$(git -C "$TASK_CWD" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || REMOTE_DEFAULT=""
   REMOTE_DEFAULT="${REMOTE_DEFAULT#origin/}"
@@ -65,6 +77,42 @@ if [ "$FROM_BASE" -eq 1 ]; then
   BASE_BRANCH="$REMOTE_DEFAULT"
   SOURCE_NAME="origin/$BASE_BRANCH:$CFG_REL"
   git -C "$TASK_CWD" fetch --quiet origin "refs/heads/$BASE_BRANCH:refs/remotes/origin/$BASE_BRANCH" 2>/dev/null || true
+  if [ "$KEY" = "browser" ]; then
+    for file in .mcp.json .codex/config.toml; do
+      # Both texts go in as DATA (environment), never spliced into the script.
+      SAME="$(BASE_TEXT="$(git -C "$TASK_CWD" show "origin/$BASE_BRANCH:$file" 2>/dev/null)" \
+        TREE_TEXT="$(cat "$TASK_CWD/$file" 2>/dev/null)" node -e '
+        const entry = (text) => {
+          if (!text) return "";
+          if (process.argv[1].endsWith(".json")) {
+            const found = JSON.parse(text).mcpServers?.["chrome-devtools"];
+            return found === undefined ? "" : JSON.stringify(found);
+          }
+          // TOML: every table under mcp_servers.chrome-devtools, plus any line naming it elsewhere.
+          let inside = false;
+          return text.split("\n").map((line) => line.trim()).filter((line) => {
+            if (line.startsWith("[")) inside = /^\[\s*mcp_servers\.("?)chrome-devtools\1\s*[.\]]/.test(line);
+            return line !== "" && !line.startsWith("#") && (inside || line.includes("chrome-devtools"));
+          }).join("\n");
+        };
+        try {
+          const base = entry(process.env.BASE_TEXT);
+          console.log(base === "" || base === entry(process.env.TREE_TEXT) ? "same" : "changed");
+        } catch { console.log("unreadable"); }
+      ' "$file")"
+      case "$SAME" in
+        same) ;;
+        changed)
+          printf 'config-guard: refused — the chrome-devtools entry in %s differs from origin/%s. A change to the browser'"'"'s command, args or tools needs a security review and a human merge, never this gate.\n' "$file" "$BASE_BRANCH" >&2
+          exit 1 ;;
+        *)
+          printf 'config-guard: malformed — %s cannot be read here or on origin/%s, so the chrome-devtools entry cannot be compared\n' "$file" "$BASE_BRANCH" >&2
+          exit 2 ;;
+      esac
+    done
+    printf 'config-guard: ok — browser: the chrome-devtools entry matches origin/%s (.mcp.json, .codex/config.toml)\n' "$BASE_BRANCH"
+    exit 0
+  fi
   CFG_TEXT="$(git -C "$TASK_CWD" show "origin/$BASE_BRANCH:$CFG_REL" 2>/dev/null)" || {
     printf 'config-guard: malformed — cannot read %s; the base branch is where this key is trusted from\n' "$SOURCE_NAME" >&2
     exit 2

@@ -1,6 +1,6 @@
 ---
 name: xez-add-rule
-description: Add a standing rule for the project leader to follow. Places the owner's words in the right section of the committed leader guide, dated and attributed, previews the exact insertion, then commits so the rule loads at every session start, resume, clear and compaction. Use for "the leader should always...", "add a rule", "from now on never...".
+description: Add a standing rule for the project leader to follow. Places the owner's words in the Owner's rules section of the committed leader guide, dated and attributed, previews the exact insertion, then commits so the rule loads at every session start, resume, clear and compaction. Use for "the leader should always...", "add a rule", "from now on never...".
 ---
 
 # Add rule
@@ -20,7 +20,8 @@ can quietly stop being loaded.
 ## Arguments
 
 - `{rule}` — the rule, in the owner's words. Asked for when not given.
-- `--section <name>` — skip the section proposal and place it in the named section.
+- `--section <name>` — accepted from older callers and ignored: every rule goes into
+  `## Owner's rules`.
 - `--replaces <quote>` — this rule supersedes an existing one. The old line is kept and marked
   superseded with today's date rather than deleted; the guide is a record of what was decided,
   and a rule that vanishes leaves a reader wondering whether it ever existed.
@@ -40,9 +41,8 @@ can quietly stop being loaded.
 2. **Take the rule.** Use `{rule}` when given; otherwise ask for it plainly. Do not rewrite,
    expand or tidy what the owner says — see the rules below.
 
-3. **Choose the section** — follow `references/sections.md`. Propose one of the guide's
-   existing sections with a one-line reason, and let the owner correct it. A rule in the wrong
-   section is still loaded, but it is read at the wrong moment.
+3. **Place it under `## Owner's rules`** — follow `references/sections.md`. Every rule goes
+   there, never into the section it governs; create the heading when an older guide lacks it.
 
 4. **Preview the exact insertion.** Show the section heading, the two lines that will sit above
    the new rule, and the rule as it will be written — the owner's words, a period, and the

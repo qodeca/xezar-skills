@@ -114,10 +114,10 @@ try {
     const log = join(lab, "gh.log");
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\nprintf 'ARGS %s\\n' "$*" >>"${log}"\ncase " $* " in *" --body-file - "*) { printf 'BODY '; cat; echo; } >>"${log}" ;; esac\nexit 0\n`);
     chmodSync(join(bin, "gh"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff") };
-    const pipe = (script, request) => {
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const pipe = (script, request, extra = {}) => {
       try {
-        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
+        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
         return 0;
       } catch (error) {
         return error.status;
@@ -135,8 +135,13 @@ try {
     if (pipe("gh-write.sh", { action: "comment", kind: "pr", number: "12; rm -rf /", body: "x" }) !== 1)
       fail("gh-write.sh accepts a JSON request whose number is not a number");
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }) !== 0 ||
-        readFileSync(join(lab, "handoff.verdict.json"), "utf8") !== '{"verdict":"APPROVE"}\n')
-      fail("verdict-write.sh does not write a JSON packet request as the verdict packet");
+        (existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : "") !== '{"verdict":"APPROVE","taskId":"run-1","stepId":"review"}\n')
+      fail("verdict-write.sh does not write a JSON packet request as the verdict packet, stamped with the step's taskId and stepId");
+    rmSync(join(lab, "handoff.verdict.json"), { force: true });
+    if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, { XEZ_STEP_ID: "" }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
+      fail("verdict-write.sh writes a packet with XEZ_STEP_ID unset, which the engine would refuse");
+    if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE", taskId: "run-2" } }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
+      fail("verdict-write.sh overwrites or accepts a packet that names another task instead of refusing it");
     if (pipe("verdict-write.sh", { kind: "packet", packet: "not an object" }) !== 1)
       fail("verdict-write.sh accepts a packet request whose packet is not an object");
   } finally {
@@ -665,6 +670,25 @@ for (const name of workflowFiles) {
       fail("guard fixture: a good record was permitted and no permit.json was written");
     }
     expect("the same authority, a second time", guard("deploy-guard.sh"), 1, "a permit already exists");
+
+    // config-guard.sh browser: the chrome-devtools entry never changes against the base branch.
+    expect("a base with no browser entry yet is the setup PR, left to the security-review row", guard("config-guard.sh", "browser", "--from-base"), 0, "config-guard: ok — browser");
+    const mcp = readFileSync(join(KIT, "mcp.json"), "utf8");
+    const codex = readFileSync(join(KIT, "codex/config.toml"), "utf8");
+    put(".mcp.json", mcp);
+    put(".codex/config.toml", codex);
+    git("add", "-A");
+    git("commit", "--quiet", "-m", "browser");
+    git("push", "--quiet", "origin", "main");
+    expect("the base branch's own browser entry passes", guard("config-guard.sh", "browser", "--from-base"), 0, "config-guard: ok — browser");
+    const browserChange = (file, text, label) => {
+      put(file, text);
+      try { expect(label, guard("config-guard.sh", "browser", "--from-base"), 1, `the chrome-devtools entry in ${file} differs`); }
+      finally { put(file, file === ".mcp.json" ? mcp : codex); }
+    };
+    browserChange(".mcp.json", mcp.replace("chrome-devtools-mcp@1.10.1", "chrome-devtools-mcp@latest"), "a browser entry repinned in .mcp.json needs a security review");
+    browserChange(".codex/config.toml", codex.replace('"navigate_page",', '"navigate_page", "upload_file",'), "a browser tool added in .codex/config.toml needs a security review");
+    expect("the browser check without --from-base is a usage error", guard("config-guard.sh", "browser"), 2, "compared with the base branch only");
   } catch (error) {
     fail(`guard fixture could not be built or run: ${error.message}\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
   } finally {

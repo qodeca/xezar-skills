@@ -24,6 +24,9 @@ else
   skip route-check "no .xezar/routing.json in this project"
 fi
 
+# The ad-hoc browser's MCP entry changes only through a security review, never through this gate.
+bash "$SCRIPT_DIR/config-guard.sh" browser --from-base
+
 # `--diff-base auto` refuses a direct `# Unreleased` edit: inside the gate run it resolves the
 # attempt's own base; run bare it falls back to the remote default branch then the local one, and
 # says so when neither exists. `--fragments` parses the per-pull-request changelog fragments.

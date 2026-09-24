@@ -70,7 +70,7 @@ the team owns the file. Adding a new provider is a descriptor, never a skill cha
 |---|---|---|---|
 | Tracker | `tracker` | `github`, `linear`, `jira`, `mock` | required — setup installs one |
 | Browser | `browser.provider` | `agent-browser`, `playwright` | read as `playwright`, for compatibility |
-| Toolchain | `toolchain.providers` (**a list**) | `npm`, `cargo` | no lifecycle operation applies |
+| Toolchain | `toolchain.providers` (**a list**) | `npm`, `yarn` (Yarn 1), `cargo`, `dotnet` | no lifecycle operation applies |
 | Security | `security.provider` | `osv-scanner` | **nothing runs**, every operation `not-applicable` |
 
 Linear and Jira own issues but delegate repository, pull-request, review, CI and PR-label

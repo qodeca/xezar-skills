@@ -26,6 +26,7 @@ const readSkill = (name) => {
 const template = read("skills/xez-setup-agent-pipeline/references/browsers/TEMPLATE.md");
 const agentBrowser = read("skills/xez-setup-agent-pipeline/references/browsers/agent-browser.md");
 const playwright = read("skills/xez-setup-agent-pipeline/references/browsers/playwright.md");
+const chromeDevtools = read("skills/xez-setup-agent-pipeline/references/browsers/chrome-devtools.md");
 const setup = readSkill("xez-setup-agent-pipeline");
 const prepare = readSkill("xez-prepare-test-env");
 const envDescriptor = read("skills/xez-prepare-test-env/references/env-descriptor.md");
@@ -53,7 +54,12 @@ for (const operation of operations) {
   assert.match(template, new RegExp(`^### ${operation}$`, "m"), `template: ${operation}`);
   assert.match(agentBrowser, new RegExp(`^### ${operation}$`, "m"), `agent-browser: ${operation}`);
   assert.match(playwright, new RegExp(`^### ${operation}$`, "m"), `playwright: ${operation}`);
+  assert.match(chromeDevtools, new RegExp(`^### ${operation}$`, "m"), `chrome-devtools: ${operation}`);
 }
+// The ad-hoc browser is pinned and never an e2e tool.
+assert.match(chromeDevtools, /chrome-devtools-mcp@\d+\.\d+\.\d+ --isolated --headless/);
+assert.doesNotMatch(chromeDevtools, /chrome-devtools-mcp@latest/);
+assert.match(chromeDevtools, /not an e2e tool/);
 
 function releaseAsset(platform, arch, musl = false) {
   const normalized = arch === "x86_64" || arch === "amd64" ? "x64"

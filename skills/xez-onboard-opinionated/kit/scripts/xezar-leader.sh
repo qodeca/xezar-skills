@@ -31,4 +31,7 @@ fi
 # XEZAR_LEADER=1 is what tells the SessionStart hook that THIS session is the leader. Any other
 # session in the checkout gets no leader guide.
 export XEZAR_LEADER=1
-exec claude --dangerously-load-development-channels server:xezar "$@"
+# --settings loads the leader's own permission to merge a PR. A project .claude/settings.json rule
+# would reach every agent, read-only reviewers included, and Claude Code reads auto mode's allow
+# list only from user settings or this flag, never from the project's own settings.
+exec claude --dangerously-load-development-channels server:xezar --settings scripts/xezar-leader-settings.json "$@"

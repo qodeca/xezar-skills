@@ -138,6 +138,7 @@ node "$SCRIPT_DIR/lib/gate-results.mjs" verify \
   --run-id "$RUN_ID" \
   --command-list-id "$command_list_id" \
   --deps-fingerprint "$(deps_fingerprint)" \
+  --install-gate "$(install_gate_name)" \
   --current-head "$current_head" \
   --current-tree-fingerprint "$current_tree_fingerprint" \
   $REQUIRE_CURRENT \

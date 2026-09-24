@@ -44,13 +44,14 @@
 //   node gate-results.mjs begin      --dir <attemptDir> --json '<seed>'
 //   node gate-results.mjs reserve    --gates-root <dir> --head <sha> --stamp <ms> --pid <n>
 //   node gate-results.mjs record     --dir <attemptDir> --json '<command>'
-//   node gate-results.mjs complete   --dir <attemptDir> --json '<tail>'
+//   node gate-results.mjs complete   --dir <attemptDir> --json '<tail>' [--install-gate <name>]
 //   node gate-results.mjs next-seq   --gates-root <dir>
 //   node gate-results.mjs select     --gates-root <dir> --head <sha> [--json]
 //   node gate-results.mjs seal       --manifest <path> --gates-root <dir> --json '<expected>'
 //   node gate-results.mjs observe-ci --manifest <path> --json '<observation>' [--unmatched-ok]
 //   node gate-results.mjs verify     --manifest <path> --repo <mainRoot> [--run-id <id>]
 //                                    [--command-list-id <id>] [--deps-fingerprint <hex>]
+//                                    [--install-gate <name>]
 //                                    [--require-current] [--json]
 //   node gate-results.mjs history    --gates-root <dir> --head <sha> [--json]
 //
@@ -85,10 +86,18 @@ const RESERVATIONS = ".sequences";
 const MAX_RESERVE_PROBES = 100000;
 
 // Exactly one gate may legitimately not run, and only for one recorded reason: the gates skip
-// `npm install` when the installed tree is already verified current for the lockfile. Every
+// the install when the installed tree is already verified current for its lockfiles. Every
 // other not-run or skipped gate makes the attempt uncertifiable. Keeping the allowance as data
 // — rather than as an `if` somewhere in the sealer — is what makes it reviewable.
-const PERMITTED_SKIPS = new Map([["npm ci", "deps-verified-current"]]);
+//
+// WHICH gate is the install is told by the CALLER — repo-gates.sh's current `GATE_NAMES[0]`, passed
+// as `--install-gate` (or `installGate` in a seal's expectations) — and never read from the record
+// being judged: a record that could name its own skippable gate could excuse any gate. "npm ci"
+// stays accepted, so records written before the name was passed still seal.
+const PERMITTED_SKIP_REASON = "deps-verified-current";
+const LEGACY_INSTALL_GATE = "npm ci";
+const permittedSkipNames = (installGate) =>
+  new Set([LEGACY_INSTALL_GATE, ...(typeof installGate === "string" && installGate !== "" ? [installGate] : [])]);
 
 const EXIT_OK = 0;
 const EXIT_REFUSED = 1;
@@ -444,10 +453,12 @@ export function reserveSequence(gatesRoot, headSha, attemptSuffix) {
 // --- judging a record ------------------------------------------------------------------
 
 /** Did one recorded command satisfy its gate? A broken log disqualifies a zero exit status. */
-export function commandSatisfied(command) {
+export function commandSatisfied(command, installGate) {
   if (command.logOk !== true) return false;
   if (command.status === "passed") return true;
-  if (command.status === "skipped") return PERMITTED_SKIPS.get(command.name) === command.skipReason;
+  if (command.status === "skipped") {
+    return command.skipReason === PERMITTED_SKIP_REASON && permittedSkipNames(installGate).has(command.name);
+  }
   return false;
 }
 
@@ -455,7 +466,7 @@ export function commandSatisfied(command) {
  * Every reason this attempt cannot certify anything, as a list. An empty list means the
  * record itself is sound; it says nothing yet about whether it matches the current checkout.
  */
-export function attemptFailures(record) {
+export function attemptFailures(record, installGate) {
   const problems = [];
   if (record.complete !== true) problems.push("the attempt never completed (interrupted)");
   if (record.loggingOk !== true) problems.push("logging failed during the attempt, so the outcomes are not evidenced");
@@ -471,7 +482,7 @@ export function attemptFailures(record) {
       problems.push(`required gate "${name}" has no recorded outcome`);
       continue;
     }
-    if (!commandSatisfied(command)) {
+    if (!commandSatisfied(command, installGate)) {
       problems.push(
         `required gate "${name}" is ${command.status}${command.logOk === true ? "" : " with a broken log"}`,
       );
@@ -620,7 +631,7 @@ function cmdComplete(args) {
   const { byName, duplicates } = indexCommands(record.commands);
   const unsatisfied = (record.required ?? []).filter((name) => {
     const command = byName.get(name);
-    return !command || duplicates.includes(name) || !commandSatisfied(command);
+    return !command || duplicates.includes(name) || !commandSatisfied(command, args["install-gate"]);
   });
   record.result = unsatisfied.length === 0 && duplicates.length === 0 && record.loggingOk === true ? "passed" : "failed";
   record.unsatisfied = unsatisfied;
@@ -818,7 +829,7 @@ function cmdSeal(args) {
 
   const record = latest?.record;
   if (refusals.length === 0) {
-    refusals.push(...attemptFailures(record));
+    refusals.push(...attemptFailures(record, expected.installGate));
     const provenance = producerRefusal(record);
     if (provenance) refusals.push(provenance);
 
@@ -1202,7 +1213,7 @@ function cmdVerify(args) {
     emit(EXIT_REFUSED);
   }
   const record = attempt.record;
-  report.reasons.push(...attemptFailures(record));
+  report.reasons.push(...attemptFailures(record, args["install-gate"]));
 
   // THE SEAL MUST SAY WHAT THE RECORD SAYS.
   //

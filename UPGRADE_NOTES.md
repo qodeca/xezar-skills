@@ -17,6 +17,293 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-24 – upgrading an onboarded project to 3.0.2
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.2. The entries under
+this heading are **one ordered block: apply them top to bottom, in the order below**, and skip an
+entry whose symptom your repository does not have.
+
+**Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
+mid-upgrade snapshots a mix of old and new kit files.
+
+**Order.** Bootstrap → verdict → merge deny → browser config → routing v3 → workflow dispatch →
+L2 → owner's rules → skills text → monorepo. The monorepo entry applies only to a repository with
+several install roots and no root manifest.
+
+**After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
+and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists L2 at
+`7 * * * *` and that `chrome-devtools` appears in `/mcp`.
+
+Every `cp` below starts from `K=.claude/skills/xez-onboard-opinionated/kit`. "Refresh the digests"
+means writing each copied file's SHA-256 in `.xezar/onboarding.json` (a descriptor's under
+`descriptors`); a file new in 3.0.2 gets a new entry.
+
+### 1. Bootstrap – "existing task asset differs" after a kit PR merges
+
+**Symptom.** After a kit PR merges, the next tasks stop with `existing task asset differs: <file>;
+reconcile deliberately`. The bootstrap compared the task's kit with the primary checkout, which
+lags every merged kit PR until someone pulls. It now keeps a file that equals the fork base's copy.
+
+**What to do.**
+
+```bash
+cp $K/checks/lib/bootstrap.mjs .xezar/checks/lib/
+cp $K/docs/worktrees.md .xezar/docs/
+```
+
+Digests: `.xezar/checks/lib/bootstrap.mjs`, `.xezar/docs/worktrees.md`.
+
+**What you lose by skipping it.** Every kit PR blocks new tasks until someone pulls the primary
+checkout by hand.
+
+### 2. Verdict – reviewers' verdicts are refused or missing
+
+**Symptom – either of two.** A review task ends with no comment on the PR, and its log shows
+"Permission to use Bash has been denied because Claude Code is running in don't ask mode" for a
+`jq -n --arg body …` command: Claude Code never matches an allow rule to a command that holds a
+`$`. Or the comment is posted but the task comes back with its verdict refused: the reviewer typed
+a `taskId` or `stepId` that was not the running one.
+
+**What to do.** Copy the role skills with the two scripts they call. The skills now write the text
+into the jq filter with no `$`, and leave the ids out; `verdict-write.sh` stamps them from the
+step's environment and refuses a packet that names another task or step.
+
+```bash
+cp $K/skills/xezar-*.md .xezar/skills/
+cp $K/checks/verdict-write.sh $K/checks/gh-write.sh .xezar/checks/
+```
+
+Digests: every `.xezar/skills/xezar-*.md`, `.xezar/checks/verdict-write.sh`,
+`.xezar/checks/gh-write.sh`.
+
+**What you lose by skipping it.** Claude reviewers' verdicts stay unposted or unrecorded; the
+leader posts them by hand or waits.
+
+### 3. Merge deny – the leader's merge is "denied by the Claude Code auto mode classifier"
+
+**Symptom.** `gh pr merge` is denied with `[Merge Without Review]` or no reason, even with an allow
+rule. Auto mode's safety check runs after the allow rules, and it reads its own allow list only
+from user settings or a `--settings` file – never from `.claude/settings.json`.
+
+**What to do.** Copy the launcher and the leader's settings file. The file holds the merge allow,
+one `autoMode.allow` entry, and deny rules for `gh pr merge` with `--admin`, `--repo` or `-R`, so
+the leader cannot merge over red checks or into another repository.
+
+```bash
+cp $K/scripts/xezar-leader.sh $K/scripts/xezar-leader-settings.json scripts/
+```
+
+If you added `--allowedTools "Bash(gh pr merge *)"` to the launcher yourself, the new file replaces
+it. Digests: `scripts/xezar-leader.sh`, and a new one for `scripts/xezar-leader-settings.json`.
+
+**What you lose by skipping it.** The leader cannot merge; every merge waits for you.
+
+### 4. Browser config – Codex browser QA fails with "Permission denied (1100)", or agents have no browser
+
+**Symptom.** A Codex QA or design step that needs a browser fails with "Permission denied (1100)",
+or no agent can open a page at all. Browser tooling started inside Codex's sandbox; the kit now
+wires `chrome-devtools-mcp`, which runs outside every sandbox, for Claude and for Codex.
+
+**What to do.**
+
+1. Merge the `chrome-devtools` entry from `$K/mcp.json` into `mcpServers` in `.mcp.json`. Never
+   copy over the file.
+2. Merge the `[mcp_servers.chrome-devtools]` table from `$K/codex/config.toml` into
+   `.codex/config.toml`. With no such file, `mkdir -p .codex && cp $K/codex/config.toml .codex/`.
+3. On **each** machine that runs the leader, add to `.claude/settings.local.json` (gitignored)
+   the `mcp__chrome-devtools__*` names from `$K/claude/settings.local.json`, one by one, and
+   `"chrome-devtools"` to `enabledMcpjsonServers`.
+4. Copy the browser workflows, the provider descriptor and the two checks. The role skills came in
+   entry 2.
+
+   ```bash
+   for w in acceptance-verification design-review design-system design qa research ui-design; do
+     cp $K/workflows/$w.yaml .xezar/workflows/
+   done
+   mkdir -p .xezar/pipeline/browsers
+   cp $K/pipeline/browsers/chrome-devtools.md .xezar/pipeline/browsers/
+   cp $K/checks/config-guard.sh $K/checks/repository-checks.sh .xezar/checks/
+   ```
+
+   Never set `chrome-devtools` as `browser.provider`: it is the ad-hoc browser, not the project's
+   e2e tool.
+5. When a routing lane is `codex/…`, the owner adds this to the `config.toml` of the Codex home the
+   engine's `codex` uses (`$CODEX_HOME` when that `codex` or a wrapper sets one, otherwise
+   `~/.codex`):
+
+   ```toml
+   [projects."<absolute project path>"]
+   trust_level = "trusted"
+   ```
+
+   Codex reads the project's `.codex/` only for a trusted project. Trust also loads the project's
+   Codex hooks and rules, not only its MCP servers.
+
+Two user-level settings undo this. A `[mcp_servers.chrome-devtools]` table in that Codex home
+config can make the engine drop the project's server for Codex runs. A user-level
+`mcp__chrome-devtools` allow in `~/.claude/settings.json` widens a reading step's tool list to the
+whole server, `upload_file` and `evaluate_script` included.
+
+`config-guard.sh browser --from-base`, run by `repository-checks.sh`, refuses a change to the
+entry only when the base branch already carries one, so the upgrade PR that adds it passes.
+
+Digests: `.mcp.json`, the seven workflows, `.xezar/checks/config-guard.sh`,
+`.xezar/checks/repository-checks.sh`, and new ones for `.codex/config.toml` and, under
+`descriptors`, `.xezar/pipeline/browsers/chrome-devtools.md`.
+
+**What you lose by skipping it.** Agents cannot look at a page; Codex browser QA keeps failing,
+and design and QA verdicts rest on no screenshot.
+
+### 5. Routing v3 – filing, browser QA, conflict repair and security review route wrongly
+
+**Symptom – any of these.** A filing task checks for duplicates, then stops ("cannot create
+issues"), because filing went to the read-only `issue-triage`. Browser QA goes to Codex first.
+Conflict repair runs `integration.yaml`. A PR that changes `.mcp.json` gets no security review.
+
+**What to do.** Run `/xez-onboard-opinionated --section routing`. It compares your
+`.xezar/routing.json` with defaults version 3, keeps your own edits, and opens a pull request
+offering: the new `issue-filing` row; `browser-qa` with `claude/sonnet` first;
+`conflict-repair` on `address-review-findings.yaml`; and the `security-review` trigger widened to
+`.mcp.json` and `.xezar/pipeline/config.json`. Then copy the filing workflow and its role docs:
+
+```bash
+cp $K/workflows/issue-filing.yaml .xezar/workflows/
+cp $K/docs/ui-operations.md .xezar/docs/
+```
+
+`xezar-issue-create.md` came in entry 2. Digests: `.xezar/routing.json`,
+`.xezar/docs/ui-operations.md`, and a new one for `.xezar/workflows/issue-filing.yaml`.
+
+**What you lose by skipping it.** Nothing breaks. The leader keeps filing issues itself, browser
+QA keeps failing on Codex first, and a browser-config change skips security review.
+
+### 6. Workflow dispatch – the leader starts tasks from `xez-auto-*` skills, not the project's workflows
+
+**Symptom.** Tasks come back with "no reviewer verdict recorded", and the engine shows them started
+from a skill such as `xez-auto-review-pr` rather than a workflow. `route.mjs` never printed the
+row's workflow, and nothing told the leader to pass it.
+
+**What to do.**
+
+```bash
+cp $K/checks/route.mjs .xezar/checks/
+cp $K/docs/routing.md .xezar/docs/
+```
+
+Then run `/xez-add-rule` with: "Dispatch every task with the workflow its route row names, as
+`source`; never start a task from a bare xez-* skill." Skip the rule if the guide already says so.
+Digests: `.xezar/checks/route.mjs`, `.xezar/docs/routing.md`.
+
+**What you lose by skipping it.** Tasks skip the kit snapshot, the gates and the verdict step.
+
+### 7. L2 – the budget loop never ran, and dispatch hit a login out of budget
+
+**Symptom.** The budget table never changes, and a task starts on a login that was out of budget.
+L2 was a self-paced wake-up the leader could not list; it is now cron at `7 * * * *` and copies
+`project_config` `read_quota` rows into the table, and `routing.md` (copied in entry 6) now reads
+the quota before choosing a lane.
+
+**What to do.** `cp $K/loops.json .xezar/loops.json`. Digest: `.xezar/loops.json`.
+
+**What you lose by skipping it.** The budget table goes stale, and dispatch keeps spending a turn
+on logins that are out.
+
+### 8. Owner's rules – my owner rules are spread across the leader guide
+
+**Symptom.** No `## Owner's rules` section in `.xezar/docs/leader-guide.md`. `xez-add-rule` now
+writes every rule there, and creates the section the first time it runs (entry 6 may already have).
+
+**What to do.** Nothing is required. To gather the rules you already have, move them under
+`## Owner's rules` yourself, word for word, with their dates.
+
+**What you lose by skipping it.** Nothing. Old rules keep working where they are.
+
+### 9. Skills text – a security review loops round after round
+
+**Symptom.** A PR with a CI script goes through three or more security rounds, each finding
+another instance of the same class (a symlink escape, a ReDoS, unbounded input). The planning and
+implementation roles now list those threats up front, review response fixes the whole class in the
+touched file, and security review marks an untimed ReDoS claim "static, not timed".
+
+**What to do.** The four skills – `xezar-planning-spec.md`, `xezar-implementation.md`,
+`xezar-review-response.md`, `xezar-security-review.md` – came in entry 2. An installed leader guide
+never auto-updates, so the owner adds two lines to `.xezar/docs/leader-guide.md`, by hand or with
+`/xez-add-rule` where it fits:
+
+- After a kit PR merges, fast-forward the primary checkout (`git pull --ff-only`) before the next
+  dispatch.
+- At the third repair round on the same piece of work, offer "split the helper into its own PR" as
+  one option.
+
+**What you lose by skipping it.** Security reviews keep costing a round per sibling finding, and
+the leader keeps dispatching against a stale primary checkout.
+
+### 10. Monorepo – setup fails on `npm ci` at the root, or freshness passes with no root package.json
+
+Applies only to a repository with several install roots and no root `package.json` (for example
+CM+). A single-root project leaves `dependencies.units` absent and skips this entry.
+
+**Symptom.** Worktree setup or the first gate fails on `npm ci` at the root, or dependency freshness
+passes although nothing was installed. The kit now installs each unit listed in
+`dependencies.units` through `.xezar/checks/deps-restore.sh`.
+
+**What to do – two PRs, in this order.** The units are read from the base branch, so they must
+merge before the scripts that read them. Your current scripts ignore the new key, so PR 1 changes
+nothing at run time. Let every run in flight finish before PR 2 merges: a run that spans the switch
+will not seal.
+
+**PR 1 – the units only.** In `.xezar/pipeline/config.json`, add `dependencies.units` and leave
+`validation.commands` as it is. List each unit as
+`{dir, provider, lockfile?, entry?}`: `provider` is `npm`, `yarn` (Yarn 1 only) or `dotnet`;
+`lockfile` picks the file when a folder has two; `entry` is the `.sln` or `.slnx` a dotnet unit
+restores. A folder left out is never installed. CM+, with `cmplus-server` deliberately left out:
+
+```json
+"dependencies": { "units": [
+  { "dir": "apps/admin-api", "provider": "yarn" },
+  { "dir": "apps/data-api", "provider": "yarn" },
+  { "dir": "apps/admin-web", "provider": "yarn" },
+  { "dir": "apps/widgets/cmplus-component", "provider": "yarn", "lockfile": "yarn.lock" },
+  { "dir": "apps/widgets/cmplus-component-iframe", "provider": "yarn", "lockfile": "yarn.lock" },
+  { "dir": "apps/glofox-sync", "provider": "dotnet", "entry": "CMPlus.Synchronizator.Glofox.Backend.sln" }
+] }
+```
+
+**PR 2 – the scripts, descriptors and first gate.** Set `validation.commands[0]` to
+`.xezar/checks/deps-restore.sh`, then:
+
+```bash
+cp $K/checks/deps-restore.sh $K/checks/worktree-setup.sh $K/checks/worktree-preflight.sh \
+   $K/checks/verify-evidence.sh $K/checks/resume-complete.sh .xezar/checks/
+cp $K/checks/lib/deps.mjs $K/checks/lib/common.sh $K/checks/lib/gate-results.mjs \
+   $K/checks/lib/gate-record.sh .xezar/checks/lib/
+cp $K/pipeline/toolchains/yarn.md $K/pipeline/toolchains/dotnet.md .xezar/pipeline/toolchains/
+```
+
+`.xezar/checks/repo-gates.sh` holds the project's own gate list, so take the kit's code without
+its arrays:
+
+1. Save your copy: `cp .xezar/checks/repo-gates.sh repo-gates.mine`.
+2. `cp $K/checks/repo-gates.sh .xezar/checks/`.
+3. Replace the kit's `GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and `GATE_APPLICATION_LANES=` lines
+   with yours from `repo-gates.mine`.
+4. Change only the first entry of both arrays to `".xezar/checks/deps-restore.sh"`. Positions do
+   not move, so the lanes stay valid.
+5. `git diff .xezar/checks/repo-gates.sh` now shows the kit's units-mode code and the two first
+   entries, nothing else. Delete `repo-gates.mine`.
+
+Dry check before opening PR 2: `bash .xezar/checks/repo-gates.sh --list` shows
+`.xezar/checks/deps-restore.sh` first.
+
+Digests: every file copied in PR 2, `.xezar/checks/repo-gates.sh`, and new ones for
+`.xezar/checks/deps-restore.sh`, `.xezar/checks/lib/deps.mjs` and, under `descriptors`,
+`.xezar/pipeline/toolchains/yarn.md` and `.xezar/pipeline/toolchains/dotnet.md`.
+
+**Rollback.** Revert PR 2, then PR 1.
+
+**What you lose by skipping it.** Setup and the gates install nothing in the app folders, so every
+task fails at setup or runs its gates on no dependencies.
+
 ## 2026-09-23 – my routing still sends Codex work to GPT-5.6 Sol and Luna
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.1.
