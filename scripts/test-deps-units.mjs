@@ -369,8 +369,11 @@ try {
     if (dotnet.status === 0) {
       const r = repo({
         config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.sln" }]),
-        files: { "svc/Api/Api.csproj": '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.0</TargetFramework></PropertyGroup></Project>\n' },
-        extra: (d) => execFileSync("dotnet", ["new", "sln", "-n", "Svc", "-o", join(d, "svc")], { stdio: "ignore" }),
+        // Written by hand: `dotnet new sln` makes a .slnx from SDK 10 on, and the entry names a .sln.
+        files: {
+          "svc/Api/Api.csproj": '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.0</TargetFramework></PropertyGroup></Project>\n',
+          "svc/Svc.sln": "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n",
+        },
       });
       execFileSync("dotnet", ["sln", join(r, "svc/Svc.sln"), "add", join(r, "svc/Api/Api.csproj")], { stdio: "ignore" });
       git(r, "add", "-A"); git(r, "commit", "--quiet", "-m", "sln"); git(r, "push", "--quiet", "origin", "HEAD:main"); git(r, "fetch", "--quiet", "origin");
