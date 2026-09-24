@@ -1,0 +1,5 @@
+- [Onboarding improvement work](onboarding-improvement-work.md) — history to 2.1.1; 3.0.0 now released with engine 0.19.0 (see routing plan)
+- [Routing JSON plan](routing-json-plan.md) — **3.0.1 RELEASED 2026-09-23** (fixes + GPT-6 Sol/Luna, defaults v2); 8cli PR #30 open, leader to review
+- [Onboarding owner decisions](onboarding-owner-decisions.md) — leader-channel flag, lane = tool+model, consented ~/.xezar edits allowed, skills never committed, do not edit ../xezar
+- [Focused patches](feedback-focused-patches.md) — patch = minimal line-level fixes only; never rework the working onboarding process
+- [3.0.2 work](release-302-work.md) — 3.0.2 + **3.0.3 RELEASED 2026-09-24** (v3.0.3, ec856f8, #46 fix); cmplus + 8cli need the deps.mjs copy
