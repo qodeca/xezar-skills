@@ -1,3 +1,22 @@
+# 3.0.3 (2026-09-24)
+
+**The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
+security review in cmplus after its 3.0.2 upgrade. It concerns local install evidence
+(`deps-verified-current`), not a deployed app. Apply the upgrade note to take it.
+
+**A replaced `node_modules` is caught.** 3.0.2 moved each unit's receipt out of `node_modules`, so
+replacing the tree with a copy from another checkout kept the receipt valid. The receipt now
+records the tree it was written for: a nonce written into `node_modules` and that folder's inode.
+Every task reinstalls once after the upgrade.
+
+**The .NET solution counts.** The unit's solution is now part of the fingerprint, so a change to its
+project list or configuration forces a restore. Every project the solution lists, also from outside
+the unit folder, is fingerprinted and must be this task's own restore.
+
+**Tests.** Five link and `projectPath` shapes the old cmplus test covered are now in
+`test-deps-units.mjs`. The opt-in real-.NET case writes its own `.sln`, since `dotnet new sln`
+makes a `.slnx` from SDK 10 on.
+
 # 3.0.2 (2026-09-24)
 
 **Fixes from two leaders running on real projects, 8cli and cmplus, plus monorepo support and a
