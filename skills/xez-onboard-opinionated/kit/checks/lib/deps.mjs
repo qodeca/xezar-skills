@@ -25,13 +25,14 @@
 // always did here (DECISIONS.md -> "Dependency units").
 //
 // WHAT "FRESH" MEANS. A stamp per unit under `.local/xezar/cache/deps/`, holding the unit's input
-// fingerprint and this task's own path, AND a proof that the install on disk is this task's own:
+// fingerprint, this task's own path and the identity of the installed tree (a nonce written into
+// node_modules at stamp time, plus that folder's inode), AND a proof that the install on disk is this task's own:
 // a worktree sits inside the primary checkout, and an install borrowed from an ancestor silently
 // judges another checkout (#286). A unit that cannot be found is a failure, never a skip.
 //
 // Output is data. Exit: 0 ok, 1 not fresh / failed, 2 refused or usage.
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -265,6 +266,24 @@ function presence(root, u, problems) {
   if (!isFile(join(dir, u.lockfile))) return unresolvable(problems, u, `there is no ${u.lockfile}`);
 }
 
+// The projects a dotnet unit's solution builds, as absolute paths: `.sln` lines
+// `Project("{type}") = "Name", "rel\path\X.csproj", "{guid}"`, and `.slnx` `<Project Path="…"/>`.
+// A listed project may sit outside the unit folder; the fingerprint and the ownership proof cover
+// it all the same, since the gate builds it.
+function solutionProjects(root, u) {
+  const dir = join(root, u.dir);
+  let text = "";
+  try { text = readFileSync(join(dir, u.entry), "utf8"); } catch { return []; }
+  const rels = u.entry.endsWith(".slnx")
+    ? [...text.matchAll(/<Project\b[^>]*\bPath\s*=\s*"([^"]+)"/g)].map((m) => m[1])
+    : [...text.matchAll(/^\s*Project\("[^"]*"\)\s*=\s*"[^"]*"\s*,\s*"([^"]+)"/gm)].map((m) => m[1]);
+  return [...new Set(rels.filter((r) => r.toLowerCase().endsWith(".csproj")).map((r) => resolve(dir, r.replace(/\\/g, "/"))))].sort();
+}
+
+// Every .csproj under the unit, plus every project its solution lists.
+const dotnetProjects = (root, u) =>
+  [...new Set([...findFiles(join(root, u.dir), (n) => n.endsWith(".csproj")), ...solutionProjects(root, u)])].sort();
+
 // --- fingerprints and stamps ------------------------------------------------------------------
 // The files an install resolves from, repo-relative. Config files that apply from above the unit
 // (Yarn and npm read .yarnrc/.npmrc up the tree; MSBuild and NuGet walk up for theirs) are taken
@@ -283,6 +302,14 @@ function unitInputs(root, u) {
   }
   if (u.provider === "dotnet") {
     for (const f of findFiles(dir, (n) => n.endsWith(".csproj") || n === "packages.lock.json" || upward(n))) files.add(f);
+    // The solution itself (its project list and configuration mapping), and each project it
+    // lists from outside the unit, with that project's lockfile.
+    if (isFile(join(dir, u.entry))) files.add(join(dir, u.entry));
+    const inside = (p) => p === root || p.startsWith(root + sep);
+    for (const f of solutionProjects(root, u)) {
+      if (!inside(f)) continue;
+      for (const g of [f, join(dirname(f), "packages.lock.json")]) if (isFile(g)) files.add(g);
+    }
   } else {
     for (const n of [u.lockfile, "package.json"]) if (isFile(join(dir, n))) files.add(join(dir, n));
     for (const f of findFiles(join(dir, "patches"), () => true)) files.add(f);
@@ -298,9 +325,30 @@ function unitFingerprint(root, u) {
   return sha256(`${lines.join("\n")}\n`);
 }
 
-// What a stamp says: the fingerprint AND the task path it was written for, so a stamp copied
-// from another checkout with the same lockfiles does not pass as this task's install.
-const stampContent = (root, u, fp) => `${fp}\ntask=${join(root, u.dir)}\n`;
+// What a stamp says: the fingerprint, the task path it was written for, and (for a Node unit) the
+// identity of the installed tree. The path stops a stamp copied from another checkout with the
+// same lockfiles; the tree identity stops a node_modules replaced wholesale after stamping - the
+// stamp lives outside node_modules, so replacing the tree would otherwise keep it valid (#46).
+const TREE_ID = ".xezar-deps-tree";
+const treeId = (root, u) => {
+  if (u.provider === "dotnet") return "";
+  const nm = join(root, u.dir, "node_modules");
+  const st = lstat(nm);
+  if (!st) return "none";
+  if (!st.isDirectory()) return "invalid";
+  const file = join(nm, TREE_ID);
+  const nonce = isFile(file) ? readFileSync(file, "utf8").trim() : "missing";
+  return `${nonce}@${st.dev}:${st.ino}`;
+};
+const writeTreeId = (root, u) => {
+  if (u.provider === "dotnet") return;
+  const nm = join(root, u.dir, "node_modules");
+  if (!lstat(nm)?.isDirectory()) return;
+  const file = join(nm, TREE_ID);
+  rmSync(file, { force: true });
+  writeFileSync(file, `${randomBytes(16).toString("hex")}\n`, { flag: "wx" });
+};
+const stampContent = (root, u, fp) => `${fp}\ntask=${join(root, u.dir)}\n${u.provider === "dotnet" ? "" : `tree=${treeId(root, u)}\n`}`;
 const stampRel = (u) => `${STAMPS}/${u.slug}`;
 
 // --- is this install the task's own ---------------------------------------------------------
@@ -393,11 +441,15 @@ function resolveNode(root, u, problems) {
   scan(nm);
 }
 
-// Every project under the unit has a real obj/project.assets.json restored for THIS task's own
-// project file (the gates build with --no-restore, so a borrowed one would judge another checkout).
+// Every project under the unit, and every project its solution lists, has a real
+// obj/project.assets.json restored for THIS task's own project file (the gates build with
+// --no-restore, so a borrowed one would judge another checkout).
 function resolveDotnet(root, u, problems) {
-  for (const file of findFiles(join(root, u.dir), (n) => n.endsWith(".csproj")).sort()) {
+  for (const file of dotnetProjects(root, u)) {
     const proj = relative(root, file);
+    if (!file.startsWith(root + sep)) { problems.push(`  ${u.dir}/${u.entry} lists ${file}, outside this task`); continue; }
+    try { safeParents(root, proj); } catch (e) { problems.push(`  ${proj}: ${e.message}`); continue; }
+    if (!isFile(file)) { problems.push(`  ${proj}: listed in ${u.dir}/${u.entry} but not found`); continue; }
     const obj = join(dirname(file), "obj");
     const assets = join(obj, "project.assets.json");
     const so = lstat(obj);
@@ -522,6 +574,7 @@ function main() {
         const file = join(root, stampRel(u));
         mkdirSync(dirname(file), { recursive: true });
         rmSync(file, { force: true });
+        writeTreeId(root, u);
         writeFileSync(file, stampContent(root, u, unitFingerprint(root, u)), { flag: "wx" });
       }
       return 0;

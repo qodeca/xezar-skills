@@ -209,11 +209,18 @@ try {
     stale("a stamp copied from another checkout", () => write(one, saved.replace(/task=.*/, "task=/elsewhere/apps/web")), () => write(one, saved));
     stale("a stamp that is a symlink", () => { rmSync(one); symlinkSync(join(lab, "home"), one); }, () => { rmSync(one); write(one, saved); });
     stale("a declared package is missing", () => write(join(u, "apps/web/package.json"), '{"name":"web","devDependencies":{"vitest":"1"}}\n'), () => write(join(u, "apps/web/package.json"), '{"name":"web"}\n'));
-    stale("node_modules borrowed through a symlink", () => { rmSync(join(u, "apps/web/node_modules"), { recursive: true }); symlinkSync(join(u, "apps/widget/node_modules"), join(u, "apps/web/node_modules")); }, () => { rmSync(join(u, "apps/web/node_modules")); write(join(u, "apps/web/node_modules/.yarn-integrity"), ""); });
+    stale("node_modules borrowed through a symlink", () => { rmSync(join(u, "apps/web/node_modules"), { recursive: true }); symlinkSync(join(u, "apps/widget/node_modules"), join(u, "apps/web/node_modules")); }, () => { rmSync(join(u, "apps/web/node_modules")); write(join(u, "apps/web/node_modules/.yarn-integrity"), ""); sh(u, "write_deps_stamp"); });
     stale("a package linked outside the task", () => symlinkSync(lab, join(u, "apps/web/node_modules/borrowed")), () => rmSync(join(u, "apps/web/node_modules/borrowed")));
     const assets = join(u, "svc/Api/obj/project.assets.json");
     const assetsText = readFileSync(assets, "utf8");
     stale("restored .NET assets name another checkout's project", () => write(assets, '{"project":{"restore":{"projectPath":"/elsewhere/Api.csproj"}}}'), () => write(assets, assetsText));
+    stale("the solution's contents changed (#46)", ...edit("svc/Svc.sln", "Global\nEndGlobal\n"));
+    // dotnet writes an absolute path; a relative one that happens to name this project from the
+    // process's cwd is still refused.
+    write(assets, '{"project":{"restore":{"projectPath":"svc/Api/Api.csproj"}}}');
+    const relAssets = deps(u, "resolve");
+    expect("refused: a relative projectPath in project.assets.json, even one that names this project from the cwd", relAssets.code === 1 && relAssets.err.includes("was restored for svc/Api/Api.csproj"), relAssets.err);
+    write(assets, assetsText);
     write(join(u, "apps/web/package.json"), '{"name":"web","devDependencies":{"vitest":"1"},"optionalDependencies":{"fsevents":"2"}}\n');
     const undeclared = deps(u, "resolve");
     expect("units: a declared package missing from the unit's own node_modules is named, an optional one is not", undeclared.code === 1 && undeclared.err.includes("vitest is not installed here") && !undeclared.err.includes("fsevents"), undeclared.err);
@@ -226,6 +233,43 @@ try {
     expect("units: a link cycle inside the task terminates and passes", deps(u, "resolve").code === 0);
     rmSync(join(u, "apps/web/node_modules/cyc-a"), { recursive: true });
     rmSync(join(u, "apps/web/node_modules/cyc-b"), { recursive: true });
+    // Links that stay inside the task but hold a link out: each shape is followed and refused.
+    const nmw = join(u, "apps/web/node_modules");
+    const stash = join(u, "stash");
+    const linkShape = (name, build, undo) => {
+      mkdirSync(stash, { recursive: true });
+      build();
+      const res = deps(u, "resolve");
+      expect(`refused: ${name}`, res.code === 1 && res.err.includes("outside this task"), res.err || "resolved clean");
+      undo();
+      rmSync(stash, { recursive: true, force: true });
+      expect(`refused: ${name} (and resolves again once undone)`, deps(u, "resolve").code === 0);
+    };
+    linkShape("node_modules/.bin links to a folder in the task that holds a link outside",
+      () => { symlinkSync(lab, join(stash, "tool")); symlinkSync(stash, join(nmw, ".bin")); }, () => rmSync(join(nmw, ".bin")));
+    linkShape("a scope folder links to a folder in the task whose package links outside",
+      () => { symlinkSync(lab, join(stash, "pkg")); symlinkSync(stash, join(nmw, "@scope")); }, () => rmSync(join(nmw, "@scope")));
+    linkShape("a package links to a folder in the task whose nested node_modules links outside",
+      () => { mkdirSync(join(stash, "pkg")); symlinkSync(lab, join(stash, "pkg/node_modules")); symlinkSync(join(stash, "pkg"), join(nmw, "linked-pkg")); }, () => rmSync(join(nmw, "linked-pkg")));
+    linkShape("a real package's nested node_modules links to a folder in the task that holds a link outside",
+      () => { mkdirSync(join(nmw, "real-pkg")); symlinkSync(lab, join(stash, "out")); symlinkSync(stash, join(nmw, "real-pkg/node_modules")); }, () => rmSync(join(nmw, "real-pkg"), { recursive: true }));
+    // #46: the stamp lives outside node_modules, so it must be bound to the tree it was written
+    // for. A twin task with equal inputs, installed and stamped; its tree copied over ours.
+    const twin = repo({ config: unitsConfig(), files: unitFiles });
+    run("bash", [join(twin, RESTORE)], twin);
+    expect("tree swap: the twin task is installed and fresh", sh(twin, "deps_resolve_in_task && write_deps_stamp && deps_are_fresh").code === 0);
+    rmSync(nmw, { recursive: true });
+    execFileSync("cp", ["-R", join(twin, "apps/web/node_modules"), nmw]);
+    expect("tree swap: the copied tree passes the link check, so only the receipt can refuse it", deps(u, "resolve").code === 0);
+    expect("stale: a unit's node_modules replaced with another task's copy is not fresh (#46)", fresh() !== 0);
+    rmSync(nmw, { recursive: true });
+    execFileSync("cp", ["-Rp", join(twin, "apps/web/node_modules"), nmw]);
+    expect("stale: the copy is not fresh even with its timestamps kept (cp -p)", fresh() !== 0);
+    const gates = readFileSync(join(KIT, "checks/repo-gates.sh"), "utf8");
+    expect("tree swap: the fast gate installs whenever deps_are_fresh refuses", gates.includes('if [ "$FAST" -eq 1 ] && ! deps_are_fresh; then'));
+    clearCalls();
+    const again = run("bash", ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && write_deps_stamp && deps_are_fresh`], u);
+    expect("tree swap: reinstalling and stamping makes the task fresh again", again.code === 0 && calls().some((c) => c.tool === "yarn" && c.cwd === join(u, "apps/web")), again.err);
     // The no-unit failure: a unit whose folder is gone is a failure, never a skip.
     execFileSync("mv", [join(u, "apps/tool"), join(lab, "tool-away")]);
     const gone = deps(u, "resolve");
@@ -318,6 +362,28 @@ try {
     expect("dotnet: a .slnx entry is restored, with --locked-mode when packages.lock.json exists", res.code === 0 && JSON.stringify(calls().map((c) => c.argv)) === '[["restore","Svc.slnx","--locked-mode"]]', `${res.err} ${JSON.stringify(calls())}`);
   }
 
+  // A solution may build a project outside the unit folder: it is fingerprinted and must be
+  // this task's own restore too (#46). One outside the repository is refused.
+  {
+    const sln = (paths) => `Microsoft Visual Studio Solution File, Format Version 12.00\r\n${paths.map((p, i) => `Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "P${i}", "${p}", "{0000000${i}-0000-0000-0000-000000000000}"\r\nEndProject\r\n`).join("")}Global\r\nEndGlobal\r\n`;
+    const r = repo({
+      config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.sln" }]),
+      files: { "svc/Svc.sln": sln(["Api\\Api.csproj", "..\\shared\\Lib\\Lib.csproj"]), "svc/Api/Api.csproj": "<Project/>\n", "shared/Lib/Lib.csproj": "<Project/>\n" },
+    });
+    run("bash", [join(r, RESTORE)], r);
+    const unrestored = deps(r, "resolve");
+    expect("dotnet: a project the solution lists outside the unit must be restored too", unrestored.code === 1 && unrestored.err.includes("shared/Lib/Lib.csproj: not restored"), unrestored.err);
+    write(join(r, "shared/Lib/obj/project.assets.json"), JSON.stringify({ project: { restore: { projectPath: join(r, "shared/Lib/Lib.csproj") } } }));
+    expect("dotnet: once restored, it resolves", deps(r, "resolve").code === 0);
+    const f = sh(r, "write_deps_stamp && deps_are_fresh");
+    expect("dotnet: stamped with the outside project, fresh", f.code === 0, f.err);
+    write(join(r, "shared/Lib/Lib.csproj"), "<Project><!-- edit --></Project>\n");
+    expect("stale: a project the solution lists outside the unit changed (#46)", sh(r, "deps_are_fresh").code !== 0);
+    write(join(r, "svc/Svc.sln"), sln(["Api\\Api.csproj", "..\\..\\far\\Far.csproj"]));
+    const far = deps(r, "resolve");
+    expect("refused: a solution that lists a project outside the task", far.code === 1 && far.err.includes("outside this task"), far.err);
+  }
+
   // Node: a numeric .nvmrc pins, an alias is a note, and the newest version wins numerically.
   {
     const major = Number(process.versions.node.split(".")[0]);
@@ -369,8 +435,11 @@ try {
     if (dotnet.status === 0) {
       const r = repo({
         config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.sln" }]),
-        files: { "svc/Api/Api.csproj": '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.0</TargetFramework></PropertyGroup></Project>\n' },
-        extra: (d) => execFileSync("dotnet", ["new", "sln", "-n", "Svc", "-o", join(d, "svc")], { stdio: "ignore" }),
+        // Written by hand: `dotnet new sln` makes a .slnx from SDK 10 on, and the entry names a .sln.
+        files: {
+          "svc/Api/Api.csproj": '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.0</TargetFramework></PropertyGroup></Project>\n',
+          "svc/Svc.sln": "Microsoft Visual Studio Solution File, Format Version 12.00\nGlobal\nEndGlobal\n",
+        },
       });
       execFileSync("dotnet", ["sln", join(r, "svc/Svc.sln"), "add", join(r, "svc/Api/Api.csproj")], { stdio: "ignore" });
       git(r, "add", "-A"); git(r, "commit", "--quiet", "-m", "sln"); git(r, "push", "--quiet", "origin", "HEAD:main"); git(r, "fetch", "--quiet", "origin");

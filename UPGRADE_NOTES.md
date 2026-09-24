@@ -17,6 +17,31 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository.
 
+## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed
+
+Applies to a repository onboarded by `xez-onboard-opinionated` at 3.0.2 that sets
+`dependencies.units`. A single-root project skips this entry.
+
+**Symptom.** The fast gate records `deps-verified-current` although a unit's `node_modules` was
+replaced by a copy from another checkout, or although the unit's solution (`entry`) changed after
+the restore. A project the solution builds from outside the unit folder is never checked for its
+own restore (#46).
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/deps.mjs .xezar/checks/lib/
+```
+
+Refresh its digest in `.xezar/onboarding.json`. Every task's first run after the merge reinstalls
+once: stamps written before this change carry no tree identity, so they no longer count as fresh.
+
+**Rollback.** Revert the PR.
+
+**What you lose by skipping it.** Local install evidence can certify a tree the task did not
+install, or a solution it did not restore.
+
 ## 2026-09-24 – upgrading an onboarded project to 3.0.2
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.2. The entries under
