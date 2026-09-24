@@ -46,6 +46,22 @@ validation commands and the gate script's command array — **generated in one p
 answer**, so a new project starts with those files agreeing. In the source project that list is
 bound by convention across roughly eight files, and convention drifts.
 
+**Where dependencies install.** Look for lockfiles and manifests below the root as well as at it,
+skipping `node_modules`, `bin` and `obj`, and propose the installs as units:
+
+- A lockfile beside its manifest is a unit: `package-lock.json` or `npm-shrinkwrap.json` with a
+  `package.json` is `npm`; `yarn.lock` with a `package.json` is `yarn`, Yarn 1 only — a
+  `packageManager` of `yarn@2` or later, or a `.yarnrc.yml`, is reported as not supported.
+- A `.sln` or `.slnx` is a `dotnet` unit, its file name the `entry`.
+- A lockfile with no manifest beside it is **reported**, never made a unit.
+- Two lockfiles in one folder: the owner picks, and the pick is the unit's `lockfile`.
+- No root manifest and two or more units is **units mode**. A root manifest keeps today's single
+  npm root, and nothing below it is proposed.
+
+Show the list; the owner confirms it and names any folder to leave out (one that is deliberately
+not installed stays out, and is then never installed). The confirmed list becomes
+`dependencies.units`, and the install gate becomes `.xezar/checks/deps-restore.sh`.
+
 ## 3. The design gate's starting position
 
 Look for signs of a user interface: web routes, components, a stylesheet, a frontend build step —

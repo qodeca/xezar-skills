@@ -263,6 +263,10 @@ repo_identity() {
 # The toolchain the gates actually ran on. Versions only — never an environment dump, which
 # would put tokens and personal paths into a file that gets read out loud in reviews.
 env_profile() {
+  # In units mode the unit tools' versions (yarn, dotnet) are added; a single npm root records
+  # exactly what it always did.
+  local unit_tools="{}"
+  if deps_units_mode 2>/dev/null; then unit_tools="$(node "$DEPS_MJS" versions --root "$TASK_CWD" 2>/dev/null)" || unit_tools="{}"; fi
   # BASH_VERSION is a shell variable, not an environment one, so it has to be handed over
   # explicitly — reading it from `process.env` silently records null.
   BASH_VERSION="${BASH_VERSION:-}" node -e '
@@ -279,8 +283,9 @@ env_profile() {
       npm: version("npm", "--version"),
       git: version("git", "--version"),
       bash: process.env.BASH_VERSION ?? null,
+      ...JSON.parse(process.argv[1] || "{}"),
     }));
-  '
+  ' "$unit_tools"
 }
 
 # The SHA of the tree HEAD points at. The commit binds the history; the tree binds the content,
@@ -472,6 +477,56 @@ fixture_scratch_remove() {
   rm -rf "$canon_dir"
 }
 
+# The install gate's name in the CURRENT canonical list (repo-gates.sh `GATE_NAMES[0]`), for
+# `gate-results.mjs --install-gate`. Taken from the live list, never from a record being judged; an
+# unreadable list gives an empty name, and then only the legacy "npm ci" skip is accepted.
+install_gate_name() {
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)/repo-gates.sh" --list --json 2>/dev/null | node -e '
+    let raw = "";
+    process.stdin.on("data", (d) => (raw += d)).on("end", () => {
+      try { const name = JSON.parse(raw).gates[0].name; if (typeof name === "string") process.stdout.write(name); } catch {}
+    });' 2>/dev/null
+}
+
+# --- Dependency units -----------------------------------------------------------------
+#
+# A repository with no single root manifest lists its installs in `dependencies.units` of
+# `.xezar/pipeline/config.json`. `lib/deps.mjs` reads them from the BASE BRANCH, never this
+# checkout, validates them, and owns everything about them: install, fingerprint, stamps and the
+# own-install proof. Without the key every function below takes its single-npm-root path, and its
+# output is what it always was.
+DEPS_MJS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/deps.mjs"
+DEPS_MODE_ROOT=""
+DEPS_MODE=""
+
+# 0 = units mode, 1 = a single npm root (the default), 2 = the units are refused (reason on
+# stderr). A refusal is never cached, so the next caller prints the reason again.
+deps_units_mode() {
+  [ -n "${TASK_CWD:-}" ] || return 1
+  if [ "$DEPS_MODE_ROOT" != "$TASK_CWD" ]; then
+    DEPS_MODE="$(node "$DEPS_MJS" mode --root "$TASK_CWD")" || return 2
+    DEPS_MODE_ROOT="$TASK_CWD"
+  fi
+  [ "$DEPS_MODE" = units ]
+}
+
+# Units mode only: a numeric root .nvmrc (`22`, `v22.3.0`) pins the Node major. When the `node` on
+# PATH has another major, the newest installed `$NVM_DIR/versions/node/v<major>.*` goes first on
+# PATH. Nothing is sourced and nothing is downloaded; with no such version installed PATH is left
+# alone and `worktree-setup.sh` names the Node it found and the major it wanted. Applied HERE, as
+# the file is sourced, so setup, the gates and the evidence steps all fingerprint the same Node.
+deps_use_pinned_node() {
+  local root bin
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd -P)" || return 0
+  [ -f "$root/.nvmrc" ] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  bin="$(node "$DEPS_MJS" node-pin --root "$root" 2>/dev/null)" || return 0
+  [ -n "$bin" ] || return 0
+  PATH="$bin:$PATH"
+  export PATH
+}
+deps_use_pinned_node
+
 # --- Dependency freshness -----------------------------------------------------------
 #
 # A fresh Xezar worktree carries no node_modules: only tracked files are checked out, so
@@ -486,6 +541,11 @@ fixture_scratch_remove() {
 # through `npm.patchedDependencies`, the pinned package manager, and every workspace
 # package.json.
 deps_fingerprint() {
+  deps_units_mode 2>/dev/null
+  case $? in
+    0) node "$DEPS_MJS" fingerprint --root "$TASK_CWD"; return ;;
+    2) printf 'units-refused'; return 1 ;;
+  esac
   (
     cd "$TASK_CWD" || return 1
     local f
@@ -531,6 +591,11 @@ deps_stamp_path() {
 # and every import through a lost link resolves from the primary checkout (#286).
 deps_are_fresh() {
   local stamp
+  deps_units_mode 2>/dev/null
+  case $? in
+    0) node "$DEPS_MJS" fresh --root "$TASK_CWD" 2>/dev/null; return ;;
+    2) return 1 ;;
+  esac
   stamp="$(deps_stamp_path)"
   [ -f "$stamp" ] || return 1
   [ -d "$TASK_CWD/node_modules" ] || return 1
@@ -548,6 +613,11 @@ deps_are_fresh() {
 # `npm ci` writes every link, so this only fails on a tree npm did not finish, or one something
 # else damaged. It never installs or repairs anything: it names what is wrong and fails.
 deps_resolve_in_task() {
+  deps_units_mode
+  case $? in
+    0) node "$DEPS_MJS" resolve --root "$TASK_CWD"; return ;;
+    2) return 1 ;;
+  esac
   node -e '
     const fs = require("node:fs"), path = require("node:path");
     const root = fs.realpathSync(process.argv[1]);
@@ -606,6 +676,11 @@ deps_resolve_in_task() {
 }
 
 write_deps_stamp() {
+  deps_units_mode 2>/dev/null
+  case $? in
+    0) node "$DEPS_MJS" stamp --root "$TASK_CWD"; return ;;
+    2) return 1 ;;
+  esac
   mkdir -p "$TASK_CWD/node_modules" || return 1
   deps_fingerprint > "$(deps_stamp_path)"
 }

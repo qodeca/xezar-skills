@@ -540,6 +540,7 @@ if [ ${#failures[@]} -eq 0 ] && [ "$MODE" = "record-gate-evidence" ]; then
   gate_list_json="$("$SCRIPT_DIR/repo-gates.sh" --list --json 2>/dev/null)"
   gate_list_rc=$?
   security_gate=""
+  install_gate=""
   security_gate_measured=0
   if [ "$gate_list_rc" -eq 0 ] && [ -n "$gate_list_json" ]; then
     security_gate="$(printf '%s' "$gate_list_json" | node -e '
@@ -548,6 +549,12 @@ if [ ${#failures[@]} -eq 0 ] && [ "$MODE" = "record-gate-evidence" ]; then
         const gate = JSON.parse(raw).gates.find((g) => g.command === ".xezar/checks/security-scan.sh");
         if (gate) process.stdout.write(gate.name);
       });' 2>/dev/null)" && security_gate_measured=1
+    # The install gate, the one a verified-current skip may satisfy - named by the live list too.
+    install_gate="$(printf '%s' "$gate_list_json" | node -e '
+      let raw = "";
+      process.stdin.on("data", (d) => (raw += d)).on("end", () => {
+        try { const name = JSON.parse(raw).gates[0].name; if (typeof name === "string") process.stdout.write(name); } catch {}
+      });' 2>/dev/null)"
   fi
   dirty=false
   task_tree_is_dirty && dirty=true
@@ -565,6 +572,7 @@ if [ ${#failures[@]} -eq 0 ] && [ "$MODE" = "record-gate-evidence" ]; then
       "branch=$BRANCH" \
       "commandListId=$command_list_id" \
       "securityGate=$security_gate" \
+      "installGate=$install_gate" \
       "treeFingerprint=$(tree_fingerprint)" \
       "depsFingerprint=$(deps_fingerprint)" \
       "dirty:j=$dirty")")"; then
@@ -617,6 +625,7 @@ if [ ${#failures[@]} -eq 0 ] && [ "$MODE" = "verify-gate-evidence" ]; then
               try { const id = JSON.parse(raw).commandListId; if (typeof id === "string") process.stdout.write(id); } catch {}
             });' 2>/dev/null)" \
         --deps-fingerprint "$(deps_fingerprint)" \
+        --install-gate "$(install_gate_name)" \
         --current-head "$HEAD_SHA" \
         --current-tree-fingerprint "$current" \
         --require-current 2>&1)"; then

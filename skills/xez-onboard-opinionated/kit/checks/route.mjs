@@ -509,6 +509,7 @@ function route(file, ids, root, source) {
     const row = rowById[id];
     out.push(`row=${row.id} class=${row.class} writes=${row.writes}`);
     if (row.handledBy) { out.push(`handled-by=${row.handledBy}`); continue; }
+    for (const w of row.workflows) out.push(`workflow=${w.replace(/\.yaml$/, "")}`);
     out.push(cache.verified ? `availability=verified checkedAt=${cache.checkedAt}` : `availability=unverified reason=${cache.reason}`);
     const security = isSecurityRow(rowById, row);
     const usable = [];

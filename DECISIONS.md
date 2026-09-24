@@ -1033,7 +1033,8 @@ is injected in full at every session start, resume, clear and compaction, so the
 keeping — the fixed part was cut to fit, with the reasoning moved to
 `kit/docs/leader-guide-detail.md`, which the leader opens on demand. `test-kit-facts.mjs` now adds
 the fixed lines to the stated budgets and fails above 200, so the two numbers cannot drift apart
-again. Every heading kept its name: `xez-add-rule` routes owner rules into them.
+again. Every heading kept its name. (Superseded in 3.0.2: `xez-add-rule` now writes every owner rule
+under one `## Owner's rules` heading – see "Owner rules live in one section".)
 
 ## The clock rule is every skill's, not one skill's
 
@@ -1109,3 +1110,99 @@ runs are fine there, or a change in how the test runner allocates workers that r
 contention at its source. Either would make this a tax rather than a guard. Nobody has measured
 the *after* state yet, on any machine — that is the honest gap in this entry, and the review date
 exists because of it.
+
+## Owner rules live in one section
+
+`xez-add-rule` used to place each owner rule in the guide section it governed, so the rule was
+read "at the right moment". In the first unattended project the owner could not see what they had
+decided: their rules sat among the shipped text, and a decision that mattered ("the leader merges")
+was never made a rule at all. Every rule now goes under `## Owner's rules`, which the template
+ships empty and the skill creates in an older guide. The guide is loaded whole at every start and
+compaction, so the moment-of-reading argument bought little; one place the owner can read and
+prune bought a lot. `test-kit-facts.mjs` FACT 6 pins the heading.
+
+## Reading steps carry no `$`
+
+A reading step runs under Claude Code's don't-ask mode, and Claude Code will not match a prefix
+rule such as `Bash(jq -n:*)` to a command that holds a `$`, even inside single quotes (tested with
+`claude -p --permission-mode dontAsk`). The kit told reviewers to post with `--arg body` and
+`$body`, so every review comment was denied and the leader posted verdicts by hand. The text now
+goes in the jq filter as a JSON string, with `$` for a dollar sign and `'` for a single
+quote; the clause lives in the generated shared contract so every role skill carries it.
+
+## The leader's merge permission rides on its launcher
+
+Auto mode's safety check denied the leader's `gh pr merge` even with an allow rule: it runs after
+the rules, and all agents share one GitHub account, so no formal approval exists. It reads its own
+`autoMode.allow` only from user settings or `--settings`, never from project settings, and a
+`.claude/settings.json` allow rule also reached read-only reviewers. The kit ships
+`scripts/xezar-leader-settings.json`, loaded by `xezar-leader.sh` alone, holding the merge rule and
+one `autoMode.allow` entry. The owner chose that the leader merges every PR, with no risk limit;
+the leader guide's gate (green required checks) is what holds. `permissions.deny` refuses `--admin`,
+`--repo` and `-R`, so the permission cannot merge over red checks or into another repository.
+
+## The kit snapshot trusts the fork base, not the primary checkout
+
+The bootstrap refused a task whenever its committed kit file differed from the primary checkout's,
+and the primary lags every merged kit PR until someone pulls, so a merged fix blocked the next
+tasks. A differing file is now kept when its blob equals the one at `git merge-base HEAD
+origin/<base>`: that is base-branch content, not the branch's. A file the branch changed is still
+refused, and so is every differing file when origin/<base> or the merge base cannot be found.
+`scripts/test-bootstrap.mjs` builds the three cases.
+
+## Verdict ids are stamped, and a mismatch is refused
+
+`verdict-write.sh` sets the packet's `taskId` and `stepId` from `XEZ_TASK_ID` and `XEZ_STEP_ID`,
+because a reading step cannot run a command that holds a `$`. A packet that already names a
+different id is refused rather than overwritten: a reviewer that typed another task's id wrote a
+report about something else, and a silent fix would record it here.
+
+## The budget loop is cron and reads the quota
+
+L2 was a self-paced wake-up, which the leader cannot list and so cannot compare with
+`loops.json` at session start. It is now cron at `7 * * * *`, off the other loops' minutes, and
+it copies `project_config` `read_quota` rows into the budget table. It never calls `check_quota`
+or starts a probe task: a probe spends budget, and L2 only reports it.
+
+## chrome-devtools is the ad-hoc browser, and its limits are named
+
+Agents look at pages – online sources, designs, smoke checks, a click through the UI – through
+`chrome-devtools-mcp`, wired for Claude in `.mcp.json` and for Codex in `.codex/config.toml`. It is
+not an e2e tool: `ui-tests` and `regression-suite` keep the project's own runner. The exposure is
+real: an MCP server runs outside every runner sandbox, so the browser reaches the operator's files
+and network, and `take_screenshot` writes wherever it is told, even from a reading step. The limits
+are three. The tool list: exact `mcp__chrome-devtools__<tool>` names in the browser workflows (Codex:
+`enabled_tools`, which applies to every Codex step, not only those), never `upload_file`,
+`evaluate_script` or a wildcard. The pin: one exact version, `--isolated --headless`, never
+`@latest`. The guard: `config-guard.sh browser --from-base`, run by `repository-checks.sh`, refuses
+any change to an entry the base branch already carries. `test-kit-facts.mjs` FACT 23 pins all three.
+Codex also needs `default_tools_approval_mode = "approve"`: the engine runs it with approvals set to
+never, and a live run showed every unapproved MCP call failing with "requires approval". Only the
+listed tools exist, so the approval widens nothing.
+
+The list is the limit only where user settings leave it alone. A read-only Claude step runs with
+`--setting-sources user`, so a user-level allow such as `mcp__chrome-devtools` in
+`~/.claude/settings.json` re-widens it to the whole server; that is so on the owner's machine today,
+recorded rather than changed. The Codex corepack EPERM seen on cmplus needs no kit change: it came
+from browser tooling started inside Codex's sandbox, the browser now runs outside it, and a
+workflow step takes no `env` to move the cache anyway.
+
+## Dependency units come from the base branch, and their installs keep lifecycle scripts
+
+A project with no root manifest (cmplus: five Yarn 1 apps and a .NET solution) lists its installs in
+`dependencies.units`; `kit/checks/lib/deps.mjs` installs, fingerprints and stamps each one, and
+`deps-restore.sh` is the one entry point that setup and the first gate both run. The list is read
+from `origin/<remote default>`, as `route.mjs` reads routing, because which folders and tools run
+is authority: a branch that could add a unit would choose code to execute before any review. The
+provider is checked against the kit's own install map (npm, Yarn 1, dotnet), not
+`toolchain.providers`, so listing a unit never makes `xez-maintain-deps` act at a root with no
+manifest.
+
+The kit's install keeps lifecycle scripts, as its `npm ci` always did, although the descriptors
+suppress them: projects build through `prepare` and `postinstall`, and the branch's own
+`package.json` already runs in its tests. The cost is named: Yarn 1 honours a `yarn-path` in a
+unit's `.yarnrc`, so a branch can replace the Yarn binary itself, before any script. That is the
+same trust a branch's scripts already get, not a wider one, and the install runs only in writing
+steps (setup and the gates), never in a reading step. Yarn 2 or later is refused by name: its
+flags, lockfile and install layout are a different tool.
+`scripts/test-deps-units.mjs` pins the base-branch read, the flags and the stale cases.

@@ -41,7 +41,7 @@ per kind, stated in the preview rather than asked file by file:
   two parts as an addition to the owner's file, named as parts 2 and 4 (`references/write.md` §2);
 - an issue template — **left alone**, always;
 - a pull request template — offer the Design and Risk parts as an addition;
-- `.mcp.json` — **merge** the one server entry in;
+- `.mcp.json` and `.codex/config.toml` — **merge** the server entries in;
 - a linter or formatter that scans the whole tree — add the new folders to its ignore file, and
   show the line. A setup that turns the project's own format check red has failed its first gate.
 

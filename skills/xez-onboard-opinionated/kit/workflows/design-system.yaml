@@ -21,6 +21,7 @@ steps:
     name: Change the design system
     prompt: "Change the design system for: {{task}}. Follow xezar-design-system instructions: read the whole system under paths.designSystem in .xezar/pipeline/config.json first; where it holds no README.md, create the system from the screens that already exist. Extract before you invent, keep every page name, bring known-gaps.md up to date in the same commit, and find what uses anything you rename or remove. Finish focused checks and commits before the existing readiness, gates, evidence and PR handoff stages."
     skill: xezar-design-system
+    allowedTools: [Read, Edit, Write, Grep, Glob, Bash, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__new_page, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__select_page, mcp__chrome-devtools__close_page, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__type_text, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__get_css_styles]
     timeout: 2h
   - id: readiness
     name: Confirm the phase record is complete and nothing blocks

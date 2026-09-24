@@ -47,8 +47,10 @@ From this skill's `kit/` into the project:
 | `kit/routing.schema.json` | `.xezar/routing.schema.json` |
 | `kit/routing.json` | `.xezar/routing.json`, then edited in place by interview screens 3 to 5 (`routing-interview.md`) |
 | `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
+| `kit/codex/config.toml` | `.codex/config.toml` — its `[mcp_servers.chrome-devtools]` table merged into an existing file, never over it |
 | `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
 | `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, executable |
+| `kit/scripts/xezar-leader-settings.json` | `scripts/xezar-leader-settings.json` — the leader's merge permission, loaded only by the launcher |
 
 **Rewritten during the copy**, routine and not an owner decision: any absolute path becomes the
 new project root, and references to the source project's own module layout, issue numbers and
@@ -116,7 +118,10 @@ Never copied, because each depends on an answer:
 - **`.xezar/checks/repo-gates.sh` command arrays** — from the confirmed gate commands. This is
   the file that turns an answer into an enforced gate. Keep the shape: the install first, the
   security scan second, the confirmed commands next, `repository-checks.sh` last. The phases are
-  derived from that shape, so nothing is numbered by hand. Then set `GATE_APPLICATION_LANES`
+  derived from that shape, so nothing is numbered by hand. In units mode the install is
+  `.xezar/checks/deps-restore.sh` — written as `GATE_COMMANDS[0]`, as `validation.commands[0]` and,
+  from the same confirmed list, as `dependencies.units` in the pipeline config; its gate name is
+  the same path, as for the other kit checks. Otherwise it is `npm ci`, as shipped. Then set `GATE_APPLICATION_LANES`
   beside the arrays — which application gates may run side by side, by position. A gate that
   needs another's output goes after it in the same lane; when unsure, leave it empty, which runs
   them one after another and is never wrong.
@@ -226,7 +231,9 @@ Never copied, because each depends on an answer:
   has a review that cannot look at a screen. Install **one** browser descriptor — the one whose
   tool this machine already has, asked on the facts screen when both are there — and the security
   descriptor as shipped. **Copying the security descriptor never sets `security.provider`**: that
-  key has no default, permanently, and choosing a scanner is the owner's act.
+  key has no default, permanently, and choosing a scanner is the owner's act. Copy
+  `chrome-devtools.md` as well, always, and never set it as `browser.provider`: it describes the
+  ad-hoc browser `.mcp.json` wires, not the project's e2e tool.
 - **The digests of what was installed.** `references/descriptor-digests.json` holds the SHA-256 of
   every descriptor this release ships. Record the digest of each descriptor actually copied in
   `.xezar/onboarding.json` under `descriptors`, as `{ "<path>": "<sha256>" }`. A descriptor is
@@ -237,13 +244,13 @@ Never copied, because each depends on an answer:
   outside a `{{...}}` placeholder ships **verbatim and is never reworded**: who the leader is and
   is not · session start, re-attach and compaction recovery · standing loops · owner-only
   decisions and how unattended mode narrows them · review discipline · what to log where and the
-  honesty rule · direct pushes · the owner's three control skills · the one-page checklist. Those
+  honesty rule · direct pushes · the owner's three control skills · the owner's rules · the one-page checklist. Those
   sections *are* the decisions, and a paraphrase loses the reason.
 
   Fill the four placeholders as specified below. Delete all three HTML comments — the header
   block, the "Everything below is GENERATED" marker and the `---` rule above it. **Keep every
-  section heading exactly as written:** `xez-add-rule` matches them by name to decide where a new
-  owner rule goes, so a reworded heading sends the rule nowhere. Never write an absolute path or
+  section heading exactly as written:** `xez-add-rule` writes every owner rule under
+  `## Owner's rules`, found by name, so a reworded heading sends the rule nowhere. Never write an absolute path or
   an account name into the result — both are gitignored runtime facts.
 
   The guide is injected **in full** at every start, resume, clear and compaction, so its size is
@@ -379,11 +386,11 @@ Never copied, because each depends on an answer:
   each of the seven in the table above; the third column is the one that earns the file.
 - **`CONTRIBUTING.md`** — one page from idea to merge, for a **person**. Unlike every other file
   in this list it closes no dead pointer: nothing in the kit references it, so nothing will notice
-  if it goes stale. It is here for one reason — this setup installs 37 workflows and a label state
+  if it goes stale. It is here for one reason — this setup installs 38 workflows and a label state
   machine, and a repository that has all that and no human path tells a first-time contributor
   nothing. Read the answers, not the defaults:
 
-  1. **How many of the 37 workflows a contributor can start: none.** They are dispatched by the
+  1. **How many of the 38 workflows a contributor can start: none.** They are dispatched by the
      leader. Say it in the first paragraph, or the first person to open a pull request assumes the
      CI is broken because none of them ran.
   2. **Which checks actually gate their pull request** — `ci.requiredChecks`, spelled as the
@@ -444,10 +451,20 @@ to carry — do not invent one, and do not tell the owner to run one.
   a version, on purpose.** The bridge serves its own tool list and refuses an engine that speaks
   a different protocol version, so a bridge pinned older than the installed engine hides tools or
   refuses every call. Version discipline lives in the preflight minimum and in the version
-  `health` reports.
+  `health` reports. The second entry, `chrome-devtools`, is the opposite: pinned to an exact
+  version, `--isolated --headless`, because it runs with the operator's file and network reach;
+  `.codex/config.toml` declares the same pin for Codex, with `enabled_tools` as its limit.
 - **`.claude/settings.local.json`**, gitignored: `permissions.allow` covering the leader's MCP
   tools, so unattended mode never stops on an interactive prompt. **Accepted cost, recorded in
-  the report:** a tool the product adds later is allowed without anyone looking at it.
+  the report:** a tool the product adds later is allowed without anyone looking at it. The
+  browser's tools are allowed by exact name only, never as `mcp__chrome-devtools`.
+- **Codex trust, when a routing lane is `codex/…`.** Codex reads the project's `.codex/` only for
+  a trusted project, so print this line for the owner to add to the `config.toml` of the Codex home
+  the engine's `codex` uses (`$CODEX_HOME` when that `codex`, or a wrapper script on PATH, sets
+  one; otherwise `~/.codex`): `[projects."<absolute project path>"]` then
+  `trust_level = "trusted"`. Say what trust enables: the project's MCP servers, and its Codex hooks
+  and rules too. Say also that a `[mcp_servers.chrome-devtools]` table in that home config makes the
+  engine switch the project's server off for Codex runs. It is the owner's setting; never write it.
 - **A committed launcher script** that starts the agent with the
   `--dangerously-load-development-channels` flag for this server. **Say the flag's full name in
   the report, including the word `dangerously`.** A vendor puts that word in a flag name to force

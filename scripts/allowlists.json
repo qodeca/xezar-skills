@@ -52,6 +52,21 @@
       }
     }
   },
+  "yarnLiteral": {
+    "$binds": "scripts/lint.sh -> yarn_allow",
+    "entries": {
+      "skills/xez-setup-agent-pipeline/references/toolchains/yarn.md": {
+        "why": "The Yarn 1 toolchain descriptor is literal shell a consumer runs, so it must spell the yarn commands the portability gate otherwise forbids. Permanent while the collection ships a Yarn 1 provider.",
+        "who": "collection maintainers",
+        "expires": "never"
+      },
+      "skills/xez-onboard-opinionated/kit/pipeline/toolchains/yarn.md": {
+        "why": "The kit's byte-identical copy of the Yarn 1 toolchain descriptor, installed into projects that use dependency units. Permanent while the canonical descriptor is.",
+        "who": "collection maintainers",
+        "expires": "never"
+      }
+    }
+  },
   "gateOptOut": {
     "$binds": "scripts/check-gate-list.mjs -> OPT_OUT",
     "entries": {

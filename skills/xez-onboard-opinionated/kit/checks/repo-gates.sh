@@ -13,7 +13,8 @@
 #           .npmrc, patches/ and the Node/npm versions, and a stale or missing stamp installs anyway.
 #           "node_modules exists" is deliberately NOT the test — an agent that touched the
 #           lockfile mid-run leaves node_modules stale, and judging that tree would be a
-#           false green.
+#           false green. With `dependencies.units` set (lib/deps.mjs), the install gate is
+#           `.xezar/checks/deps-restore.sh` and freshness is per unit.
 #   --list  print the canonical gate list and its command-list id, and exit. Nothing runs.
 #           The id is what binds a sealed result to the list it was produced by, so a gate
 #           added or removed later cannot be quietly back-dated onto an older attempt.
@@ -377,10 +378,29 @@ cd "$TASK_CWD" || exit 1
 GATE_PRODUCER="$(gate_resolve_producer "$PRODUCER")"
 export GATE_PRODUCER
 
+# Units mode (`dependencies.units`, read from the base branch by lib/deps.mjs): the install gate is
+# deps-restore.sh, the one install entry point worktree-setup.sh also runs. Any other first gate
+# would install something other than what setup and the freshness stamps describe.
+deps_units_mode
+DEPS_UNITS=$?
+if [ "$DEPS_UNITS" -eq 2 ]; then
+  printf '\nGATES ABORTED: dependencies.units was refused (reason above), so nothing could be installed and nothing here could be evidence.\n' >&2
+  exit 1
+fi
+if [ "$DEPS_UNITS" -eq 0 ] && [ "${GATE_COMMANDS[0]}" != ".xezar/checks/deps-restore.sh" ]; then
+  printf '\nGATES ABORTED: dependencies.units is set, so the first gate must be .xezar/checks/deps-restore.sh, and it is "%s".\n' "${GATE_COMMANDS[0]}" >&2
+  exit 1
+fi
+
 if [ "$FAST" -eq 1 ] && ! deps_are_fresh; then
   printf '=== --fast declined ===\n'
-  printf 'The installed dependencies do not match package-lock.json / the workspace package.json files.\n'
-  printf 'Installing anyway: a gate run against a stale node_modules is not evidence.\n'
+  if [ "$DEPS_UNITS" -eq 0 ]; then
+    printf 'The installed dependencies do not match the lockfiles and manifests of every unit in dependencies.units.\n'
+    printf 'Installing anyway: a gate run against a stale install is not evidence.\n'
+  else
+    printf 'The installed dependencies do not match package-lock.json / the workspace package.json files.\n'
+    printf 'Installing anyway: a gate run against a stale node_modules is not evidence.\n'
+  fi
   FAST=0
 fi
 
@@ -470,7 +490,9 @@ gate_finish() {
 }
 
 if [ "$FAST" -eq 1 ]; then
-  gate_note_skip "npm ci" "deps-verified-current" || exit 1
+  # Recorded under the install gate's own name: the seal looks each required gate up by name, and
+  # gate-results.mjs is told that name by its caller, never by the record it judges.
+  gate_note_skip "${GATE_NAMES[0]}" "deps-verified-current" || exit 1
 else
   gate_phase serial 1 || exit 1
   if node -e 'process.exit(JSON.parse(require("node:fs").readFileSync(process.argv[1])).status === "passed" ? 0 : 1)' "$GATE_ATTEMPT_DIR/workers/1.json"; then
@@ -479,7 +501,11 @@ else
     # produce evidence for this branch, so the attempt stops here and is left incomplete.
     # (--fast reaches this line only through deps_are_fresh, which applies the same check.)
     if ! deps_resolve_in_task; then
-      printf '\nGATES ABORTED: workspace packages resolve outside this task; nothing here could be evidence for it.\n' >&2
+      if [ "$DEPS_UNITS" -eq 0 ]; then
+        printf '\nGATES ABORTED: dependencies are missing or resolve outside this task; nothing here could be evidence for it.\n' >&2
+      else
+        printf '\nGATES ABORTED: workspace packages resolve outside this task; nothing here could be evidence for it.\n' >&2
+      fi
       exit 1
     fi
     write_deps_stamp || exit 1

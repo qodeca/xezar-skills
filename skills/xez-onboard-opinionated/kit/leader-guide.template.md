@@ -6,9 +6,8 @@
   {{PLACEHOLDER}} is filled from the analysis and the interview. Never write an absolute path or a
   real account label into this file — both are gitignored runtime facts.
 
-  A rule the owner adds later goes into the section it governs, in their exact words, ending
-  "(owner <date>)" — never into an appendix at the end. The section headings above are matched
-  by name, so do not reword one.
+  A rule the owner adds later goes under "## Owner's rules", in their exact words, ending
+  "(owner <date>)". `xez-add-rule` finds that heading by name, so do not reword it or any other.
 
   The fixed part below is kept SHORT on purpose: this file is injected in full at every start,
   resume, clear and compaction. The reasoning behind each rule lives in
@@ -52,7 +51,7 @@ A compaction is not a fresh start. Re-attach to what was already running; do not
 
 Three loops, data in `.xezar/loops.json`, full text in `.xezar/docs/leader-context-loading.md`.
 Also know `.xezar/docs/campaign-notes.md` (the 120-line README target, why `future-campaign/` is never live) and
-`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs`.
+`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs` and runs the row's `workflow=` as `source`, never a bare `xez-*` skill.
 
 | Loop | Role | Cadence | May dispatch |
 |---|---|---|---|
@@ -64,6 +63,7 @@ Also know `.xezar/docs/campaign-notes.md` (the 120-line README target, why `futu
 pending, so a double dispatch is impossible by construction. **Selection is by least file
 overlap**; priority only breaks ties, never the other way round. Keep the file-ownership table
 current: `<runId first 8> owns <path glob>`, at every dispatch.
+After a kit PR merges, fast-forward the primary checkout (`git pull --ff-only`) before the next dispatch.
 
 ## Owner-only decisions, and how to ask
 
@@ -73,7 +73,7 @@ Six decisions are the owner's. You write a `BLOCKED` record and you wait.
 2. **A scope trim.**
 3. **Deleting a record** — an issue, a branch, a campaign file, a git tag or a label.
 4. **An account or provider change.**
-5. **A third repair round** on the same piece of work.
+5. **A third repair round** on the same piece of work — offer "split the helper into its own PR" as one option.
 6. **Opening a campaign.**
 
 **Not covered — do these freely:** deleting a **worktree** (your scaffolding, not history), and removing **code inside a reviewed pull request** (reviewed, and git keeps it).
@@ -138,7 +138,9 @@ The owner drives you with three skills. Name them when relevant; never run them 
 | come back and clear what you parked | `xez-unattended-off` |
 | add a standing rule to this guide | `xez-add-rule` |
 
-A rule `xez-add-rule` adds lands here in the owner's exact words with `(owner <date>)`, and binds you exactly as hard as anything shipped in the template.
+## Owner's rules
+
+Standing rules the owner added with `xez-add-rule`, each in their exact words with `(owner <date>)`. Each binds you exactly as hard as anything shipped above.
 
 ## One-page checklist
 

@@ -8,7 +8,8 @@
 # where that kind of file belongs – never into the author's tree.
 #
 # Usage:
-#   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON)
+#   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON;
+#                                      taskId and stepId stamped from XEZ_TASK_ID and XEZ_STEP_ID)
 #   verdict-write.sh blocked           stdin → <evidence dir>/BLOCKED
 #   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name>
 #   verdict-write.sh                   any of the three, as one JSON request on stdin:
@@ -98,11 +99,21 @@ case "$kind" in
   packet)
     [ $# -eq 0 ] || usage
     [ -n "${XEZ_HANDOFF_FILE:-}" ] || refuse "XEZ_HANDOFF_FILE is not set: a packet belongs to a workflow step"
+    # The engine refuses a packet whose ids are not this task's and step's, so the ids are stamped
+    # here from the step's environment, never typed by the reviewer; a packet naming others is refused.
+    [ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse "XEZ_TASK_ID or XEZ_STEP_ID is not set: a packet belongs to a workflow step"
     target="${XEZ_HANDOFF_FILE}.verdict.json"
     tmp="$(atomic_from_stdin "$target" "$PACKET_MAX_BYTES")" || exit 1
-    if ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$tmp" 2>/dev/null; then
+    if ! stamp="$(node -e '
+      const fs = require("fs"), [file, taskId, stepId] = process.argv.slice(1);
+      let p; try { p = JSON.parse(fs.readFileSync(file, "utf8")); } catch { console.log("the packet is not valid JSON"); process.exit(1); }
+      if (p === null || typeof p !== "object" || Array.isArray(p)) { console.log("the packet is not a JSON object"); process.exit(1); }
+      for (const [k, v] of [["taskId", taskId], ["stepId", stepId]])
+        if (p[k] !== undefined && p[k] !== v) { console.log("the packet names " + k + " " + JSON.stringify(p[k]) + ", not the running " + JSON.stringify(v)); process.exit(1); }
+      fs.writeFileSync(file, JSON.stringify({ ...p, taskId, stepId }) + "\n");
+    ' "$tmp" "$XEZ_TASK_ID" "$XEZ_STEP_ID" 2>/dev/null)"; then
       rm -f "$tmp"
-      refuse "the packet is not valid JSON"
+      refuse "${stamp:-the packet could not be read}"
     fi
     mv -f "$tmp" "$target" || refuse "could not rename the packet into place"
     echo "verdict-write.sh: wrote $target"

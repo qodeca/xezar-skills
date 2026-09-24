@@ -191,8 +191,13 @@ EOF
 strip_expr="s#(^|[^A-Za-z0-9])${PREFIX}-#\1#g"
 patterns=(
   '(^|[^[:alnum:]-])develop($|[^[:alnum:]-])'
-  '(^|[^[:alnum:]])yarn '
   'findWithDecryption'
+)
+# The Yarn 1 toolchain descriptors must write its commands, and they are the only files that may.
+# Bound to scripts/allowlists.json `yarnLiteral` by scripts/check-allowlists.mjs.
+yarn_allow=" skills/xez-setup-agent-pipeline/references/toolchains/yarn.md skills/xez-onboard-opinionated/kit/pipeline/toolchains/yarn.md "
+yarn_patterns=(
+  '(^|[^[:alnum:]])yarn '
 )
 # A vendored kit is an ADAPTED copy, not a mirror. These are facts about the engine's own
 # repository — its module paths, its mutation-test config, its design-system tree — and they
@@ -230,6 +235,18 @@ EOF
   done
 }
 scan_patterns "$skill_files" "${patterns[@]}"
+yarn_scope() {
+  local f
+  while IFS= read -r f; do
+    case "$yarn_allow" in
+      *" $f "*) ;;
+      *) printf '%s\n' "$f" ;;
+    esac
+  done <<EOF
+$skill_files
+EOF
+}
+scan_patterns "$(yarn_scope)" "${yarn_patterns[@]}"
 scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || true)" "${kit_patterns[@]}"
 
 # Old-brand ban (permanent): the predecessor collection's brand, its `om-` skill

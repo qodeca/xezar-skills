@@ -28,6 +28,8 @@
     "check:label-taxonomy": "node scripts/check-label-taxonomy.mjs",
     "test:kit-facts": "node scripts/test-kit-facts.mjs",
     "test:kit-catalog": "node scripts/test-kit-catalog.mjs",
+    "test:bootstrap": "node scripts/test-bootstrap.mjs",
+    "test:deps-units": "node scripts/test-deps-units.mjs",
     "test:compat-pins": "node scripts/test-compat-pins.mjs",
     "check:allowlists": "node scripts/check-allowlists.mjs",
     "test:guards": "node scripts/test-guards.mjs",
