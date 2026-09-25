@@ -7,7 +7,37 @@ description: Create, maintain and update the design system every design is judge
 
 You own the design system: the one place that says what this product's interface is made of and how it behaves. Every design is authored on it and every design review is judged against it, so a rule that is missing here is a rule each designer invents again, differently. You do not design a feature — that is `xezar-ux-design` and `xezar-ui-design` — and you write no application code.
 
-Its root is `paths.designSystem` in `.xezar/pipeline/config.json`, written `<system>` below. The key says where; never invent a folder of your own for it. Read the whole of `<system>` before you change any of it. Where the folder holds no `README.md` there is no design system yet, and this run creates one — from the screens that already exist, never from taste.
+Its root is `paths.designSystem` in `.xezar/pipeline/config.json`. The key says where; never invent a folder of your own for it. The folder you work in is written `<system>` below: the root itself, or — when the project splits its system into modules — one module folder under it (see **Modules**). Read the whole of `<system>` before you change any of it, and the root `README.md` too. Where `<system>` holds no `README.md` there is no design system there yet, and this run creates one — from the screens that already exist, never from taste; with modules, only for the module the task names.
+
+## Modules
+
+A project with more than one product surface can split its system into modules. Then `designSystem.modules` in `.xezar/pipeline/config.json` lists them, and the root `README.md` is the module map for people: one row per module, the same names and folders. Each entry has:
+
+| key | what it says |
+|---|---|
+| `name` | the module's name, used in briefs and PRs |
+| `folder` | its folder, relative to `paths.designSystem` |
+| `kind` | `system` – a module with the twelve pages and a stylesheet – or `brand-book` – a reference every module builds on |
+| `writable` | `false` for a folder no design run may change (a brand book behind owner consent); read it, cite it, never edit it |
+| `status` | `planned` (no pages yet), `draft` (pages in progress) or `active` (all twelve pages, followed by every role). The run that creates a module's first pages moves it to `draft`; the run that completes the twelve moves it to `active` |
+| `appPaths` | the application paths the module governs, as globs under `apps/`; no two modules overlap, and a brand book governs none |
+| `derivedFiles` (optional) | exact paths of files outside the folder that are generated from it – never a glob, never under `.xezar/`, `.github/`, `.claude/`, `.codex/` or a `writable: false` folder |
+| `buildCommand`, `checkCommand` (optional) | set together with `derivedFiles`, and only with it: the command that regenerates them and the one that proves they are current, each `node tools/design-system/<script>.mjs`, the check with `--check` |
+
+Without `designSystem.modules`, the root is one flat system and everything below reads `<system>` as the root.
+
+**The module list is the base branch's, not yours.** Read `designSystem.modules` from `origin/<base>` (`git show origin/<base>:.xezar/pipeline/config.json`), never from the branch you are on. A design run may change one thing in it: the `status` of the module the task names, in the config and in the root module map together. Adding a module, or changing `folder`, `kind`, `writable`, `appPaths`, `derivedFiles`, `buildCommand` or `checkCommand`, is an owner's pull request, never a design run. Run only the `buildCommand` and `checkCommand` the base branch lists; a reviewer runs the base's `checkCommand`, never one the candidate changed. After `buildCommand`, `git diff --name-only` shows only `<system>` and the listed `derivedFiles`; anything else is a stop, not a fix.
+
+**Resolve the module before anything else**, in this order, and never by guessing from a folder name:
+
+1. The module the task names, when it names one.
+2. Otherwise, the module whose `appPaths` cover the application surface the feature changes or the code under review – the app, not the `docs/designs/` folder the mockup sits in.
+3. No module covers it: this surface has no system yet. Judge against its existing screens, build on the brand book, and say so in the design's open decisions.
+4. Several modules cover it, or a `design-system` run names no module: stop with `BLOCKED` and name the modules that apply.
+
+A `planned` module has no system to follow yet: treat it as case 3. Only a `design-system` run that names the module creates its pages. A brief that spans modules names each module it uses and which one owns each part.
+
+**Layers.** A module builds on the brand book and on a module named `shared` when one exists, and on nothing else: never on a sibling module. A token or component that a second module needs moves to `shared` under its existing name, so a promotion is a move with no rename for anyone who uses it.
 
 ## The pages, and what each is for
 
@@ -42,7 +72,7 @@ You also own **the heading list of the designs index**: `README.md` in the folde
 
 Check your own work in a real browser per this project's browser descriptor (`.xezar/pipeline/browsers/`), in both themes at 375px and at desktop width; an unavailable browser is not a pass and is reported as such. To look at a page ad hoc – the running change, a design or design-system file, a smoke check, a click through the UI – use the `chrome-devtools` tools and save screenshots in the primary evidence directory. Never write or run an e2e suite with them; that stays with the project's own test tool.
 
-Inputs: what the system must now cover, or what it gets wrong, and the screens that show it. Output: the pages and stylesheet changed, `known-gaps.md` brought up to date in the same commit, the uses you moved or listed, and one paragraph on what a designer may now rely on. Commit after focused checks; the workflow then runs readiness, the gates and evidence sealing before its handoff step opens the draft PR with `needs-design`. The handoff step changes no content.
+Inputs: what the system must now cover, or what it gets wrong, and the screens that show it. Output: the pages and stylesheet changed, `known-gaps.md` brought up to date in the same commit, the module's `derivedFiles` regenerated with the base branch's `buildCommand` and its `checkCommand` run, when it lists any, the uses you moved or listed, and one paragraph on what a designer may now rely on. Commit after focused checks; the workflow then runs readiness, the gates and evidence sealing before its handoff step opens the draft PR with `needs-design`. The handoff step changes no content.
 
 ## What the review of this PR checks
 
@@ -50,8 +80,8 @@ A request for review with no criteria gets an opinion back. Put these five in th
 
 1. Every token a component uses is defined in the stylesheet, and no component carries a raw value.
 2. Every foreground and background pair a component uses has its contrast stated, in both themes.
-3. Every page `xezar-ux-design` and `xezar-ui-design` open by name — the twelve in the table above — exists under `<system>`.
-4. No product code changed: the diff touches `<system>`, the designs index and mockups moved with a rename, and nothing else.
+3. Every page `xezar-ux-design` and `xezar-ui-design` open by name — the twelve in the table above — exists under `<system>`. With modules, this holds for an `active` module; a `draft` one lists its missing pages in `known-gaps.md`.
+4. No product code changed: the diff touches `<system>`, the named module's `status` (in the config and the root module map, nothing else in either), the designs index, mockups moved with a rename and the module's `derivedFiles` as the base branch lists them – regenerated, never hand-edited, with the base branch's `checkCommand` passing – and nothing else. A `writable: false` module is untouched.
 5. The heading list in the designs index matches what this change says a feature README carries, and the feature folders it makes stale are listed.
 
 ## Shared contract

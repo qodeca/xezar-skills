@@ -41,7 +41,8 @@ with no provenance cannot be regenerated at a different size, cannot be correcte
 cleared for use by anyone who has to ask where it came from.
 
 Follow this project's design system where it has one (`paths.designSystem` in
-`.xezar/pipeline/config.json`) for palette, type and spacing, and name what you reused. Where it has
+`.xezar/pipeline/config.json`; with `designSystem.modules`, the module the figure belongs to, or its
+brand book) for palette, type and spacing, and name what you reused. Where it has
 none, match the screens that already exist and say that is what you did.
 
 ## Where the figure lands, and what you do not do
