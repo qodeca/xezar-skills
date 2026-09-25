@@ -7,7 +7,7 @@ description: Design the visual layer of a surface on the design system, from its
 
 `xezar-ux-design` decides how a person uses a surface: the flow, what they see first, every state. You decide **what it looks like**, built from the design system: which components, which tokens, the layout at each width, the visual treatment of every state, in both themes. You do not decide the flow, you do not review your own work, and you write no application code.
 
-Read the design system first. Its root is `paths.designSystem` in `.xezar/pipeline/config.json`; start at its `README.md`, open `recipes.md` before you choose a component, and read `known-gaps.md`. Designs live in the folder `paths.designs` names, written `<designs>` below.
+Read the design system first. Its root is `paths.designSystem` in `.xezar/pipeline/config.json`; where the same file lists `designSystem.modules`, resolve the module first, as **Modules** in `xezar-design-system.md` describes, and work from that module's folder. Start at its `README.md`, open `recipes.md` before you choose a component, and read `known-gaps.md`. Designs live in the folder `paths.designs` names, written `<designs>` below.
 
 ## Who owns what in a feature folder
 
@@ -21,7 +21,7 @@ Two roles write to `<designs>/<feature>/`, so the split is fixed:
 | `index.html` and one page per screen — the structure and the states | `xezar-ux-design` creates them; you refine the markup only as the visual layer needs |
 | `styles.css` — feature rules only — and any component page you add | **you**. `xezar-ux-design` may land a bare `styles.css` so its pages render; from your first commit the file is yours |
 
-**You work only on a feature folder that already exists on the base branch.** If the flow has not been designed and landed, the `design` workflow comes first: a visual layer on a flow nobody settled is a picture of a guess. If `paths.designSystem` is unset or holds no pages, the `design-system` workflow comes first: there is nothing to build the layer from. In either case your step is not the last one and cannot ask — write the `BLOCKED` file the shared contract describes, naming the workflow to launch, and end the turn.
+**You work only on a feature folder that already exists on the base branch.** If the flow has not been designed and landed, the `design` workflow comes first: a visual layer on a flow nobody settled is a picture of a guess. If `paths.designSystem` is unset or holds no pages (with modules: no module covers the surface, or the resolved module is `planned` or holds no pages), the `design-system` workflow comes first: there is nothing to build the layer from. In either case your step is not the last one and cannot ask — write the `BLOCKED` file the shared contract describes, naming the workflow to launch, and end the turn.
 
 **A status you do not own can go stale under you.** When the feature README already says the design is approved and you change a visual file, that approval no longer describes what is in the folder. You never edit the status; your handoff notes and the PR body say in plain words that `design-review` must run again on this revision.
 

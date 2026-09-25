@@ -1,3 +1,16 @@
+# Unreleased
+
+**A design system can be split into modules.** A project with more than one product surface lists
+them in `designSystem.modules` in `.xezar/pipeline/config.json` (name, folder, kind `system` or
+`brand-book`, `writable`, status `planned` → `draft` → `active`, `appPaths`, and optional
+`derivedFiles` with a `node tools/design-system/<script>.mjs` build and check command). The
+design-system, UX, UI, UI-test, code-review and visual-asset roles resolve the module first – the
+one the task names, else the one whose `appPaths` cover the surface, none means no system yet,
+several means BLOCKED – and trust the list from the base branch only; a design run may change only
+its module's status. A project without `designSystem.modules` reads one flat system, as before.
+Found in cmplus (its decision 0018), where the brand book and the admin portal's system share
+`docs/design-system/`.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
