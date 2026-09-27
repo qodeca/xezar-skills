@@ -1,6 +1,6 @@
 {
   "case": "config-no-default",
-  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys; one of them (changelog.format) has no documented default in config-fields.md (P7).",
+  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys. changelog.format now has a documented default (auto, F6): it is either set to that default or left unset and put on the owner checklist, never invented; owner values never change.",
   "invariants": [
     {
       "type": "finished"
@@ -20,9 +20,20 @@
       "path": ".xezar/checks/route.mjs"
     },
     {
-      "type": "jsonAbsent",
-      "path": ".xezar/pipeline/config.json",
-      "key": "changelog.format"
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "jsonAbsent",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format"
+        },
+        {
+          "type": "jsonEquals",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format",
+          "value": "auto"
+        }
+      ]
     },
     {
       "type": "jsonEqualsStart",
@@ -36,10 +47,21 @@
       ]
     },
     {
-      "type": "reportSection",
-      "heading": "Owner checklist",
-      "contains": [
-        "changelog.format"
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "reportSection",
+          "heading": "Owner checklist",
+          "contains": [
+            "changelog.format"
+          ]
+        },
+        {
+          "type": "jsonEquals",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format",
+          "value": "auto"
+        }
       ]
     }
   ]

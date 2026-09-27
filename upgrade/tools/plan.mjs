@@ -13,8 +13,9 @@
 //     files: [ { path, class, action, base: { version, confidence, via }, mineSha256,
 //                theirs: { kitSource, kitBlob, sha256, rewrite } | null, renamedFrom?,
 //                renderKeys?, missingKeys?, register: [LP-n], registerConfirmed,
-//                safety, stops: [reason], notes: [text] } ],
-//     stops: [ { path, reason } ], unexplained: [path], perMachine: [path],
+//                safety, stops: [reason], reviews: [reason], notes: [text] } ],
+//     stops: [ { path, reason } ], reviews: [ { path, reason } ], unexplained: [path],
+//     perMachine: [path],
 //     registerDrafts: { add: [ { files, reason } ], remove: [LP-n] },
 //     upgradeEntries: [ { source, appliesTo, files, actions } ], actions: [action],
 //     engine: null | { version, source, checks: [ { min, status: met|unmet|unknown } ] },
@@ -28,6 +29,13 @@
 //   removed-from-kit, owner-shaped, per-machine, refused.
 // Actions (what apply.mjs does): none, write-theirs, delete, stage-merge, stage-theirs,
 //   keep, list, skip-optional. A file with any stop is never written by apply.mjs.
+// Stops (stop and ask before the file is written): unsafe-path:<why>, unexplained-safety-file,
+//   weakens-safety-check, permission-change, routing-clash.
+// Reviews (the file must be read and judged against the stop list, even when its merge is
+//   clean or it is kept as is; never a verdict by themselves):
+//   safety-local-change   a local change kept in a safety file (the line test is a floor)
+//   safety-both-changed   a safety file both sides changed: a clean text merge can still undo
+//                         what the target change enforces
 //
 // Exit: 0 written; 2 cannot run.
 
@@ -45,10 +53,16 @@ import {
   isCheckLike,
   permissionGrants,
   removedSafetyLines,
+  addedWeakeningLines,
 } from "./lib/policy.mjs";
 import { registerByPath } from "./lib/register.mjs";
 import { parseBlocks, satisfies, parseVersion, compareVersions } from "./lib/machine-block.mjs";
 import { resolveInside } from "./lib/paths.mjs";
+
+/** The planner's stop reasons, each mapped to a rule in the prompt's stop-and-ask list. */
+export const STOP_REASONS = ["unexplained-safety-file", "weakens-safety-check", "permission-change", "routing-clash"];
+/** What the prompt must read and judge even when nothing stops (see the header). */
+export const REVIEW_REASONS = ["safety-local-change", "safety-both-changed"];
 
 export const CLASSES = [
   "unchanged-upstream",
@@ -166,6 +180,49 @@ export function engineChecks(actions, engine) {
   };
 }
 
+/** Arrays whose items all carry an `id` are compared item by item; anything else as a whole. */
+function routingLeaves(value, path, out) {
+  if (Array.isArray(value) && value.length && value.every((v) => v && typeof v === "object" && typeof v.id === "string")) {
+    for (const v of value) out.set(`${path}[id=${v.id}]`, JSON.stringify(v));
+  } else if (value && typeof value === "object" && !Array.isArray(value)) {
+    for (const [k, v] of Object.entries(value)) routingLeaves(v, path ? `${path}.${k}` : k, out);
+    if (!Object.keys(value).length) out.set(path, "{}");
+  } else {
+    out.set(path, JSON.stringify(value));
+  }
+  return out;
+}
+
+/**
+ * The routing fields the owner and the target both changed, differently, against the defaults
+ * the project's routing was built from (stop rule 6). `defaults` is ignored: the target moves
+ * its version on purpose. Returns { both, mine, theirs }: lists of dotted field paths.
+ */
+export function routingClashes(baseDefaults, mine, theirs) {
+  const b = routingLeaves(baseDefaults, "", new Map());
+  const m = routingLeaves(mine, "", new Map());
+  const t = routingLeaves(theirs, "", new Map());
+  const out = { both: [], mine: [], theirs: [] };
+  for (const k of [...new Set([...b.keys(), ...m.keys(), ...t.keys()])].sort()) {
+    if (k === "defaults" || k.startsWith("defaults.")) continue;
+    const mc = m.get(k) !== b.get(k);
+    const tc = t.get(k) !== b.get(k);
+    if (mc && tc && m.get(k) !== t.get(k)) out.both.push(k);
+    else if (mc && !tc) out.mine.push(k);
+    else if (tc && !mc) out.theirs.push(k);
+  }
+  return out;
+}
+
+/** The routing defaults a project's `.xezar/routing.json` names in `defaults.version`, or null. */
+function routingDefaults(ctx, mine) {
+  const n = mine?.defaults?.version;
+  if (!Number.isInteger(n) || n < 1) return null;
+  const file = join(ctx.kitSkillDir, "references/routing-defaults", `${n}.json`);
+  if (!existsSync(file)) return null;
+  return { version: n, data: JSON.parse(readFileSync(file, "utf8")) };
+}
+
 export function buildPlan(ctx, detection = detect(ctx)) {
   const global = globalInputs(detection);
   const byPath = registerByPath(ctx.register.entries);
@@ -193,10 +250,14 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       registerConfirmed: reg.length > 0 && reg.every((r) => r.confirmed),
       safety: isSafetyFile(p),
       stops: [],
+      reviews: [],
       notes: [],
     };
     const stop = (reason) => {
       if (!item.stops.includes(reason)) item.stops.push(reason);
+    };
+    const review = (reason) => {
+      if (!item.reviews.includes(reason)) item.reviews.push(reason);
     };
     const push = () => out.push(item);
 
@@ -253,6 +314,27 @@ export function buildPlan(ctx, detection = detect(ctx)) {
         }
         if (f.base.entry && te.kitBlob === f.base.entry.kitBlob) item.notes.push("unchanged in the kit since its base");
         else item.notes.push("changed in the kit: merge by key");
+        if (p === ".xezar/routing.json") {
+          let mineJson = null;
+          let theirsJson = null;
+          try {
+            mineJson = JSON.parse(f.mineText);
+            theirsJson = JSON.parse(t);
+          } catch {
+            item.notes.push("routing: mine or theirs does not parse, so no field-level comparison");
+          }
+          const defaults = mineJson && theirsJson ? routingDefaults(ctx, mineJson) : null;
+          if (mineJson && theirsJson && !defaults) {
+            item.notes.push("routing: no routing defaults for this file's defaults.version, so no field-level comparison: merge by hand against the target");
+          } else if (defaults) {
+            const c = routingClashes(defaults.data, mineJson, theirsJson);
+            if (c.both.length) stop("routing-clash");
+            for (const k of c.both) item.notes.push(`routing: both changed ${k} (against routing-defaults/${defaults.version}.json)`);
+            const top = (list) => [...new Set(list.map((k) => k.split(/[.[]/)[0]))].join(", ");
+            if (c.mine.length) item.notes.push(`routing: owner changed fields under ${top(c.mine)}`);
+            if (c.theirs.length) item.notes.push(`routing: target changed fields under ${top(c.theirs)}`);
+          }
+        }
       } else if (te?.kitSource && !exists) {
         item.notes.push("new in the kit: add it, merged with the owner's existing setup");
       }
@@ -379,6 +461,16 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       item.class = "already-upstream";
       item.action = "none";
       if (reg.length) item.notes.push("register entry now obsolete: draft its removal");
+    } else if (baseEqTheirs && f.base.confidence === "low") {
+      // An inferred base is not proven: when it equals the target, "local only" would keep a
+      // copy that may simply predate the target's text (F1). Stage theirs and judge it.
+      item.class = "both-changed";
+      item.action = "stage-theirs";
+      item.notes.push("the inferred base equals the target, so this copy may be older than the kit's text: compare mine with theirs, never keep it unread");
+      if (!confirmed) {
+        item.unexplained = true;
+        if (item.safety) stop("unexplained-safety-file");
+      }
     } else if (baseEqTheirs) {
       item.class = confirmed ? "local-only" : "unexplained-local-change";
       item.action = "keep";
@@ -407,9 +499,20 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       }
     }
     if (f.base.confidence === "low") item.notes.push("base inferred");
-    if (removed.length && item.class !== "unchanged-upstream" && item.class !== "already-upstream" && item.class !== "clean-update") {
+    const kept = item.class !== "unchanged-upstream" && item.class !== "already-upstream" && item.class !== "clean-update";
+    if (removed.length && kept) {
       stop("weakens-safety-check");
       item.notes.push(...removed.map((l) => `removed safety line: ${l}`));
+    }
+    const added = isCheckLike(p) && kept ? addedWeakeningLines(baseText, mine) : [];
+    if (added.length) {
+      stop("weakens-safety-check");
+      item.notes.push(...added.map((l) => `added weakening line: ${l}`));
+    }
+    if (item.safety && ["local-only", "unexplained-local-change"].includes(item.class)) review("safety-local-change");
+    if (item.safety && item.class === "both-changed") review("safety-both-changed");
+    if (item.class === "both-changed" && /^\.xezar\/skills\/xezar-[^/]+\.md$/.test(p)) {
+      item.notes.push("owner additions go above the generated `## Shared contract` tail, never after it");
     }
     if (["clean-update", "both-changed"].includes(item.class)) {
       const grants = permissionGrants(p, mine, theirsR.text);
@@ -424,11 +527,13 @@ export function buildPlan(ctx, detection = detect(ctx)) {
   const counts = Object.fromEntries(CLASSES.map((c) => [c, 0]));
   for (const i of out) counts[i.class] += 1;
   const stops = out.flatMap((i) => i.stops.map((reason) => ({ path: i.path, reason })));
+  const reviews = out.flatMap((i) => i.reviews.map((reason) => ({ path: i.path, reason })));
   for (const r of detection.refused) stops.push({ path: r.path, reason: `unsafe-path:${r.reason}` });
 
   const registerDrafts = {
     add: out
-      .filter((i) => i.class === "unexplained-local-change" || i.unexplained)
+      // A file an existing entry already lists (confirmed or not) gets no second entry (F7).
+      .filter((i) => (i.class === "unexplained-local-change" || i.unexplained) && !i.register.length)
       .map((i) => ({ files: [i.path], reason: "local change found by the upgrade with no confirmed register entry" })),
     remove: [...new Set(out.filter((i) => i.class === "already-upstream" && i.register.length).flatMap((i) => i.register))].sort(),
   };
@@ -446,6 +551,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     counts,
     files: out,
     stops,
+    reviews,
     unexplained: out.filter((i) => i.class === "unexplained-local-change" || i.unexplained).map((i) => i.path),
     perMachine: out.filter((i) => i.class === "per-machine").map((i) => i.path),
     registerDrafts,
@@ -463,6 +569,9 @@ export function summary(plan) {
   lines.push("", "## Stop and ask", "");
   if (!plan.stops.length) lines.push("None.");
   for (const s of plan.stops) lines.push(`- ${s.path}: ${s.reason}`);
+  lines.push("", "## Read and judge (not stops by themselves)", "");
+  if (!plan.reviews.length) lines.push("None.");
+  for (const r of plan.reviews) lines.push(`- ${r.path}: ${r.reason}`);
   lines.push("", "## Unexplained local changes", "");
   if (!plan.unexplained.length) lines.push("None.");
   for (const p of plan.unexplained) lines.push(`- ${p}`);

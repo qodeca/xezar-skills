@@ -11,5 +11,21 @@
       }
     }
   ],
-  "register": "# Local patches\n\n## LP-1 – deploy/ is a trust boundary\n- Files: .xezar/checks/lib/security-scan.mjs\n- Reason: deploy/ runs with production credentials and must always get a security reviewer\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n"
+  "register": "# Local patches\n\n## LP-1 – deploy/ is a trust boundary\n- Files: .xezar/checks/lib/security-scan.mjs\n- Reason: deploy/ runs with production credentials and must always get a security reviewer\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n",
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
 }

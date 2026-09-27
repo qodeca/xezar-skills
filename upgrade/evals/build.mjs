@@ -13,6 +13,7 @@
 // Output:
 //   <out>/project     the project (a git repository on its base branch, clean)
 //   <out>/origin.git  its bare remote
+//   <out>/owner-answers.json  the case's fixed owner answers (`ownerAnswers`, below; [] when none)
 //
 // Edit operations (each { "path": ..., <op> }):
 //   create: "<text>"                   write the file
@@ -24,6 +25,11 @@
 //                                      with the fixture's placeholder values), minus one exact
 //                                      passage, plus an appended one
 // `register` (optional) is written to .xezar/LOCAL-PATCHES.md as is.
+// `ownerAnswers` (optional) are the case's fixed owner inputs, written to
+// <out>/owner-answers.json, outside the project: [ { id, rule, paths[], answer, why } ]. A run
+// treats a stop-and-ask question on one of `paths` under `rule` as answered with `answer`, and
+// records it in run.json's `answered`. Nobody answers anything else: the eval never relays or
+// invents an owner answer, so every other stop ends the run.
 //
 // Offline: reads only committed files and the working tree's kit. Exit 0 built; 1 on any error.
 
@@ -111,6 +117,7 @@ export function build(caseDir, outDir) {
   write(project, ".xezar/onboarding.json", `${JSON.stringify(fx.manifest, null, 2)}\n`);
   for (const e of spec.edits ?? []) applyEdit(project, e, fx);
   if (spec.register) write(project, ".xezar/LOCAL-PATCHES.md", spec.register);
+  writeFileSync(join(outDir, "owner-answers.json"), `${JSON.stringify(spec.ownerAnswers ?? [], null, 2)}\n`);
 
   const base = JSON.parse(readFileSync(join(project, ".xezar/pipeline/config.json"), "utf8")).baseBranch ?? "main";
   git(project, "init", "-q", "-b", base);
