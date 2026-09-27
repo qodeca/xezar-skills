@@ -911,8 +911,9 @@ for (const name of workflowFiles) {
 
 // 3.1.0-stream-D:start
 // #52: every agent step carries a timeout, and the kit's validator refuses one without.
-// #63: `emulate` only in qa and design-review, their review steps read-only with a bashAllowlist,
-// their preflight strict, and the browser descriptor saying so.
+// D13 (replaces #63's read-only QA): every review and QA step may run the change through
+// review-run.sh and holds every chrome-devtools tool; the review-only browser tools stay out of
+// every other workflow; review preflights run strict; a verdict needs an unchanged tree.
 {
   const lab = mkdtempSync(join(tmpdir(), "kit-stream-d-"));
   try {
@@ -935,36 +936,122 @@ for (const name of workflowFiles) {
       'step "handoff": an agent step has no timeout', "a handoff step with no timeout");
     refusal("code-review.yaml", (t) => t.replace("    timeout: 2h\n", "    timeout: none\n"),
       'timeout "none" is not a positive duration', "an agent step with timeout: none");
-    refusal("code-review.yaml", (t) => t.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, mcp__chrome-devtools__emulate]"),
-      "grants mcp__chrome-devtools__emulate, which only the design-review and qa workflows may hold", "emulate in code-review");
-    for (const name of ["qa.yaml", "design-review.yaml"]) {
-      refusal(name, (t) => t.replace(/\n    bashAllowlist: \[[^\n]*\]/, ""),
-        "it has no bashAllowlist", `a ${name} review step with no bashAllowlist`);
+    refusal("design.yaml", (t) => t.replace("mcp__chrome-devtools__get_css_styles", "mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__evaluate_script"),
+      "grants mcp__chrome-devtools__evaluate_script, which only the review and QA workflows may hold", "evaluate_script in the design workflow");
+    for (const name of ["qa.yaml", "code-review.yaml", "security-review.yaml"]) {
+      refusal(name, (t) => t.replace(', "bash .xezar/checks/review-run.sh"', ""),
+        "cannot run the change it judges (D13)", `a ${name} review step without review-run.sh`);
+      refusal(name, (t) => t.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
+        "lacks mcp__chrome-devtools__lighthouse_audit", `a ${name} review step without every browser tool`);
+      refusal(name, (t) => t.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Edit,"),
+        "its allowedTools must be listed and hold only", `a ${name} review step that can edit`);
+      refusal(name, (t) => t.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
+        "runs worktree-preflight.sh with --allow-root", `a ${name} preflight back on --allow-root`);
     }
+    refusal("qa.yaml", (t) => t.replace(/\n    bashAllowlist: \[[^\n]*\]/, ""),
+      "it has no bashAllowlist", "a qa.yaml review step with no bashAllowlist");
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }
 
   // The shipped data, read directly: a validator that passes is only half the claim.
-  const EMULATE = "mcp__chrome-devtools__emulate";
-  for (const name of readdirSync(join(KIT, "workflows")).filter((f) => f.endsWith(".yaml"))) {
-    const text = readFileSync(join(KIT, "workflows", name), "utf8");
-    const holds = text.includes(EMULATE);
-    const may = name === "qa.yaml" || name === "design-review.yaml";
-    if (holds !== may) fail(`kit/workflows/${name} ${holds ? "grants" : "does not grant"} ${EMULATE}; only qa and design-review do`);
-    if (may) {
-      if (!/\n    bashAllowlist: \[/.test(text)) fail(`kit/workflows/${name}: the review step has no bashAllowlist`);
-      if (!text.includes('command: ".xezar/checks/worktree-preflight.sh"\n') || text.includes("worktree-preflight.sh --allow-root")) {
-        fail(`kit/workflows/${name}: the preflight step is not the strict worktree-preflight.sh`);
-      }
-      for (const never of ["evaluate_script", "upload_file", "performance_", "take_heapsnapshot", "lighthouse_audit"]) {
-        if (text.includes(`mcp__chrome-devtools__${never}`)) fail(`kit/workflows/${name} grants mcp__chrome-devtools__${never}`);
-      }
-    }
+  for (const name of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) {
+    const text = readFileSync(join(KIT, "workflows", `${name}.yaml`), "utf8");
+    if (!text.includes('"bash .xezar/checks/review-run.sh"')) fail(`kit/workflows/${name}.yaml: the review step cannot run the change (no review-run.sh)`);
+    if (!text.includes("mcp__chrome-devtools__evaluate_script")) fail(`kit/workflows/${name}.yaml: the review step lacks the full browser tool set`);
+    if (text.includes("worktree-preflight.sh --allow-root")) fail(`kit/workflows/${name}.yaml: the preflight step is not the strict worktree-preflight.sh`);
+    if (/^\s*- id: finish$/m.test(text)) fail(`kit/workflows/${name}.yaml ends with a check step, which silences XEZ:ASK and XEZ:DONE`);
   }
+  const verdictWrite = readFileSync(join(KIT, "checks/verdict-write.sh"), "utf8");
+  if (!verdictWrite.includes('bash "$SCRIPT_DIR/review-run.sh" finish')) fail("kit/checks/verdict-write.sh no longer runs review-run.sh finish before a verdict packet");
   const descriptor = readFileSync(join(KIT, "pipeline/browsers/chrome-devtools.md"), "utf8");
-  if (!/plus `emulate`[^.]*in the QA and design-review workflows only\s+\(`qa\.yaml`, `design-review\.yaml`\)/.test(descriptor)) {
-    fail("kit/pipeline/browsers/chrome-devtools.md no longer names emulate as allowed in the qa and design-review workflows only");
+  if (!/hold every chrome-devtools tool[\s\S]*granted by their own tool lists only/.test(descriptor)) {
+    fail("kit/pipeline/browsers/chrome-devtools.md no longer says the review and QA workflows hold every tool, through their own tool lists only");
+  }
+
+  // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
+  // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
+  const run = mkdtempSync(join(tmpdir(), "kit-review-run-"));
+  try {
+    const repo = join(run, "repo");
+    const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
+    git(repo, "config", "user.email", "t@example.com");
+    git(repo, "config", "user.name", "t");
+    git(repo, "remote", "add", "origin", "https://github.com/acme/widget.git");
+    mkdirSync(join(repo, ".xezar"));
+    cpSync(join(KIT, "checks"), join(repo, ".xezar/checks"), { recursive: true });
+    writeFileSync(join(repo, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    writeFileSync(join(repo, ".gitignore"), ".local/\n");
+    writeFileSync(join(repo, "README.md"), "base\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "--quiet", "-m", "base");
+    git(repo, "checkout", "--quiet", "-b", "pr-5");
+    writeFileSync(join(repo, "README.md"), "change\n");
+    git(repo, "commit", "--quiet", "-am", "change");
+    const prHead = git(repo, "rev-parse", "HEAD");
+    git(repo, "checkout", "--quiet", "main");
+    const wt = join(repo, ".local/xezar/worktrees/run-1");
+    git(repo, "worktree", "add", "--quiet", "--detach", wt, "main");
+
+    const bin = join(run, "bin");
+    mkdirSync(bin);
+    const log = join(run, "gh.log");
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2" in\n  "pr checkout") git checkout --quiet --detach ${prHead} ;;\n  "pr view") echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    const handoff = join(run, "handoff");
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const sh = (cwd, script, args = [], input = "") => {
+      try {
+        const out = execFileSync("bash", [`.xezar/checks/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
+        return { status: 0, out };
+      } catch (error) {
+        return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+      }
+    };
+    const rr = (...args) => sh(wt, "review-run.sh", args);
+    const verdictLabel = (head, add = ["qa-approved"]) =>
+      sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add, remove: ["needs-qa"], verdict: { role: "qa", head } }));
+    const packet = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass" } }));
+    const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+
+    if (sh(repo, "review-run.sh", ["verify-unchanged"]).status !== 1) fail("review-run.sh runs in the project's main checkout");
+    for (const argv of [["git", "status"], ["/usr/bin/env", "ls"], ["bash", "-c", "true"], ["gh", "pr", "merge", "5"]]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
+    const clean = rr("verify-unchanged");
+    if (clean.status !== 0 || !clean.out.includes("review-tree=unchanged")) fail(`review-run.sh fails an untouched worktree:\n${clean.out}`);
+    const checkout = rr("checkout", "5");
+    if (checkout.status !== 0 || git(wt, "rev-parse", "HEAD") !== prHead) fail(`review-run.sh checkout does not check the PR's head out:\n${checkout.out}`);
+    if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");
+    const started = rr("start", "srv", "sleep", "30");
+    const pid = (started.out.match(/pid=(\d+)/) ?? [])[1];
+    if (started.status !== 0 || !pid) fail(`review-run.sh start does not start a background command:\n${started.out}`);
+
+    writeFileSync(join(wt, "README.md"), "edited by the review\n");
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a tree whose tracked file changed");
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved after the review changed a tracked file");
+    if (packet().status !== 1 || existsSync(`${handoff}.verdict.json`)) fail("verdict-write.sh writes a verdict after the review changed a tracked file");
+    writeFileSync(join(wt, "README.md"), "change\n");
+
+    if (verdictLabel("0".repeat(40)).status !== 1) fail("gh-write.sh grants qa-approved for a head that is not the PR's");
+    if (verdictLabel(prHead, ["design-approved"]).status !== 1) fail("gh-write.sh lets a qa verdict add design-approved");
+    const granted = verdictLabel(prHead);
+    if (granted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
+      fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
+    const written = packet();
+    if (written.status !== 0 || !existsSync(`${handoff}.verdict.json`)) fail(`verdict-write.sh refuses a verdict from an unchanged tree:\n${written.out}`);
+    let alive = true;
+    try { process.kill(Number(pid), 0); } catch { alive = false; }
+    if (alive) fail("review-run.sh finish (run by verdict-write.sh) leaves a started command running");
+
+    git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
+  } catch (error) {
+    fail(`the review-run fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(run, { recursive: true, force: true });
   }
 }
 // 3.1.0-stream-D:end

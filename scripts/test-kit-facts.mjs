@@ -776,8 +776,10 @@ function walk(rel, match) {
   const DEBUG = new Set(["list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "get_css_styles"]);
   const WANT = Object.fromEntries(["qa", "design-review", "acceptance-verification", "design", "ui-design", "design-system"].map((w) => [w, ALLOWED]));
   WANT.research = ALLOWED.filter((t) => !DEBUG.has(t));
-  // #63: the two review workflows also hold `emulate`, through their own tool lists only.
-  WANT.qa = WANT["design-review"] = [...ALLOWED, "emulate"];
+  // D13: every review and QA workflow holds every chrome-devtools tool, through its own tool list only.
+  const REVIEW_ONLY = ["emulate", "evaluate_script", "upload_file", "drag", "performance_start_trace", "performance_stop_trace",
+    "performance_analyze_insight", "take_heapsnapshot", "lighthouse_audit"];
+  for (const w of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) WANT[w] = [...ALLOWED, ...REVIEW_ONLY];
   const same = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
   const wfDir = `${SKILL}/kit/workflows`;
   for (const rel of walk(wfDir, /\.ya?ml$/)) {

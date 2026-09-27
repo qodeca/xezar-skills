@@ -710,9 +710,9 @@ breaks(
 breaks(
   "a reading workflow given the Write tool is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Write,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -750,9 +750,9 @@ breaks(
 breaks(
   "a reading workflow given a writing tool with another name is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -1451,29 +1451,30 @@ breaks(
   'step "handoff": an agent step has no timeout',
 );
 
-// #63: emulate only in qa and design-review, their review steps read-only, their preflight strict.
+// D13: every review and QA step runs the change and holds every browser tool; nothing else gets
+// the review-only tools; a review's verdict needs an unchanged tree.
 breaks(
-  "a catalog check that lets emulate into any workflow is rejected",
+  "a catalog check that lets review-only browser tools into any workflow is rejected",
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
-  (s) => s.replace("step.allowedTools.includes(EMULATE_TOOL) && !EMULATE_WORKFLOWS", "step.allowedTools.includes(EMULATE_TOOL) && false && !EMULATE_WORKFLOWS"),
+  (s) => s.replace("if (step.allowedTools.includes(tool)) err(at,", "if (false && step.allowedTools.includes(tool)) err(at,"),
   () => script("test-kit-catalog.mjs"),
-  "catalog-check accepts emulate in code-review",
+  "catalog-check accepts evaluate_script in the design workflow",
 );
 
 breaks(
-  "a catalog check that lets qa run without a bashAllowlist again is rejected",
+  "a catalog check that no longer asks a review step for review-run.sh is rejected",
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
-  (s) => s.replace('const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification"]);', 'const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "qa"]);'),
+  (s) => s.replace("if (!list.includes(REVIEW_RUN_PREFIX)) {", "if (false) {"),
   () => script("test-kit-catalog.mjs"),
-  "catalog-check accepts a qa.yaml review step with no bashAllowlist",
+  "catalog-check accepts a qa.yaml review step without review-run.sh",
 );
 
 breaks(
-  "emulate granted to code-review is rejected",
+  "a review workflow without the full browser tool set is rejected",
   "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml",
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, mcp__chrome-devtools__emulate]"),
-  () => script("test-kit-catalog.mjs"),
-  "grants mcp__chrome-devtools__emulate, which only the design-review and qa workflows may hold",
+  (s) => s.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
+  () => script("test-kit-facts.mjs"),
+  "FACT 23",
 );
 
 breaks(
@@ -1481,15 +1482,23 @@ breaks(
   "skills/xez-onboard-opinionated/kit/workflows/design-review.yaml",
   (s) => s.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
   () => script("test-kit-catalog.mjs"),
-  "kit/workflows/design-review.yaml: the preflight step is not the strict worktree-preflight.sh",
+  "runs worktree-preflight.sh with --allow-root",
 );
 
 breaks(
-  "a browser descriptor that stops naming where emulate is allowed is rejected",
-  "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
-  (s) => s.replace("in the QA and design-review workflows only", "in review workflows"),
+  "a verdict-write that no longer checks the reviewed tree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('bash "$SCRIPT_DIR/review-run.sh" finish >&2 ||', 'true ||'),
   () => script("test-kit-catalog.mjs"),
-  "no longer names emulate as allowed in the qa and design-review workflows only",
+  "no longer runs review-run.sh finish before a verdict packet",
+);
+
+breaks(
+  "a browser descriptor that stops saying where the review tools are granted is rejected",
+  "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
+  (s) => s.replace("granted by their own tool lists only", "granted anywhere"),
+  () => script("test-kit-catalog.mjs"),
+  "no longer says the review and QA workflows hold every tool",
 );
 // 3.1.0-stream-D:end
 

@@ -24,12 +24,28 @@
 # passing the merge gate on its own word. Build the request with `jq -n`, never a heredoc or
 # `printf`, which no reading step's allowlist holds.
 #
+# ONE EXCEPTION, SCOPED TO THE REVIEWER'S OWN VERDICT (DECISIONS.md, D13). A JSON label request on a
+# pull request that carries `"verdict":{"role":"qa"|"design-review","head":"<40-char sha>"}` may add
+# that role's approval label and lift that role's own gate label, and nothing else:
+#   qa             add qa-approved,     remove needs-qa
+#   design-review  add design-approved, remove needs-design
+# and only when `head` is the PR's current head, this worktree reviewed exactly that head
+# (`review-run.sh checkout`), and its tracked files are unchanged (`review-run.sh verify-unchanged`).
+# The role is the request's word: a step's verdict role is not visible to a script, so the
+# engine's packet check (a packet whose role the step does not declare is refused) is the other half.
+#
 # Exit: gh's own status on a run, 1 on a refusal, 2 on usage.
 set -uo pipefail
 
 # Labels a reader may never add, and labels it may never remove (lib/project-policy.mjs).
 NEVER_ADD="qa-approved qa-self-verified design-approved skip-qa skip-design"
 NEVER_REMOVE="blocked do-not-merge qa qa-failed design design-failed needs-qa needs-design"
+# What a verdict-scoped request may add and remove, per role (D13).
+VERDICT_ADD_qa="qa-approved"
+VERDICT_REMOVE_qa="needs-qa"
+VERDICT_ADD_design_review="design-approved"
+VERDICT_REMOVE_design_review="needs-design"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 COMMENT_MAX_BYTES=65536
 
 usage() {
@@ -42,6 +58,12 @@ usage() {
 refuse() {
   echo "gh-write.sh: refused: $*" >&2
   exit 1
+}
+
+# This request's own label for ADD or REMOVE, from its verdict role.
+own_label() {
+  local var="VERDICT_${1}_${verdict_role//-/_}"
+  printf '%s' "${!var:-}"
 }
 
 has_word() {
@@ -84,6 +106,12 @@ if [ $# -eq 0 ]; then
         refuse "add and remove must be lists of label names"
       while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --add "$l"; done < <(jq -r '(.add // [])[]' <<<"$request")
       while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --remove "$l"; done < <(jq -r '(.remove // [])[]' <<<"$request")
+      if jq -e 'has("verdict")' >/dev/null <<<"$request"; then
+        verdict_role="$(jq -r 'if (.verdict | type) == "object" and (.verdict.role | type) == "string" then .verdict.role else "" end' <<<"$request")"
+        verdict_head="$(jq -r 'if (.verdict | type) == "object" and (.verdict.head | type) == "string" then .verdict.head else "" end' <<<"$request")"
+        case "$verdict_role" in qa | design-review) ;; *) refuse "verdict.role must be qa or design-review" ;; esac
+        printf '%s' "$verdict_head" | grep -Eq '^[0-9a-f]{40}$' || refuse "verdict.head must be the full 40-character sha you reviewed"
+      fi
       ;;
   esac
   from_json=1
@@ -121,17 +149,33 @@ case "$action" in
       printf '%s' "$label" | grep -Eq '^[a-z0-9][a-z0-9-]{0,49}$' || refuse "\"$label\" is not a label name"
       case "$flag" in
         --add)
-          has_word "$label" "$NEVER_ADD" && refuse "\"$label\" is an approval label; a reviewer never grants it"
+          if [ -n "${verdict_role:-}" ] && [ "$label" = "$(own_label ADD)" ]; then
+            verdict_used=1
+          elif has_word "$label" "$NEVER_ADD"; then
+            refuse "\"$label\" is an approval label; a reviewer grants only its own, with a verdict request (D13)"
+          fi
           args+=(--add-label "$label")
           ;;
         --remove)
-          has_word "$label" "$NEVER_REMOVE" && refuse "\"$label\" blocks a merge; a reviewer never lifts it"
+          if [ -n "${verdict_role:-}" ] && [ "$label" = "$(own_label REMOVE)" ]; then
+            verdict_used=1
+          elif has_word "$label" "$NEVER_REMOVE"; then
+            refuse "\"$label\" blocks a merge; a reviewer lifts only its own gate label, with a verdict request (D13)"
+          fi
           args+=(--remove-label "$label")
           ;;
         *) usage ;;
       esac
       shift 2
     done
+    if [ -n "${verdict_used:-}" ]; then
+      [ "$kind" = pr ] || refuse "a verdict label goes on a pull request"
+      current="$(gh pr view "$number" --repo "$repo" --json headRefOid --jq .headRefOid 2>/dev/null)" || current=""
+      [ "$current" = "$verdict_head" ] || refuse "the PR's head is ${current:-unknown}, not the reviewed $verdict_head; the verdict is void"
+      bash "$SCRIPT_DIR/review-run.sh" verify-unchanged >/dev/null || refuse "this worktree's tracked files or HEAD changed during the review"
+      reviewed="$(git rev-parse HEAD 2>/dev/null)"
+      [ "$reviewed" = "$verdict_head" ] || refuse "this worktree reviewed ${reviewed:-nothing}, not $verdict_head; check the PR out with review-run.sh checkout first"
+    fi
     gh "$kind" edit "$number" --repo "$repo" "${args[@]}"
     ;;
   *) usage ;;
