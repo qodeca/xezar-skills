@@ -249,6 +249,36 @@ EOF
 scan_patterns "$(yarn_scope)" "${yarn_patterns[@]}"
 scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || true)" "${kit_patterns[@]}"
 
+# Kit role skills name no package manager (#59). They run in projects on Yarn, .NET or several
+# install roots, so a role reads its commands from the installed toolchain descriptors,
+# `dependencies.units` and `validation.commands` instead of assuming npm, a root lockfile or a
+# workspace count. The generated `## Shared contract` tail of every role skill is always scanned;
+# a body is scanned unless the file is listed here, each with a reason and an expiry.
+# Bound to scripts/allowlists.json `npmLiteral` by scripts/check-allowlists.mjs.
+npm_allow=" skills/xez-onboard-opinionated/kit/skills/xezar-implementation.md skills/xez-onboard-opinionated/kit/skills/xezar-quality-gates.md skills/xez-onboard-opinionated/kit/skills/xezar-release-changelog.md skills/xez-onboard-opinionated/kit/skills/xezar-release-publish.md "
+role_patterns=(
+  -e '(^|[^[:alnum:]])npm($|[^[:alnum:]])'
+  -e 'package-lock\.json'
+  -e '(^|[^[:alnum:]])([0-9]+|[Tt]wo|[Tt]hree|[Ff]our|[Ff]ive|[Ss]ix|[Ss]even|[Ee]ight|[Nn]ine|[Tt]en)( [[:alnum:]]+){0,2} workspaces'
+)
+role_part() {
+  # $1: file; $2: body|tail. Prints "<line>:<text>" for that part only.
+  awk -v part="$2" '/^## Shared contract$/ { tail = 1 } (part == "tail") == (tail == 1) { print NR ":" $0 }' "$1"
+}
+for f in $(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/skills/xezar-[^/]*\.md$' || true); do
+  parts="tail body"
+  case "$npm_allow" in *" $f "*) parts="tail" ;; esac
+  for part in $parts; do
+    role_hits=$(role_part "$f" "$part" | grep -E "${role_patterns[@]}" || true)
+    while IFS= read -r hit; do
+      [ -n "$hit" ] || continue
+      err "$f:${hit%%:*} names a package manager, a root lockfile or a workspace count in a kit role skill's $part (#59) — read the command from the installed toolchain descriptor, \`dependencies.units\` or \`validation.commands\` instead"
+    done <<EOF
+$role_hits
+EOF
+  done
+done
+
 # Old-brand ban (permanent): the predecessor collection's brand, its `om-` skill
 # prefix and its `.ai/` layout must not reappear in the maintained sources. Lineage
 # is recorded in LICENSE and the UPGRADE_NOTES.md migration entry only.

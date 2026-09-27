@@ -1308,6 +1308,49 @@ breaks(
 // Each 3.1.0 stream adds its cases between its own start and end lines, never elsewhere,
 // so parallel PRs do not touch the same lines. The release PR removes the markers.
 // 3.1.0-stream-A:start
+// #59: kit role skills name no package manager, root lockfile or workspace count.
+const ROLE = "skills/xez-onboard-opinionated/kit/skills";
+const NO_PM = "names a package manager, a root lockfile or a workspace count";
+
+breaks(
+  "a role skill body that runs tests through npm is rejected",
+  `${ROLE}/xezar-testing.md`,
+  (s) => s.replace("through the project's test command", "through npm test -- <filter>"),
+  lint,
+  `xezar-testing.md:8 ${NO_PM} in a kit role skill's body`,
+);
+
+breaks(
+  "a role skill body that names the root package-lock.json is rejected",
+  `${ROLE}/xezar-dependency-maintenance.md`,
+  (s) => s.replace("use that unit's own lockfile", "use package-lock.json"),
+  lint,
+  `xezar-dependency-maintenance.md:8 ${NO_PM}`,
+);
+
+breaks(
+  "a role skill body that counts the workspaces is rejected",
+  `${ROLE}/xezar-dependency-maintenance.md`,
+  (s) => s.replace("the unit that imports it.", "the four real workspaces."),
+  lint,
+  `xezar-dependency-maintenance.md:10 ${NO_PM}`,
+);
+
+breaks(
+  "an allowlisted body does not excuse npm in the shared contract tail",
+  `${ROLE}/xezar-release-publish.md`,
+  (s) => s.replace(/^(Writing-stage ownership: .*?)the typecheck command [^,]*,/m, "$1`npm run typecheck`,"),
+  lint,
+  `${NO_PM} in a kit role skill's tail`,
+);
+
+breaks(
+  "an npm literal exemption that is not the allowlisted one is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace('npm_allow=" skills/', 'npm_allow=" skills/xez-onboard-opinionated/kit/skills/xezar-testing.md skills/'),
+  () => script("check-allowlists.mjs"),
+  "npm_allow does not match",
+);
 // 3.1.0-stream-A:end
 
 // 3.1.0-stream-B:start
