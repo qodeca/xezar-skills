@@ -1292,3 +1292,24 @@ nobody may read the warning. **Open question:** #63 notes that a read-only step 
 `--setting-sources user`, so it may load no project or local settings at all. If the engine confirms
 that, the local-file risk is smaller than assumed; if it shows read-only steps do load
 `settings.local.json`, revisit this decision.
+
+## Repair pushes pass one check
+
+A repair (`address-review-findings`, conflict repair) used to push its fix to the pull request's
+branch from inside the agent step, before any gate, and record the push as `DELIVERED`; the gates
+then checked the run's own, unchanged branch. Now the repair moves its own `xez/<id>` branch onto
+the PR head and commits there, so readiness, the gates and the seal judge the real fix, and the
+handoff pushes it only through `.xezar/checks/push-check.sh`. That script refuses unless HEAD is the
+sealed commit (`verify-evidence.sh --require-current`), the PR is open and in this repository, the
+target is its head branch, the target is not HEAD, `main`, `master`, `release/*`, the configured base
+or the PR's base, and the push is a fast-forward or a lease on the fully qualified ref. Readiness
+refuses a `DELIVERED` record.
+
+The first design (the wave-1 note on #54) added a leader-written repair-target record with a claim,
+a `start-repair` script, a `deliver` workflow step and a branch config key. The owner chose this
+lighter version (D12): one check covers the failures actually seen – ungated code on a PR – with no
+new state, step or key. What it does not cover: two runs repairing the same PR at once (no claim),
+and a process running as the same OS user pushing by other means (the check is an instruction the
+kit follows, not a permission the engine enforces). Closing either needs an engine-issued,
+run-scoped grant. `SECURITY.md` lists the limit; `scripts/test-kit-facts.mjs` FACT H1 runs the
+script and `scripts/test-guards.mjs` breaks each refusal.

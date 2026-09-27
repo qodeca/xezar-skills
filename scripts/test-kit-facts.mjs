@@ -1128,6 +1128,109 @@ function walk(rel, match) {
 // 3.1.0-stream-G:end
 
 // 3.1.0-stream-H:start
+// ---------------------------------------------------------------------------
+// FACT H1 -- a repair push passes one check (#54).
+//
+// `push-check.sh` is RUN, in a throwaway repository with a run worktree, a local bare origin and a
+// stand-in `gh`. Its two siblings are stubbed: the strict preflight passes, and verify-evidence
+// answers what the case says. Each refusal leaves origin untouched; one fast-forward push lands.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT H1: a repair pushes only the sealed HEAD to its own open PR's head branch";
+  const where = "kit/checks/push-check.sh";
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, chmodSync, realpathSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-push-check-")));
+  const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const exe = (p, body) => { writeFileSync(p, body); chmodSync(p, 0o755); };
+  try {
+    const bare = join(lab, "remote/acme/widgets.git");
+    mkdirSync(bare, { recursive: true });
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const proj = join(lab, "proj");
+    mkdirSync(proj);
+    git(proj, "init", "-q", "-b", "main");
+    for (const [k, v] of [["user.email", "t@example.com"], ["user.name", "t"], ["commit.gpgsign", "false"],
+      ["remote.origin.url", "https://github.com/acme/widgets.git"], ["remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+      [`url.${bare}.insteadOf`, "https://github.com/acme/widgets.git"]]) git(proj, "config", k, v);
+    mkdirSync(join(proj, ".xezar"));
+    writeFileSync(join(proj, ".xezar/config.json"), '{"baseBranch":"develop"}\n');
+    writeFileSync(join(proj, ".gitignore"), ".local/\n");
+    git(proj, "add", "-A");
+    git(proj, "commit", "-q", "-m", "base");
+    git(proj, "push", "-q", "origin", "main:refs/heads/main", "main:refs/heads/develop");
+    git(proj, "switch", "-q", "-c", "feature/fix");
+    writeFileSync(join(proj, "a.txt"), "pr\n");
+    git(proj, "add", "a.txt");
+    git(proj, "commit", "-q", "-m", "pr work");
+    git(proj, "push", "-q", "origin", "feature/fix:refs/heads/feature/fix");
+    const prHead = git(proj, "rev-parse", "HEAD");
+    git(proj, "switch", "-q", "main");
+
+    // The run's worktree, its own branch moved onto the PR head, one fix commit on top.
+    const run = "abcd1234-h54";
+    const wt = join(proj, ".local/xezar/worktrees", run);
+    git(proj, "worktree", "add", "-q", "-b", "xez/abcd1234", wt, prHead);
+    writeFileSync(join(wt, "a.txt"), "pr\nfix\n");
+    git(wt, "commit", "-q", "-am", "fix");
+    const checks = join(wt, ".xezar/checks");
+    mkdirSync(join(checks, "lib"), { recursive: true });
+    for (const f of ["push-check.sh", "lib/common.sh", "lib/manifest.mjs"]) cpSync(join(root, SKILL, "kit/checks", f), join(checks, f));
+    chmodSync(join(checks, "push-check.sh"), 0o755);
+    exe(join(checks, "worktree-preflight.sh"), "#!/usr/bin/env bash\nexit 0\n");
+    exe(join(checks, "verify-evidence.sh"),
+      '#!/usr/bin/env bash\ne="${PUSH_TEST_ELIGIBILITY:-ELIGIBLE}"\nprintf \'{"currentEligibility":"%s"}\\n\' "$e"\n[ "$e" = ELIGIBLE ]\n');
+    const evidence = join(proj, ".local/xezar/tasks", run);
+    mkdirSync(evidence, { recursive: true });
+    const seal = (sha) => writeFileSync(join(evidence, "manifest.json"), `${JSON.stringify({ runId: run, gateEvidence: { headSha: sha } })}\n`);
+    const fixed = git(wt, "rev-parse", "HEAD");
+    seal(fixed);
+
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    exe(join(bin, "gh"), '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$PUSH_TEST_GH_LOG"\n[ "$1 $2" = "pr view" ] || exit 1\ncat "$PUSH_TEST_PR"\n');
+    const prFile = join(lab, "pr.json");
+    const ghLog = join(lab, "gh.log");
+    const pr = (over = {}) => writeFileSync(prFile, JSON.stringify({ state: "OPEN", headRefName: "feature/fix",
+      headRepositoryOwner: { login: "acme" }, baseRefName: "main", isCrossRepository: false, ...over }));
+    const tip = () => git(bare, "rev-parse", "refs/heads/feature/fix");
+    const push = (args, env = {}) => {
+      const { XEZ_TASK_ID: _drop, ...base } = process.env;
+      const r = spawnSync("bash", [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
+        env: { ...base, PATH: `${bin}:${process.env.PATH}`, PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
+      return { code: r.status, out: `${r.stdout}${r.stderr}` };
+    };
+    const refused = (what, args, tag, env = {}, over = {}) => {
+      pr(over);
+      const r = push(args, env);
+      if (r.code === 0 || !r.out.includes(`[${tag}]`)) fail(fact, where, `does not refuse ${what} with [${tag}] (exit ${r.code}):\n    ${r.out.trim().split("\n").slice(-3).join("\n    ")}`);
+      if (tip() !== prHead) fail(fact, where, `moved origin's feature/fix while refusing ${what}`);
+    };
+    const OK = ["--pr", "7", "--branch", "feature/fix"];
+
+    refused("an unsealed HEAD", OK, "push.sealed-head", { PUSH_TEST_ELIGIBILITY: "INELIGIBLE" });
+    seal(prHead);
+    refused("a HEAD that changed after the seal", OK, "push.sealed-head");
+    seal(fixed);
+    refused("a closed PR", OK, "push.pr-open", {}, { state: "CLOSED" });
+    refused("a fork PR", OK, "push.pr-same-repo", {}, { isCrossRepository: true, headRepositoryOwner: { login: "someone" } });
+    refused("a branch other than the PR head", ["--pr", "7", "--branch", "feature/other"], "push.pr-head-branch");
+    for (const branch of ["main", "master", "develop", "release/1.2"]) refused(`the protected branch ${branch}`, ["--pr", "7", "--branch", branch], "push.protected-ref", {}, { headRefName: branch });
+    refused("the PR's own base branch", ["--pr", "7", "--branch", "feature/fix"], "push.protected-ref", {}, { baseRefName: "feature/fix" });
+    for (const force of ["--force", "-f", "--force-with-lease", `--force-with-lease=feature/fix:${prHead}`, `--force-with-lease=refs/heads/feature/fix`])
+      refused(`the bare force push ${force}`, [...OK, force], "push.no-bare-force");
+    refused("a + refspec", ["--pr", "7", "--branch", "+feature/fix"], "push.no-bare-force");
+
+    pr();
+    const ok = push(OK);
+    if (ok.code !== 0 || tip() !== fixed) fail(fact, where, `does not push the sealed fast-forward to the PR head (exit ${ok.code}):\n    ${ok.out.trim().split("\n").slice(-3).join("\n    ")}`);
+    if (!readFileSync(ghLog, "utf8").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
+    checked.push(fact);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start

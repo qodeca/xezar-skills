@@ -79,6 +79,16 @@ operator did not intend.
   to DeepSeek when Claude has no budget" states what it gives away. A second full-shell reviewer, a
   cheap, local or advisory-only one, one in a reading row that is not a review, or one in a security
   row that writes, is still a finding.
+- **One integrity check stands where an authorisation boundary would be, accepted and recorded
+  rather than found:** a repair of an existing pull request reaches GitHub only through the
+  kit's `push-check.sh`, which pushes the run's sealed, checked commit to that pull request's own
+  head branch after a live read of the pull request (open, in this repository, not a fork) and
+  never to a protected branch or with a bare force push. It blocks wrong-PR, unchecked-code and
+  protected-branch pushes. It does not stop two runs repairing the same pull request at once,
+  and a process running as the same OS user could still push by other means. The owner accepted
+  this (D12, #54), and `DECISIONS.md` → "Repair pushes pass one check" states what it gives
+  away. A kit instruction that pushes a repair any other way – an unsealed commit, another pull
+  request's branch, a protected branch, a bare force – is still a finding.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on

@@ -1294,6 +1294,38 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-G:end
 
 // 3.1.0-stream-H:start
+// #54: a repair reaches GitHub only through push-check.sh, after the seal. The workflow's handoff
+// names the script, both role skills say to push only through it, readiness refuses the retired
+// DELIVERED record, and branch.owned-by-run is untouched. test-kit-facts.mjs FACT H1 runs the script.
+{
+  const text = (rel) => readFileSync(join(KIT, rel), "utf8");
+  const wf = text("workflows/address-review-findings.yaml");
+  const handoff = /\n  - id: handoff\n[\s\S]*$/.exec(wf)?.[0] ?? "";
+  if (!handoff.includes("prompt:") || !handoff.includes(".xezar/checks/push-check.sh")) {
+    fail("kit/workflows/address-review-findings.yaml: the handoff step does not push through .xezar/checks/push-check.sh");
+  }
+  const ids = [...wf.matchAll(/^  - id: (\S+)$/gm)].map((m) => m[1]);
+  if (ids.join(",") !== "kit,preflight,setup,address,readiness,gates,evidence,handoff") {
+    fail(`kit/workflows/address-review-findings.yaml: steps are ${ids.join(",")}; the repair ends on the agent handoff, after evidence, with no new step`);
+  }
+  for (const rel of ["skills/xezar-review-response.md", "skills/xezar-handoff-draft-pr.md"]) {
+    const body = text(rel).split("\n## Shared contract")[0];
+    if (!body.includes("`.xezar/checks/push-check.sh --pr <n> --branch <the PR's headRefName>`")) {
+      fail(`kit/${rel}: does not say a repair pushes only through push-check.sh`);
+    }
+  }
+  const response = text("skills/xezar-review-response.md").split("\n## Shared contract")[0];
+  if (/record the delivery|as `DELIVERED`/.test(response) || !response.includes("never write a `DELIVERED` record")) {
+    fail("kit/skills/xezar-review-response.md: still tells a repair to push early and record DELIVERED");
+  }
+  const preflight = text("checks/worktree-preflight.sh");
+  if (!/elif \[ -n "\$delivery_record" \] && \[ -f "\$delivery_record" \]; then\n        fail scope\.delivery-record "[^\n]*That path is retired \(#54\)/.test(preflight)) {
+    fail("kit/checks/worktree-preflight.sh: readiness no longer refuses a DELIVERED record");
+  }
+  if (!preflight.includes('fail branch.owned-by-run "branch is \\"$BRANCH\\" but this worktree is run $leaf, whose branch is \\"$expected\\". Xezar restores only its own branch')) {
+    fail("kit/checks/worktree-preflight.sh: branch.owned-by-run changed; #54 keeps it as it is for every workflow");
+  }
+}
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start
