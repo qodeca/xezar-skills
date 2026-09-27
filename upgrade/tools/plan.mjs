@@ -20,6 +20,7 @@
 //     perMachine: [path],
 //     registerDrafts: { add: [ { files, reason } ], remove: [LP-n] },
 //     upgradeEntries: [ { source, appliesTo, files, actions } ], actions: [action],
+//     unblockedEntries: [ { source, line, heading } ],
 //     engine: null | { version, source, checks: [ { min, status: met|unmet|unknown } ] },
 //     errors: [text] }
 // `engine` evaluates the range's engine-min=<v> actions (null when there are none); the version
@@ -59,7 +60,7 @@ import {
   addedWeakeningLines,
 } from "./lib/policy.mjs";
 import { registerByPath } from "./lib/register.mjs";
-import { parseBlocks, satisfies, parseVersion, compareVersions } from "./lib/machine-block.mjs";
+import { parseBlocks, parseEntries, satisfies, parseVersion, compareVersions } from "./lib/machine-block.mjs";
 import { resolveInside } from "./lib/paths.mjs";
 
 /** The planner's stop reasons, each mapped to a rule in the prompt's stop-and-ask list. */
@@ -152,6 +153,42 @@ export function upgradeEntries(toolRoot, projectVersion) {
     }
   }
   return { entries, errors };
+}
+
+/**
+ * The UPGRADE_NOTES.md entries in the project's range that end in no machine block. Their steps
+ * reach neither `actions` nor the owner checklist on their own, so the plan lists them for the
+ * agent to read (prompt step 6) rather than drop them. In range: under a heading "upgrading an
+ * onboarded project to X", when the project is below X; otherwise when the entry is dated on or
+ * after `projectDate` (the day the project's kit version was committed). With no version or no
+ * date to compare, the entry is listed: a surplus line costs a read, a missing one a step.
+ */
+export function unblockedEntries(toolRoot, projectVersion, projectDate) {
+  const notes = join(toolRoot, "UPGRADE_NOTES.md");
+  if (!existsSync(notes)) return { entries: [], errors: [] };
+  const errors = [];
+  const entries = [];
+  for (const u of parseEntries(readFileSync(notes, "utf8"), "UPGRADE_NOTES.md")) {
+    if (u.hasBlock) continue;
+    let inRange = true;
+    try {
+      if (projectVersion && u.before) inRange = satisfies(`<${u.before}`, projectVersion);
+      else if (projectDate) inRange = u.date >= projectDate;
+    } catch (e) {
+      errors.push(`UPGRADE_NOTES.md:${u.line}: ${e.message}`);
+    }
+    if (inRange) entries.push({ source: u.source, line: u.line, heading: u.heading });
+  }
+  return { entries, errors };
+}
+
+/** The day (YYYY-MM-DD) the project's kit version was committed, or null when the clone cannot tell. */
+export function versionDate(ctx) {
+  const v = ctx.history.find((x) => x.version === ctx.manifest.version);
+  if (!v?.commit) return null;
+  const out = git(["log", "-1", "--format=%cs", v.commit], ctx.toolRoot, { allowFail: true });
+  const d = (out ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
 }
 
 /**
@@ -367,6 +404,11 @@ export function buildPlan(ctx, detection = detect(ctx)) {
         }
       } else if (te?.kitSource && !exists) {
         item.notes.push("new in the kit: add it, merged with the owner's existing setup");
+        const grants = permissionGrants(p, null, ctx.theirsText(p));
+        if (grants.length) {
+          stop("permission-change");
+          item.notes.push(...grants.map((g) => `grant: ${g}`));
+        }
       }
       push();
       continue;
@@ -583,6 +625,9 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     remove: [...new Set(out.filter((i) => i.class === "already-upstream" && i.register.length).flatMap((i) => i.register))].sort(),
   };
   const { entries, errors } = upgradeEntries(ctx.toolRoot, parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null);
+  const projectVersion = parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null;
+  const unblocked = unblockedEntries(ctx.toolRoot, projectVersion, projectVersion ? versionDate(ctx) : null);
+  errors.push(...unblocked.errors);
   errors.push(...ctx.register.errors.map((e) => `register: ${e}`));
   const actions = [...new Set(entries.flatMap((e) => e.actions))];
   const engine = engineChecks(actions, ctx.engine ?? (() => engineVersion(ctx)));
@@ -601,6 +646,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     perMachine: out.filter((i) => i.class === "per-machine").map((i) => i.path),
     registerDrafts,
     upgradeEntries: entries,
+    unblockedEntries: unblocked.entries,
     actions,
     engine,
     errors,
@@ -627,6 +673,9 @@ export function summary(plan) {
     const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
     lines.push(c ? `- ${a} (${c.status}: ${engine})` : `- ${a}`);
   }
+  lines.push("", "## Upgrade entries with no machine block", "");
+  if (!plan.unblockedEntries?.length) lines.push("None.");
+  for (const e of plan.unblockedEntries ?? []) lines.push(`- ${e.source}:${e.line} ${e.heading}`);
   lines.push("", "## Engine minimum", "");
   if (!plan.engine) lines.push("None: this range sets no engine minimum.");
   else {

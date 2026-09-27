@@ -61,6 +61,7 @@ import { loadContext } from "../upgrade/tools/lib/context.mjs";
 import { OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
+import * as planTool from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 
@@ -1219,6 +1220,59 @@ if (!HAS_DRIFT) {
     hasHistory = false;
   }
   if (hasHistory) expect(f?.notes.includes("template changed in the kit since the project's version: merge its changes in"), `leader-template: the 3.1.0 template changes are not reported against 3.0.3 (${f?.notes})`);
+}
+
+// ---------------------------------------------------------------------------------------
+// 13. Steps the tool never performs still reach the owner (3.1.0 review 4)
+// ---------------------------------------------------------------------------------------
+// 13a. 3.1.0 entries 4 and 11 name their per-machine steps as actions, so a 3.0.3 project's
+// owner checklist carries them.
+{
+  const plan = buildPlan(ctxFor(materialize(fx303, { name: "per-machine-310" })));
+  for (const a of [
+    "per-machine=remove-mcp-permission:mcp__chrome-devtools__*",
+    "per-machine=remove-mcp-permission:mcp__chrome-devtools",
+    "per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro",
+  ]) {
+    expect(plan.actions.includes(a), `per-machine: a 3.0.3 project's plan does not carry ${a} (${plan.actions.join(", ")})`);
+  }
+  const ok = parseBlocks("```upgrade\nApplies-to: *\nActions: per-machine=add-runner-model:pi/x/y\n```\n", "t");
+  expect(!ok.errors.length, `machine block: per-machine=add-runner-model is refused: ${ok.errors}`);
+}
+
+// 13b. A 3.0.0 project: 3.0.2's per-machine steps are actions; an in-range entry with no block is
+// listed for reading, never dropped; and a new owner-shaped permission file (.codex/config.toml,
+// first shipped at 3.0.2) stops for the owner like every other permission change.
+{
+  const plan = buildPlan(ctxFor(materialize(loadFixture("3.0.0"), { name: "per-machine-300" })));
+  for (const a of [
+    "per-machine=trust-codex-project:<absolute-project-path>",
+    "per-machine=enable-mcp-server:chrome-devtools",
+    "per-machine=add-mcp-permission:mcp__chrome-devtools__take_screenshot",
+  ]) {
+    expect(plan.actions.includes(a), `3.0.0: the plan does not carry 3.0.2's ${a} (${plan.actions.join(", ")})`);
+  }
+  const listed = (plan.unblockedEntries ?? []).map((e) => e.heading);
+  expect(listed.some((h) => h.includes("upgrading an onboarded project to 3.0.2") && h.includes("6. Workflow dispatch")), `3.0.0: 3.0.2 entry 6, which has no block, is not listed for reading (${listed.join(" | ")})`);
+  expect(listed.some((h) => h.includes("my routing still sends Codex work")), `3.0.0: a 2026-09-23 entry with no block is not listed for reading (${listed.join(" | ")})`);
+  expect(!listed.some((h) => h.includes("4. Browser config")), "3.0.0: 3.0.2 entry 4 has a block but is listed as having none");
+  expect(/^## Upgrade entries with no machine block$/m.test(summary(plan)), "summary: plan.md does not list the upgrade entries with no machine block");
+  const codex = byPath(plan).get(".codex/config.toml");
+  expect(
+    codex?.class === "owner-shaped" && codex.stops.includes("permission-change") && codex.notes.some((n) => n.startsWith("grant: ")),
+    `3.0.0: the new .codex/config.toml carries no permission-change stop (${JSON.stringify({ class: codex?.class, stops: codex?.stops, notes: codex?.notes })})`,
+  );
+}
+
+// 13c. The range: a 3.0.3 project is not sent back to 3.0.2's entries, and a dated entry older
+// than the project's version is left out once that version's date is known.
+{
+  const plan = buildPlan(ctxFor(materialize(fx303, { name: "unblocked-303" })));
+  const listed = (plan.unblockedEntries ?? []).map((e) => e.heading);
+  expect(Array.isArray(plan.unblockedEntries), "plan: no unblockedEntries list");
+  expect(!listed.some((h) => h.includes("to 3.0.2")), `3.0.3: 3.0.2 entries are listed for reading (${listed.join(" | ")})`);
+  const dated = planTool.unblockedEntries?.(root, "3.0.0", "2026-09-23")?.entries.map((e) => e.heading) ?? [];
+  expect(dated.some((h) => h.includes("my routing still sends Codex work")) && !dated.some((h) => h.startsWith("2026-09-22")), `range: entries dated before the project's version are listed, or same-day ones dropped (${dated.join(" | ")})`);
 }
 
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.

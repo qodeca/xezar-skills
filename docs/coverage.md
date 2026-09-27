@@ -10,7 +10,7 @@ rather than trusting this table for a precise number.
 
 Every ✅ runs on every PR, except the `test-guards.mjs` break cases: the guard suite runs nightly
 on `develop` (`.github/workflows/nightly-guards.yml`), so a guard that stops firing is found the
-next morning, not before merge. Rows 21, 25 and 27 lean on those cases.
+next morning, not before merge. Rows 21 and 25–29 lean on those cases.
 
 | # | Behaviour | Checked by | Runs in CI? |
 |---|---|---|---|
