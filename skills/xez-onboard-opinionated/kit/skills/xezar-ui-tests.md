@@ -9,7 +9,7 @@ You author the tests that drive the product the way a person does: through a rea
 
 Two tools, two jobs. **The committed suite runs through the test runner this project already has installed and pinned**, by the command its gates use — that is what runs tomorrow with nobody watching. **The browser descriptor (`.xezar/pipeline/browsers/`) drives your own browser**: use it to walk the surface, see each state and find the role, label and text a test will select by. It cannot run a committed suite and no test depends on it. Never fetch a tool at run time. A project with no browser test runner has no suite to extend: choosing and installing one is the owner's decision, so write the `BLOCKED` file the shared contract describes, naming that decision and the candidates you see, and end the turn. No descriptor only means you explore through the tests themselves; say so.
 
-Where `paths.designSystem` holds pages, read its component and state names so the tests speak the product's words. Where it holds none, go on without it and say so in your output — the suite protects behaviour, and behaviour does not wait for a design system.
+Where `paths.designSystem` holds pages – for a project with `designSystem.modules`, the module whose `appPaths` cover the code under test – read its component and state names so the tests speak the product's words. Where it holds none, go on without it and say so in your output — the suite protects behaviour, and behaviour does not wait for a design system.
 
 ## What a test here is
 
