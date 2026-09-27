@@ -832,6 +832,154 @@ function walk(rel, match) {
 // 3.1.0-stream-F:end
 
 // 3.1.0-stream-G:start
+// ---------------------------------------------------------------------------
+// FACT G1 -- a project adds its own trust boundaries, read from the base branch tip (#70).
+//
+// `security.trustBoundaries` only ADDS to the kit's list; it is read from
+// refs/remotes/origin/<baseBranch>, so a branch that drops its own path is still routed; an
+// unreadable or invalid list sets reviewerRequired through a `trust-boundary-config` check that
+// COUNTS in the stage status; every match names its list; the matcher is hand-written and bounded;
+// the engine repository's own paths are not shipped. Driven against the real scan, in a
+// throwaway origin and clone.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT G1: project trust boundaries add to the kit's, from the base branch, and fail toward review";
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { pathToFileURL } = await import("node:url");
+  const SCAN = join(root, SKILL, "kit/checks/lib/security-scan.mjs");
+  const scan = await import(pathToFileURL(SCAN).href);
+  const grammar = await import(pathToFileURL(join(root, SKILL, "kit/checks/lib/config-grammar.mjs")).href);
+  const where = "kit/checks/lib/security-scan.mjs";
+
+  // The matcher: what it accepts, what it refuses, and that a hostile pattern stays cheap.
+  const matches = (pattern, path) => {
+    const parsed = grammar.parseTrustPattern(pattern);
+    return parsed.error ? `refused: ${parsed.error}` : grammar.matchTrustPattern(parsed.tokens, path);
+  };
+  for (const [pattern, path, want] of [
+    ["tools/example/**", "tools/example/build.mjs", true],
+    ["tools/example/**", "tools/example-two/build.mjs", false],
+    ["**/tokens.json", "tokens.json", true],
+    ["**/tokens.json", "a/b/tokens.json", true],
+    ["**/tokens.json", "a/btokens.json", false],
+    ["src/*.ts", "src/a.ts", true],
+    ["src/*.ts", "src/x/a.ts", false],
+    ["a?c", "a/c", false],
+  ]) {
+    const got = matches(pattern, path);
+    if (got !== want) fail(fact, "kit/checks/lib/config-grammar.mjs", `pattern ${pattern} against ${path} gave ${got}, expected ${want}`);
+  }
+  for (const pattern of ["!tools/**", "tools/{a,b}/**", "tools/@(a|b)/**", "tools/[ab]/**", "^tools/.*$", "tools\\x", "a+b/**"]) {
+    if (!grammar.parseTrustPattern(pattern).error)
+      fail(fact, "kit/checks/lib/config-grammar.mjs", `the trust-boundary pattern ${JSON.stringify(pattern)} was accepted; negation, braces, extglobs, character classes and regex characters must be refused`);
+  }
+  {
+    const started = Date.now();
+    grammar.matchTrustPattern(grammar.parseTrustPattern("a*".repeat(128)).tokens, `${"a".repeat(4000)}b`);
+    if (Date.now() - started > 3000) fail(fact, "kit/checks/lib/config-grammar.mjs", "a 256-character pattern took over 3s against a 4001-character path; the matcher is not bounded");
+  }
+  const judged = (list) => {
+    try { return grammar.judgeTrustBoundaries({ security: { trustBoundaries: list } }); } catch (error) { return { status: `threw ${error.message}` }; }
+  };
+  const ok = { pattern: "tools/example/**", why: "the build script CI trusts" };
+  for (const [label, list] of [
+    ["an entry with no why", [{ pattern: "tools/example/**" }]],
+    ["an entry with an unknown field", [{ ...ok, except: "x" }]],
+    ["65 entries", Array.from({ length: 65 }, (_, i) => ({ pattern: `tools/t${i}/**`, why: "a reason" }))],
+    ["a 257-character pattern", [{ pattern: `tools/${"a".repeat(251)}`, why: "a reason" }]],
+    ["a braces pattern", [{ pattern: "tools/{a,b}/**", why: "a reason" }]],
+  ]) {
+    const got = judged(list);
+    if (got.status !== "malformed") fail(fact, "kit/checks/lib/config-grammar.mjs", `security.trustBoundaries with ${label} was ${got.status}, expected malformed`);
+  }
+  if (judged([ok]).status !== "ok" || judged(Array.from({ length: 64 }, (_, i) => ({ pattern: `t${i}/${"a".repeat(240)}`, why: "a reason" }))).status !== "ok")
+    fail(fact, "kit/checks/lib/config-grammar.mjs", "a valid list (one entry, or 64 entries near 256 characters) was refused");
+
+  // The kit's own entries still route with a project list present, and the engine's are gone.
+  for (const path of [".xezar/pipeline/config.json", ".github/workflows/ci.yml", ".xezar/checks/x.sh", ".xezar/routing.json", ".claude/settings.json", ".codex/config.toml", ".env.example"]) {
+    const hit = scan.trustBoundariesTouched([path], judged([ok]).entries ?? []);
+    if (!hit.some((h) => h.list === "kit")) fail(fact, where, `${path} no longer routes as a kit trust boundary when a project list is present`);
+  }
+  if (/packages\\\/xezar/.test(read(`${SKILL}/kit/checks/lib/security-scan.mjs`)) || scan.trustBoundariesTouched(["packages/xezar/src/server/index.ts"]).length)
+    fail(fact, where, "TRUST_BOUNDARIES still ships the engine repository's packages/xezar/src entries");
+
+  // The real scan, over a real branch.
+  const lab = mkdtempSync(join(tmpdir(), "kit-trust-"));
+  const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const put = (dir, file, text) => { mkdirSync(join(dir, dirname(file)), { recursive: true }); writeFileSync(join(dir, file), text); };
+  const runScan = (work, config, changes, baseBranch = "main") => {
+    const origin = join(lab, `origin-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(origin);
+    g(origin, "init", "-q");
+    put(origin, ".xezar/pipeline/config.json", JSON.stringify(config));
+    put(origin, "tools/example/build.mjs", "export {};\n");
+    put(origin, "README.md", "readme\n");
+    g(origin, "add", "-A");
+    g(origin, "commit", "-qm", "base");
+    const clone = join(lab, work);
+    g(lab, "clone", "-q", origin, clone);
+    g(clone, "checkout", "-qb", "feature");
+    for (const [file, text] of Object.entries(changes)) put(clone, file, text);
+    g(clone, "add", "-A");
+    g(clone, "commit", "-qm", "change");
+    const base = g(clone, "merge-base", "HEAD", "refs/remotes/origin/main").trim();
+    const out = join(clone, ".out.json");
+    try {
+      execFileSync("node", [SCAN, "--cwd", clone, "--base", base, "--head", "HEAD", "--base-branch", baseBranch, "--out", out, "--quiet"], { encoding: "utf8", stdio: "pipe" });
+    } catch (error) {
+      return { error: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+    return JSON.parse(readFileSync(out, "utf8"));
+  };
+  const configCheck = (r) => r.checks?.find((c) => c.name === "trust-boundary-config");
+  try {
+    const withEntry = { security: { trustBoundaries: [ok] } };
+    const touched = runScan("touched", withEntry, { "tools/example/build.mjs": "export const x = 1;\n" });
+    const project = touched.trustBoundaries?.find((b) => b.list === "project");
+    if (touched.reviewerRequired !== true || project?.file !== "tools/example/build.mjs" || project?.why !== ok.why)
+      fail(fact, where, `a project entry for tools/example/** did not set reviewerRequired with its reason and list: ${JSON.stringify(touched.trustBoundaries ?? touched)}`);
+    if (touched.trustBoundaries?.some((b) => !["kit", "project"].includes(b.list)))
+      fail(fact, where, "a trust-boundary match does not name its list as kit or project");
+
+    // The branch drops its own path from the config in the same change: the base tip still names it.
+    const dropped = runScan("dropped", withEntry, { ".xezar/pipeline/config.json": "{}\n", "tools/example/build.mjs": "export const x = 2;\n" });
+    if (!dropped.trustBoundaries?.some((b) => b.list === "project" && b.file === "tools/example/build.mjs"))
+      fail(fact, where, "a branch that drops its own path from security.trustBoundaries is no longer routed -- the list was not read from the base branch tip");
+
+    // An invalid list: stage unknown with a clear message, reviewer required, even for a docs-only change.
+    const invalid = runScan("invalid", { security: { trustBoundaries: [{ pattern: "tools/{a,b}/**", why: "x" }] } }, { "README.md": "changed\n" });
+    if (invalid.status !== "unknown" || invalid.reviewerRequired !== true || configCheck(invalid)?.status !== "unknown" || !/invalid/.test(configCheck(invalid)?.detail ?? ""))
+      fail(fact, where, `an invalid security.trustBoundaries did not make the stage status unknown with reviewerRequired and a clear trust-boundary-config message: ${JSON.stringify({ status: invalid.status, reviewerRequired: invalid.reviewerRequired, check: configCheck(invalid) })}`);
+
+    // An unresolvable base branch ref is refused, never replaced by another source.
+    const unresolved = runScan("unresolved", withEntry, { "README.md": "changed\n" }, "no-such-branch");
+    if (unresolved.status !== "unknown" || unresolved.reviewerRequired !== true || configCheck(unresolved)?.status !== "unknown")
+      fail(fact, where, `an unresolvable base branch ref did not route to review: ${JSON.stringify({ status: unresolved.status, reviewerRequired: unresolved.reviewerRequired, check: configCheck(unresolved) })}`);
+
+    // No key: nothing changes for a project that adds nothing.
+    const none = runScan("none", {}, { "README.md": "changed\n" });
+    if (none.status !== "not-applicable" || none.reviewerRequired !== false || configCheck(none)?.status !== "not-applicable")
+      fail(fact, where, `a project with no security.trustBoundaries changed its result: ${JSON.stringify({ status: none.status, reviewerRequired: none.reviewerRequired })}`);
+  } catch (error) {
+    fail(fact, where, `the trust-boundary fixture could not run: ${error.message}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+
+  // The prose that describes the list says there is one, and where it is read from.
+  for (const [file, what] of [
+    [`${SKILL}/kit/docs/phase-record.md`, "kit/docs/phase-record.md"],
+    [`${SKILL}/references/write.md`, "references/write.md (the CODE_REVIEW.md text)"],
+    ["skills/xez-setup-agent-pipeline/references/config-fields.md", "xez-setup-agent-pipeline/references/config-fields.md"],
+  ]) {
+    const text = read(file);
+    if (!/`security\.trustBoundaries`[\s\S]{0,600}base branch/.test(text))
+      fail(fact, what, "does not describe the project's security.trustBoundaries list and that it is read from the base branch");
+  }
+  checked.push(fact);
+}
 // 3.1.0-stream-G:end
 
 // 3.1.0-stream-H:start
