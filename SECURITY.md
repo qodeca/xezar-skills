@@ -68,6 +68,17 @@ operator did not intend.
   retiring it means proving a live onboarding run gets there, and that run is still owed.
   Shrinking the last case on the strength of a capability nobody has watched work is the wrong
   direction to be wrong in.
+- **One reviewer without a proven read-only lock is accepted and recorded rather than found:** the
+  onboarding kit's shipped routing lets the DeepSeek lane `pi/deepseek-api/deepseek-v4-pro`
+  (marked `fullShellReviews`) review, re-check, run QA and acceptance, review architecture and
+  security, and review risk-high changes when Claude has no budget. The pi runner applies a
+  reading step's command list through an extension whose lock is not yet proven live
+  (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
+  commit or push. The review-and-QA protection still applies – a verdict or an own label is refused
+  when the reviewed tree changed. The owner accepted it (#89), and `DECISIONS.md` → "Reviews fall
+  to DeepSeek when Claude has no budget" states what it gives away. A second full-shell reviewer, a
+  cheap, local or advisory-only one, one in a reading row that is not a review, or one in a security
+  row that writes, is still a finding.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on

@@ -864,7 +864,8 @@ for (const name of workflowFiles) {
     if (!/^removed=codex\/gpt-6-sol reason=author-chain: shared model with codex\/gpt-6-sol$/m.test(review)) fail(`route does not remove the repairer's own model:\n${review}`);
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
-    const sec = run(shipped, "security-review", "--author", "codex/gpt-6-sol", "--repair", "claude/sonnet");
+    const sec = execFileSync("node", [ROUTE, "--file", shipped, "security-review", "--author", "codex/gpt-6-sol", "--repair", "claude/sonnet"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+    printed.push(...sec.split("\n").filter(Boolean));
     if (lanesOf(sec).some((id) => ["openai", "anthropic"].includes(vendorOf(id)))) fail(`route security-review keeps a lane of a vendor in the repair chain:\n${sec}`);
     if (!/^wait=no-independent-lane$/m.test(sec)) fail(`route security-review with both vendors in the chain does not wait:\n${sec}`);
     const secOne = run(shipped, "security-review", "--author", "codex/gpt-5.6-terra");
@@ -1297,6 +1298,116 @@ for (const name of workflowFiles) {
   }
 }
 // 3.1.0-stream-U:end
+
+// 3.1.0-stream-R:start
+// --- #89: the DeepSeek V4 Pro lane and the DeepSeek-first rows --------------------------------
+// The owner's row orders are data, so each group is pinned by its rule rather than by a copy of
+// the table; the one relaxation of tool limits is checked both ways (where it lets V4 Pro in, and
+// where it must not); and a machine without the model gets no V4 Pro lane from `route`.
+{
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { check } = await import(pathToFileURL(ROUTE).href);
+  const P = "pi/deepseek-api/deepseek-v4-pro";
+  const F = "pi/deepseek-api/deepseek-flash";
+  const byId = Object.fromEntries(routing.rows.map((r) => [r.id, r]));
+  const lanesOfRow = (id) => byId[id]?.lanes ?? [];
+  const toolOf = (id) => routing.lanes[id]?.tool;
+
+  // The lane's facts, as the owner's pi config states them (images: no).
+  const want = { tool: "pi", model: "deepseek-api/deepseek-v4-pro", vendor: "deepseek", tier: "strong", vision: false, imageGeneration: false, local: false, enforcesToolLimits: false, advisoryOnly: false, fullShellReviews: true };
+  const lane = routing.lanes[P];
+  if (!lane) fail(`${ROUTING} has no lane ${P}`);
+  else for (const [k, v] of Object.entries(want)) if (lane[k] !== v) fail(`${ROUTING}: ${P}.${k} is ${JSON.stringify(lane[k])}, expected ${JSON.stringify(v)}`);
+
+  // Screen rows: no V4 Pro (no vision); Flash is the no-Claude fallback wherever it can do the work.
+  for (const id of ["design-review", "browser-qa", "ui-design", "ux-design", "ui-implementation", "ui-tests", "generated-images", "diagrams"]) {
+    if (lanesOfRow(id).includes(P)) fail(`${ROUTING}: screen row ${id} lists ${P}, which cannot see a screen`);
+    if (id !== "generated-images" && lanesOfRow(id).at(-1) !== F) fail(`${ROUTING}: screen row ${id} does not end with ${F}, its no-Claude fallback`);
+  }
+  // DeepSeek-first rows: first choice, the other DeepSeek model, then every Codex lane before any Claude lane.
+  const deepseekFirst = (id, first, second) => {
+    const l = lanesOfRow(id);
+    if (l[0] !== first) fail(`${ROUTING}: row ${id} starts with ${l[0]}, expected ${first}`);
+    if (second && l[1] !== second) fail(`${ROUTING}: row ${id} has ${l[1]} second, expected the other DeepSeek model ${second}`);
+    const lastCodex = l.map(toolOf).lastIndexOf("codex");
+    const firstClaude = l.map(toolOf).indexOf("claude");
+    if (lastCodex !== -1 && firstClaude !== -1 && firstClaude < lastCodex) fail(`${ROUTING}: row ${id} puts a Claude lane before a Codex lane: [${l}]`);
+  };
+  for (const id of ["mechanical-docs", "bounded-bug-fix", "merge-chain", "dependency-maintenance"]) deepseekFirst(id, F, P);
+  deepseekFirst("evidence-pass", F, null); // a strong lane is banned there
+  for (const id of ["docs-writing", "unit-tests", "integration-tests", "observability", "hotfix", "review-response-one"]) deepseekFirst(id, P, F);
+  // Opus-first rows keep Opus first and take V4 Pro right after their last Codex lane.
+  for (const id of ["analysis-specs-research", "architecture-decision", "spike", "deprecation-plan", "multi-file-implementation", "kit-refactor", "refactor", "migration", "regression-suite", "performance", "review-response-several", "diagnose-bug"]) {
+    const l = lanesOfRow(id);
+    if (l[0] !== "claude/opus") fail(`${ROUTING}: row ${id} no longer starts with claude/opus`);
+    if (l.indexOf(P) !== l.map(toolOf).lastIndexOf("codex") + 1) fail(`${ROUTING}: row ${id} does not take ${P} right after its Codex lanes: [${l}]`);
+  }
+  // Every non-screen review row ends with V4 Pro, the fallback after the Claude and Astra lanes.
+  for (const id of ["scoped-recheck", "full-cold-review", "architecture-review", "acceptance-verification", "security-review", "verify-strong-claim"]) {
+    if (lanesOfRow(id).at(-1) !== P) fail(`${ROUTING}: review row ${id} does not end with ${P}: [${lanesOfRow(id)}]`);
+  }
+
+  // The tool-limits relaxation, both ways: in a judging row yes, in any other reading row or a
+  // security row that writes no, and never on a cheap, local or advisory-only lane.
+  const refused = (mutate, expect, what) => {
+    const f = structuredClone(routing);
+    mutate(f);
+    if (!check(f).errors.some((e) => e.includes(expect))) fail(`route check accepts ${what} (expected "${expect}")`);
+  };
+  refused((f) => { byIdOf(f)["business-analysis"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row only reads`, "V4 Pro in a reading row that is not a review");
+  refused((f) => { byIdOf(f)["release"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row is security and release`, "V4 Pro in a security row that writes");
+  refused((f) => { delete f.lanes[P].fullShellReviews; }, `"${P}" does not enforce a step's tool limits`, "V4 Pro in a review row without fullShellReviews");
+  refused((f) => { f.lanes[F].fullShellReviews = true; }, "a lane with tier: cheap never reviews with a full shell", "fullShellReviews on a cheap lane");
+  refused((f) => { f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
+  function byIdOf(f) { return Object.fromEntries(f.rows.map((r) => [r.id, r])); }
+
+  const lab = mkdtempSync(join(tmpdir(), "kit-route-r-"));
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const copy = structuredClone(routing);
+    copy.tools.claude.rotation = ["acct-one"];
+    copy.tools.codex.rotation = ["acct-three"];
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    const run = (tools, ...args) => execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", ...args], {
+      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: tools } });
+    const lanesOf = (out) => out.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
+    const esc = P.replace(/[/.]/g, "\\$&");
+
+    // A machine with pi and the model: V4 Pro is first in a mid-size row.
+    if (lanesOf(run("claude,codex,pi", "unit-tests"))[0] !== P) fail(`route unit-tests does not start with ${P} on a machine that has it`);
+    // A machine without pi at all: no V4 Pro lane, with the reason.
+    const noPi = run("claude,codex", "unit-tests");
+    if (lanesOf(noPi).includes(P) || !new RegExp(`^removed=${esc} reason=the pi program is not installed here$`, "m").test(noPi)) fail(`route gives ${P} on a machine without pi:\n${noPi}`);
+    // A machine whose pi config lacks the model: the leader's lane cache, written from list_models,
+    // marks it unavailable, and route drops it – the owner's off switch.
+    const cacheDir = join(project, ".local/xezar/runtime");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { [P]: { available: false, reason: "not in list_models for pi" } } }));
+    const noModel = run("claude,codex,pi", "unit-tests", "full-cold-review", "security-review");
+    if (lanesOf(noModel).includes(P) || !new RegExp(`^removed=${esc} reason=unavailable in the lane cache: not in list_models for pi$`, "m").test(noModel)) fail(`route gives ${P} on a machine whose pi config lacks the model:\n${noModel}`);
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
+
+    // Reviews: for a Claude author V4 Pro is the first independent lane, then Astra.
+    const claudeAuthor = lanesOf(run("claude,codex,pi", "full-cold-review", "--author", "claude/opus"));
+    if (claudeAuthor.join(",") !== `${P},codex/gpt-6-astra`) fail(`route full-cold-review --author claude/opus gave [${claudeAuthor}], expected ${P} then codex/gpt-6-astra`);
+    // For DeepSeek-written work Sonnet comes before Astra, and a security row drops V4 Pro (same vendor).
+    const dsAuthor = lanesOf(run("claude,codex,pi", "scoped-recheck", "--author", F));
+    if (dsAuthor[0] !== "claude/sonnet" || !dsAuthor.includes("codex/gpt-6-astra")) fail(`route scoped-recheck --author ${F} gave [${dsAuthor}], expected claude/sonnet first and codex/gpt-6-astra offered`);
+    const dsSecurity = run("claude,codex,pi", "security-review", "--author", F);
+    if (!new RegExp(`^removed=${esc} reason=author-chain: shared vendor with ${F.replace(/[/.]/g, "\\$&")}$`, "m").test(dsSecurity)) fail(`route security-review keeps ${P} for a DeepSeek author:\n${dsSecurity}`);
+    // V4 Pro reviews in a security row when nothing of its vendor wrote the work.
+    if (!lanesOf(run("claude,codex,pi", "security-review", "--author", "codex/gpt-6-sol")).includes(P)) fail(`route security-review does not offer ${P} for a Codex author`);
+  } catch (error) {
+    fail(`the #89 route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-R:end
 
 if (problems) {
   console.error(`\nkit catalog: ${problems} problem(s)`);

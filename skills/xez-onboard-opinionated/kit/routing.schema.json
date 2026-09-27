@@ -185,6 +185,7 @@
         "local": { "type": "boolean" },
         "enforcesToolLimits": { "type": "boolean" },
         "advisoryOnly": { "type": "boolean" },
+        "fullShellReviews": { "description": "Optional; missing means false. true lets a lane with enforcesToolLimits: false judge in a review row or a security row that only reads, although it runs with a full shell. Never on a cheap, local or advisory-only lane. The owner accepted this risk for one lane (#89).", "type": "boolean" },
         "enabled": { "description": "false switches the lane off everywhere. Default true.", "type": "boolean" },
         "notes": { "type": "array", "items": { "$ref": "#/$defs/text" } }
       }

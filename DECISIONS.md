@@ -1232,3 +1232,43 @@ check is skipped. That is the trust a writing step's gates already give the same
 now gives it too. `SECURITY.md` lists it as accepted. `scripts/test-kit-catalog.mjs` runs
 `review-run.sh`, the verdict labels and the verdict refusal; `test-kit-facts.mjs` FACT 23 pins the
 tool lists.
+
+## Reviews fall to DeepSeek when Claude has no budget
+
+Owner decision (#89). Several projects run at once, and the Claude and Codex subscription quotas
+run out fast – Claude first. The shipped routing now divides much more work between two DeepSeek
+models on pi: `pi/deepseek-api/deepseek-flash` first in the simple rows, and a new lane,
+`pi/deepseek-api/deepseek-v4-pro`, first in the mid-size writing rows, after the Codex lanes in
+the Opus-first rows, and last in every review row that is not a screen row. V4 Pro has no image
+input (pi lists `images: no`), so it is in no screen row; Flash, which has vision, is the
+no-Claude fallback there. Work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
+`codex/gpt-6-astra`.
+
+Three bans relax, each as far as that needs and no further:
+
+- **`tool-limits`.** It kept every lane whose runner does not hold a reader read-only out of
+  reading and security rows, so a reviewer could not change what it judged. A lane marked
+  `fullShellReviews` may now judge in a review row or a security row that only reads; `route.mjs`
+  refuses the mark on a cheap, local or advisory-only lane and still keeps such a lane out of every
+  other reading row and every security row that writes. Given away: a V4 Pro review runs with a
+  full shell until pi's read-only lock is proven live (qodeca/xezar#935), so it could edit files,
+  commit or push while it reviews.
+- **`pi-write-claude-review`.** It gave pi-written work a Claude review before merge, so a model of
+  another vendor always read it. That work may now be cleared by `codex/gpt-6-astra` when Sonnet
+  has none. Given away: the guarantee that a Claude model read every pi-written change. A DeepSeek
+  lane still never clears DeepSeek work, because `never-author` bans the author's vendor.
+- **`high-risk-other-vendor`.** It asked for a reviewer of another vendor than the author's, and with
+  `tool-limits` that meant a Claude lane or Astra. When no Claude lane has budget, V4 Pro may now be
+  that reviewer of a risk-high change. Given away: the other-vendor review of risk-high work may
+  come from a reviewer that could have changed the tree it judged.
+
+Kept on purpose: `no-self-review`, `local-never-writes`, the security minimums, and the refusal of
+a verdict or an own label when the reviewed tree changed – that refusal is what turns a reviewer
+that edits into a review that fails instead of one that passes. Astra's reservation is not
+widened: with `--author`, `route.mjs` already offers it as an escalation-eligible lane after a
+row's own lanes, so only the merge rule had to name it.
+
+The off switch is per machine: remove the model from that machine's pi config. The leader's lane
+cache, written from `list_models`, then marks the lane unavailable and `route.mjs` drops it, so
+work falls back in row order – the same path a DeepSeek outage takes. There is no DeepSeek spend
+limit; step time limits (#52) stop a runaway task. `SECURITY.md` records the accepted risk.
