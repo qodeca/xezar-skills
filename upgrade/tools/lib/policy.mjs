@@ -18,13 +18,28 @@ export const OWNER_SHAPED = new Set([
 ]);
 
 /**
+ * The owner's configuration: written for the project at install, then changed in normal work
+ * (a routing pull request, a new gate command, a label, a design module's status, a config key
+ * the upgrade checklist asks for). Never recorded in manifest v2; the kit's manifest-drift.mjs
+ * keeps its own copy of this list and ignores these paths when an older v2 manifest lists them.
+ * They stay guarded by the security scan's trust boundary and by `route.mjs --check`.
+ */
+export const OWNER_CONFIG = [
+  ".xezar/pipeline/config.json",
+  ".xezar/config.json",
+  ".xezar/pipeline/labels.json",
+  ".xezar/routing.json",
+];
+
+/**
  * Never recorded in manifest v2's `files`, even when the kit index lists them: the project's
- * own documents, which its roles edit in normal work, and owner files the setup merged into
- * without a kit block (`.xezar/docs/local-patches.md`, "What the manifest tracks"). Recording
- * them would turn every ordinary edit into drift. An owner file with an appended kit block is
- * recorded separately, as `owner-file-appended`, hashing only that block.
+ * own documents and configuration, which its roles edit in normal work, and owner files the
+ * setup merged into without a kit block (`.xezar/docs/local-patches.md`, "What the manifest
+ * tracks"). Recording them would turn every ordinary edit into drift. An owner file with an
+ * appended kit block is recorded separately, as `owner-file-appended`, hashing only that block.
  */
 const NOT_RECORDED = new Set([
+  ...OWNER_CONFIG,
   "AGENTS.md",
   "SDLC.md",
   "CODE_REVIEW.md",

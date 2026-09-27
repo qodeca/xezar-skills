@@ -1870,6 +1870,16 @@ breaks(
   "manifest-drift: a register entry with no manifest patch exits 0, not 1",
 );
 
+// The verifier lets a register entry name an absent file only when it is a kit file the
+// manifest can record as removed, never any absent path.
+breaks(
+  "a verifier that accepts a register entry naming any absent path is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace("ctx.readMine(f).text == null && !recordableRemoval(ctx, f)", "ctx.readMine(f).text == null && !ctx.readMine(f).missing"),
+  () => script("test-upgrade.mjs"),
+  "removed: a register entry naming a path the kit never shipped is accepted",
+);
+
 breaks(
   "a gate that no longer runs the drift check is rejected",
   "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",

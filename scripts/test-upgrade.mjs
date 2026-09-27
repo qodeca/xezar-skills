@@ -58,11 +58,11 @@ import { tomlError } from "../upgrade/tools/lib/toml.mjs";
 import { lineDistance } from "../upgrade/tools/lib/diff.mjs";
 import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
-import { OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
+import { OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
-import { verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
+import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = join(root, "scripts/fixtures/upgrade");
@@ -1055,19 +1055,20 @@ if (!HAS_DRIFT) {
 // ---------------------------------------------------------------------------------------
 // 11. What manifest v2 records (3.1.0 review findings)
 // ---------------------------------------------------------------------------------------
-// 11a. The project's own documents and merged owner files are never recorded, even though the
-// kit index lists them (`.xezar/docs/local-patches.md`, "What the manifest tracks"): recording
-// them turned every ordinary edit into drift. The tracker descriptor stays recorded: it is
-// literal shell a gate runs, and an edit to it must show.
+// 11a. The project's own documents and configuration, and merged owner files, are never
+// recorded, even though the kit index lists them (`.xezar/docs/local-patches.md`, "What the
+// manifest tracks"): recording them turned every ordinary edit – a routing pull request, a
+// config key the upgrade checklist asks for, a label – into drift. The tracker descriptor and
+// the leader guide stay recorded: an edit to either must show.
 {
   const dir = upgraded.get("3.0.3");
   const m = JSON.parse(read(dir, ".xezar/onboarding.json"));
-  const owner = ["SDLC.md", "CODE_REVIEW.md", ".mcp.json", ".codex/config.toml", ".gitignore"];
+  const owner = ["SDLC.md", "CODE_REVIEW.md", ".mcp.json", ".codex/config.toml", ".gitignore", ...OWNER_CONFIG];
   for (const p of owner) {
     expect(existsSync(join(dir, p)), `not-recorded: the upgraded 3.0.3 fixture has no ${p}; re-aim this case`);
     expect(!(p in m.files), `not-recorded: the v2 manifest records ${p}, a file the project edits in normal work`);
   }
-  for (const p of [".xezar/pipeline/trackers/github.md", ".xezar/pipeline/config.json", ".xezar/docs/leader-guide.md", ".xezar/routing.json"]) {
+  for (const p of [".xezar/pipeline/trackers/github.md", ".xezar/docs/leader-guide.md"]) {
     expect(p in m.files, `not-recorded: the v2 manifest no longer records ${p}, which it must track`);
   }
   if (HAS_DRIFT) {
@@ -1079,6 +1080,21 @@ if (!HAS_DRIFT) {
     write(d, ".mcp.json", `${JSON.stringify(mcp, null, 2)}\n`);
     const r = drift(d);
     expect(r.code === 0 && /^drift-status=pass$/m.test(r.out), `not-recorded: an ordinary edit to SDLC.md or .mcp.json fails the drift check: ${r.out.trim()}`);
+    // The owner answers a checklist key and changes routing and labels after the manifest is
+    // written – and a manifest from an earlier 3.1.0 build still lists the config files.
+    const c = lab("not-recorded-config");
+    cpSync(dir, c, { recursive: true });
+    const cfg = JSON.parse(read(c, ".xezar/pipeline/config.json"));
+    cfg.security = { ...(cfg.security ?? {}), trustBoundaries: [{ pattern: "deploy/**", why: "deploys" }] };
+    write(c, ".xezar/pipeline/config.json", `${JSON.stringify(cfg, null, 2)}\n`);
+    for (const p of OWNER_CONFIG) if (existsSync(join(c, p)) && p !== ".xezar/pipeline/config.json") write(c, p, `${read(c, p).trimEnd()}\n\n`);
+    const old = JSON.parse(read(c, ".xezar/onboarding.json"));
+    for (const p of OWNER_CONFIG) old.files[p] = { sha256: "0".repeat(64), origin: "generated" };
+    write(c, ".xezar/onboarding.json", `${JSON.stringify(old, null, 2)}\n`);
+    const rc = drift(c);
+    expect(rc.code === 0 && /^drift-status=pass$/m.test(rc.out), `not-recorded: an owner edit to the project's configuration, listed by an older v2 manifest, fails the drift check: ${rc.out.trim()}`);
+    const driftText = readFileSync(DRIFT, "utf8");
+    for (const p of OWNER_CONFIG) expect(driftText.includes(`"${p}"`), `not-recorded: manifest-drift.mjs's OWNER_CONFIG no longer lists ${p} (keep it equal to lib/policy.mjs)`);
   }
 }
 
@@ -1113,6 +1129,79 @@ if (!HAS_DRIFT) {
   // Written with the target's text: the target.
   const written = manifestAfter("installed-written", fresh(p, fx303.renderInputs), false);
   expect(written?.kitBlob === newE.kitBlob && written.sha256 === newE.sha256, `installed-base: a file written with the target text is recorded on ${written?.kitBlob}`);
+}
+
+// ---------------------------------------------------------------------------------------
+// 12. A kit file the project removed on purpose (3.1.0 review findings)
+// ---------------------------------------------------------------------------------------
+// 12a. A deleted adapted file, whose v1 digest is of the rendered text and so names no base, is
+// a local removal, not "new in kit": it was once written back without a word.
+{
+  const p = ".github/ISSUE_TEMPLATE/config.yml";
+  const dir = materialize(fx303, { name: "removed-adapted", edit: (d) => unlinkSync(join(d, p)) });
+  const plan = buildPlan(ctxFor(dir));
+  const f = byPath(plan).get(p);
+  expect(f?.class === "unexplained-local-change" && f.action === "keep", `removed: a deleted adapted file with a manifest record is ${f?.class}/${f?.action}, not unexplained-local-change/keep`);
+  expect(plan.registerDrafts.add.some((x) => x.files.includes(p)), `removed: no register entry is drafted for the deleted ${p}`);
+  applyPlan(ctxFor(dir), plan);
+  expect(!existsSync(join(dir, p)), `removed: apply wrote the deleted ${p} back`);
+}
+
+// 12b. A removal the register records is kept through the upgrade: the plan keeps it removed
+// with no stop, verify accepts the entry, manifest v2 keeps the file's entry with its patch, and
+// the drift check passes. Without the entry the drift check still fails the missing file.
+{
+  const p = ".xezar/workflows/localisation.yaml";
+  const removedWith = (name, confirmed) =>
+    materialize(fx303, {
+      name,
+      edit: (d) => {
+        unlinkSync(join(d, p));
+        if (confirmed !== null) write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, confirmed));
+      },
+    });
+  const bare = byPath(buildPlan(ctxFor(removedWith("removed-bare", null)))).get(p);
+  expect(bare?.class === "unexplained-local-change" && bare.stops.includes("unexplained-safety-file"), `removed: an unexplained deletion of the safety file ${p} is ${bare?.class} with stops ${bare?.stops}`);
+  const dir = removedWith("removed-kept", "yes");
+  const ctx = ctxFor(dir);
+  const f = byPath(buildPlan(ctx)).get(p);
+  expect(f?.class === "local-only" && f.action === "keep" && !f.stops.length, `removed: a deletion the register confirms is ${f?.class}/${f?.action} with stops ${f?.stops}, not local-only/keep`);
+  const binding = invariants(ctx, null).filter((x) => x.kind === "register-binding");
+  expect(!binding.length, `removed: verify refuses a register entry for a deliberately removed kit file: ${JSON.stringify(binding)}`);
+  const entry = manifestV2(ctx).files[p];
+  expect(entry?.patch === "LP-1" && entry.sha256 === fx303.manifest.files[p].sha256 && entry.kitBlob === base303.files[p].kitBlob, `removed: manifest v2 does not keep the removed file's installed entry with its patch: ${JSON.stringify(entry)}`);
+  const typo = materialize(fx303, { name: "removed-typo", edit: (d) => write(d, ".xezar/LOCAL-PATCHES.md", lp1(".xezar/workflows/no-such-file.yaml", "yes")) });
+  expect(invariants(ctxFor(typo), null).some((x) => x.kind === "register-binding"), "removed: a register entry naming a path the kit never shipped is accepted");
+  if (HAS_DRIFT) {
+    const up = lab("removed-drift");
+    cpSync(upgraded.get("3.0.3"), up, { recursive: true });
+    unlinkSync(join(up, p));
+    const miss = drift(up);
+    expect(miss.code === 1 && miss.out.includes(`drift=${p} origin=copied reason=missing`), `removed: an unrecorded deletion does not fail the drift check: ${miss.out.trim()}`);
+    const m = JSON.parse(read(up, ".xezar/onboarding.json"));
+    m.files[p].patch = "LP-1";
+    write(up, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+    write(up, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    const kept = drift(up);
+    expect(kept.code === 0 && /^drift-status=pass$/m.test(kept.out), `removed: a deletion recorded as a confirmed local patch fails the drift check: ${kept.out.trim()}`);
+  }
+}
+
+// 12c. The leader guide is generated from a kit template: its plan item points at that template,
+// so the merge has a theirs to read, and says whether it changed since the project's version.
+{
+  const p = ".xezar/docs/leader-guide.md";
+  const f = byPath(buildPlan(ctxFor(materialize(fx303, { name: "leader-template" }), { blobRepo: root }))).get(p);
+  expect(f?.class === "owner-shaped" && f.theirs?.kitSource === "leader-guide.template.md", `leader-template: the leader guide's plan item names no kit template (${JSON.stringify(f?.theirs)})`);
+  expect(f?.notes.some((n) => /template (changed|unchanged)|could not tell whether the template changed/.test(n)), `leader-template: the leader guide's notes do not say whether its template changed (${f?.notes})`);
+  // A shallow CI checkout has no 3.0.3 commit, so the planner cannot tell; a full clone must.
+  let hasHistory = false;
+  try {
+    hasHistory = /^[0-9a-f]{40}$/.test(git(root, "rev-parse", "--verify", "-q", `${base303.commit}^{commit}`).trim());
+  } catch {
+    hasHistory = false;
+  }
+  if (hasHistory) expect(f?.notes.includes("template changed in the kit since the project's version: merge its changes in"), `leader-template: the 3.1.0 template changes are not reported against 3.0.3 (${f?.notes})`);
 }
 
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.

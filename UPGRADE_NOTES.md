@@ -323,7 +323,13 @@ prompt rewrites the manifest. From then on, for every `drift=` line:
 
 - the change is deliberate → add an entry to `.xezar/LOCAL-PATCHES.md` and `"patch": "LP-<n>"` to
   the file's manifest entry, keeping its `sha256` and `origin` (they are the upgrade's base);
-- the change is not wanted → restore the kit's file.
+- the change is not wanted → restore the kit's file;
+- a kit file you deleted on purpose (`reason=missing`) → the same register entry and `patch` key;
+  the file's manifest entry stays, and the check then accepts the absence.
+
+Your own configuration – `.xezar/config.json`, `.xezar/pipeline/config.json`,
+`.xezar/pipeline/labels.json` and `.xezar/routing.json` – is not tracked: edit it as before,
+including the config keys the upgrade's owner checklist asks you to add on the upgrade branch.
 
 Never "refresh the digest" of a drifted file: that erases the only sign that the file differs from
 the kit. The only digest refreshed in place is the leader guide's, by `xez-add-rule`.

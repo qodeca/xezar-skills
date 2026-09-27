@@ -559,8 +559,10 @@ to carry — do not invent one, and do not tell the owner to run one.
   - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
     file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
     file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`,
-    `.xezar/docs/leader-guide.md`, `.xezar/routing.json`, and any file whose absolute path was
-    rewritten. `generated` — no kit source: the two `config.json` files and `labels.json`.
+    `.xezar/docs/leader-guide.md`, and any file whose absolute path was rewritten. `generated` —
+    written for this project with no kit source file, such as the tracker descriptor.
+    **Never listed:** the project's configuration — both `config.json` files, `labels.json` and
+    `.xezar/routing.json` — which the project changes in normal work.
     `owner-file-appended` — a file the project already had, with one block appended between
     `<!-- xezar:kit:start -->` and `<!-- xezar:kit:end -->`; its `sha256` covers only that block,
     both markers included.

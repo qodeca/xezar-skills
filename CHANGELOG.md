@@ -189,7 +189,10 @@ and passes.
 `## LP-<n> – <title>` entry per patch with `Files`, `Reason`, `Upstream`, `Since` and `Confirmed` –
 and the manifest entry gains `"patch": "LP-<n>"`. The check fails on a patch with no entry, on an
 entry with no matching manifest patch, and on an entry marked `Confirmed: no` until the owner
-confirms it. The format and the list of tracked files are in `.xezar/docs/local-patches.md`.
+confirms it. A kit file deleted on purpose is recorded the same way, and the upgrade keeps it
+deleted. The project's own configuration (both `config.json` files, `labels.json`,
+`.xezar/routing.json`) is not tracked, so routing, gate, label and config-key changes never trip
+the check. The format and the list of tracked files are in `.xezar/docs/local-patches.md`.
 
 **Onboarding writes manifest version 2** (`manifestVersion`, `version`, `files` with `sha256`,
 `origin`, `kitSource`, `kitBlob` and `renderInputs`) and checks it passes before the setup commit;
