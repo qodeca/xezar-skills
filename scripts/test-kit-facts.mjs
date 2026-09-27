@@ -634,7 +634,8 @@ function walk(rel, match) {
   const fact = "FACT 16: reading steps are limited by their shell, and loosening that is a trust-boundary change";
   for (const wf of ["architecture-review", "business-analysis", "code-review", "issue-triage", "security-review"]) {
     const text = read(`${SKILL}/kit/workflows/${wf}.yaml`);
-    if (!/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\/verdict-write\.sh".*\]$/m.test(text))
+    // A review step names the kit step's copy (.local/xezar/cache/kit/checks/), since its checkout replaces .xezar/checks/.
+    if (!/^\s+bashAllowlist: \[.*"bash (?:\.xezar|\.local\/xezar\/cache\/kit)\/checks\/verdict-write\.sh".*\]$/m.test(text))
       fail(fact, `kit/workflows/${wf}.yaml`, "the reading step has no bashAllowlist naming verdict-write.sh -- its shell can write anywhere");
   }
   const gitRead = read(`${SKILL}/kit/checks/git-read.sh`);

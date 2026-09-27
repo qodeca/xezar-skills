@@ -108,6 +108,10 @@ and no Write to its worktree and the run's own folders, and a checkout must writ
 them. `review-run.sh checkout` now says so – exit 3, `review-run=confined` – and the review roles
 judge from the diff and name it as an evidence limit; on such a lane a QA or design-review label
 cannot move.
+A review now runs the kit's scripts from a copy the kit step writes to
+`.local/xezar/cache/kit/checks/`, never from the `.xezar/checks/` the checkout replaces with the
+pull request's own (old, missing or changed) copies, and a repair of a pull request branched
+before the base changed those scripts merges the base in first.
 `lib/gate-record.sh` now reads the engine's runs index where engine 0.19.0 writes it,
 `.local/xezar/runs.json`, instead of under `runtime/`: it never found a run's frozen gates step, so
 it filed every check attempt with no producer as the author's. `worktree-preflight.sh` checks the

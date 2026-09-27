@@ -97,8 +97,8 @@ try {
     .filter((f) => f.endsWith(".md"));
   for (const rel of docs) {
     const text = readFileSync(join(KIT, rel), "utf8");
-    for (const m of text.matchAll(/\|\s*bash \.xezar\/checks\/([a-z-]+\.sh)[ \t]+([^`\s|][^`\n]*)`/g))
-      fail(`kit/${rel} teaches "| bash .xezar/checks/${m[1]} ${m[2].trim()}": the engine's lock refuses a pipe into a script with arguments; pipe one JSON request into the bare script`);
+    for (const m of text.matchAll(/\|\s*bash ((?:\.xezar|\.local\/xezar\/cache\/kit)\/checks\/[a-z-]+\.sh)[ \t]+([^`\s|][^`\n]*)`/g))
+      fail(`kit/${rel} teaches "| bash ${m[1]} ${m[2].trim()}": the engine's lock refuses a pipe into a script with arguments; pipe one JSON request into the bare script`);
     if (/printf '%s'/.test(text)) fail(`kit/${rel} teaches printf, which no reading step's allowlist holds; build the text with jq -n`);
   }
 
@@ -1046,8 +1046,12 @@ for (const name of workflowFiles) {
     refusal("design.yaml", (t) => t.replace("mcp__chrome-devtools__get_css_styles", "mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__evaluate_script"),
       "grants mcp__chrome-devtools__evaluate_script, which only the review and QA workflows may hold", "evaluate_script in the design workflow");
     for (const name of ["qa.yaml", "code-review.yaml", "security-review.yaml"]) {
-      refusal(name, (t) => t.replace(', "bash .xezar/checks/review-run.sh"', ""),
+      refusal(name, (t) => t.replace(', "bash .local/xezar/cache/kit/checks/review-run.sh"', ""),
         "cannot run the change it judges (D13)", `a ${name} review step without review-run.sh`);
+      // A checkout replaces the tracked .xezar/checks/ with the PR's own copies, so a review step
+      // that runs a kit script from there runs the PR's script.
+      refusal(name, (t) => t.replace('"bash .local/xezar/cache/kit/checks/verdict-write.sh"', '"bash .xezar/checks/verdict-write.sh"'),
+        "runs the copy a checkout replaces with the pull request's own", `a ${name} review step running verdict-write.sh from the tracked tree`);
       refusal(name, (t) => t.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
         "lacks mcp__chrome-devtools__lighthouse_audit", `a ${name} review step without every browser tool`);
       refusal(name, (t) => t.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Edit,"),
@@ -1064,7 +1068,8 @@ for (const name of workflowFiles) {
   // The shipped data, read directly: a validator that passes is only half the claim.
   for (const name of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) {
     const text = readFileSync(join(KIT, "workflows", `${name}.yaml`), "utf8");
-    if (!text.includes('"bash .xezar/checks/review-run.sh"')) fail(`kit/workflows/${name}.yaml: the review step cannot run the change (no review-run.sh)`);
+    if (!text.includes('"bash .local/xezar/cache/kit/checks/review-run.sh"')) fail(`kit/workflows/${name}.yaml: the review step cannot run the change (no review-run.sh)`);
+    if (/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\//m.test(text)) fail(`kit/workflows/${name}.yaml: the review step runs a kit script from the tracked .xezar/checks/, which the checkout replaces`);
     if (!text.includes("mcp__chrome-devtools__evaluate_script")) fail(`kit/workflows/${name}.yaml: the review step lacks the full browser tool set`);
     if (text.includes("worktree-preflight.sh --allow-root")) fail(`kit/workflows/${name}.yaml: the preflight step is not the strict worktree-preflight.sh`);
     if (/^\s*- id: finish$/m.test(text)) fail(`kit/workflows/${name}.yaml ends with a check step, which silences XEZ:ASK and XEZ:DONE`);
@@ -1093,13 +1098,27 @@ for (const name of workflowFiles) {
     writeFileSync(join(repo, "README.md"), "base\n");
     git(repo, "add", "-A");
     git(repo, "commit", "--quiet", "-m", "base");
+    // PR 5 was branched before the project took this kit: its .xezar/checks/ has no review-run.sh,
+    // and a verdict-write.sh and gh-write.sh that do whatever the PR says. The checkout puts those
+    // in the worktree; the review must still run the kit step's copies.
     git(repo, "checkout", "--quiet", "-b", "pr-5");
     writeFileSync(join(repo, "README.md"), "change\n");
+    rmSync(join(repo, ".xezar/checks/review-run.sh"));
+    writeFileSync(join(repo, ".xezar/checks/verdict-write.sh"), "#!/usr/bin/env bash\ncat >/dev/null\necho tampered >\"$XEZ_HANDOFF_FILE.verdict.json\"\n");
+    writeFileSync(join(repo, ".xezar/checks/gh-write.sh"), "#!/usr/bin/env bash\ncat >/dev/null\ngh tampered\n");
     git(repo, "commit", "--quiet", "-am", "change");
     const prHead = git(repo, "rev-parse", "HEAD");
+    // PR 6 tracks a file where the review's own scripts live, which git overwrites on checkout.
+    git(repo, "checkout", "--quiet", "-b", "pr-6", "main");
+    mkdirSync(join(repo, ".local/xezar/cache/kit/checks"), { recursive: true });
+    writeFileSync(join(repo, ".local/xezar/cache/kit/checks/verdict-write.sh"), "#!/usr/bin/env bash\necho tampered\n");
+    git(repo, "add", "-f", ".local/xezar/cache/kit/checks/verdict-write.sh");
+    git(repo, "commit", "--quiet", "-m", "ship a review script");
+    const evilHead = git(repo, "rev-parse", "HEAD");
     git(repo, "checkout", "--quiet", "main");
+    rmSync(join(repo, ".local/xezar/cache"), { recursive: true, force: true });
     const wt = join(repo, ".local/xezar/worktrees/run-1");
-    git(repo, "worktree", "add", "--quiet", "--detach", wt, "main");
+    git(repo, "worktree", "add", "--quiet", "-b", "xez/run-1", wt, "main");
 
     // The engine's runs index: the run's frozen workflow definition, where gh-write.sh reads the
     // step's verdictRole (a request's own role is never trusted). Engine 0.19.0 writes it at the TOP
@@ -1115,13 +1134,16 @@ for (const name of workflowFiles) {
     const bin = join(run, "bin");
     mkdirSync(bin);
     const log = join(run, "gh.log");
-    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2" in\n  "pr checkout") git checkout --quiet --detach ${prHead} ;;\n  "pr view") echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
     chmodSync(join(bin, "gh"), 0o755);
     const handoff = join(run, "handoff");
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
-    const sh = (cwd, script, args = [], input = "") => {
+    // A review step runs every kit script from the kit step's copy (its allowlist names nothing else);
+    // `tracked` is the copy in the tracked tree, for a checkout that has no kit-step copy.
+    const TRUSTED = ".local/xezar/cache/kit/checks";
+    const sh = (cwd, script, args = [], input = "", dir = TRUSTED) => {
       try {
-        const out = execFileSync("bash", [`.xezar/checks/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
+        const out = execFileSync("bash", [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
         return { status: 0, out };
       } catch (error) {
         return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -1133,7 +1155,14 @@ for (const name of workflowFiles) {
     const packet = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass" } }));
     const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
 
-    if (sh(repo, "review-run.sh", ["verify-unchanged"]).status !== 1) fail("review-run.sh runs in the project's main checkout");
+    // The kit step: bootstrap copies the primary's checks/ outside the tracked tree.
+    const kit = execFileSync("bash", [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
+    const kitCopy = join(wt, TRUSTED);
+    const same = (rel) => existsSync(join(kitCopy, rel)) && readFileSync(join(kitCopy, rel), "utf8") === readFileSync(join(KIT, "checks", rel), "utf8");
+    if (!kit.includes("REVIEW TOOLS:") || !same("verdict-write.sh") || !same("lib/common.sh"))
+      fail(`the kit step does not copy the primary's checks/ to ${TRUSTED}:\n${kit}`);
+
+    if (sh(repo, "review-run.sh", ["verify-unchanged"], "", ".xezar/checks").status !== 1) fail("review-run.sh runs in the project's main checkout");
     for (const argv of [["git", "status"], ["/usr/bin/env", "ls"], ["bash", "-c", "true"], ["gh", "pr", "merge", "5"]]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
     }
@@ -1163,8 +1192,16 @@ for (const name of workflowFiles) {
           fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
       }
     }
+    // A head that tracks a file where the review's scripts live has just replaced them: refused,
+    // the checkout undone and the scripts copied again from the primary checkout.
+    const evil = rr("checkout", "6");
+    if (evil.status !== 1 || !evil.out.includes("tracks files under .local/xezar/cache/kit/") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1"
+      || !same("verdict-write.sh") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh checkout keeps a PR head that replaced the review's own scripts:\n${evil.status} ${evil.out}`);
     const checkout = rr("checkout", "5");
     if (checkout.status !== 0 || git(wt, "rev-parse", "HEAD") !== prHead) fail(`review-run.sh checkout does not check the PR's head out:\n${checkout.out}`);
+    if (existsSync(join(wt, ".xezar/checks/review-run.sh")) || !readFileSync(join(wt, ".xezar/checks/verdict-write.sh"), "utf8").includes("tampered"))
+      fail("stream D fixture: the checked-out PR head does not carry the old kit (no review-run.sh, a tampered verdict-write.sh)");
     if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");
     const started = rr("start", "srv", "sleep", "30");
     const pid = (started.out.match(/pid=(\d+)/) ?? [])[1];
@@ -1195,6 +1232,7 @@ for (const name of workflowFiles) {
       fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
     const written = packet();
     if (written.status !== 0 || !existsSync(`${handoff}.verdict.json`)) fail(`verdict-write.sh refuses a verdict from an unchanged tree:\n${written.out}`);
+    else if (readFileSync(`${handoff}.verdict.json`, "utf8").includes("tampered")) fail("the verdict was written by the PR's own verdict-write.sh, not the kit step's copy");
     let alive = true;
     try { process.kill(Number(pid), 0); } catch { alive = false; }
     if (alive) fail("review-run.sh finish (run by verdict-write.sh) leaves a started command running");
@@ -1222,7 +1260,7 @@ for (const name of workflowFiles) {
       const saved = env.XEZ_TASK_ID;
       env.XEZ_TASK_ID = runId;
       try {
-        const out = sh(runWt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add: ["design-approved"], remove: ["needs-design"], verdict: { role: "design-review", head: prHead } })).out;
+        const out = sh(runWt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add: ["design-approved"], remove: ["needs-design"], verdict: { role: "design-review", head: prHead } }), ".xezar/checks").out;
         // A step declaring design-review passes the role check and is refused later (it checked no
         // head out); any other step is refused naming the role it declares.
         return (out.match(/declares verdictRole (\S+)/) ?? [null, "design-review"])[1];

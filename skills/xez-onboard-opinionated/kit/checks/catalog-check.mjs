@@ -194,7 +194,14 @@ const REVIEW_WORKFLOWS = new Set([
 // the change as their job, not only on a pull request that needs it. test-kit-catalog.mjs binds
 // the rows to this list.
 const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "design-review", "qa"]);
-const REVIEW_RUN_PREFIX = "bash .xezar/checks/review-run.sh";
+// A review step checks the PR head out, which replaces the tracked `.xezar/checks/` with that head's
+// own copies – old, missing or changed by the PR. So it runs every kit script from the kit step's
+// copy outside the tracked tree (review-run.sh, "Which copy runs"), and a
+// `bash .xezar/checks/` entry in its allowlist is refused: that would run the PR's script.
+const TRUSTED_CHECKS = ".local/xezar/cache/kit/checks";
+const trusted = (entry) => entry.replace(/^bash \.xezar\/checks\//, `bash ${TRUSTED_CHECKS}/`);
+const REVIEW_BASH_PREFIXES = new Set([...READER_BASH_PREFIXES].map(trusted));
+const REVIEW_RUN_PREFIX = `bash ${TRUSTED_CHECKS}/review-run.sh`;
 
 // Every chrome-devtools tool. A review or QA step holds all of them (D13). The ones after the
 // basic set – emulate, script evaluation, uploads, drag, performance, heap and lighthouse – are
@@ -377,8 +384,12 @@ function checkReaderStep(at, workflow, step) {
     return;
   }
   for (const entry of list) {
-    if (review && entry === REVIEW_RUN_PREFIX) continue;
-    if (!READER_BASH_PREFIXES.has(entry)) {
+    if (review && (entry === REVIEW_RUN_PREFIX || REVIEW_BASH_PREFIXES.has(entry))) continue;
+    if (review && /^bash \.xezar\/checks\//.test(entry) && (READER_BASH_PREFIXES.has(entry) || trusted(entry) === REVIEW_RUN_PREFIX)) {
+      err(at, `bashAllowlist entry "${entry}" runs the copy a checkout replaces with the pull request's own; a review step runs kit scripts from ${TRUSTED_CHECKS}/ ("${trusted(entry)}", D13)`);
+      continue;
+    }
+    if (!(review ? REVIEW_BASH_PREFIXES : READER_BASH_PREFIXES).has(entry)) {
       err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh, comments and labels through gh-write.sh, files through verdict-write.sh${review ? ", running the change through review-run.sh" : ""}`);
     }
   }

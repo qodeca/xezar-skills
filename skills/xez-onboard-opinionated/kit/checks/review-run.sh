@@ -24,6 +24,15 @@
 #   review-run.sh finish                      stop everything started, then verify-unchanged –
 #                                             verdict-write.sh runs this before a packet
 #
+# Which copy runs. A checkout replaces the tracked `.xezar/checks/` with the PR head's own copies:
+# old ones, missing ones, or ones the PR changed. So a review step never runs a kit script from
+# there. The kit step copies the primary checkout's scripts to `.local/xezar/cache/kit/checks/`
+# (outside the tracked tree), and a review step's `bashAllowlist` names only those copies, this
+# script included: `bash .local/xezar/cache/kit/checks/review-run.sh`. Everything it calls in turn
+# (`deps-restore.sh`, `lib/common.sh`) is beside it. Git overwrites an ignored file on checkout, so
+# a head that tracks a file under `.local/xezar/cache/kit/` is refused: the checkout is undone and
+# the copies are made again from the primary checkout.
+#
 # The reviewed head: the one `checkout` recorded; without a checkout, HEAD must be the run's own
 # branch with no commit of its own (an ancestor of the base branch, local or origin).
 #
@@ -182,7 +191,15 @@ case "$sub" in
       fi
       rm -f "$probe"
     done
+    before="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse HEAD)" || exit 1
     gh pr checkout "$1" --detach || refuse "gh pr checkout $1 --detach failed"
+    if [ -n "$(git ls-files -- .local/xezar/cache/kit | head -1)" ]; then
+      git checkout --quiet "$before" 2>/dev/null || echo "review-run.sh: could not return to $before" >&2
+      trusted="$TASK_CWD/.local/xezar/cache/kit/checks"
+      rm -rf "$trusted" && mkdir -p "$trusted" && cp -Rp "$MAIN_ROOT/.xezar/checks/." "$trusted/" ||
+        echo "review-run.sh: the review's own scripts could not be copied again from $MAIN_ROOT/.xezar/checks" >&2
+      refuse "PR #$1 tracks files under .local/xezar/cache/kit/, where this review's own scripts live, so its checkout replaced them; the checkout was undone and the scripts copied again from the primary checkout. Judge this PR from the diff and say that nothing of it could run"
+    fi
     head="$(git rev-parse HEAD)" || exit 1
     want="$(gh pr view "$1" --json headRefOid --jq .headRefOid 2>/dev/null)" || want=""
     [ "$head" = "$want" ] || refuse "checked out $head, and the PR's head is ${want:-unknown}"

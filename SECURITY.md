@@ -50,14 +50,19 @@ operator did not intend.
   lifted only together with its approval label, and everything the review starts (`review-run.sh
   install`, `run`, `start`) gets no git or gh credentials – tokens replaced, credential helpers
   cleared, no SSH agent – so a git or gh it starts cannot push, merge or label; a head record the
-  review rewrites is caught because the recorded head must be a commit of the PR on GitHub. What
-  is not: the started code is still arbitrary code with the operator's user rights, so a program
-  written for it can read what that user can read (a credential store included), reach the
-  network, or delete the review's own state. The owner accepted that residue (D13), and
+  review rewrites is caught because the recorded head must be a commit of the PR on GitHub; and
+  the review's own scripts (`review-run.sh`, `verdict-write.sh`, `gh-write.sh` and the rest) run
+  from the kit step's copy of the primary checkout's `.xezar/checks/`, outside the tracked tree, so
+  the pull request's own `.xezar/checks/`, which the checkout puts in the worktree, never runs as
+  the review's tooling. What is not: the started code is still arbitrary code with the operator's
+  user rights, so a program written for it can read what that user can read (a credential store
+  included), reach the network, or delete the review's own state or rewrite that copy. The owner
+  accepted that residue (D13), and
   `DECISIONS.md` → "Reviewers run the change, and a verdict needs the tree they found" states what
   it gives away. A review step that can edit, commit or push, a verdict written after the tree
-  changed, a label moved for a role the step does not declare, or a credential handed to a
-  started command, is still a finding.
+  changed, a label moved for a role the step does not declare, a credential handed to a
+  started command, or a review step that runs a kit script from the tracked `.xezar/checks/`, is
+  still a finding.
 
   **The scope was cut here on 2026-09-22, and this is the reasoning.** The exception used to
   carry a second case: a consented write to the provider enable/disable key of
