@@ -28,7 +28,7 @@ git log -1 --format=%cI "$(git describe --tags --abbrev=0 --match 'v*' origin/ma
 git show origin/main:package.json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).version'
 ```
 
-Sanity rules. The version in `package.json` on `origin/main` may still be one behind npm when the previous `release/v<n>` bump PR has not merged (that happened on 0.11.1). Compare against `npm view @qodeca/xezar version` and the newest dated heading in CHANGELOG.md; when the manifest is behind, the target you write must be the next version after what npm serves, and you must say so in `release.json` so the publish step can refuse a duplicate bump. Never guess: when tag, manifest, npm and changelog cannot be reconciled into one target, write `BLOCKED` with the four values and stop.
+Sanity rules. The version in `package.json` on `origin/main` may still be one behind the package registry when the previous `release/v<n>` bump PR has not merged (that happened on 0.11.1). Compare against the version the registry serves (ask it the way docs/publishing.md says) and the newest dated heading in CHANGELOG.md; when the manifest is behind, the target you write must be the next version after what the registry serves, and you must say so in `release.json` so the publish step can refuse a duplicate bump. Never guess: when tag, manifest, registry and changelog cannot be reconciled into one target, write `BLOCKED` with the four values and stop.
 
 ## 2. Collect the PRs
 
@@ -68,6 +68,8 @@ The table is classification precedence (a `bug` PR that is also breaking goes un
 
 ## 4. Fold the fragments and every `# Unreleased` section
 
+First read the format: `node .xezar/checks/changelog-fragments.mjs --format-of` prints `format=house` or `format=keep-a-changelog` (from `changelog.format` in `.xezar/pipeline/config.json`, else from the file's headings). Steps 3–5 describe `house`; the Keep a Changelog differences are at the end of this step.
+
 Every pull request writes its own `changelog.d/<pr-or-branch>.md` instead of editing `# Unreleased`, so the fold of those fragments is part of this step, not a separate one:
 
 ```sh
@@ -81,14 +83,17 @@ Find every top-level `# Unreleased` heading in CHANGELOG.md (a direct edit that 
 
 The new section sits directly above the newest existing top-level heading (dated release or the `# Renamed to Xezar` entry), so the file stays newest-first; the date is today in the repository's timezone as `YYYY-MM-DD`. Match blank-line conventions of the sections around it.
 
+**Keep a Changelog** (`format=keep-a-changelog`). Write your bullets under that format's groups — `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security` — mapping the table above as Features → Added, Fixes → Fixed, Security → Security, and Breaking, Changed, Docs and CI/CD → Changed; there is no Highlights group, so put the highlights in the release report instead. The same fold command releases the format's way: it merges the fragments into the `## [Unreleased]` content, renames that heading to `## [<version>] - <date>` and opens a fresh, empty `## [Unreleased]` above it. There is no separate Unreleased fold for you to do. With no fragments to fold, make that rename yourself. Update the compare links at the foot of the file when it has them.
+
 ## 5. Verify, then commit
 
 ```sh
-bash .xezar/checks/changelog-check.sh --require-version <version>   # zero Unreleased, exactly one target heading
+bash .xezar/checks/changelog-check.sh --require-version <version>   # Unreleased absorbed, exactly one target heading
+node .xezar/checks/changelog-fragments.mjs --verify --version <version> --before HEAD --fragments changelog.d
 git diff --stat                                                      # CHANGELOG.md and the deleted fragments, nothing else
 ```
 
-Then, for every PR number kept in step 2, `grep -c "#<n>)" CHANGELOG.md` inside the new section must be at least one, and `ls changelog.d` must show only `README.md` — a fragment left behind is a bullet nobody folded. A missing number, a changed file outside CHANGELOG.md and the folded fragments, or a red check is a defect to fix here, not something to hand to the gates. When it passes:
+`--verify` compares against the last commit, before the fold: every fragment line must be in the new section, no changelog line may be missing, and no fragment may be left behind. Then, for every PR number kept in step 2, `grep -c "#<n>)" CHANGELOG.md` inside the new section must be at least one. A missing number, a changed file outside CHANGELOG.md and the folded fragments, or a red check is a defect to fix here, not something to hand to the gates. When it passes:
 
 ```sh
 bash .xezar/checks/worktree-git.sh commit -m "docs: record <version> in the changelog"

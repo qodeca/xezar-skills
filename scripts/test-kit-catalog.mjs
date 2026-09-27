@@ -916,6 +916,137 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-E:end
 
 // 3.1.0-stream-F:start
+// --- #57 changelog formats: Keep a Changelog, and a base branch read from config -------------
+// Every fixture is a throwaway repository whose base branch is `develop`, with a `main` that is
+// older than it: a check that still falls back to `main` sees the base's own commits as this
+// branch's edits, and refuses a branch that only wrote a fragment.
+{
+  const lab = mkdtempSync(join(tmpdir(), "kit-changelog-"));
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  delete env.GATE_BASE_SHA;
+  const CHECK = join(KIT, "checks", "changelog-check.sh");
+  const FRAG = join(KIT, "checks", "changelog-fragments.mjs");
+  const exec = (cwd, cmd, args) => {
+    try {
+      return { code: 0, out: execFileSync(cmd, args, { cwd, env, encoding: "utf8", stdio: "pipe" }) };
+    } catch (error) {
+      return { code: error.status ?? -1, out: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+  };
+  const expect = (label, got, code, words) => {
+    if (got.code !== code || !got.out.includes(words)) {
+      fail(`changelog #57: ${label} -- expected exit ${code} saying "${words}", got exit ${got.code}:\n${got.out.trim()}`);
+    }
+  };
+  const repo = (name, changelog, config) => {
+    const dir = join(lab, name);
+    mkdirSync(join(dir, "changelog.d"), { recursive: true });
+    mkdirSync(join(dir, ".xezar/pipeline"), { recursive: true });
+    const git = (...args) => execFileSync("git", args, { cwd: dir, env, encoding: "utf8", stdio: "pipe" }).trim();
+    git("init", "--quiet", "-b", "main");
+    git("config", "user.name", "kit");
+    git("config", "user.email", "kit@example.invalid");
+    writeFileSync(join(dir, "CHANGELOG.md"), changelog);
+    writeFileSync(join(dir, "changelog.d/README.md"), "Fragments go here.\n");
+    writeFileSync(join(dir, ".xezar/pipeline/config.json"), `${JSON.stringify(config)}\n`);
+    git("add", "-A");
+    git("commit", "--quiet", "-m", "initial");
+    return { dir, git, put: (file, text) => writeFileSync(join(dir, file), text), read: (file) => readFileSync(join(dir, file), "utf8") };
+  };
+  try {
+    // Keep a Changelog, base `develop` from .xezar/pipeline/config.json.
+    const KAC = "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- First release.\n";
+    const k = repo("kac", KAC, { baseBranch: "develop" });
+    k.git("checkout", "--quiet", "-b", "develop");
+    // A direct Unreleased bullet that predates fragments, on the BASE: legal there, and exactly what
+    // a `main` fallback would misread as the pull request's own edit.
+    k.put("CHANGELOG.md", KAC.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Changed\n\n- Legacy bullet on develop.\n"));
+    k.git("commit", "--quiet", "-am", "legacy unreleased bullet");
+    const developSha = k.git("rev-parse", "--short=12", "HEAD");
+    const check = (...args) => exec(k.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+
+    expect("the format is detected from a Keep a Changelog file", exec(k.dir, "node", [FRAG, "--format-of"]), 0, "format=keep-a-changelog");
+
+    // A pull request that writes a fragment is accepted, measured from the configured `develop`.
+    k.git("checkout", "--quiet", "-b", "feature-fragment");
+    k.put("changelog.d/41.md", "## ✨ Features\n\n- **A house heading** maps onto Added. (#41)\n");
+    k.put("changelog.d/42.md", "## Fixed\n\n- **A Keep a Changelog group** is taken as it is. (#42)\n");
+    k.git("add", "-A");
+    k.git("commit", "--quiet", "-m", "fragments");
+    const accepted = check("--diff-base", "auto", "--fragments", "changelog.d");
+    expect("a fragment-only branch is accepted against the configured base", accepted, 0, `diff base ${developSha}`);
+    expect("a fragment-only branch passes in keep-a-changelog mode", accepted, 0, "(keep-a-changelog)");
+
+    // A pull request that edits `## [Unreleased]` directly is refused.
+    k.git("checkout", "--quiet", "-b", "feature-direct", "develop");
+    k.put("CHANGELOG.md", k.read("CHANGELOG.md").replace("- Legacy bullet on develop.\n", "- Legacy bullet on develop.\n- A direct edit.\n"));
+    k.git("commit", "--quiet", "-am", "direct edit");
+    expect("a direct `## [Unreleased]` edit is refused", check("--diff-base", "auto"), 1, "the '## [Unreleased]' section of CHANGELOG.md was edited directly");
+
+    // A fragment heading Keep a Changelog has no group for is refused, naming the groups it has.
+    k.git("checkout", "--quiet", "feature-fragment");
+    k.put("changelog.d/43.md", "## Highlights\n\n- Prose with no Keep a Changelog group.\n");
+    expect("a fragment under `## Highlights` is refused in keep-a-changelog mode", check("--fragments", "changelog.d"), 1, "is not a Keep a Changelog group");
+    rmSync(join(k.dir, "changelog.d/43.md"));
+
+    // The fold releases `## [Unreleased]`: fragments land under Added and Fixed, the legacy bullet
+    // is kept, a fresh empty Unreleased opens above, and every fragment is deleted.
+    expect("the keep-a-changelog fold runs", exec(k.dir, "node", [FRAG, "--fold", "--version", "1.1.0", "--date", "2026-09-27", "--fragments", "changelog.d"]), 0, "folded 2 fragment(s)");
+    const folded = k.read("CHANGELOG.md");
+    const want = "# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-09-27\n\n### Added\n\n- **A house heading** maps onto Added. (#41)\n\n### Changed\n\n- Legacy bullet on develop.\n\n### Fixed\n\n- **A Keep a Changelog group** is taken as it is. (#42)\n\n## [1.0.0] - 2026-01-01\n";
+    if (!folded.startsWith(want)) fail(`changelog #57: the keep-a-changelog fold wrote an unexpected file:\n${folded}`);
+    expect("the folded file passes --require-version", check("--require-version", "1.1.0"), 0, "one \"## [1.1.0] - \" heading");
+    expect("the verify step passes on a complete fold", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 0, "verified — 2 fragment(s)");
+    // ...and catches an entry the fold lost: a fragment bullet, then a line that was there before.
+    k.put("CHANGELOG.md", folded.replace("- **A house heading** maps onto Added. (#41)\n", ""));
+    expect("the verify step catches a lost fragment entry", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "changelog.d/41.md is missing from the 1.1.0 section");
+    k.put("CHANGELOG.md", folded.replace("- Legacy bullet on develop.\n", ""));
+    expect("the verify step catches a lost changelog line", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "a line of the changelog before the fold is missing after it");
+    k.put("CHANGELOG.md", folded);
+    k.put("changelog.d/44.md", "## Added\n\n- Left behind.\n");
+    expect("the verify step catches a fragment left behind", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "a fragment left behind");
+    // Content still under Unreleased after a release is refused.
+    k.put("CHANGELOG.md", folded.replace("## [Unreleased]\n", "## [Unreleased]\n\n- Stray.\n"));
+    expect("--require-version refuses content left under Unreleased", check("--require-version", "1.1.0"), 1, "still has content under '## [Unreleased]'");
+
+    // An unknown changelog.format is refused, not read as "detect".
+    k.put(".xezar/pipeline/config.json", '{"baseBranch":"develop","changelog":{"format":"keepachangelog"}}\n');
+    expect("an unknown changelog.format is refused", check(), 2, "changelog.format in");
+
+    // The house format is unchanged: a direct `# Unreleased` edit refused, a fragment accepted and
+    // folded, with the base read from config here too.
+    const HOUSE = "# Unreleased\n\n## 🐛 Fixes\n\n- Old.\n\n# 1.0.0 (2026-01-01)\n\n## ✨ Features\n\n- First.\n\n---\n";
+    const h = repo("house", HOUSE, { baseBranch: "develop" });
+    h.git("checkout", "--quiet", "-b", "develop");
+    h.put("CHANGELOG.md", HOUSE.replace("- Old.\n", "- Old.\n- Legacy on develop.\n"));
+    h.git("commit", "--quiet", "-am", "legacy");
+    h.git("checkout", "--quiet", "-b", "feature-fragment");
+    h.put("changelog.d/7.md", "## 🐛 Fixes\n\n- Fragment. (#7)\n");
+    h.git("add", "-A");
+    h.git("commit", "--quiet", "-m", "fragment");
+    const hcheck = (...args) => exec(h.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+    expect("house: a fragment-only branch is accepted against the configured base", hcheck("--diff-base", "auto", "--fragments", "changelog.d"), 0, "no direct edit of CHANGELOG.md");
+    h.git("checkout", "--quiet", "-b", "feature-direct", "develop");
+    h.put("CHANGELOG.md", h.read("CHANGELOG.md").replace("- Old.\n", "- Old.\n- Direct.\n"));
+    h.git("commit", "--quiet", "-am", "direct");
+    expect("house: a direct `# Unreleased` edit is still refused", hcheck("--diff-base", "auto"), 1, "the '# Unreleased' section of CHANGELOG.md was edited directly");
+    h.git("checkout", "--quiet", "feature-fragment");
+    expect("house: the fold still runs", exec(h.dir, "node", [FRAG, "--fold", "--version", "1.1.0", "--date", "2026-09-27", "--fragments", "changelog.d"]), 0, "folded 1 fragment(s)");
+    if (!h.read("CHANGELOG.md").includes("# Unreleased\n\n## 🐛 Fixes\n\n- Old.\n- Legacy on develop.\n\n# 1.1.0 (2026-09-27)\n\n## 🐛 Fixes\n\n- Fragment. (#7)\n\n---\n")) {
+      fail(`changelog #57: the house fold changed shape:\n${h.read("CHANGELOG.md")}`);
+    }
+    expect("house: the verify step passes", exec(h.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 0, "verified — 1 fragment(s)");
+    expect("house: the format is house", exec(h.dir, "node", [FRAG, "--format-of"]), 0, "format=house");
+  } catch (error) {
+    fail(`changelog #57: the fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
 // 3.1.0-stream-F:end
 
 // 3.1.0-stream-G:start
