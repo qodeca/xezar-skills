@@ -1335,6 +1335,10 @@ for (const name of workflowFiles) {
   };
   for (const id of ["mechanical-docs", "bounded-bug-fix", "merge-chain", "dependency-maintenance"]) deepseekFirst(id, F, P);
   deepseekFirst("evidence-pass", F, null); // a strong lane is banned there
+  // localisation checks screens, so V4 Pro (no vision) stays out; Flash leads (owner, #89).
+  deepseekFirst("localisation", F, null);
+  if (lanesOfRow("localisation").includes(P) || !(byId.localisation?.never ?? []).some((n) => n.vision === false)) fail(`${ROUTING}: localisation lists ${P} or lost its vision ban`);
+  if (JSON.stringify(byId["design-system"]?.lanes) !== '["claude/opus","codex/gpt-6-sol"]') fail(`${ROUTING}: design-system changed; the owner kept it as it was (#89)`);
   for (const id of ["docs-writing", "unit-tests", "integration-tests", "observability", "hotfix", "review-response-one"]) deepseekFirst(id, P, F);
   // Opus-first rows keep Opus first and take V4 Pro right after their last Codex lane.
   for (const id of ["analysis-specs-research", "architecture-decision", "spike", "deprecation-plan", "multi-file-implementation", "kit-refactor", "refactor", "migration", "regression-suite", "performance", "review-response-several", "diagnose-bug"]) {

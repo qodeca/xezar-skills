@@ -14,6 +14,8 @@ divides more work between it and `pi/deepseek-api/deepseek-flash`:
 - V4 Pro comes after the Codex lanes in the Opus-first rows (design, architecture, specs, research,
   large implementation, refactor, migration) and in the other rows that list Codex.
 - V4 Pro is in no screen row, because it cannot see images; Flash is the no-Claude fallback there.
+- Localisation, which checks screens, takes Flash first and no V4 Pro; the design-system row is
+  unchanged.
 - V4 Pro is last in every review row that is not a screen row – re-checks, cold reviews,
   acceptance, architecture and security review – the fallback when Claude has no budget. It never
   reviews DeepSeek work: work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then

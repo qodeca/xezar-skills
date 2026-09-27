@@ -1091,6 +1091,7 @@
       "writes": true,
       "trigger": "Text has to become translatable, or a language the owner has listed has to be added or brought up to date.",
       "lanes": [
+        "pi/deepseek-api/deepseek-flash",
         "codex/gpt-5.6-terra",
         "codex/gpt-6-sol",
         "claude/sonnet"
@@ -1101,10 +1102,6 @@
         },
         {
           "local": true
-        },
-        {
-          "lane": "pi/deepseek-api/deepseek-flash",
-          "why": "owner's preference"
         }
       ]
     },
