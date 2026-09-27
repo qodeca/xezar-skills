@@ -17,6 +17,19 @@ import { git } from "./hash.mjs";
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const SCRATCH = ".local/xezar/scratch/upgrade";
 
+/** `--help` or `-h`: print the calling tool's header comment (its usage) and return true. */
+export function printHelp(argv, toolUrl) {
+  if (!argv.includes("--help") && !argv.includes("-h")) return false;
+  const lines = readFileSync(fileURLToPath(toolUrl), "utf8").split("\n");
+  const out = [];
+  for (const line of lines.slice(lines[0].startsWith("#!") ? 1 : 0)) {
+    if (!line.startsWith("//")) break;
+    out.push(line.replace(/^\/\/ ?/, ""));
+  }
+  console.log(out.join("\n"));
+  return true;
+}
+
 export function parseArgs(argv, flags = []) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i += 1) {

@@ -12,7 +12,7 @@
 //
 // Run from the verified xezar-skills clone:
 //   node upgrade/tools/detect.mjs --project <dir> [--target <version>] [--json]
-//        [--blob-pack <file.json.gz>]… [--index-dir <dir>] [--kit <skill dir>]
+//        [--blob-pack <file.json.gz>]… [--index-dir <dir>] [--kit <skill dir>] [--help]
 // Output (default): NAME=value lines, parsed after the first `=`:
 //   manifest-version=<1|2>
 //   project-version=<version|unknown>
@@ -23,7 +23,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { sha256 } from "./lib/hash.mjs";
-import { loadContext, parseArgs } from "./lib/context.mjs";
+import { loadContext, parseArgs, printHelp } from "./lib/context.mjs";
 import { normalisedMatch, placeholdersIn } from "./lib/rewrites.mjs";
 import { lineDistance } from "./lib/diff.mjs";
 import { isNeverTouched } from "./lib/policy.mjs";
@@ -157,6 +157,7 @@ export function detect(ctx) {
 }
 
 function main() {
+  if (printHelp(process.argv.slice(2), import.meta.url)) return;
   const args = parseArgs(process.argv.slice(2), ["json"]);
   const ctx = loadContext({
     project: args.project ?? process.cwd(),

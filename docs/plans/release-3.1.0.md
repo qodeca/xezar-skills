@@ -547,9 +547,9 @@ In every other case, Claude decides and writes the reason in the report.
      commit, or refuse and explain.
 
    Then create branch `xezar/upgrade-<target>`.
-1. **Fetch and verify the tools.** Shallow-clone `qodeca/xezar-skills` at the target tag into a
-   temp folder.
-   - Verify it with `gh release verify v<target>` or `git verify-tag`, and check that `HEAD`
+1. **Fetch and verify the tools.** Clone `qodeca/xezar-skills` in full (not shallow: `apply.mjs`
+   reads old kit files from its history) at the target tag into a temp folder.
+   - Verify it with `gh release verify v<target>`, and check that `HEAD`
      equals the commit sha published with the release. This happens **before any Node code
      runs**.
    - The prompt is read from this verified clone, never from a URL.
@@ -583,7 +583,9 @@ In every other case, Claude decides and writes the reason in the report.
    - a safety line required by a 3.1.0 entry is missing.
 
    Then it writes manifest v2 and runs the drift check, the 3.1.0 kit catalog check and
-   `repository-checks.sh`. A red check is fixed or reported. It is never hidden.
+   `repository-checks.sh`, each from the clone and each against the project it was given (the
+   repository check takes the project as its argument). A red check is fixed or reported. It is
+   never hidden.
 8. **Report and commit.** Write `.xezar/upgrade-reports/<target>.md`:
    - what changed, per class;
    - each merge decision with its reason;

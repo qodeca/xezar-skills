@@ -18,7 +18,9 @@
 //   6. each 3.1.0 upgrade block's `Files:` matches the kit-index diff;
 //   7. the drift check (stream U1's kit/checks/manifest-drift.mjs) on upgraded fixtures and
 //      its own cases – skipped, and said so, while the kit does not ship it yet;
-//   8. real-install snapshots under scripts/fixtures/upgrade/real/, when the owner adds them.
+//   8. real-install snapshots under scripts/fixtures/upgrade/real/, when the owner adds them;
+//   9. verify's repository check runs against the project, not the clone it is run from; each
+//      tool answers --help; engine-min actions are evaluated against the engine version.
 //
 // It reads only committed files: no tags, no network.
 //
@@ -54,9 +56,9 @@ import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/t
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
 import { OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
-import { buildPlan } from "../upgrade/tools/plan.mjs";
+import { buildPlan, engineChecks, engineVersion } from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
-import { verify, manifestV2 } from "../upgrade/tools/verify.mjs";
+import { verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = join(root, "scripts/fixtures/upgrade");
@@ -765,6 +767,49 @@ if (!HAS_DRIFT) {
       expect(byPath(plan).get(p)?.class === cls, `real ${name}: ${p} classed ${byPath(plan).get(p)?.class}, expected ${cls}`);
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------
+// 9. The repository check runs in the project; --help; engine-min
+// ---------------------------------------------------------------------------------------
+{
+  // Run from the clone, repository-checks.sh once took two folders up from itself – the clone's
+  // skill folder – as the repository. A loose file in the PROJECT's .local/xezar/ must now fail
+  // the check and be named; the same project without it must not be reported for one.
+  const base = upgraded.get("3.0.3");
+  const loose = lab("verify-repo-loose");
+  cpSync(base, loose, { recursive: true });
+  write(loose, ".local/xezar/verify-probe-loose.txt", "loose\n");
+  const bad = projectChecks(ctxFor(loose), ["repository"])[0];
+  expect(bad.status === "fail" && bad.out.includes("verify-probe-loose.txt"), `verify: the repository check did not run in the project (a loose file there went unreported):\n${bad.out.split("\n").slice(0, 8).join("\n")}`);
+  expect(!bad.out.includes("linked worktree - skipped"), "verify: the repository check inspected the clone's checkout, not the project's");
+  const clean = lab("verify-repo-clean");
+  cpSync(base, clean, { recursive: true });
+  const good = projectChecks(ctxFor(clean), ["repository"])[0];
+  expect(!good.out.includes("verify-probe-loose.txt") && !/loose entries/.test(good.out), `verify: the repository check reports a loose entry in a project that has none:\n${good.out.split("\n").slice(0, 8).join("\n")}`);
+
+  for (const tool of ["detect", "plan", "apply", "verify"]) {
+    let out = "";
+    let code = 0;
+    try {
+      out = execFileSync("node", [join(root, `upgrade/tools/${tool}.mjs`), "--help"], { cwd: tmpdir(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      code = e.status ?? -1;
+      out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    }
+    expect(code === 0 && out.includes(`node upgrade/tools/${tool}.mjs --project <dir>`), `${tool}.mjs --help does not print its usage and exit 0 (exit ${code}): ${out.slice(0, 200)}`);
+  }
+
+  const e = (version) => ({ version, source: "test" });
+  expect(engineChecks(["restart-leader"], () => { throw new Error("read"); }) === null, "engine-min: the engine is read when no block asks for a minimum");
+  expect(engineChecks(["engine-min=0.19.0"], e("0.19.0")).checks[0].status === "met", "engine-min: an equal engine version is not met");
+  expect(engineChecks(["engine-min=0.19.0"], e("0.18.9")).checks[0].status === "unmet", "engine-min: an older engine version is not unmet");
+  expect(engineChecks(["engine-min=0.19.0"], e(null)).checks[0].status === "unknown", "engine-min: no engine version is not unknown");
+  const pinned = lab("engine-pinned");
+  cpSync(base, pinned, { recursive: true });
+  write(pinned, "node_modules/@qodeca/xezar/package.json", JSON.stringify({ name: "@qodeca/xezar", version: "0.21.3" }));
+  const ev = engineVersion(ctxFor(pinned));
+  expect(ev.version === "0.21.3" && ev.source === "node_modules/@qodeca/xezar", `engine-min: the project's pinned engine is not read: ${JSON.stringify(ev)}`);
 }
 
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.

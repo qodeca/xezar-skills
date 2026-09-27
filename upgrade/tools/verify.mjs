@@ -4,7 +4,7 @@
 //
 //   node upgrade/tools/verify.mjs --project <dir> [--plan <path>] [--target <version>]
 //        [--checks drift,catalog,route,repository] [--no-manifest]
-//        [--blob-pack <f>]… [--index-dir <dir>] [--kit <skill dir>]
+//        [--blob-pack <f>]… [--index-dir <dir>] [--kit <skill dir>] [--help]
 //
 // Invariants (any one fails the run):
 //   conflict-marker     a merge marker left in a file the upgrade touched
@@ -21,7 +21,7 @@
 //   drift       checks/manifest-drift.mjs (skipped, and said so, while the kit has none)
 //   catalog     checks/catalog-check.mjs <project>
 //   route       checks/route.mjs --check <project>/.xezar/routing.json (when the file exists)
-//   repository  checks/repository-checks.sh
+//   repository  checks/repository-checks.sh <project>
 // A red check is reported, never hidden, and fails the run.
 //
 // Output: problem=<invariant> path=<path> [detail=<text>], check=<name> status=<pass|fail|skipped>,
@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { git, sha256 } from "./lib/hash.mjs";
-import { loadContext, parseArgs, SCRATCH } from "./lib/context.mjs";
+import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
 import { isRepoRelative, resolveInside } from "./lib/paths.mjs";
@@ -247,7 +247,9 @@ export function projectChecks(ctx, which) {
       results.push(runCheck("route", "node", [join(kit, "route.mjs"), "--check", join(ctx.project, ".xezar/routing.json")], ctx.project));
     } else results.push({ name: "route", status: "skipped", out: "no .xezar/routing.json" });
   }
-  if (which.includes("repository")) results.push(runCheck("repository", "bash", [join(kit, "repository-checks.sh")], ctx.project));
+  // The project root is passed: left to itself the script takes two folders up from its own
+  // location, which here is this clone's skill folder, not the project.
+  if (which.includes("repository")) results.push(runCheck("repository", "bash", [join(kit, "repository-checks.sh"), ctx.project], ctx.project));
   return results;
 }
 
@@ -266,6 +268,7 @@ export function verify(ctx, plan, { writeManifest = true, checks = ["drift", "ca
 }
 
 function main() {
+  if (printHelp(process.argv.slice(2), import.meta.url)) return;
   const args = parseArgs(process.argv.slice(2), ["no-manifest"]);
   const ctx = loadContext({
     project: args.project ?? process.cwd(),

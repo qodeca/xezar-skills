@@ -2,7 +2,7 @@
 // apply.mjs – carry out the mechanical part of an upgrade plan (plan §6.5 step 4).
 //
 //   node upgrade/tools/apply.mjs --project <dir> [--plan <path>] [--target <version>]
-//        [--blob-pack <f>]… [--index-dir <dir>] [--kit <skill dir>]
+//        [--blob-pack <f>]… [--index-dir <dir>] [--kit <skill dir>] [--help]
 //
 // Reads <project>/.local/xezar/scratch/upgrade/plan.json (from plan.mjs) and does only what
 // it says; a file with a stop is only ever staged, never written:
@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { sha256 } from "./lib/hash.mjs";
-import { loadContext, parseArgs, SCRATCH } from "./lib/context.mjs";
+import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
 import { inputsFor } from "./plan.mjs";
 import { render } from "./lib/rewrites.mjs";
@@ -178,6 +178,7 @@ export function applyPlan(ctx, plan) {
 }
 
 function main() {
+  if (printHelp(process.argv.slice(2), import.meta.url)) return;
   const args = parseArgs(process.argv.slice(2));
   const ctx = loadContext({
     project: args.project ?? process.cwd(),

@@ -2,7 +2,7 @@
 // plan.mjs – classify every installed kit file (plan §6.4) and write the upgrade plan.
 //
 //   node upgrade/tools/plan.mjs --project <dir> [--target <version>] [--blob-pack <f>]…
-//        [--index-dir <dir>] [--kit <skill dir>] [--stdout]
+//        [--index-dir <dir>] [--kit <skill dir>] [--stdout] [--help]
 //
 // Writes <project>/.local/xezar/scratch/upgrade/plan.json and plan.md (a readable summary),
 // unless --stdout, which prints plan.json instead of writing anything.
@@ -17,7 +17,10 @@
 //     stops: [ { path, reason } ], unexplained: [path], perMachine: [path],
 //     registerDrafts: { add: [ { files, reason } ], remove: [LP-n] },
 //     upgradeEntries: [ { source, appliesTo, files, actions } ], actions: [action],
+//     engine: null | { version, source, checks: [ { min, status: met|unmet|unknown } ] },
 //     errors: [text] }
+// `engine` evaluates the range's engine-min=<v> actions (null when there are none); the version
+// is the project's pinned @qodeca/xezar package.json, else `xezar --version` on PATH.
 // Names config and placeholder KEYS, never their values.
 //
 // Classes: unchanged-upstream, clean-update, local-only, already-upstream, both-changed,
@@ -29,10 +32,11 @@
 // Exit: 0 written; 2 cannot run.
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { sha256 } from "./lib/hash.mjs";
-import { loadContext, parseArgs, SCRATCH } from "./lib/context.mjs";
+import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
 import { render, placeholdersIn } from "./lib/rewrites.mjs";
 import {
@@ -43,7 +47,7 @@ import {
   removedSafetyLines,
 } from "./lib/policy.mjs";
 import { registerByPath } from "./lib/register.mjs";
-import { parseBlocks, satisfies, parseVersion } from "./lib/machine-block.mjs";
+import { parseBlocks, satisfies, parseVersion, compareVersions } from "./lib/machine-block.mjs";
 import { resolveInside } from "./lib/paths.mjs";
 
 export const CLASSES = [
@@ -113,6 +117,53 @@ export function upgradeEntries(toolRoot, projectVersion) {
     }
   }
   return { entries, errors };
+}
+
+/**
+ * The engine version, read the way the kit reads it (kit/checks/repo-gates.sh): the project's
+ * own pinned build first, then `xezar --version` (or `xez`) on PATH, three numeric parts or
+ * nothing. The pinned build is read from its package.json, never run: this tool executes
+ * nothing in the project.
+ */
+export function engineVersion(ctx) {
+  const pinned = ctx.readMine("node_modules/@qodeca/xezar/package.json");
+  if (pinned.text != null) {
+    try {
+      const v = JSON.parse(pinned.text).version;
+      if (parseVersion(v)) return { version: String(v).replace(/^v/, ""), source: "node_modules/@qodeca/xezar" };
+    } catch {
+      /* unreadable: fall through to PATH */
+    }
+  }
+  for (const bin of ["xezar", "xez"]) {
+    let out;
+    try {
+      out = execFileSync(bin, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 }).trim();
+    } catch {
+      continue;
+    }
+    if (parseVersion(out)) return { version: out.replace(/^v/, ""), source: bin };
+    return { version: null, source: bin };
+  }
+  return { version: null, source: null };
+}
+
+/**
+ * Each `engine-min=<v>` action against the engine version: met, unmet, or unknown (no engine
+ * found, or a version that is not three numeric parts). Nothing is read when no block asks.
+ */
+export function engineChecks(actions, engine) {
+  const mins = actions.filter((a) => a.startsWith("engine-min=")).map((a) => a.slice("engine-min=".length));
+  if (!mins.length) return null;
+  const e = typeof engine === "function" ? engine() : engine;
+  return {
+    version: e.version,
+    source: e.source,
+    checks: mins.map((min) => ({
+      min,
+      status: e.version == null ? "unknown" : compareVersions(e.version, min) >= 0 ? "met" : "unmet",
+    })),
+  };
 }
 
 export function buildPlan(ctx, detection = detect(ctx)) {
@@ -384,6 +435,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
   const { entries, errors } = upgradeEntries(ctx.toolRoot, parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null);
   errors.push(...ctx.register.errors.map((e) => `register: ${e}`));
   const actions = [...new Set(entries.flatMap((e) => e.actions))];
+  const engine = engineChecks(actions, ctx.engine ?? (() => engineVersion(ctx)));
 
   return {
     planVersion: 1,
@@ -399,6 +451,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     registerDrafts,
     upgradeEntries: entries,
     actions,
+    engine,
     errors,
   };
 }
@@ -415,7 +468,11 @@ export function summary(plan) {
   for (const p of plan.unexplained) lines.push(`- ${p}`);
   lines.push("", "## Machine-block actions for this range", "");
   if (!plan.actions.length) lines.push("None.");
-  for (const a of plan.actions) lines.push(`- ${a}`);
+  for (const a of plan.actions) {
+    const c = plan.engine?.checks.find((x) => a === `engine-min=${x.min}`);
+    const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
+    lines.push(c ? `- ${a} (${c.status}: ${engine})` : `- ${a}`);
+  }
   if (plan.errors.length) {
     lines.push("", "## Errors", "");
     for (const e of plan.errors) lines.push(`- ${e}`);
@@ -433,6 +490,7 @@ export function writePlan(ctx, plan) {
 }
 
 function main() {
+  if (printHelp(process.argv.slice(2), import.meta.url)) return;
   const args = parseArgs(process.argv.slice(2), ["stdout"]);
   const ctx = loadContext({
     project: args.project ?? process.cwd(),
