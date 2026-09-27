@@ -1796,6 +1796,16 @@ breaks(
   () => script("test-kit-facts.mjs"),
   "still carries a verify-cli mark",
 );
+
+// U-evals: an eval grader that passes every stop invariant would score a run that never stopped
+// on a weakened safety check as a pass.
+breaks(
+  "an upgrade eval grader that accepts a run with no stop is rejected",
+  "upgrade/evals/check.mjs",
+  (s) => s.replace("return [Boolean(hit), `stop on", "return [true, `stop on"),
+  () => script("test-kit-facts.mjs"),
+  "accepts a run that did not stop on a weakened safety check",
+);
 // 3.1.0-stream-U:end
 
 // 3.1.0-stream-R:start

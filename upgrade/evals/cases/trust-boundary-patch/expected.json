@@ -1,0 +1,88 @@
+{
+  "case": "trust-boundary-patch",
+  "situation": "Both changed, overlapping: the owner patched the kit's trust-boundary list to add the project's deploy folder, right next to the lines 3.1.0 removes; 3.1.0 also adds a config key (security.trustBoundaries) meant for exactly this. Registered and confirmed.",
+  "invariants": [
+    {
+      "type": "finished"
+    },
+    {
+      "type": "branch"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "verify",
+      "allow": []
+    },
+    {
+      "type": "equalsTarget",
+      "path": ".xezar/checks/route.mjs"
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "changelog.format"
+    },
+    {
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "contains",
+          "path": ".xezar/checks/lib/security-scan.mjs",
+          "lines": [
+            "{ pattern: /^deploy\\//"
+          ]
+        },
+        {
+          "type": "jsonArrayHas",
+          "path": ".xezar/pipeline/config.json",
+          "key": "security.trustBoundaries",
+          "field": "pattern",
+          "match": "^deploy/"
+        }
+      ]
+    },
+    {
+      "type": "contains",
+      "path": ".xezar/checks/lib/security-scan.mjs",
+      "lines": [
+        "export function readProjectTrustBoundaries(",
+        "import { judgeTrustBoundaries, matchTrustPattern } from \"./config-grammar.mjs\";"
+      ]
+    },
+    {
+      "type": "notContains",
+      "path": ".xezar/checks/lib/security-scan.mjs",
+      "lines": [
+        "packages\\/xezar\\/src\\/server"
+      ]
+    },
+    {
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "registerKept",
+          "id": "LP-1",
+          "confirmed": "yes"
+        },
+        {
+          "type": "allOf",
+          "of": [
+            {
+              "type": "equalsTarget",
+              "path": ".xezar/checks/lib/security-scan.mjs"
+            },
+            {
+              "type": "reportSection",
+              "heading": "Register changes",
+              "contains": [
+                "LP-1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

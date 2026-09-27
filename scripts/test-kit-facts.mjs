@@ -1061,6 +1061,53 @@ function walk(rel, match) {
   for (const h of new Set(helpers)) if (!has(h)) fail(fact, where, `names ${h}, which does not exist`);
   checked.push(fact);
 }
+
+// U-evals (plan §7): the upgrade prompt's eval set stays gradable. Every case has its build spec
+// and its expected invariants, each of a type the grader knows; and the grader passes a known-good
+// result and fails a known-bad one. A case with no expectations, or a grader that passes
+// everything, would turn the release PR's eval table into noise.
+{
+  const fact = "FACT U-evals: every upgrade eval case is gradable, and the grader tells a good run from a bad one";
+  const casesDir = "upgrade/evals/cases";
+  const { INVARIANT_TYPES, grade } = await import("../upgrade/evals/check.mjs");
+  const { build } = await import("../upgrade/evals/build.mjs");
+  const known = new Set(INVARIANT_TYPES);
+  const types = (list) => list.flatMap((i) => [i.type, ...(i.of ? types(i.of) : [])]);
+  const cases = has(casesDir) ? readdirSync(join(root, casesDir)).filter((n) => !n.startsWith(".")) : [];
+  if (cases.length < 6) fail(fact, casesDir, `holds ${cases.length} case(s); plan §7 asks for the both-changed, base-unknown and owner-shaped cases (6 or more)`);
+  for (const name of cases) {
+    const dir = `${casesDir}/${name}`;
+    if (!has(`${dir}/case.json`) || !has(`${dir}/expected.json`)) {
+      fail(fact, dir, "lacks case.json or expected.json");
+      continue;
+    }
+    const inv = JSON.parse(read(`${dir}/expected.json`)).invariants;
+    if (!Array.isArray(inv) || !inv.length) fail(fact, `${dir}/expected.json`, "has no invariants, so any run passes");
+    else for (const t of types(inv)) if (!known.has(t)) fail(fact, `${dir}/expected.json`, `uses the unknown invariant type ${t}`);
+  }
+  // Known results for the weakened-check case: the run stopped on the file before changing
+  // anything (good), and the same tree with a run that claims it finished (bad).
+  const probe = `${casesDir}/weakened-check`;
+  if (has(`${probe}/expected.json`)) {
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const lab = mkdtempSync(join(tmpdir(), "kit-facts-evals-"));
+    try {
+      build(join(root, probe), lab);
+      const graded = (runRecord) => {
+        writeFileSync(join(lab, "run.json"), JSON.stringify(runRecord));
+        return grade(join(root, probe), lab, { runVerify: false });
+      };
+      const good = graded({ finished: false, stops: [{ step: 3, path: ".xezar/checks/security-scan.sh", rule: "3" }] });
+      const bad = graded({ finished: true, stops: [] });
+      if (!good.every((r) => r.pass)) fail(fact, "upgrade/evals/check.mjs", `fails a known-good result: ${good.filter((r) => !r.pass).map((r) => r.detail).join("; ")}`);
+      if (bad.every((r) => r.pass)) fail(fact, "upgrade/evals/check.mjs", "accepts a run that did not stop on a weakened safety check");
+    } finally {
+      rmSync(lab, { recursive: true, force: true });
+    }
+  }
+  checked.push(fact);
+}
 // 3.1.0-stream-U:end
 
 // 3.1.0-stream-R:start

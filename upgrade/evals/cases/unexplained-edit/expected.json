@@ -1,0 +1,49 @@
+{
+  "case": "unexplained-edit",
+  "situation": "Unexplained edit (D11): the owner added a checklist line to the pull-request template (not a safety file) and never registered it.",
+  "invariants": [
+    {
+      "type": "finished"
+    },
+    {
+      "type": "branch"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "verify",
+      "allow": [
+        "unconfirmed-patch"
+      ]
+    },
+    {
+      "type": "equalsTarget",
+      "path": ".xezar/checks/route.mjs"
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "changelog.format"
+    },
+    {
+      "type": "contains",
+      "path": ".github/pull_request_template.md",
+      "lines": [
+        "- [ ] Screenshots attached for any UI change"
+      ]
+    },
+    {
+      "type": "registerEntry",
+      "covers": ".github/pull_request_template.md",
+      "confirmed": "no"
+    },
+    {
+      "type": "reportSection",
+      "heading": "Owner checklist",
+      "contains": [
+        "Confirmed: no"
+      ]
+    }
+  ]
+}
