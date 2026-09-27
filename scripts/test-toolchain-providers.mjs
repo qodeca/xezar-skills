@@ -351,6 +351,127 @@ for (const file of toolchains) {
   );
 }
 
+// --- #59: the kit role skills resolve to the project's toolchain -------------
+// The testing and dependency roles and the shared contract tail name no package manager; they
+// point at the installed descriptors, `dependencies.units` and `validation.commands`. This
+// section resolves those pointers on three project shapes, the way an agent reading the skill
+// would, and checks each lands on that toolchain's commands -- and that a single-root npm
+// project lands on exactly what the skills used to spell out.
+{
+  const kit = "skills/xez-onboard-opinionated/kit";
+  const [depsBody] = read(`${kit}/skills/xezar-dependency-maintenance.md`).split(/^## Shared contract$/m);
+  const [testingBody] = read(`${kit}/skills/xezar-testing.md`).split(/^## Shared contract$/m);
+  const sharedTail = read(`${kit}/skills/xezar-docs-maintenance.md`).split(/^## Shared contract$/m)[1] ?? "";
+
+  // What the skills point at.
+  for (const pointer of ["`dependencies.units`", "`toolchain.providers`", "`.xezar/pipeline/toolchains/<provider>.md`"]) {
+    expect(`xezar-dependency-maintenance reads ${pointer}`, depsBody.includes(pointer));
+  }
+  const namedOps = [...depsBody.matchAll(/\*\*([a-z-]+)\*\*/g)].map((m) => m[1]);
+  expect(
+    "xezar-dependency-maintenance names descriptor operations, and only contracted ones",
+    namedOps.length >= 3 && namedOps.every((op) => TOOLCHAIN_OPS.includes(op)),
+    `named ${JSON.stringify(namedOps)}; contracted ${JSON.stringify(TOOLCHAIN_OPS)}`,
+  );
+  expect("xezar-testing takes its test command from validation.commands", /`validation\.commands`/.test(testingBody));
+  expect(
+    "the shared tail takes the typecheck command from validation.commands, and none listed means none run",
+    /typecheck command `\.xezar\/pipeline\/config\.json` → `validation\.commands` lists \(none listed, none to run\)/.test(sharedTail),
+  );
+  for (const [name, text] of [["xezar-dependency-maintenance", depsBody], ["xezar-testing", testingBody], ["the shared tail", sharedTail]]) {
+    const tool = /(^|[^A-Za-z0-9])(npm|npx|yarn|pnpm|dotnet|cargo)([^A-Za-z0-9]|$)/.exec(text);
+    expect(`${name} names no package manager`, !tool, `found "${tool?.[2]}"`);
+  }
+
+  // The resolver: what an agent following the skills runs on a given project.
+  const opBlock = (provider, op) => {
+    const text = read(`${kit}/pipeline/toolchains/${provider}.md`);
+    const section = text.split(/^### /m).find((s) => s.startsWith(`${op}\n`)) ?? "";
+    return { bash: /```bash\n([\s\S]*?)```/.exec(section)?.[1] ?? "", lockfile: /^RESTORE_LOCKFILE=(.+)$/m.exec(section)?.[1] };
+  };
+  const resolve = (config) => {
+    const commands = config.validation?.commands ?? [];
+    // No units: one root unit, installed by the one configured provider (npm when unset).
+    const units = config.dependencies?.units ?? [{ dir: ".", provider: config.toolchain?.providers?.[0] ?? "npm" }];
+    return {
+      units: units.map((u) => {
+        if (!existsSync(join(root, `${kit}/pipeline/toolchains/${u.provider}.md`))) return { dir: u.dir, blocker: u.provider };
+        const restore = opBlock(u.provider, "restore-dependencies");
+        return {
+          dir: u.dir,
+          restore: restore.bash,
+          update: opBlock(u.provider, "update-dependency").bash,
+          outdated: opBlock(u.provider, "outdated").bash,
+          lockfile: u.lockfile ?? restore.lockfile,
+        };
+      }),
+      typecheck: commands.find((c) => /typecheck/.test(c)) ?? null,
+      test: commands.find((c) => /(^|\s)test(\s|$)/.test(c)) ?? null,
+    };
+  };
+
+  // Single-root npm: the same effective instructions the skills spelled out before #59.
+  const before = { restore: "npm ci", test: "npm test", typecheck: "npm run typecheck", lockfile: "package-lock.json" };
+  const npmRoot = resolve({
+    toolchain: { providers: ["npm"] },
+    validation: { commands: ["npm ci", "npm run typecheck", "npm test", "npm run build"] },
+  });
+  expect(
+    "single-root npm resolves to one root unit restored with npm ci from package-lock.json",
+    npmRoot.units.length === 1 && npmRoot.units[0].dir === "." &&
+      /(^|\n)npm ci( |$)/m.test(npmRoot.units[0].restore) && npmRoot.units[0].lockfile === before.lockfile,
+    JSON.stringify(npmRoot.units),
+  );
+  expect("single-root npm: the typecheck is still npm run typecheck", npmRoot.typecheck === before.typecheck, npmRoot.typecheck);
+  expect("single-root npm: tests still run through npm test", npmRoot.test === before.test, npmRoot.test);
+  expect(
+    "a config with no toolchain keys still resolves to a single npm root",
+    resolve({ validation: { commands: ["npm ci"] } }).units[0].restore === npmRoot.units[0].restore,
+  );
+
+  // Yarn, several install roots: each unit resolves to Yarn in its own folder, never npm.
+  const yarnUnits = resolve({
+    toolchain: { providers: ["yarn"] },
+    dependencies: { units: [{ dir: "apps/web", provider: "yarn" }, { dir: "apps/admin", provider: "yarn", lockfile: "yarn.lock" }] },
+    validation: { commands: [".xezar/checks/deps-restore.sh", "yarn --cwd apps/web typecheck", "yarn --cwd apps/web test"] },
+  });
+  expect(
+    "Yarn multi-unit resolves every unit, in its own folder, to Yarn 1's frozen restore and yarn.lock",
+    JSON.stringify(yarnUnits.units.map((u) => u.dir)) === '["apps/web","apps/admin"]' &&
+      yarnUnits.units.every((u) => /yarn install --frozen-lockfile/.test(u.restore) && /yarn upgrade --exact/.test(u.update) &&
+        /yarn outdated/.test(u.outdated) && u.lockfile === "yarn.lock"),
+    JSON.stringify(yarnUnits.units),
+  );
+  expect("Yarn multi-unit: typecheck and tests resolve to the configured Yarn commands",
+    yarnUnits.typecheck === "yarn --cwd apps/web typecheck" && yarnUnits.test === "yarn --cwd apps/web test");
+  expect("Yarn multi-unit: nothing resolves to npm or package-lock.json",
+    !/(^|[^A-Za-z0-9])npm |package-lock\.json/.test(JSON.stringify(yarnUnits)), JSON.stringify(yarnUnits));
+
+  // .NET: the unit restores its solution through dotnet, and no typecheck is configured.
+  const dotnet = resolve({
+    toolchain: { providers: ["dotnet"] },
+    dependencies: { units: [{ dir: "api", provider: "dotnet", entry: "Api.sln" }] },
+    validation: { commands: [".xezar/checks/deps-restore.sh", "dotnet build api/Api.sln", "dotnet test api/Api.sln"] },
+  });
+  expect(
+    ".NET resolves the unit to dotnet restore of its entry, and dotnet's package update",
+    dotnet.units.length === 1 && /"\$DOTNET" restore "\$ENTRY"/.test(dotnet.units[0].restore) &&
+      /"\$DOTNET" add "\$project" package/.test(dotnet.units[0].update),
+    JSON.stringify(dotnet.units),
+  );
+  expect(".NET: no typecheck command is configured, so none is resolved", dotnet.typecheck === null, dotnet.typecheck);
+  expect(".NET: tests resolve to the configured dotnet test", dotnet.test === "dotnet test api/Api.sln", dotnet.test);
+  expect(".NET: nothing resolves to npm or package-lock.json",
+    !/(^|[^A-Za-z0-9])npm |package-lock\.json/.test(JSON.stringify(dotnet)), JSON.stringify(dotnet));
+
+  // A provider with no installed descriptor is a named blocker, not a guessed command.
+  const unknown = resolve({ dependencies: { units: [{ dir: "tools", provider: "pnpm" }] }, validation: { commands: [] } });
+  expect("a unit whose provider has no descriptor resolves to a blocker naming it",
+    unknown.units[0].blocker === "pnpm" && !unknown.units[0].restore, JSON.stringify(unknown.units));
+  expect("xezar-dependency-maintenance says a missing descriptor is a blocker to name",
+    /no installed descriptor is a blocker to name/.test(depsBody));
+}
+
 if (failures) {
   console.error(`\ntoolchain providers: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
