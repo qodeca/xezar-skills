@@ -33,9 +33,11 @@ refused after entry 9; re-dispatch it.
 
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
-changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing. Entries 3
-and 11 change the same routing files: copy `.xezar/checks/route.mjs` first, once, and merge
-`.xezar/routing.json` once against the defaults version 4, which carries both changes.
+changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing →
+single-root freshness. Entries 3 and 11 change the same routing files: copy
+`.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once against the defaults
+version 4, which carries both changes. Entries 6 and 12 copy the same `deps.mjs` and
+`worktrees.md`: copy them once.
 
 **After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
 and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists its
@@ -324,6 +326,37 @@ work.
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge
+```
+
+### 12. Single-root freshness – a root `node_modules` edited in place still counts as current
+
+Applies to every project onboarded by `xez-onboard-opinionated` that has a single npm root (no
+`dependencies.units`).
+
+**Symptom.** The fast gate records `deps-verified-current` although a package inside the root
+`node_modules` was replaced or edited after the install.
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/deps.mjs $K/checks/lib/common.sh .xezar/checks/lib/
+cp $K/docs/worktrees.md .xezar/docs/
+```
+
+Every task's first run after the merge installs once: a stamp written before this change has no
+digest, so it reads as not fresh. On a very large install, check that one `--fast` gate run's
+freshness check finishes well inside 60 s; if not, set `XEZ_DEPS_DIGEST_TIMEOUT_MS` on that
+machine (a slower digest counts as not fresh, so the gates install every time: safe but slow).
+
+**What you lose by skipping it.** A single-root project's fast gate keeps certifying a
+`node_modules` changed in place after the install.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/deps.mjs; .xezar/checks/lib/common.sh; .xezar/docs/worktrees.md
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed

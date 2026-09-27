@@ -32,16 +32,20 @@ shared tail, and in any role skill body not on the new `npmLiteral` allowlist (#
 
 **`route.mjs` takes the author chain and lists only lanes independent of it (#50).**
 `node .xezar/checks/route.mjs <row> --author <lane> [--repair <lane>]…` removes every lane that
-shares a model (`engineModel`) with anyone in the chain, every lane that shares a vendor with it on
-a security or release row, and every lane of a vendor that the new optional `vendorExclusions`
-key in `.xezar/routing.json` names. Each removal prints `removed=<lane> reason=author-chain:
+shares a model (`engineModel`) with anyone in the chain, on every row, and every lane of a vendor
+that the new optional `vendorExclusions` key in `.xezar/routing.json` names. Any other lane of the
+author's vendor stays, security and release rows included: a different model of the same vendor
+is independent enough (owner decision, #89). Each removal prints `removed=<lane> reason=author-chain:
 shared model|shared vendor with <lane>`. An escalation lane that passes every ban and the chain is
 printed in the order as `lane=` followed by `escalation-eligible=<id>`, so the leader takes it
 without parking the choice; when nothing is left the answer is `wait=no-independent-lane`. An
 unknown lane in the chain exits 2. Without `--author` the output is byte-identical to before. The
 shipped defaults move to version 4 and name `anthropic` in `vendorExclusions`: Claude declines to
 review work a Claude model wrote or repaired, which left a leader in one consumer project parking 7
-of 12 overnight decisions as "owner decisions" that were only lane switches.
+of 12 overnight decisions as "owner decisions" that were only lane switches. So when DeepSeek
+Flash wrote the work and Claude has no budget, DeepSeek V4 Pro may review it on every review row;
+work a pi lane wrote still merges only after a review on `claude/sonnet` or `codex/gpt-6-astra`.
+To keep a vendor's other models out of its reviews, name the vendor in `vendorExclusions`.
 
 **The leader guide ships the dispatch, quota and merge-queue rules consumers added by hand
 (#65).** The leader dispatches at once when ready work and headroom exist – that turn counts as
@@ -114,7 +118,14 @@ unknown freshness check re-runs the gates, which install first. Measured on a 19
 (three apps' `node_modules`, Apple M1 Max, Node 24, a heavily loaded machine): the stat walk
 alone takes 3–4.5 s, and `deps.mjs fresh` goes from about 0.9 s to about 5 s. The limit, stated in
 `.xezar/docs/worktrees.md`: anyone inside the task who can run `deps.mjs stamp` can re-stamp any
-tree, so the stamp is not a seal. A single npm root (no `dependencies.units`) is unchanged.
+tree, so the stamp is not a seal.
+
+A single npm root (no `dependencies.units`) gets the same digest:
+`node_modules/.xezar-deps-stamp` holds the input fingerprint and then a `contents=<digest>` line,
+the metadata digest of `node_modules` with the stamp file itself left out. A package folder
+replaced or a file edited after the install makes the fast gate install again, and a stamp
+written by an older version reads as not fresh. Each `--fast` check now walks `node_modules`,
+which costs seconds on a large install.
 
 **The changelog check and fold understand Keep a Changelog, and find the base branch from
 config.** A project whose `CHANGELOG.md` uses `## [Unreleased]` and `## [1.2.3] - YYYY-MM-DD`
@@ -182,7 +193,11 @@ confirms it. The format and the list of tracked files are in `.xezar/docs/local-
 
 **Onboarding writes manifest version 2** (`manifestVersion`, `version`, `files` with `sha256`,
 `origin`, `kitSource`, `kitBlob` and `renderInputs`) and checks it passes before the setup commit;
-`--verify` reads the check back. `xez-add-rule` refreshes the leader guide's recorded digest in the
+`--verify` reads the check back. It stops before writing anything when it cannot tell the kit's
+version – no release tag and no commit id – and asks the owner to install the skills from a release
+or a git checkout, instead of recording `version: "unknown"`. An older manifest that already says
+`unknown` still upgrades: the upgrade tool treats it as no version and applies every upgrade entry.
+`xez-add-rule` refreshes the leader guide's recorded digest in the
 same commit as a new rule, because an owner rule is owner content, not a local patch.
 
 **The upgrade tool's engine.** The scripts the 3.1.0 upgrade prompt runs from a verified clone of
@@ -200,9 +215,13 @@ this repository, against one project at a time. None of them is installed into a
 - **A plan by class** (`upgrade/tools/plan.mjs`): unchanged, clean update, local only, already
   upstream, both changed, base unknown, moved in the kit, routing before 3.0, unexplained local
   change, new, removed, owner-shaped, per-machine and refused, with the stop-and-ask items
-  (unexplained change to a safety file, a permission change, a weakened safety check, an unsafe
-  path) and the upgrade-entry actions for the project's version range. It names config and
-  placeholder keys, never values.
+  (unexplained change to a safety file, a permission change, a weakened safety check – a
+  refusing line such as `exit "$rc"` dropped, or a line such as `|| true` added – a routing field
+  both the owner and the kit changed, an unsafe path), the safety files to read even when they
+  merge cleanly (a kept local change, or both sides changed), and the upgrade-entry actions for
+  the project's version range. A base inferred from the target's own unreleased commits, or equal
+  to the target, is never trusted: the file is staged and judged. It names config and placeholder
+  keys, never values.
 - **A mechanical applier** (`upgrade/tools/apply.mjs`): writes clean updates and new files,
   deletes unchanged files the kit removed, and stages `git merge-file --zdiff3` results for Claude.
   It checks every path before any write (repo-relative, no symlink on the way, inside the project,
@@ -239,9 +258,8 @@ divides more work between it and `pi/deepseek-api/deepseek-flash`:
 - Localisation, which checks screens, takes Flash first and no V4 Pro; the design-system row is
   unchanged.
 - V4 Pro is last in every review row that is not a screen row – re-checks, cold reviews,
-  acceptance, architecture and security review – the fallback when Claude has no budget. It never
-  reviews DeepSeek work: work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
-  `codex/gpt-6-astra`.
+  acceptance, architecture and security review – the fallback when Claude has no budget. Work a
+  DeepSeek lane wrote merges after a review by `claude/sonnet` first, then `codex/gpt-6-astra`.
 
 Three routing bans relax, and the owner accepted the risk in `SECURITY.md` and `DECISIONS.md`: a
 V4 Pro review runs with a full shell, because pi's read-only lock is not proven live yet.
