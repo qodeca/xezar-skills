@@ -1176,6 +1176,19 @@ if (!HAS_DRIFT) {
   expect(entry?.patch === "LP-1" && entry.sha256 === fx303.manifest.files[p].sha256 && entry.kitBlob === base303.files[p].kitBlob, `removed: manifest v2 does not keep the removed file's installed entry with its patch: ${JSON.stringify(entry)}`);
   const typo = materialize(fx303, { name: "removed-typo", edit: (d) => write(d, ".xezar/LOCAL-PATCHES.md", lp1(".xezar/workflows/no-such-file.yaml", "yes")) });
   expect(invariants(ctxFor(typo), null).some((x) => x.kind === "register-binding"), "removed: a register entry naming a path the kit never shipped is accepted");
+  // A register entry binds only to a file manifest v2 records. `.mcp.json` is merged into without
+  // a kit block, so it is never recorded: an entry for it would fail the drift check as
+  // register-without-manifest, and verify must say so first, naming the file. An entry for a
+  // present, recorded kit file is accepted.
+  const untracked = materialize(fx303, { name: "register-untracked", edit: (d) => write(d, ".xezar/LOCAL-PATCHES.md", lp1(".mcp.json", "no")) });
+  expect(
+    invariants(ctxFor(untracked), null).some((x) => x.kind === "register-binding" && x.path === ".mcp.json" && /does not track/.test(x.detail)),
+    "register-untracked: a register entry naming .mcp.json, which the manifest does not track, is accepted",
+  );
+  const kitFile = ".github/ISSUE_TEMPLATE/config.yml";
+  const trackedDir = materialize(fx303, { name: "register-tracked", edit: (d) => write(d, ".xezar/LOCAL-PATCHES.md", lp1(kitFile, "no")) });
+  const trackedBinding = invariants(ctxFor(trackedDir), null).filter((x) => x.kind === "register-binding");
+  expect(!trackedBinding.length, `register-tracked: verify refuses a register entry for the recorded kit file ${kitFile}: ${JSON.stringify(trackedBinding)}`);
   if (HAS_DRIFT) {
     const up = lab("removed-drift");
     cpSync(upgraded.get("3.0.3"), up, { recursive: true });

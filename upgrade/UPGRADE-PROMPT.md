@@ -320,7 +320,11 @@ a time, in the plan's order. For each one:
 6. Write one line for the report: the file, its class, the base confidence, what you kept, what
    you took, and why.
 7. If the file now differs from theirs on purpose, make sure the register covers it (next
-   section).
+   section) – but only when the manifest tracks the file. An owner-shaped file, the leader
+   guide's owner content (its generated values and `## Owner's rules`), a per-machine file and a
+   file the manifest never records (the kit's `.xezar/docs/local-patches.md`, "What the manifest
+   tracks") get no register entry: record what you kept there under "Merge decisions" in the
+   report.
 
 When every file is done, commit:
 
@@ -330,8 +334,15 @@ chore(xezar): upgrade kit to <target> – merged files
 
 ### The register
 
-- A local change that stays gets an entry in `.xezar/LOCAL-PATCHES.md` in the format of the
-  clone's `upgrade/CONTRACT.md` §2. An entry you write starts as `Confirmed: no`. Only the owner
+- A local change that stays in a file the manifest tracks gets an entry in
+  `.xezar/LOCAL-PATCHES.md` in the format of the clone's `upgrade/CONTRACT.md` §2. The manifest
+  tracks the kit's installed machinery, not the project's own documents and configuration
+  (`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`, `BACKWARD_COMPATIBILITY.md`, `SECURITY.md`, the
+  `CLAUDE.md` files, the four config files), not a file merged into without a kit block
+  (`.mcp.json`, `.codex/config.toml`, the root `.gitignore`), and not a per-machine or gitignored
+  file; the kit's `.xezar/docs/local-patches.md`, "What the manifest tracks", is the full list.
+  Step 7 refuses an entry naming one of those, since the drift check could never bind it (the
+  four config files aside: the drift check skips them). An entry you write starts as `Confirmed: no`. Only the owner
   changes it to `yes`. Never write `Confirmed: yes` yourself.
 - Ids are the next free `LP-<n>`. Never reuse a removed id.
 - An entry whose files are now all "already upstream" is obsolete: draft its removal and list it
@@ -384,7 +395,8 @@ when:
 - a config key that existed before is missing, or an owner value changed;
 - the leader guide's `## Owner's rules` section is not byte-equal to before;
 - a register entry names a file that does not exist and is not a kit file the project removed
-  on purpose, or a manifest `patch` names a missing entry;
+  on purpose, or a file the manifest does not track, or a manifest `patch` names a missing
+  entry;
 - a refusing line the `<target>` kit added to a safety file you resolved by hand is missing.
 
 Any `problem=` line goes back to step 5 for the file it names. Fix the cause, never the check.
