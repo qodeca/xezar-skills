@@ -108,6 +108,10 @@ and no Write to its worktree and the run's own folders, and a checkout must writ
 them. `review-run.sh checkout` now says so – exit 3, `review-run=confined` – and the review roles
 judge from the diff and name it as an evidence limit; on such a lane a QA or design-review label
 cannot move.
+`lib/gate-record.sh` now reads the engine's runs index where engine 0.19.0 writes it,
+`.local/xezar/runs.json`, instead of under `runtime/`: it never found a run's frozen gates step, so
+it filed every check attempt with no producer as the author's. `worktree-preflight.sh` checks the
+ignore rules at the same path.
 
 **An install edited in place no longer counts as current, and a resume no longer reuses evidence
 over stale dependencies (#53).** In a repository with `dependencies.units`, each unit's stamp now
