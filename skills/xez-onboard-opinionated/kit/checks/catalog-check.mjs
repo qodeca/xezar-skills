@@ -551,9 +551,27 @@ if (!existsSync(workflowsDir)) {
 // A project's own Claude settings re-widen a reading step's shell: the engine removes only the
 // file tools, and a `permissions.allow` Bash rule here is added to the step's allowlist (engine
 // answer on xezar #849). So a Bash rule is allowed only when it names a reading prefix.
+//
+// Committed `.claude/settings.json` fails the check. The untracked `.claude/settings.local.json`
+// only WARNS (DECISIONS.md, "A widening rule in local settings warns"): the repository check must
+// give the same answer on every machine, and that file exists on one. The owner accepted the risk
+// that the widened rule is live on that machine.
+//
+// The browser is limited by exact tool names (FACT 23 in test-kit-facts.mjs), and `emulate`
+// and the other review-only tools are granted only by the review and QA workflows, in their own
+// tool lists (D13), never by a settings file. So a chrome-devtools grant outside this list, or one
+// that names the whole server, fails in EITHER file. It is not the workflows' browser list (D13
+// grants reviews more), so it has its own name.
+const SETTINGS_BROWSER_TOOLS = new Set([
+  "navigate_page", "new_page", "list_pages", "select_page", "close_page", "take_snapshot", "take_screenshot",
+  "list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "click", "fill",
+  "fill_form", "hover", "press_key", "type_text", "wait_for", "handle_dialog", "resize_page", "get_css_styles",
+]);
+const warnings = [];
 for (const name of ["settings.json", "settings.local.json"]) {
   const path = join(root, ".claude", name);
   if (!existsSync(path)) continue;
+  const committed = name === "settings.json";
   let allow;
   try {
     allow = JSON.parse(readFileSync(path, "utf8"))?.permissions?.allow;
@@ -567,10 +585,21 @@ for (const name of ["settings.json", "settings.local.json"]) {
     continue;
   }
   for (const rule of allow) {
-    if (typeof rule !== "string" || !/^Bash\b/.test(rule)) continue;
+    if (typeof rule !== "string") continue;
+    if (/^mcp__(chrome-devtools(__|$)|\*)/.test(rule)) {
+      const tool = /^mcp__chrome-devtools__([a-z_]+)$/.exec(rule)?.[1];
+      if (!tool || !SETTINGS_BROWSER_TOOLS.has(tool)) {
+        err(`.claude/${name}`, `permissions.allow has "${rule}", a browser grant outside the allowed chrome-devtools tools or one naming the whole server; list only exact allowed tool names (emulate, evaluate_script and the other review-only tools are granted by the review and QA workflows, never by a settings file)`);
+      }
+      continue;
+    }
+    if (!/^Bash\b/.test(rule)) continue;
     const prefix = /^Bash\((.+?)(?::\*|\s\*)?\)$/.exec(rule)?.[1];
-    if (!prefix || !READER_BASH_PREFIXES.has(prefix)) {
-      err(`.claude/${name}`, `permissions.allow has "${rule}", which widens every reading step's shell; allow only a reading prefix here`);
+    if (prefix && READER_BASH_PREFIXES.has(prefix)) continue;
+    if (committed) {
+      err(`.claude/${name}`, `permissions.allow has "${rule}", which widens every reading step's shell; allow only a reading prefix here. A rule only the leader needs belongs in scripts/xezar-leader-settings.json, which only the launcher loads`);
+    } else {
+      warnings.push(`.claude/${name}: permissions.allow has "${rule}", which widens every reading step's shell on this machine. This file is not committed, so the repository check does not fail on it, but the rule is live for every Claude step here. Move a rule only the leader needs to scripts/xezar-leader-settings.json, or narrow it to a reading prefix`);
     }
   }
 }
@@ -796,6 +825,7 @@ if (!singleProjectMode) {
 if (!existsSync(join(checksDir, "repo-gates.sh"))) err(".xezar/checks", "repo-gates.sh is missing");
 
 for (const note of notes) process.stdout.write(`  ${note}\n`);
+for (const line of warnings) process.stdout.write(`  WARNING ${line}\n`);
 if (errors.length > 0) {
   process.stdout.write(`\nCATALOG CHECK FAILED (${errors.length}):\n`);
   for (const line of errors) process.stdout.write(`  - ${line}\n`);

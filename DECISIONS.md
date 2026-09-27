@@ -1272,3 +1272,23 @@ The off switch is per machine: remove the model from that machine's pi config. T
 cache, written from `list_models`, then marks the lane unavailable and `route.mjs` drops it, so
 work falls back in row order – the same path a DeepSeek outage takes. There is no DeepSeek spend
 limit; step time limits (#52) stop a runaway task. `SECURITY.md` records the accepted risk.
+
+## A widening rule in local settings warns
+
+A Bash rule in `.claude/settings.local.json` that widens a reading step's shell is reported as a
+`WARNING` by `catalog-check.mjs`, on that machine too, and never fails the check. The same rule in
+the committed `.claude/settings.json` still fails, and a browser grant outside the kit's
+chrome-devtools tool list, or one naming the whole server, fails in either file (#69, plan D10).
+
+The repository check has to give the same answer on every machine, and the local file exists on
+one: a project tool the owner allowed there kept the check red until the line was removed, although
+the file is not committed and the rule was the owner's own choice. The message says what to do
+instead – put a rule only the leader needs in `scripts/xezar-leader-settings.json`, which only the
+launcher loads, or narrow it to a reading prefix.
+
+**What is lost, and accepted.** The owner accepted this risk against the review's advice to block on
+that machine: a widened local rule is live for every Claude step there, and in an unattended run
+nobody may read the warning. **Open question:** #63 notes that a read-only step runs with
+`--setting-sources user`, so it may load no project or local settings at all. If the engine confirms
+that, the local-file risk is smaller than assumed; if it shows read-only steps do load
+`settings.local.json`, revisit this decision.
