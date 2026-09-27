@@ -17,6 +17,28 @@ export const OWNER_SHAPED = new Set([
   ".codex/config.toml",
 ]);
 
+/**
+ * Never recorded in manifest v2's `files`, even when the kit index lists them: the project's
+ * own documents, which its roles edit in normal work, and owner files the setup merged into
+ * without a kit block (`.xezar/docs/local-patches.md`, "What the manifest tracks"). Recording
+ * them would turn every ordinary edit into drift. An owner file with an appended kit block is
+ * recorded separately, as `owner-file-appended`, hashing only that block.
+ */
+const NOT_RECORDED = new Set([
+  "AGENTS.md",
+  "SDLC.md",
+  "CODE_REVIEW.md",
+  "BACKWARD_COMPATIBILITY.md",
+  "SECURITY.md",
+  ".mcp.json",
+  ".codex/config.toml",
+  ".gitignore",
+]);
+
+export function isNotRecorded(path) {
+  return NOT_RECORDED.has(path) || path === "CLAUDE.md" || path.endsWith("/CLAUDE.md");
+}
+
 /** Never touched by an upgrade, whatever the index says. */
 export function isNeverTouched(path) {
   return (

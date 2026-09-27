@@ -103,6 +103,15 @@ Rules:
   for `generated`.
 - **`kitBlob`** is the git blob sha of the kit file before rewrite. It is required for `copied` and
   `adapted`.
+- **`kitSource` and `kitBlob` name the kit copy the file sits on**, which is the base the next
+  upgrade merges from. After an upgrade that is the target's copy only when the file took the
+  target's text. A file kept at its old version, or resolved to the owner's side, keeps the old
+  version's copy. A patched file's `sha256` is the digest of that copy, not of the patched file.
+- **What `files` lists**: the setup's machinery, as `.xezar/docs/local-patches.md` says. It never
+  lists the project's own documents (`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`, the `CLAUDE.md`
+  files and their siblings) or an owner file merged without a kit block (`.mcp.json`,
+  `.codex/config.toml`, the root `.gitignore`), even where the kit index lists one. An owner file
+  with an appended kit block is the exception: it is listed as `owner-file-appended`.
 - **`renderInputs`** holds plain text only. A secret, token or account name never goes here; those
   live in the gitignored `.local/xezar/runtime/onboarding-identity.json`.
 - **`descriptors`** stays, with the same meaning as in version 1.

@@ -1052,6 +1052,69 @@ if (!HAS_DRIFT) {
   expect(entries.length === 1 && entries[0].source === "UPGRADE_NOTES.md", `notes: upgrade entries are read from outside UPGRADE_NOTES.md (${entries.map((e) => e.source).join(", ")})`);
 }
 
+// ---------------------------------------------------------------------------------------
+// 11. What manifest v2 records (3.1.0 review findings)
+// ---------------------------------------------------------------------------------------
+// 11a. The project's own documents and merged owner files are never recorded, even though the
+// kit index lists them (`.xezar/docs/local-patches.md`, "What the manifest tracks"): recording
+// them turned every ordinary edit into drift. The tracker descriptor stays recorded: it is
+// literal shell a gate runs, and an edit to it must show.
+{
+  const dir = upgraded.get("3.0.3");
+  const m = JSON.parse(read(dir, ".xezar/onboarding.json"));
+  const owner = ["SDLC.md", "CODE_REVIEW.md", ".mcp.json", ".codex/config.toml", ".gitignore"];
+  for (const p of owner) {
+    expect(existsSync(join(dir, p)), `not-recorded: the upgraded 3.0.3 fixture has no ${p}; re-aim this case`);
+    expect(!(p in m.files), `not-recorded: the v2 manifest records ${p}, a file the project edits in normal work`);
+  }
+  for (const p of [".xezar/pipeline/trackers/github.md", ".xezar/pipeline/config.json", ".xezar/docs/leader-guide.md", ".xezar/routing.json"]) {
+    expect(p in m.files, `not-recorded: the v2 manifest no longer records ${p}, which it must track`);
+  }
+  if (HAS_DRIFT) {
+    const d = lab("not-recorded-drift");
+    cpSync(dir, d, { recursive: true });
+    write(d, "SDLC.md", `${read(d, "SDLC.md")}\n## A section the team added\n`);
+    const mcp = JSON.parse(read(d, ".mcp.json"));
+    mcp.mcpServers = { ...(mcp.mcpServers ?? {}), "team-tool": { command: "team-tool" } };
+    write(d, ".mcp.json", `${JSON.stringify(mcp, null, 2)}\n`);
+    const r = drift(d);
+    expect(r.code === 0 && /^drift-status=pass$/m.test(r.out), `not-recorded: an ordinary edit to SDLC.md or .mcp.json fails the drift check: ${r.out.trim()}`);
+  }
+}
+
+// 11b. Each entry records the kit copy the file actually sits on – the base the next upgrade
+// merges from – not the target's copy for every file.
+{
+  const p = ".xezar/checks/changelog-check.sh";
+  const oldE = base303.files[p];
+  const newE = tree.index.files[p];
+  expect(oldE && newE && oldE.kitBlob !== newE.kitBlob && newE.rewrite === "copied", `installed-base: ${p} is not a copied file the target changed; re-aim this case`);
+  const oldText = pack[oldE.kitBlob];
+  const manifestAfter = (name, text, patched) => {
+    const dir = materialize(fx303, {
+      name,
+      edit: (d) => {
+        write(d, p, text);
+        if (patched) write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+      },
+    });
+    return manifestV2(ctxFor(dir)).files[p];
+  };
+  // Kept at its old version (a stop the owner declined): the old copy, whole.
+  const kept = manifestAfter("installed-kept", oldText, false);
+  expect(kept?.kitBlob === oldE.kitBlob && kept.kitSource === oldE.kitSource && kept.sha256 === oldE.sha256, `installed-base: a file kept at 3.0.3 is recorded as ${kept?.kitBlob}, not its 3.0.3 blob ${oldE.kitBlob}`);
+  // Both changed, resolved to the owner's side: the old copy plus the patch.
+  const mine = manifestAfter("installed-mine", `${oldText}# local: kept by the owner\n`, true);
+  expect(mine?.kitBlob === oldE.kitBlob && mine.patch === "LP-1", `installed-base: a both-changed file resolved to mine is recorded on ${mine?.kitBlob}, not its 3.0.3 blob ${oldE.kitBlob}`);
+  expect(mine?.sha256 === oldE.sha256, "installed-base: a patched file's sha256 is not the digest of the copy it was installed from");
+  // Merged: the target's text plus the patch sits on the target.
+  const merged = manifestAfter("installed-merged", `${fresh(p, fx303.renderInputs)}# local: kept by the owner\n`, true);
+  expect(merged?.kitBlob === newE.kitBlob && merged.sha256 === newE.sha256, `installed-base: a file merged onto the target is recorded on ${merged?.kitBlob}, not the target blob ${newE.kitBlob}`);
+  // Written with the target's text: the target.
+  const written = manifestAfter("installed-written", fresh(p, fx303.renderInputs), false);
+  expect(written?.kitBlob === newE.kitBlob && written.sha256 === newE.sha256, `installed-base: a file written with the target text is recorded on ${written?.kitBlob}`);
+}
+
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.
 expect(Array.isArray(detect(ctxFor(upgraded.get("3.0.3"))).files), "detect() no longer returns a file list");
 expect(typeof manifestV2 === "function", "verify.mjs no longer exports manifestV2");

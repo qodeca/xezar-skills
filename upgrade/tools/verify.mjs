@@ -36,9 +36,10 @@ import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
 import { isRepoRelative, resolveInside } from "./lib/paths.mjs";
-import { SAFETY_LINE, isCheckLike, isNeverTouched } from "./lib/policy.mjs";
+import { SAFETY_LINE, isCheckLike, isNeverTouched, isNotRecorded } from "./lib/policy.mjs";
 import { detect } from "./detect.mjs";
-import { extractInputs } from "./lib/rewrites.mjs";
+import { extractInputs, normalisedMatch, render } from "./lib/rewrites.mjs";
+import { lineDistance } from "./lib/diff.mjs";
 
 const CONFIG_FILES = [".xezar/pipeline/config.json", ".xezar/config.json"];
 const LEADER_GUIDE = ".xezar/docs/leader-guide.md";
@@ -171,6 +172,32 @@ export function appendedBlock(text) {
   return start < 0 || end < 0 ? null : text.slice(start, end + endMarker.length);
 }
 
+/**
+ * The kit copy a file now sits on, which is what its manifest entry records (kitSource, kitBlob,
+ * and for a patched file sha256): the next upgrade merges from it. A file that matches the
+ * target's copy sits on the target. One that does not – kept at its old version, or a both-changed
+ * file resolved to the owner's side – sits on the base detection finds before the target, unless
+ * it is strictly closer to the target's text (a merge that took the target's changes). A tie goes
+ * to the older base: an upgrade that sees the target's changes as the owner's asks, while one
+ * that takes a missing target change for an owner deletion drops it without a word.
+ * Returns { entry, text } where entry is a kit index entry and text its raw kit content (or null).
+ */
+export function installedCopy(ctx, p, target, mineText, detected) {
+  const theirs = ctx.theirsText(p);
+  const onTarget = { entry: target, text: theirs };
+  if (sha256(mineText) === target.sha256) return onTarget;
+  if (target.rewrite === "adapted" && theirs != null && normalisedMatch(theirs, mineText).match) return onTarget;
+  const b = detected?.base;
+  if (!b?.entry?.kitBlob || b.entry.kitBlob === target.kitBlob) return onTarget;
+  const baseText = b.text ?? ctx.blobs.get(b.entry.kitBlob);
+  const onBase = { entry: b.entry, text: baseText ?? null };
+  if (sha256(mineText) === b.entry.sha256) return onBase;
+  if (baseText == null) return onBase; // the detected base is all that is known
+  if (normalisedMatch(baseText, mineText).match) return onBase;
+  if (theirs == null) return onBase;
+  return lineDistance(theirs, mineText) < lineDistance(baseText, mineText) ? onTarget : onBase;
+}
+
 /** Build manifest v2 from the upgraded tree. */
 export function manifestV2(ctx) {
   const reg = parseRegister(ctx.readMine(".xezar/LOCAL-PATCHES.md").text ?? null);
@@ -181,9 +208,9 @@ export function manifestV2(ctx) {
   const files = {};
   const descriptors = {};
   const detection = detect(ctx);
-  const inputsByPath = new Map(detection.files.map((f) => [f.path, f.base?.inputs ?? null]));
+  const detectedByPath = new Map(detection.files.map((f) => [f.path, f]));
   for (const [p, e] of Object.entries(ctx.theirs.files).sort(([a], [b]) => (a < b ? -1 : 1))) {
-    if (isNeverTouched(p)) continue;
+    if (isNeverTouched(p) || isNotRecorded(p)) continue;
     const mine = ctx.readMine(p);
     if (mine.text == null) continue;
     if (ctx.git.isGit && ctx.git.ignored(p)) continue; // per-machine: never recorded
@@ -192,13 +219,22 @@ export function manifestV2(ctx) {
     const recorded = oldFiles[p]?.origin ?? ctx.manifest.hints.get(p)?.origin;
     const entry = { sha256: sha256(mine.text), origin: ORIGINS.has(recorded) && recorded !== "owner-file-appended" ? recorded : e.rewrite };
     if (e.rewrite !== "generated") {
-      entry.kitSource = e.kitSource;
-      entry.kitBlob = e.kitBlob;
-    }
-    if (e.rewrite === "adapted") {
-      const theirs = ctx.theirsText(p);
-      const inputs = (theirs && extractInputs(theirs, mine.text)) ?? inputsByPath.get(p) ?? null;
-      if (inputs && Object.keys(inputs).length) entry.renderInputs = inputs;
+      const installed = installedCopy(ctx, p, e, mine.text, detectedByPath.get(p));
+      entry.kitSource = installed.entry.kitSource;
+      entry.kitBlob = installed.entry.kitBlob;
+      let inputs = null;
+      if (e.rewrite === "adapted") {
+        inputs = (installed.text && extractInputs(installed.text, mine.text)) ?? detectedByPath.get(p)?.base?.inputs ?? null;
+        if (inputs && Object.keys(inputs).length) entry.renderInputs = inputs;
+      }
+      // A patched file keeps the digest of what was installed: the register is its record.
+      if (patchOf.has(p)) {
+        if (e.rewrite !== "adapted") entry.sha256 = installed.entry.sha256;
+        else if (installed.text != null) {
+          const r = render(installed.text, inputs ?? {});
+          if (!r.missing.length) entry.sha256 = sha256(r.text);
+        }
+      }
     }
     if (patchOf.has(p)) entry.patch = patchOf.get(p);
     files[p] = entry;
