@@ -60,7 +60,7 @@ import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/t
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
 import { OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
-import { buildPlan, engineChecks, engineVersion } from "../upgrade/tools/plan.mjs";
+import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
 import { verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 
@@ -951,6 +951,106 @@ if (!HAS_DRIFT) {
   expect(manifestV2(ctx).version === TARGET, "unknown version: the manifest the upgrade writes does not name the target version");
 }
 // 3.1.0-stream-OC:end
+
+// ---------------------------------------------------------------------------------------
+// 10. Dry-run findings (a real v1 project, upgraded on a throwaway clone)
+// ---------------------------------------------------------------------------------------
+// 10a. A file the manifest records but no kit version ever shipped is not "removed from the
+// kit" (that class needs the base index): it is the project's own, kept as it is.
+{
+  const own = { "SECURITY.md": "# Security\n\nReport to us.\n", ".gitignore": null, "checks/repair-target.sh": "#!/bin/sh\necho repair\n" };
+  const dir = materialize(fx303, {
+    name: "not-kit",
+    edit: (d) => {
+      const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+      for (const [p, text] of Object.entries(own)) {
+        if (text !== null) write(d, p, text);
+        m.files[p] = { sha256: sha256(read(d, p)), origin: "generated" };
+      }
+      write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+    },
+  });
+  const ctx = ctxFor(dir);
+  const plan = buildPlan(ctx);
+  const files = byPath(plan);
+  for (const p of Object.keys(own)) {
+    expect(!history.some((v) => v.files[p]), `not-kit: ${p} is in a kit index; re-aim this case`);
+    const f = files.get(p);
+    expect(f?.class === "local-only" && f.action === "keep", `not-kit: ${p}, in no kit index, is ${f?.class}/${f?.action}, not local-only/keep`);
+    expect(!plan.unexplained.includes(p), `not-kit: ${p}, in no kit index, is listed as an unexplained local change`);
+  }
+  const before = snapshot(dir);
+  expect(applyPlan(ctx, plan).status === "ok", "not-kit: apply refused");
+  const after = snapshot(dir);
+  for (const p of Object.keys(own)) expect(after[p] === before[p], `not-kit: apply changed ${p}`);
+}
+
+// 10b. Campaign notes are never touched: not planned, not recorded in the v2 manifest.
+{
+  const p = ".xezar/campaigns/launch.md";
+  const block = "<!-- xezar:kit:start -->\nnotes\n<!-- xezar:kit:end -->";
+  const dir = materialize(fx303, {
+    name: "campaigns",
+    edit: (d) => {
+      write(d, p, `# Launch\n\n${block}\n`);
+      const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+      m.files[p] = { sha256: sha256(block), origin: "owner-file-appended" };
+      write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    },
+  });
+  const ctx = ctxFor(dir);
+  expect(!detect(ctx).files.some((f) => f.path === p), `campaigns: detect reads ${p}`);
+  expect(!byPath(buildPlan(ctx)).has(p), `campaigns: ${p} is in the plan`);
+  expect(!(p in manifestV2(ctx).files), `campaigns: ${p} is recorded in the v2 manifest`);
+}
+
+// 10c. A write held back by a stop is reported and staged, never written.
+{
+  const dir = materialize(fx303, { name: "held" });
+  const ctx = ctxFor(dir);
+  const plan = buildPlan(ctx);
+  const item = plan.files.find((f) => f.class === "clean-update" && f.action === "write-theirs" && !f.stops.length && f.mineSha256);
+  const forged = { ...plan, files: plan.files.map((f) => (f === item ? { ...f, stops: ["permission-change"] } : f)) };
+  const before = read(dir, item.path);
+  const r = applyPlan(ctx, forged);
+  const held = (r.results ?? []).find((x) => x.path === item.path);
+  expect(r.status === "ok" && held?.op === "held" && held.reason === "permission-change", `held: a stopped write-theirs is not reported as held (${JSON.stringify(held)})`);
+  expect(read(dir, item.path) === before, `held: ${item.path} has a stop but was written`);
+  const staged = `.local/xezar/scratch/upgrade/staged/${item.path}`;
+  expect(read(dir, `${staged}.theirs`) === fresh(item.path, fx303.renderInputs) && read(dir, `${staged}.mine`) === before, `held: ${item.path} has no staged .mine and .theirs`);
+  // The command line prints it in the NAME=value grammar the prompt reads.
+  const planFile = join(lab("held-plan"), "plan.json");
+  writeFileSync(planFile, JSON.stringify(forged));
+  let out = "";
+  try {
+    out = execFileSync("node", [join(root, "upgrade/tools/apply.mjs"), "--project", dir, "--target", TARGET, "--plan", planFile, "--blob-pack", PACK], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+  }
+  expect(out.split("\n").includes(`held=${item.path} reason=permission-change`) && /^apply-status=ok$/m.test(out), `held: apply.mjs does not print a held= line:\n${out.split("\n").slice(-5).join("\n")}`);
+}
+
+// 10d. The printed plan shows what step 3 of the prompt tells the agent to show.
+{
+  const plan = buildPlan(ctxFor(materialize(fx303, { name: "summary" })));
+  const md = summary({ ...plan, perMachine: [".claude/settings.local.json"], errors: [], engine: { version: "0.19.0", source: "xezar", checks: [{ min: "0.19.0", status: "met" }] } });
+  expect(/^## Engine minimum$/m.test(md) && md.includes("0.19.0: met"), `summary: plan.md does not show the engine minimum:\n${md}`);
+  expect(/^## Per-machine files$/m.test(md) && md.includes("- .claude/settings.local.json"), "summary: plan.md does not list the per-machine files");
+  expect(/^## Errors$/m.test(md), "summary: plan.md has no errors section when there are none");
+  const none = summary({ ...plan, perMachine: [], errors: [], engine: null });
+  expect(/^## Engine minimum\n\nNone: this range sets no engine minimum\.$/m.test(none), "summary: plan.md does not say when the range sets no engine minimum");
+}
+
+// 10e. Upgrade entries come from UPGRADE_NOTES.md only, never from a release's working folder.
+{
+  const fake = lab("notes-root");
+  const block = "```upgrade\nApplies-to: <3.1.0\nActions: restart-leader\n```\n";
+  write(fake, "UPGRADE_NOTES.md", `# Notes\n\n${block}`);
+  write(fake, "docs/plans/3.1.0/notes/X.md", `# X\n\n${block}`);
+  const { entries } = upgradeEntries(fake, "3.0.3");
+  expect(entries.length === 1 && entries[0].source === "UPGRADE_NOTES.md", `notes: upgrade entries are read from outside UPGRADE_NOTES.md (${entries.map((e) => e.source).join(", ")})`);
+}
 
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.
 expect(Array.isArray(detect(ctxFor(upgraded.get("3.0.3"))).files), "detect() no longer returns a file list");

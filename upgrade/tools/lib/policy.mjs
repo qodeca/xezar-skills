@@ -21,6 +21,7 @@ export const OWNER_SHAPED = new Set([
 export function isNeverTouched(path) {
   return (
     path.startsWith(".xezar/pipeline/overrides/") ||
+    path.startsWith(".xezar/campaigns/") ||
     path.startsWith(".local/") ||
     path === ".xezar/LOCAL-PATCHES.md" ||
     path === ".xezar/onboarding.json" ||

@@ -243,6 +243,15 @@ and permission changes, works on a local branch `xezar/upgrade-<version>`, and w
 with the owner checklist and rollback. It never pushes or opens a pull request.
 `upgrade/README.md` says how to run it and what it never does.
 
+**Fixes from dry runs on a real v1 project.** A file the manifest records that no kit version
+ever shipped (`.gitignore`, `SECURITY.md`, a project script) is now `local-only` and kept, not
+`removed-from-kit`. Campaign notes under `.xezar/campaigns/` are never planned or recorded in the
+v2 manifest. A write or delete a stop holds back is staged (mine and theirs) and reported as
+`held=<path> reason=<stop,…>`, instead of being skipped without a line. `plan.md` shows the
+engine minimum, the per-machine files and the errors. Before the first commit the prompt checks
+for active git hooks and asks whether the upgrade commits may run them. Upgrade entries are read
+from `UPGRADE_NOTES.md` only.
+
 **Routing sends much more work to DeepSeek, and DeepSeek V4 Pro reviews when Claude has no budget
 (#89).** With several projects running, the Claude and Codex quotas ran out fast, Claude first. The
 shipped routing table gains the lane `pi/deepseek-api/deepseek-v4-pro` (strong, no image input) and
