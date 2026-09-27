@@ -24,9 +24,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     # Every check here is offline. The guard suite re-runs the gates once per deliberate
-    # defect and takes about ten minutes; a job still running after twenty is hung, not
-    # slow, and should fail rather than hold a runner.
-    timeout-minutes: 20
+    # defect and takes about twenty minutes with the 3.1.0 streams (it grows with every
+    # guard); a job still running after forty-five is hung, not slow, and should fail
+    # rather than hold a runner.
+    timeout-minutes: 45
     steps:
       # Pinned by commit sha, not by tag: a tag is mutable, so `@v4` means "whatever
       # that tag points at when this runs" — a supply-chain decision taken by someone
