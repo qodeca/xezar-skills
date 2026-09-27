@@ -380,6 +380,23 @@ needs the U2 interface. U5 grows alongside U3.
   `upgrade/UPGRADE-PROMPT.md` in the **release PR** (wave 3), not before. The tag must exist
   first.
 
+### Stream R – #89 DeepSeek routing
+
+- **What.** A new lane `pi/deepseek-api/deepseek-v4-pro` (strong, no vision, no tool limits).
+  DeepSeek-first row orders: Flash first in the simple rows, V4 Pro first in the mid-size writing
+  rows, V4 Pro after the Codex lanes in the Opus-first rows, no V4 Pro in a screen row (Flash is
+  the no-Claude fallback there), V4 Pro last in every other review row.
+  - Three bans relax: `tool-limits`, through a new optional lane key `fullShellReviews`;
+    `pi-write-claude-review`; `high-risk-other-vendor`.
+  - The owner signs the accepted risk in `SECURITY.md` and `DECISIONS.md`.
+  - The shipped defaults stay version 4, edited in place (P1).
+- **Files.** `K/routing.json`, `R/routing-defaults/4.json`, `K/routing.schema.json`,
+  `K/checks/route.mjs`, `K/docs/routing.md`, `SECURITY.md`, `DECISIONS.md`, and the fragment
+  `docs/plans/3.1.0/notes/R.md`. The kit files are Stream B's, which has merged.
+- **Tests.** `test-kit-catalog.mjs`: the lane facts, every row group, the relaxation both ways, and
+  `route` without the model. `test-kit-facts.mjs`: the relaxed ban texts, the kept bans, and the
+  two records. `test-guards.mjs`: one break for each relaxed rule.
+
 ## 6. Upgrade tool design
 
 ### 6.1 How the owner uses it

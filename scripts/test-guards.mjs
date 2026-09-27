@@ -1798,6 +1798,92 @@ breaks(
 );
 // 3.1.0-stream-U:end
 
+// 3.1.0-stream-R:start
+// #89: three bans relax for the DeepSeek V4 Pro reviewer, and no further. Each way the relaxation
+// could be widened – in the script, in the file, or in a ban's text – is a break of its own, and so
+// is a V4 Pro lane in a screen row and softening a ban #89 keeps.
+const V4 = "pi/deepseek-api/deepseek-v4-pro";
+breaks(
+  "a cheap lane marked fullShellReviews is rejected",
+  ROUTING,
+  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].fullShellReviews = true; }),
+  () => script("test-kit-catalog.mjs"),
+  "a lane with tier: cheap never reviews with a full shell",
+);
+
+breaks(
+  "the full-shell reviewer in a reading row that is not a review is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("business-analysis").lanes.push(V4); }),
+  () => script("test-kit-catalog.mjs"),
+  `"${V4}" does not enforce a step's tool limits, and this row only reads`,
+);
+
+breaks(
+  "the full-shell reviewer in a security row that writes is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("release").lanes.push(V4); }),
+  () => script("test-kit-catalog.mjs"),
+  `"${V4}" does not enforce a step's tool limits, and this row is security and release`,
+);
+
+breaks(
+  "route that lets a full-shell lane into every reading row is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("!(lane.fullShellReviews === true && judgesOnly)", "!(lane.fullShellReviews === true)"),
+  () => script("test-kit-catalog.mjs"),
+  "route check accepts V4 Pro in a reading row that is not a review",
+);
+
+breaks(
+  "route that lets a cheap lane review with a full shell is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('const FULL_SHELL_FORBIDDEN = [["tier", "cheap"], ', "const FULL_SHELL_FORBIDDEN = ["),
+  () => script("test-kit-catalog.mjs"),
+  "route check accepts fullShellReviews on a cheap lane",
+);
+
+breaks(
+  "V4 Pro, which has no vision, in a screen row is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("diagrams").lanes.splice(1, 0, V4); }),
+  () => script("test-kit-catalog.mjs"),
+  "screen row diagrams lists",
+);
+
+breaks(
+  "pi-written work cleared by any lane is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "pi-write-claude-review").rule = "What a pi lane wrote merges after a review on any other lane."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban pi-write-claude-review is relaxed further",
+);
+
+breaks(
+  "V4 Pro on risk-high work while Claude has budget is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "high-risk-other-vendor").rule = "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. pi/deepseek-api/deepseek-v4-pro may always be that reviewer."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban high-risk-other-vendor is relaxed further",
+);
+
+breaks(
+  "the tool-limits exception widened to every reading row is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "tool-limits").rule = "A lane with enforcesToolLimits: false is in no reading row (writes: false and not runsCode) and in no security-and-release row. One exception: a lane with fullShellReviews: true may be in any row."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban tool-limits is relaxed further",
+);
+
+breaks(
+  "no-self-review softened along with the three relaxed bans is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "no-self-review").rule = "A review, re-check or QA prefers a different model from the one that wrote the work."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban no-self-review is no longer word for word",
+);
+// 3.1.0-stream-R:end
+
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:
 // a contributor runs this with their own work in progress, and their uncommitted edits

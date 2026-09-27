@@ -1063,6 +1063,47 @@ function walk(rel, match) {
 }
 // 3.1.0-stream-U:end
 
+// 3.1.0-stream-R:start
+// ---------------------------------------------------------------------------
+// FACT R1 (#89) -- three routing bans relax exactly as the owner decided, and no further. The
+// relaxed texts name who may now judge and under which condition; the two bans #89 keeps are word
+// for word what they were; the script still holds the floor under the one relaxation it enforces;
+// and the accepted risk is recorded in SECURITY.md and DECISIONS.md, each pointing at the other.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT R1: the relaxed routing bans say what #89 decided, the kept bans are unchanged, and the risk is recorded";
+  const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
+  const rule = (id) => routing.globalBans.find((b) => b.id === id)?.rule ?? "";
+  const need = [
+    ["no-self-review", /^A review, re-check or QA runs on a different model from the one that wrote the work\.$/, "is no longer word for word the ban #89 keeps"],
+    ["local-never-writes", /^A lane with local: true is in no row with writes: true\.$/, "is no longer word for word the ban #89 keeps"],
+    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. A DeepSeek lane never clears DeepSeek work: never-author bans the author's vendor\.$/, "is relaxed further than #89 decided (Sonnet first, then Astra, never a DeepSeek lane on DeepSeek work)"],
+    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
+    ["tool-limits", /^A lane with enforcesToolLimits: false is in no reading row \(writes: false and not runsCode\) and in no security-and-release row\. One exception: a lane with fullShellReviews: true may be in a review row, or a security row that only reads\.$/, "is relaxed further than #89 decided (fullShellReviews, review rows and security rows that only read)"],
+  ];
+  for (const [id, re, detail] of need) if (!re.test(rule(id))) fail(fact, "kit/routing.json", `ban ${id} ${detail}`);
+  const marked = Object.entries(routing.lanes).filter(([, l]) => l.fullShellReviews === true).map(([id]) => id);
+  if (marked.join(",") !== "pi/deepseek-api/deepseek-v4-pro") fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; the owner accepted pi/deepseek-api/deepseek-v4-pro alone`);
+
+  const route = read(`${SKILL}/kit/checks/route.mjs`);
+  if (!/^const FULL_SHELL_FORBIDDEN = \[\["tier", "cheap"\], \["local", true\], \["advisoryOnly", true\]\];$/m.test(route)
+    || !/const judgesOnly = row\.writes === false && \(row\.class === "review" \|\| security\);/.test(route)
+    || !/lane\.enforcesToolLimits !== true && !\(lane\.fullShellReviews === true && judgesOnly\)/.test(route))
+    fail(fact, "kit/checks/route.mjs", "no longer holds the fullShellReviews exception to judging rows and to strong, non-local lanes that give verdicts");
+
+  const security = read("SECURITY.md");
+  if (!/One reviewer without a proven read-only lock is accepted and recorded[\s\S]*?pi\/deepseek-api\/deepseek-v4-pro[\s\S]*?full shell[\s\S]*?The owner accepted it \(#89\)[\s\S]*?"Reviews fall\s+to DeepSeek when Claude has no budget"/.test(security))
+    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell V4 Pro reviewer that the owner accepted (#89) and that points at its DECISIONS.md entry");
+  const decisions = read("DECISIONS.md");
+  const entry = decisions.split(/^## Reviews fall to DeepSeek when Claude has no budget$/m)[1]?.split(/^## /m)[0] ?? "";
+  if (!entry) fail(fact, "DECISIONS.md", "has no \"Reviews fall to DeepSeek when Claude has no budget\" entry, which SECURITY.md cites");
+  else for (const id of ["tool-limits", "pi-write-claude-review", "high-risk-other-vendor"]) {
+    if (!new RegExp(`\\*\\*\`${id}\`\\.\\*\\*[\\s\\S]*?Given\\s+away:`).test(entry)) fail(fact, "DECISIONS.md", `the #89 entry does not say what relaxing ${id} gives away`);
+  }
+  checked.push(fact);
+}
+// 3.1.0-stream-R:end
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

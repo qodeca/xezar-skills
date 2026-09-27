@@ -68,6 +68,11 @@ const FILE_BANS = ["local-never-writes", "tool-limits"];
 // per-thread PreToolUse hook (qodeca/xezar#863). pi is not listed until its lock is proven live, so
 // a pi lane that claims `enforcesToolLimits` is refused: the tag is a fact about the runner, not a wish.
 const ENFORCING_RUNNERS = new Set(["claude", "codex"]);
+// The one relaxation of tool limits (owner, #89): a lane marked `fullShellReviews` may judge – in a
+// review row or a security row that only reads – although its runner does not hold it read-only.
+// It is never a cheap, local or advisory-only lane, and it still never takes any other reading row
+// or a security row that writes: the owner accepted a full-shell reviewer, not a full-shell reader.
+const FULL_SHELL_FORBIDDEN = [["tier", "cheap"], ["local", true], ["advisoryOnly", true]];
 // A row that runs one of these workflows is a security or release row whatever its `class` says,
 // so a file cannot drop the security minimums by renaming a row's class.
 const SECURITY_WORKFLOWS = new Set(["security-review.yaml", "release.yaml", "release-prep.yaml", "deploy.yaml"]);
@@ -79,7 +84,7 @@ export const KNOWN = {
   defaults: ["source", "version"],
   leader: ["tool", "login", "rule"],
   tool: ["usesLogins", "rotation", "unlimitedLogins"],
-  lane: ["tool", "model", "engineModel", "vendor", "tier", ...TAGS, "enabled", "notes"],
+  lane: ["tool", "model", "engineModel", "vendor", "tier", ...TAGS, "fullShellReviews", "enabled", "notes"],
   reserved: ["escalation", "rows"],
   globalBan: ["id", "checkedAt", "rule"],
   vendorExclusion: ["vendor", "why"],
@@ -134,7 +139,8 @@ function banReasons(rowById, row, id, lane, { advisory = false } = {}) {
   if (hit) out.push(["never", `"${id}" is banned by this row's own never entry${hit.why ? `: ${hit.why}` : ""}`]);
   if (!advisory && row.writes === true && lane.local === true) out.push(["local-never-writes", `"${id}" is local and this row writes`]);
   const security = isSecurityRow(rowById, row);
-  if ((readingRow(row) || security) && lane.enforcesToolLimits !== true) {
+  const judgesOnly = row.writes === false && (row.class === "review" || security);
+  if ((readingRow(row) || security) && lane.enforcesToolLimits !== true && !(lane.fullShellReviews === true && judgesOnly)) {
     out.push(["tool-limits", `"${id}" does not enforce a step's tool limits, and this row ${security ? "is security and release" : "only reads"}`]);
   }
   if (security) {
@@ -240,6 +246,12 @@ export function check(file, { identities = [] } = {}) {
     if (!TIERS.includes(lane.tier)) err("shape", `${where}.tier`, `must be one of ${TIERS.join(", ")}`);
     for (const tag of TAGS) if (typeof lane[tag] !== "boolean") err("shape", `${where}.${tag}`, "is missing; a lane with an untagged property is rejected until it is tagged");
     if (lane.enabled !== undefined && typeof lane.enabled !== "boolean") err("shape", `${where}.enabled`, "must be true or false");
+    if (lane.fullShellReviews !== undefined) {
+      if (typeof lane.fullShellReviews !== "boolean") err("shape", `${where}.fullShellReviews`, "must be true or false");
+      else if (lane.fullShellReviews) {
+        for (const [key, value] of FULL_SHELL_FORBIDDEN) if (lane[key] === value) err("tool-limits", `${where}.fullShellReviews`, `a lane with ${key}: ${value} never reviews with a full shell; the owner accepted that for a strong lane that gives verdicts only`);
+      }
+    }
     if (lane.engineModel !== undefined && (typeof lane.engineModel !== "string" || !/^[A-Za-z0-9._/:[\]-]+$/.test(lane.engineModel))) err("shape", `${where}.engineModel`, "is not a model name");
     texts(lane.notes, `${where}.notes`);
   }
