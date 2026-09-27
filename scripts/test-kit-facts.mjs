@@ -1047,6 +1047,20 @@ function walk(rel, match) {
     fail(fact, "skills/xez-add-rule/SKILL.md", "no longer records a new rule in the manifest, so the first owner rule turns the drift check red");
   checked.push(fact);
 }
+
+// U4: the upgrade prompt names only helpers that exist, and carries no unreconciled command mark.
+// A renamed helper or a `verify-cli` mark left in would have the owner's session run a command
+// that is not there, mid-upgrade.
+{
+  const fact = "FACT U4: the upgrade prompt names only real helper scripts and has no verify-cli mark left";
+  const where = "upgrade/UPGRADE-PROMPT.md";
+  const prompt = read(where);
+  if (prompt.includes("verify-cli")) fail(fact, where, "still carries a verify-cli mark: reconcile the command with the real helper, then remove the mark");
+  const helpers = [...prompt.matchAll(/node <clone>\/(upgrade\/tools\/[A-Za-z0-9_.-]+\.mjs)/g)].map((m) => m[1]);
+  if (!helpers.length) fail(fact, where, "names no `node <clone>/upgrade/tools/<x>.mjs` helper, so this check reads nothing");
+  for (const h of new Set(helpers)) if (!has(h)) fail(fact, where, `names ${h}, which does not exist`);
+  checked.push(fact);
+}
 // 3.1.0-stream-U:end
 
 if (problems.length) {
