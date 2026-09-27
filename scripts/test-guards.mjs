@@ -1369,6 +1369,90 @@ breaks(
 // 3.1.0-stream-F:end
 
 // 3.1.0-stream-G:start
+// Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
+// edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.
+const SCAN_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs";
+const GRAMMAR_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs";
+
+breaks(
+  "a project trust-boundary list read from the branch under review instead of the base tip is rejected",
+  SCAN_LIB,
+  (s) => s.replace("const ref = `refs/remotes/origin/${baseBranch}`;", 'const ref = "HEAD";'),
+  () => script("test-kit-facts.mjs"),
+  "a branch that drops its own path from security.trustBoundaries is no longer routed",
+);
+
+breaks(
+  "an unresolvable base branch read as no project entries is rejected",
+  SCAN_LIB,
+  (s) => s.replace('return { status: "unreadable", detail: `${ref} does not resolve here', 'return { status: "absent", detail: `${ref} does not resolve here'),
+  () => script("test-kit-facts.mjs"),
+  "an unresolvable base branch ref did not route to review",
+);
+
+breaks(
+  "a trust-boundary pattern grammar that lets braces and classes through is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace("const TRUST_PATTERN_REFUSED = /[!{}()[\\]^$|\\\\+]/;", "const TRUST_PATTERN_REFUSED = /[!]/;"),
+  () => script("test-kit-facts.mjs"),
+  "must be refused",
+);
+
+breaks(
+  "a trust-boundary list with its caps lifted is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace("export const TRUST_BOUNDARY_LIMITS = { entries: 64, length: 256 };", "export const TRUST_BOUNDARY_LIMITS = { entries: 640, length: 2560 };"),
+  () => script("test-kit-facts.mjs"),
+  "with 65 entries was ok, expected malformed",
+);
+
+breaks(
+  "a project trust-boundary entry with no why is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace('if (typeof why !== "string" || why.trim() === "" ||', 'if (typeof why === "number" ||'),
+  () => script("test-kit-facts.mjs"),
+  "with an entry with no why was",
+);
+
+breaks(
+  "an invalid project list left out of the stage status is rejected",
+  SCAN_LIB,
+  (s) => s.replace('  else if (configUnknown) status = "unknown";\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "did not make the stage status unknown",
+);
+
+breaks(
+  "an invalid project list that does not require a reviewer is rejected",
+  SCAN_LIB,
+  (s) => s.replace("reviewerRequired: trustBoundaries.length > 0 || configUnknown,", "reviewerRequired: trustBoundaries.length > 0,"),
+  () => script("test-kit-facts.mjs"),
+  "did not make the stage status unknown with reviewerRequired",
+);
+
+breaks(
+  "a project match that does not name its list is rejected",
+  SCAN_LIB,
+  (s) => s.replace('touched.push({ file, why: entry.why, list: "project" });', 'touched.push({ file, why: entry.why, list: "kit" });'),
+  () => script("test-kit-facts.mjs"),
+  "did not set reviewerRequired with its reason and list",
+);
+
+breaks(
+  "the engine repository's own paths shipped in the kit's trust boundaries again is rejected",
+  SCAN_LIB,
+  (s) => s.replace("const TRUST_BOUNDARIES = [\n", 'const TRUST_BOUNDARIES = [\n  { pattern: /^packages\\/xezar\\/src\\/server\\//, why: "the HTTP surface" },\n'),
+  () => script("test-kit-facts.mjs"),
+  "still ships the engine repository's packages/xezar/src entries",
+);
+
+breaks(
+  "a phase record that stops describing the project trust-boundary list is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/phase-record.md",
+  (s) => s.replace(/^A project adds paths of its own in `security\.trustBoundaries`.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "does not describe the project's security.trustBoundaries list",
+);
 // 3.1.0-stream-G:end
 
 // 3.1.0-stream-H:start

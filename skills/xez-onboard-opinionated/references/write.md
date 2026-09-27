@@ -215,6 +215,11 @@ Never copied, because each depends on an answer:
   to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated
   `CODE_REVIEW.md`, beside the hook and its loader: a change to `deploy.*`, to the base branch, to a
   workflow file, to a check script or to the routing file is routed to the security-review row.
+  A project's own sensitive paths go in `security.trustBoundaries` in
+  `.xezar/pipeline/config.json` (`[{ "pattern": "<glob>", "why": "<one line>" }]`), which the scan
+  reads from the base branch and adds to the kit's list — never in a `CODE_REVIEW.md` list a
+  reviewer has to remember. Say so in the generated `CODE_REVIEW.md` too: paths in that key are
+  machine-routed like the kit's, and an invalid list routes the change to review.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.
