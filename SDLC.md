@@ -193,11 +193,10 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-compat-pins.mjs`
 - `node scripts/check-allowlists.mjs`
 - `node scripts/test-upgrade.mjs`
-- `node scripts/test-guards.mjs`
 - `npm run check:generic-instructions`
 - `npm run test:generic-instructions`
 
-Any non-zero exit fails the gate and blocks the PR. The implementing skills run the gate before opening a PR, and `xez-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.xezar/pipeline/config.json`; when it changes, update it there and in this section together.
+Any non-zero exit fails the gate and blocks the PR. The guard suite (`npm run test:guards`), which breaks every gate on purpose to prove it still fires, is not in this list: it takes about twenty-five minutes, so it runs nightly on `develop` from `.github/workflows/nightly-guards.yml` and a failure opens one "Nightly guard suite failed" issue. The implementing skills run the gate before opening a PR, and `xez-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.xezar/pipeline/config.json`; when it changes, update it there and in this section together.
 
 ## Amending this process
 

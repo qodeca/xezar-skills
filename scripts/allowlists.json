@@ -99,7 +99,12 @@
         "why": "Needs the `codex` CLI and a full-access sandbox. A CI runner has neither, and granting full access to a pull request's own code is exactly what CI must not do.",
         "who": "collection maintainers",
         "expires": "2027-09-20"
-      }
+      },
+    "test:guards": {
+      "why": "Runs nightly (.github/workflows/nightly-guards.yml); too slow for every PR – owner decision 2026-09-27.",
+      "who": "collection maintainers",
+      "expires": "2027-09-27"
+    }
     }
   }
 }

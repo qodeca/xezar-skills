@@ -23,11 +23,11 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    # Every check here is offline. The guard suite re-runs the gates once per deliberate
-    # defect and takes about twenty minutes with the 3.1.0 streams (it grows with every
-    # guard); a job still running after forty-five is hung, not slow, and should fail
-    # rather than hold a runner.
-    timeout-minutes: 45
+    # Every check here is offline and the whole list runs in a few minutes. The guard suite
+    # (scripts/test-guards.mjs) is not here: it runs nightly from nightly-guards.yml. A job
+    # still running after twenty minutes is hung, not slow, and should fail rather than hold
+    # a runner.
+    timeout-minutes: 20
     steps:
       # Pinned by commit sha, not by tag: a tag is mutable, so `@v4` means "whatever
       # that tag points at when this runs" — a supply-chain decision taken by someone
@@ -78,8 +78,6 @@ jobs:
         run: node scripts/check-allowlists.mjs
       - name: Upgrade tool classifies, applies and verifies the committed fixtures
         run: node scripts/test-upgrade.mjs
-      - name: Guard suite (every gate broken on purpose)
-        run: node scripts/test-guards.mjs
       - name: Generic instruction content (P6 skills and all companions)
         run: npm run check:generic-instructions
       - name: Generic instruction guard rejection and control cases
