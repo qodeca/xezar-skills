@@ -1,6 +1,6 @@
 # Recovery, integration and root sync
 
-First read current task checkpoint/late steering and actual identity. resume-complete.sh --dry-run diagnoses remaining stages without effects (exit 2 means work remains); normal resume reuses only currently eligible evidence, otherwise runs needed gates/seal. Printing checkpoint pointers is not consuming them: the agent must read them. Do not replay an entire workflow or trust old green status. BLOCKED must stop normal readiness.
+First read current task checkpoint/late steering and actual identity. resume-complete.sh --dry-run diagnoses remaining stages without effects (exit 2 means work remains); normal resume reuses only currently eligible evidence, and only while the installed dependencies are fresh; a stale or unknown freshness check re-runs the gates (which install first) and seals again. Printing checkpoint pointers is not consuming them: the agent must read them. Do not replay an entire workflow or trust old green status. BLOCKED must stop normal readiness.
 
 Merge recovery: record intended operation with merge-recovery.sh before a separately authorized merge. Only a matching single merge may recover; ordinary worktree-git refuses resolved and unresolved merge markers. Never invent retrospective intent or automatic abort/reset. Mechanical recovery does not grant business authority or waive normal readiness. Read --help for exact arguments.
 

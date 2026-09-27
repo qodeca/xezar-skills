@@ -9,6 +9,8 @@
 //   deps.mjs fingerprint --root <dir>   one digest over every unit's inputs
 //   deps.mjs stamp       --root <dir>   record every unit as installed for this task
 //   deps.mjs fresh       --root <dir>   exit 0 when every stamp matches and every install is this task's own
+//                                       (the tree digest gives up after XEZ_DEPS_DIGEST_TIMEOUT_MS, default
+//                                       60000, and a digest that gave up is not fresh)
 //   deps.mjs resolve     --root <dir>   exit 0 when every install is this task's own; problems on stderr
 //   deps.mjs versions    --root <dir>   the unit tools' versions as JSON, for the gate record
 //
@@ -25,8 +27,9 @@
 // always did here (DECISIONS.md -> "Dependency units").
 //
 // WHAT "FRESH" MEANS. A stamp per unit under `.local/xezar/cache/deps/`, holding the unit's input
-// fingerprint, this task's own path and the identity of the installed tree (a nonce written into
-// node_modules at stamp time, plus that folder's inode), AND a proof that the install on disk is this task's own:
+// fingerprint, this task's own path, the identity of the installed tree (a nonce written into
+// node_modules at stamp time, plus that folder's inode) and a metadata digest of everything in it
+// (#53), AND a proof that the install on disk is this task's own:
 // a worktree sits inside the primary checkout, and an install borrowed from an ancestor silently
 // judges another checkout (#286). A unit that cannot be found is a failure, never a skip.
 //
@@ -36,7 +39,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const CONFIG = ".xezar/pipeline/config.json";
 const STAMPS = ".local/xezar/cache/deps";
@@ -348,7 +351,104 @@ const writeTreeId = (root, u) => {
   rmSync(file, { force: true });
   writeFileSync(file, `${randomBytes(16).toString("hex")}\n`, { flag: "wx" });
 };
-const stampContent = (root, u, fp) => `${fp}\ntask=${join(root, u.dir)}\n${u.provider === "dotnet" ? "" : `tree=${treeId(root, u)}\n`}`;
+
+// What is IN the tree (#53). The nonce and the inode catch a node_modules replaced wholesale, not a
+// package folder swapped or a file edited inside it. So the stamp also carries a digest over every
+// entry's metadata: its path, type and inode, a link's target, and a file's size, mtime and ctime.
+// Metadata, not content: hashing every byte of a large monorepo's installs costs minutes, a stat
+// walk costs seconds, and a changed file changes its ctime whatever else is forged.
+//
+// Two exceptions, both closed:
+//   - a build cache the gates themselves write (a folder below, directly inside any node_modules)
+//     is left out, but only while it holds no package.json, no `.bin` and no link, so nothing in it
+//     can act as a package or an executable. A cache that does hold one is digested like the rest;
+//   - a link anywhere in the tree that points into a cache left out is refused: that would make a
+//     skipped folder reachable as a package.
+// A tree that cannot be read is refused, never skipped, and so is a walk slower than the timeout.
+// None of this stops a writer inside the task who can run `deps.mjs stamp`: it re-stamps whatever
+// tree is there. The stamp tells an honest run its install is unchanged; it is not a seal.
+const BUILD_CACHES = new Set([".cache", ".vite", ".vite-temp", ".vitest"]);
+const DIGEST_TIMEOUT_MS = (() => {
+  const raw = process.env.XEZ_DEPS_DIGEST_TIMEOUT_MS;
+  return raw !== undefined && /^\d{1,9}$/.test(raw) ? Number(raw) : 60000;
+})();
+
+class Unavailable extends Error {}
+
+// true when nothing under `dir` could act as a package or an executable.
+function inertCache(dir, deadline) {
+  const stack = [dir];
+  while (stack.length) {
+    if (Date.now() >= deadline) throw new Unavailable(`the digest timed out after ${DIGEST_TIMEOUT_MS} ms (XEZ_DEPS_DIGEST_TIMEOUT_MS)`);
+    const d = stack.pop();
+    let entries;
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch (e) { throw new Unavailable(`${d} cannot be read (${e.code})`); }
+    for (const e of entries) {
+      if (e.isSymbolicLink() || e.name === ".bin" || e.name === "package.json") return false;
+      if (e.isDirectory()) stack.push(join(d, e.name));
+    }
+  }
+  return true;
+}
+
+function treeDigest(nm) {
+  const deadline = Date.now() + DIGEST_TIMEOUT_MS;
+  const hash = createHash("sha256");
+  const caches = [];
+  const links = [];
+  const walk = (dir, rel) => {
+    if (Date.now() >= deadline) throw new Unavailable(`the digest timed out after ${DIGEST_TIMEOUT_MS} ms (XEZ_DEPS_DIGEST_TIMEOUT_MS)`);
+    let names;
+    try { names = readdirSync(dir); } catch (e) { throw new Unavailable(`${dir} cannot be read (${e.code})`); }
+    names.sort();
+    for (const name of names) {
+      const p = join(dir, name);
+      const r = rel ? `${rel}/${name}` : name;
+      let st;
+      try { st = lstatSync(p); } catch (e) { throw new Unavailable(`${p} cannot be read (${e.code})`); }
+      if (st.isDirectory() && BUILD_CACHES.has(name) && basename(dir) === "node_modules" && inertCache(p, deadline)) {
+        caches.push(p);
+        continue;
+      }
+      if (st.isSymbolicLink()) {
+        let to;
+        try { to = readlinkSync(p); } catch (e) { throw new Unavailable(`${p} cannot be read (${e.code})`); }
+        links.push([p, resolve(dir, to)]);
+        hash.update(`${r}\0l\0${st.ino}\0${to}\n`);
+      } else if (st.isDirectory()) {
+        hash.update(`${r}\0d\0${st.ino}\n`);
+        walk(p, r);
+      } else if (st.isFile()) {
+        hash.update(`${r}\0f\0${st.ino}\0${st.size}\0${st.mtimeMs}\0${st.ctimeMs}\n`);
+      } else {
+        hash.update(`${r}\0o\0${st.ino}\0${st.mode}\n`);
+      }
+    }
+  };
+  walk(nm, "");
+  // Both the link's own path and its canonical target: a cache reached through a second link is
+  // still a cache.
+  const within = (p, c) => p === c || p.startsWith(c + sep);
+  const cacheKeys = caches.flatMap((c) => [c, real(c)]).filter(Boolean);
+  for (const [link, first] of links) {
+    const hit = cacheKeys.find((c) => [first, real(link)].some((t) => t && within(t, c)));
+    if (hit) throw new Unavailable(`${relative(nm, link)} links into the build cache ${relative(nm, hit)}, which the digest leaves out`);
+  }
+  return hash.digest("hex");
+}
+
+// The digest line of a Node unit's stamp, or the reason there is none.
+const contents = (root, u) => {
+  const nm = join(root, u.dir, "node_modules");
+  if (!lstat(nm)?.isDirectory()) return { line: "none" };
+  try { return { line: treeDigest(nm) }; } catch (e) {
+    if (!(e instanceof Unavailable)) throw e;
+    return { line: "unavailable", why: `${u.dir}: ${e.message}` };
+  }
+};
+
+const stampContent = (root, u, fp, digest) =>
+  `${fp}\ntask=${join(root, u.dir)}\n${u.provider === "dotnet" ? "" : `tree=${treeId(root, u)}\ncontents=${digest}\n`}`;
 const stampRel = (u) => `${STAMPS}/${u.slug}`;
 
 // --- is this install the task's own ---------------------------------------------------------
@@ -575,14 +675,26 @@ function main() {
         mkdirSync(dirname(file), { recursive: true });
         rmSync(file, { force: true });
         writeTreeId(root, u);
-        writeFileSync(file, stampContent(root, u, unitFingerprint(root, u)), { flag: "wx" });
+        const digest = u.provider === "dotnet" ? { line: "" } : contents(root, u);
+        // A tree with no digest is stamped as such, and `fresh` never accepts that stamp: the
+        // next --fast run installs again rather than trusting a tree nobody could read.
+        if (digest.why) console.error(`deps: ${digest.why}; stamped as not fresh, so the next run installs again`);
+        writeFileSync(file, stampContent(root, u, unitFingerprint(root, u), digest.line), { flag: "wx" });
       }
       return 0;
     case "fresh":
       for (const u of units) {
         safeParents(root, stampRel(u));
         const file = join(root, stampRel(u));
-        if (!isFile(file) || readFileSync(file, "utf8") !== stampContent(root, u, unitFingerprint(root, u))) return 1;
+        if (!isFile(file)) return 1;
+        const stamp = readFileSync(file, "utf8");
+        const fp = unitFingerprint(root, u);
+        // The cheap lines first, so a stale input never pays for the walk.
+        if (!stamp.startsWith(stampContent(root, u, fp, "").replace(/contents=\n$/, ""))) return 1;
+        if (u.provider === "dotnet") { if (stamp !== stampContent(root, u, fp, "")) return 1; continue; }
+        const digest = contents(root, u);
+        if (digest.why) { console.error(`deps: ${digest.why}, so the installed tree is not fresh`); return 1; }
+        if (digest.line === "unavailable" || stamp !== stampContent(root, u, fp, digest.line)) return 1;
       }
       return resolveAll(root, units).length === 0 ? 0 : 1;
     case "resolve": {

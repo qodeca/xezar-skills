@@ -16,10 +16,11 @@
 // no packages.
 //
 // Run: node scripts/test-deps-units.mjs
+//      XEZ_DEPS_TEST_ONLY=53 node scripts/test-deps-units.mjs   (the #53 tree-digest and resume cases only)
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -28,6 +29,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(root, "skills", "xez-onboard-opinionated", "kit");
 const RESTORE = ".xezar/checks/deps-restore.sh";
 
+const ONLY_53_DONE = Symbol("only the #53 cases were asked for");
 let failures = 0;
 let asserts = 0;
 const expect = (name, ok, detail = "") => {
@@ -123,6 +125,109 @@ const unitFiles = {
 const unitsConfig = (units = UNITS, first = RESTORE) => ({ validation: { commands: [first, "npm test"] }, dependencies: { units } });
 
 try {
+  // #53: what is IN the tree. The nonce and the folder's inode catch a node_modules replaced
+  // wholesale; a package folder swapped or a file edited inside the same tree needs the digest.
+  {
+    const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
+    run("bash", [join(r, RESTORE)], r);
+    const nm = join(r, "apps/web/node_modules");
+    const pkg = (name, body = "module.exports = 1;\n") => { write(join(nm, name, "package.json"), `{"name":"${name}"}\n`); write(join(nm, name, "index.js"), body); };
+    pkg("left-pad");
+    pkg("other");
+    mkdirSync(join(nm, ".bin"));
+    symlinkSync("../left-pad/index.js", join(nm, ".bin/left-pad"));
+    pkg("other/node_modules/nested");
+    const fresh = (env) => sh(r, "deps_are_fresh", env).code;
+    const restamp = () => sh(r, "write_deps_stamp").code === 0 && fresh() === 0;
+    expect("digest: installed and stamped is fresh", restamp());
+    const nonce = readFileSync(join(nm, ".xezar-deps-tree"), "utf8");
+    const ino = lstatSync(nm).ino;
+    rmSync(join(nm, "left-pad"), { recursive: true });
+    pkg("left-pad");
+    expect("digest: the swap kept the folder and the nonce, so only the digest can refuse it", readFileSync(join(nm, ".xezar-deps-tree"), "utf8") === nonce && lstatSync(nm).ino === ino && deps(r, "resolve").code === 0);
+    expect("stale: one package folder replaced inside node_modules, folder and nonce kept (#53)", fresh() !== 0);
+    const gates = readFileSync(join(KIT, "checks/repo-gates.sh"), "utf8");
+    expect("digest: the fast gate reinstalls whenever deps_are_fresh refuses", gates.includes('if [ "$FAST" -eq 1 ] && ! deps_are_fresh; then'));
+    expect("digest: re-stamped, fresh again", restamp());
+    write(join(nm, "other/index.js"), "module.exports = 2;\n");
+    expect("stale: a file edited in place, same size (#53)", fresh() !== 0);
+    expect("digest: re-stamped after the edit", restamp());
+    rmSync(join(nm, ".bin/left-pad"));
+    symlinkSync("../other/index.js", join(nm, ".bin/left-pad"));
+    expect("stale: a .bin entry swapped (#53)", fresh() !== 0);
+    expect("digest: re-stamped after the swap", restamp());
+    // What the gates themselves write: build caches directly inside a node_modules.
+    write(join(nm, ".vite/deps/chunk.js"), "x\n");
+    write(join(nm, ".vite-temp/vite.config.ts.timestamp.mjs"), "x\n");
+    write(join(nm, ".cache/babel/entry.json"), "{}\n");
+    write(join(nm, ".vitest/results.json"), "{}\n");
+    write(join(nm, "other/node_modules/.cache/x.json"), "{}\n");
+    expect("digest: a gate run that writes build caches inside node_modules does not make the next run stale (#53)", fresh() === 0);
+    write(join(nm, ".vite/deps/chunk.js"), "y, and longer\n");
+    expect("digest: a cache rewritten by the next gate run is still fresh", fresh() === 0);
+    const cacheCase = (name, build, undo) => {
+      build();
+      expect(`stale: ${name}`, fresh() !== 0);
+      undo();
+      expect(`stale: ${name} (and fresh again once undone)`, fresh() === 0);
+    };
+    cacheCase("a build cache that holds a package.json is digested like the rest", () => write(join(nm, ".cache/evil/package.json"), "{}\n"), () => rmSync(join(nm, ".cache/evil"), { recursive: true }));
+    cacheCase("a build cache that holds a .bin", () => write(join(nm, ".vite/.bin/tool"), "x\n"), () => rmSync(join(nm, ".vite/.bin"), { recursive: true }));
+    cacheCase("a build cache that holds a link", () => symlinkSync("../other", join(nm, ".cache/ln")), () => rmSync(join(nm, ".cache/ln")));
+    cacheCase("a cache-named folder that is not directly inside a node_modules", () => write(join(nm, "other/.cache/x"), "x\n"), () => rmSync(join(nm, "other/.cache"), { recursive: true }));
+    symlinkSync(".cache/babel", join(nm, "sneaky"));
+    const into = deps(r, "fresh");
+    expect("refused: a link into a build cache the digest leaves out (#53)", into.code === 1 && into.err.includes("sneaky links into the build cache .cache"), JSON.stringify(into));
+    rmSync(join(nm, "sneaky"));
+    expect("digest: fresh again once the link is gone", fresh() === 0);
+    if (process.getuid?.() !== 0) {
+      chmodSync(join(nm, "other"), 0o000);
+      const locked = deps(r, "fresh");
+      chmodSync(join(nm, "other"), 0o755);
+      expect("refused: a tree the digest cannot read is not fresh, never skipped (#53)", locked.code === 1 && locked.err.includes("cannot be read"), JSON.stringify(locked));
+    } else console.log("SKIP  unreadable tree: running as root, which reads everything");
+    const slow = deps(r, "fresh", { XEZ_DEPS_DIGEST_TIMEOUT_MS: "0" });
+    expect("refused: a digest that times out is not fresh (#53)", slow.code === 1 && slow.err.includes("timed out"), JSON.stringify(slow));
+    const slowStamp = deps(r, "stamp", { XEZ_DEPS_DIGEST_TIMEOUT_MS: "0" });
+    expect("digest: a stamp written when the digest timed out says so", slowStamp.code === 0 && slowStamp.err.includes("stamped as not fresh"), JSON.stringify(slowStamp));
+    expect("refused: a stamp with no digest is never fresh, even once the digest is fast again", fresh() !== 0);
+    expect("digest: a normal stamp afterwards is fresh", restamp());
+
+    // Resume reuses sealed evidence only when the dependencies are fresh. The stages around the
+    // decision are stubs: preflight passes, the counters are not spent, the seal answers eligible.
+    const log = join(lab, `resume-${seq}.log`);
+    const res = repo({
+      config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]),
+      files: unitFiles,
+      extra: (d) => {
+        const x = (f, body) => { write(join(d, ".xezar/checks", f), `#!/usr/bin/env bash\n${body}\n`); chmodSync(join(d, ".xezar/checks", f), 0o755); };
+        copyFileSync(join(KIT, "checks/resume-complete.sh"), join(d, ".xezar/checks/resume-complete.sh"));
+        x("worktree-preflight.sh", `printf 'preflight %s\\n' "$*" >> "$RESUME_LOG"`);
+        x("phase-record.sh", "exit 1");
+        x("repo-gates.sh", `if [ "\${1:-}" = --list ]; then printf '{"commandListId":"L","gates":[{"name":"${RESTORE}"}]}'; exit 0; fi\nprintf 'gates %s\\n' "$*" >> "$RESUME_LOG"`);
+        write(join(d, ".xezar/checks/lib/gate-results.mjs"), 'console.log("seal: eligible (stub)");\n');
+      },
+    });
+    run("bash", [join(res, RESTORE)], res);
+    write(join(res, "apps/web/node_modules/dep/package.json"), '{"name":"dep"}\n');
+    sh(res, "write_deps_stamp");
+    const resume = (flag, env = {}) => { rmSync(log, { force: true }); const o = run("bash", [".xezar/checks/resume-complete.sh", ...(flag ? [flag] : [])], res, { XEZ_TASK_ID: "run-53", RESUME_LOG: log, ...env }); return { ...o, log: existsSync(log) ? readFileSync(log, "utf8") : "" }; };
+    const reused = resume("--dry-run");
+    expect("resume: eligible evidence with fresh dependencies is reused", reused.code === 0 && reused.out.includes("would be reused"), reused.out + reused.err);
+    rmSync(join(res, "apps/web/node_modules/dep"), { recursive: true });
+    write(join(res, "apps/web/node_modules/dep/package.json"), '{"name":"dep"}\n');
+    const planned = resume("--dry-run");
+    expect("resume: eligible evidence with stale dependencies plans a gate re-run (#53)", planned.code === 2 && planned.out.includes("the dependencies are stale or unknown") && planned.out.includes("would re-run"), planned.out + planned.err);
+    const reran = resume("");
+    expect("resume: eligible evidence with stale dependencies re-runs the gates and seals (#53)", reran.code === 0 && reran.log.includes("gates --producer gates") && reran.log.includes("preflight --record-gate-evidence"), reran.out + reran.err + reran.log);
+    sh(res, "write_deps_stamp");
+    const unknown = resume("--dry-run", { XEZ_DEPS_DIGEST_TIMEOUT_MS: "0" });
+    expect("resume: a freshness check that cannot finish re-runs the gates, never reuses (#53)", unknown.code === 2 && unknown.out.includes("would re-run"), unknown.out + unknown.err);
+  }
+
+  // The guard suite breaks the #53 properties one at a time and needs only the block above.
+  if (process.env.XEZ_DEPS_TEST_ONLY === "53") throw ONLY_53_DONE;
+
   // 1. A single npm root: no units, and every output is what it always was.
   {
     const r = repo({
@@ -200,7 +305,8 @@ try {
     stale("a packages.lock.json appeared", ...add("svc/Api/packages.lock.json"));
     stale("the Yarn version changed", () => {}, null, { STUB_YARN_VERSION: "1.22.19" });
     stale("the .NET SDK version changed", () => {}, null, { STUB_DOTNET_VERSION: "9.0.100" });
-    stale("Yarn did not finish (.yarn-integrity gone)", () => rmSync(join(u, "apps/web/node_modules/.yarn-integrity")), () => write(join(u, "apps/web/node_modules/.yarn-integrity"), ""));
+    // Undone by a new stamp: a file written again is a different entry to the tree digest (#53).
+    stale("Yarn did not finish (.yarn-integrity gone)", () => rmSync(join(u, "apps/web/node_modules/.yarn-integrity")), () => { write(join(u, "apps/web/node_modules/.yarn-integrity"), ""); sh(u, "write_deps_stamp"); });
     const stampDir = join(u, ".local/xezar/cache/deps");
     const stamps = readdirSync(stampDir);
     expect("units: one stamp per unit", stamps.length === UNITS.length, stamps.join(", "));
@@ -447,6 +553,8 @@ try {
       expect("real dotnet: restore, resolve, stamp and fresh", res.code === 0, res.out + res.err);
     } else console.log("SKIP  real dotnet: the .NET SDK is not installed here");
   }
+} catch (e) {
+  if (e !== ONLY_53_DONE) throw e;
 } finally {
   rmSync(lab, { recursive: true, force: true });
 }
@@ -455,4 +563,5 @@ if (failures) {
   console.error(`\ndeps units: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-console.log(`Dependency units OK (${asserts} assertions: single root unchanged, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);
+if (process.env.XEZ_DEPS_TEST_ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${asserts} assertions).`);
+else console.log(`Dependency units OK (${asserts} assertions: single root unchanged, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);
