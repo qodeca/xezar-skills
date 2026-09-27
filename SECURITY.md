@@ -42,6 +42,14 @@ operator did not intend.
   owner accepted it, and `DECISIONS.md` → "A consented edit when the engine says no" states what
   it gives away. A second file, a write anywhere under `~/.xezar/`, an edit without the question,
   or the same path in any other skill is still a finding.
+- **Review and QA steps run the change they judge, and that is accepted rather than found:**
+  they hold no Edit or Write tool and no git or gh command that writes, and a verdict or an own
+  label is refused unless HEAD and every tracked file are as the review found them. Running a pull
+  request's code still runs it with the operator's user rights, so a hostile change can read,
+  reach the network, or delete the review's own state. The owner accepted it (D13), and
+  `DECISIONS.md` → "Reviewers run the change, and a verdict needs the tree they found" states what
+  it gives away. A review step that can edit, commit or push, or a verdict written after the tree
+  changed, is still a finding.
 
   **The scope was cut here on 2026-09-22, and this is the reasoning.** The exception used to
   carry a second case: a consented write to the provider enable/disable key of

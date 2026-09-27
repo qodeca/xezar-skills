@@ -710,9 +710,9 @@ breaks(
 breaks(
   "a reading workflow given the Write tool is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Write,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -750,9 +750,9 @@ breaks(
 breaks(
   "a reading workflow given a writing tool with another name is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -1434,6 +1434,72 @@ breaks(
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start
+// #52: the timeout rule, and the shipped timeouts it protects.
+breaks(
+  "a catalog check that no longer asks an agent step for a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("      checkStepTimeout(at, step);\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a handoff step with no timeout",
+);
+
+breaks(
+  "a kit handoff step without a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/bug-fix.yaml",
+  (s) => s.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n"),
+  () => script("test-kit-catalog.mjs"),
+  'step "handoff": an agent step has no timeout',
+);
+
+// D13: every review and QA step runs the change and holds every browser tool; nothing else gets
+// the review-only tools; a review's verdict needs an unchanged tree.
+breaks(
+  "a catalog check that lets review-only browser tools into any workflow is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (step.allowedTools.includes(tool)) err(at,", "if (false && step.allowedTools.includes(tool)) err(at,"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts evaluate_script in the design workflow",
+);
+
+breaks(
+  "a catalog check that no longer asks a review step for review-run.sh is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (!list.includes(REVIEW_RUN_PREFIX)) {", "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a qa.yaml review step without review-run.sh",
+);
+
+breaks(
+  "a review workflow without the full browser tool set is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml",
+  (s) => s.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
+  () => script("test-kit-facts.mjs"),
+  "FACT 23",
+);
+
+breaks(
+  "a design-review preflight back on --allow-root is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/design-review.yaml",
+  (s) => s.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
+  () => script("test-kit-catalog.mjs"),
+  "runs worktree-preflight.sh with --allow-root",
+);
+
+breaks(
+  "a verdict-write that no longer checks the reviewed tree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('bash "$SCRIPT_DIR/review-run.sh" finish >&2 ||', 'true ||'),
+  () => script("test-kit-catalog.mjs"),
+  "no longer runs review-run.sh finish before a verdict packet",
+);
+
+breaks(
+  "a browser descriptor that stops saying where the review tools are granted is rejected",
+  "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
+  (s) => s.replace("granted by their own tool lists only", "granted anywhere"),
+  () => script("test-kit-catalog.mjs"),
+  "no longer says the review and QA workflows hold every tool",
+);
 // 3.1.0-stream-D:end
 
 // 3.1.0-stream-E:start

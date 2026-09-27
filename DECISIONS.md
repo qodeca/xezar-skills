@@ -1172,8 +1172,9 @@ not an e2e tool: `ui-tests` and `regression-suite` keep the project's own runner
 real: an MCP server runs outside every runner sandbox, so the browser reaches the operator's files
 and network, and `take_screenshot` writes wherever it is told, even from a reading step. The limits
 are three. The tool list: exact `mcp__chrome-devtools__<tool>` names in the browser workflows (Codex:
-`enabled_tools`, which applies to every Codex step, not only those), never `upload_file`,
-`evaluate_script` or a wildcard. The pin: one exact version, `--isolated --headless`, never
+`enabled_tools`, which applies to every Codex step, not only those), never a wildcard, and
+`upload_file`, `evaluate_script` and the other review-only tools only in the review and QA
+workflows ("Reviewers run the change" below). The pin: one exact version, `--isolated --headless`, never
 `@latest`. The guard: `config-guard.sh browser --from-base`, run by `repository-checks.sh`, refuses
 any change to an entry the base branch already carries. `test-kit-facts.mjs` FACT 23 pins all three.
 Codex also needs `default_tools_approval_mode = "approve"`: the engine runs it with approvals set to
@@ -1206,3 +1207,28 @@ same trust a branch's scripts already get, not a wider one, and the install runs
 steps (setup and the gates), never in a reading step. Yarn 2 or later is refused by name: its
 flags, lockfile and install layout are a different tool.
 `scripts/test-deps-units.mjs` pins the base-branch read, the flags and the stale cases.
+
+## Reviewers run the change, and a verdict needs the tree they found
+
+Owner decision D13 (3.1.0, replacing #63's read-only QA): every review and QA step – code,
+security, architecture, design review, QA and acceptance – may run the change it judges and holds
+every `chrome-devtools` tool, `evaluate_script` included. A review that can only read the diff
+passes what it cannot see, and a QA step told to test a URL someone else started tests whatever
+happens to be running there.
+
+What it still cannot do: edit or write a file (no Edit, no Write), or run a git or gh command that
+writes – its shell is the reading set plus `review-run.sh`, which refuses git, gh, shells and
+wrappers and runs only in the run's own worktree. What a verdict needs: `verdict-write.sh` runs
+`review-run.sh finish` before a packet, so a review that moved HEAD or changed a tracked file has
+no verdict. QA and design review may move their own labels (`qa-approved`/`needs-qa`,
+`design-approved`/`needs-design`) through `gh-write.sh`, only for the PR's current head, only
+after checking that head out, and only on an unchanged tree. The browser stays `--isolated
+--headless`, so its profile holds no session of the operator's.
+
+The cost, named: running a pull request's code means running whatever it does, with the operator's
+user rights – the tool list is not the boundary once `npm test` runs. A hostile change can read
+what that user can read, reach the network, or remove the review's own state so the unchanged-tree
+check is skipped. That is the trust a writing step's gates already give the same code; a reviewer
+now gives it too. `SECURITY.md` lists it as accepted. `scripts/test-kit-catalog.mjs` runs
+`review-run.sh`, the verdict labels and the verdict refusal; `test-kit-facts.mjs` FACT 23 pins the
+tool lists.

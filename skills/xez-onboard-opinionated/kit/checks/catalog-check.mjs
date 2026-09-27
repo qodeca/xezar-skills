@@ -175,10 +175,47 @@ const READ_ONLY_WORKFLOWS = new Set([
   "security-review",
 ]);
 
-// Steps that hold neither Edit nor Write but must RUN code – a build, a test, a dev server, a
-// browser – and so cannot live inside a prefix list. They run in their own detached worktree and
-// never touch the author's branch; that, not a shell limit, is their guarantee.
+// The review and QA workflows (D13, DECISIONS.md). Every review or QA step may RUN the change it
+// judges – check the PR head out, install, run tests and a dev server – but only through
+// `review-run.sh`, which refuses git, gh, sudo and shell wrappers and the main checkout. Each holds
+// every chrome-devtools tool and holds no Edit or Write. Its verdict is refused when HEAD or a
+// tracked file changed (`verdict-write.sh` runs `review-run.sh finish`): that check, not the shell
+// prefix list, is what keeps a review a review. It is not a trailing check step, which would
+// silence XEZ:ASK and XEZ:DONE for the whole run.
+const REVIEW_WORKFLOWS = new Set([
+  "acceptance-verification",
+  "architecture-review",
+  "code-review",
+  "design-review",
+  "qa",
+  "security-review",
+]);
+// The review workflows whose routing rows say `runsCode: true` (routing.json): they build and run
+// the change as their job, not only on a pull request that needs it. test-kit-catalog.mjs binds
+// the rows to this list.
 const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "design-review", "qa"]);
+const REVIEW_RUN_PREFIX = "bash .xezar/checks/review-run.sh";
+
+// Every chrome-devtools tool. A review or QA step holds all of them (D13). The ones after the
+// basic set – emulate, script evaluation, uploads, drag, performance, heap and lighthouse – are
+// granted only there, in a workflow's own tool list, never in any other workflow.
+const BASIC_BROWSER_TOOLS = [
+  "navigate_page", "new_page", "list_pages", "select_page", "close_page", "take_snapshot",
+  "take_screenshot", "list_console_messages", "get_console_message", "list_network_requests",
+  "get_network_request", "click", "fill", "fill_form", "hover", "press_key", "type_text", "wait_for",
+  "handle_dialog", "resize_page", "get_css_styles",
+].map((t) => `mcp__chrome-devtools__${t}`);
+const REVIEW_ONLY_BROWSER_TOOLS = [
+  "emulate", "evaluate_script", "upload_file", "drag", "performance_start_trace",
+  "performance_stop_trace", "performance_analyze_insight", "take_heapsnapshot", "lighthouse_audit",
+].map((t) => `mcp__chrome-devtools__${t}`);
+const BROWSER_TOOLS = new Set([...BASIC_BROWSER_TOOLS, ...REVIEW_ONLY_BROWSER_TOOLS]);
+
+// The engine's step wall clock (`workflows/types.ts`, `parseStepTimeout`): a positive whole number
+// of seconds, minutes or hours, at most 2^31-1 ms. "none" means no limit, which is refused below.
+const STEP_TIMEOUT_RE = /^(\d+)(s|m|h)$/;
+const STEP_TIMEOUT_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000 };
+const MAX_STEP_TIMEOUT_MS = 2_147_483_647;
 
 // the engine's `configSchema`.
 const CONFIG_KEYS = new Set([
@@ -324,14 +361,15 @@ function parseInlineList(value) {
 function checkReaderStep(at, workflow, step) {
   const tools = step.allowedTools;
   const writes = Array.isArray(tools) && (tools.includes("Edit") || tools.includes("Write"));
-  if (READ_ONLY_WORKFLOWS.has(workflow) && (!Array.isArray(tools) || writes || !tools.every((t) => READER_TOOLS.has(t)))) {
-    err(at, `"${workflow}" is a reading workflow: its allowedTools must be listed and hold only ${[...READER_TOOLS].join(", ")}`);
+  const review = REVIEW_WORKFLOWS.has(workflow);
+  const allowed = (t) => READER_TOOLS.has(t) || (review && BROWSER_TOOLS.has(t));
+  if ((READ_ONLY_WORKFLOWS.has(workflow) || review) && (!Array.isArray(tools) || writes || !tools.every(allowed))) {
+    err(at, `"${workflow}" is a ${review ? "review" : "reading"} workflow: its allowedTools must be listed and hold only ${[...READER_TOOLS].join(", ")}${review ? " and the chrome-devtools tools" : ""}`);
     return;
   }
   if (!Array.isArray(tools) || writes) return;
   const list = step.bashAllowlist;
   if (!Array.isArray(list) || list.length === 0) {
-    if (RUNS_CODE_WORKFLOWS.has(workflow)) return;
     err(
       at,
       "holds neither Edit nor Write, so it is a reading step, and it has no bashAllowlist – every backend still gives it a shell that can write",
@@ -339,9 +377,42 @@ function checkReaderStep(at, workflow, step) {
     return;
   }
   for (const entry of list) {
+    if (review && entry === REVIEW_RUN_PREFIX) continue;
     if (!READER_BASH_PREFIXES.has(entry)) {
-      err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh, comments and labels through gh-write.sh, files through verdict-write.sh`);
+      err(at, `bashAllowlist entry "${entry}" is not a reading prefix; git goes through git-read.sh, comments and labels through gh-write.sh, files through verdict-write.sh${review ? ", running the change through review-run.sh" : ""}`);
     }
+  }
+  if (review) {
+    if (!list.includes(REVIEW_RUN_PREFIX)) {
+      err(at, `is a review or QA step without "${REVIEW_RUN_PREFIX}", so it cannot run the change it judges (D13)`);
+    }
+    const missing = [...BROWSER_TOOLS].filter((t) => !tools.includes(t));
+    if (missing.length) err(at, `is a review or QA step and lacks ${missing.join(", ")}; every review holds every chrome-devtools tool (D13)`);
+  }
+}
+
+// A review or QA workflow runs code, so its preflight runs strict (D13).
+function checkReviewWorkflow(file, workflow, steps) {
+  if (!REVIEW_WORKFLOWS.has(workflow)) return;
+  for (const step of steps) {
+    if (typeof step.command === "string" && /worktree-preflight\.sh/.test(step.command) && /--allow-root/.test(step.command)) {
+      err(`${file} step "${step.id}"`, "runs worktree-preflight.sh with --allow-root; a review or QA step runs code, so it never runs in the main checkout (D13)");
+    }
+  }
+}
+
+// Every agent step carries its own wall clock (#52). Without one, the limit is the runner's
+// default, and the last step's default is none: a `handoff` that hangs after its work is sealed
+// holds the run open until someone notices.
+function checkStepTimeout(at, step) {
+  if (step.timeout === undefined || step.timeout === "") {
+    err(at, 'an agent step has no timeout, so its limit is whatever the runner defaults to – none at all for the last step; give it one sized for the job, such as "15m" or "2h"');
+    return;
+  }
+  const m = STEP_TIMEOUT_RE.exec(step.timeout);
+  const ms = m ? Number(m[1]) * STEP_TIMEOUT_UNIT_MS[m[2]] : 0;
+  if (!(ms > 0 && ms <= MAX_STEP_TIMEOUT_MS)) {
+    err(at, `timeout "${step.timeout}" is not a positive duration such as "45s", "90m" or "2h" ("none" is no limit, which an agent step may not have)`);
   }
 }
 
@@ -356,6 +427,7 @@ function checkWorkflow(file, doc) {
 
   const ids = doc.steps.map((s) => s.id);
   const agentIndexes = [];
+  checkReviewWorkflow(file, basename(file).replace(/\.ya?ml$/, ""), doc.steps);
 
   doc.steps.forEach((step, index) => {
     const at = `${file} step "${step.id ?? `#${index + 1}`}"`;
@@ -377,6 +449,12 @@ function checkWorkflow(file, doc) {
         if (!existsSync(skillPath)) err(at, `names skill "${step.skill}", which has no file at ${skillPath}`);
       }
       checkReaderStep(at, basename(file).replace(/\.ya?ml$/, ""), step);
+      checkStepTimeout(at, step);
+    }
+    if (Array.isArray(step.allowedTools) && !REVIEW_WORKFLOWS.has(basename(file).replace(/\.ya?ml$/, ""))) {
+      for (const tool of REVIEW_ONLY_BROWSER_TOOLS) {
+        if (step.allowedTools.includes(tool)) err(at, `grants ${tool}, which only the review and QA workflows may hold (D13)`);
+      }
     }
     if (isCheck) {
       // A check step's command must be a script this repo actually ships, so a renamed or
