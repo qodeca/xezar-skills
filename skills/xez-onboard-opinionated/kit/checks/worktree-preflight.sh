@@ -306,7 +306,7 @@ fi
 # directory that does not exist yet — which is precisely the moment before a run creates it.
 for ignored in .local/xezar/probe node_modules/probe dist/probe coverage/probe \
                .local/xezar/scratch/probe .local/xezar/worktrees/probe \
-               .local/xezar/runtime/runs.json .local/xezar/runtime/ui-state.json; do
+               .local/xezar/runs.json .local/xezar/ui-state.json; do
   if ! git -C "$TASK_CWD" check-ignore -q "$ignored" 2>/dev/null; then
     fail ignore.hygiene "\"${ignored%/probe}\" is not git-ignored — autosave would commit scratch, runtime or build output"
   fi

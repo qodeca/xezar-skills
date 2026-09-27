@@ -44,12 +44,20 @@ operator did not intend.
   or the same path in any other skill is still a finding.
 - **Review and QA steps run the change they judge, and that is accepted rather than found:**
   they hold no Edit or Write tool and no git or gh command that writes, and a verdict or an own
-  label is refused unless HEAD and every tracked file are as the review found them. Running a pull
-  request's code still runs it with the operator's user rights, so a hostile change can read,
-  reach the network, or delete the review's own state. The owner accepted it (D13), and
+  label is refused unless HEAD and every tracked file are as the review found them. What is
+  guaranteed: an approval label moves only for the role the engine declared for that step
+  (`verdictRole` in the run's workflow definition, never the request's word), a gate label is
+  lifted only together with its approval label, and everything the review starts (`review-run.sh
+  install`, `run`, `start`) gets no git or gh credentials – tokens replaced, credential helpers
+  cleared, no SSH agent – so a git or gh it starts cannot push, merge or label; a head record the
+  review rewrites is caught because the recorded head must be a commit of the PR on GitHub. What
+  is not: the started code is still arbitrary code with the operator's user rights, so a program
+  written for it can read what that user can read (a credential store included), reach the
+  network, or delete the review's own state. The owner accepted that residue (D13), and
   `DECISIONS.md` → "Reviewers run the change, and a verdict needs the tree they found" states what
-  it gives away. A review step that can edit, commit or push, or a verdict written after the tree
-  changed, is still a finding.
+  it gives away. A review step that can edit, commit or push, a verdict written after the tree
+  changed, a label moved for a role the step does not declare, or a credential handed to a
+  started command, is still a finding.
 
   **The scope was cut here on 2026-09-22, and this is the reasoning.** The exception used to
   carry a second case: a consented write to the provider enable/disable key of

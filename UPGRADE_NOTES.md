@@ -181,7 +181,9 @@ it every `mcp__chrome-devtools__*` tool the kit's `code-review.yaml` lists, and 
 
 **What you lose by skipping it.** Handoff and review steps keep no time limit on runners that
 apply none; review and QA steps keep stopping on browser-tool denials, cannot start the app they
-test, and QA and design review cannot move their own labels.
+test, and QA and design review cannot move their own labels. A copy of `gh-write.sh` or
+`review-run.sh` taken from an earlier 3.1.0 build still lets any review step claim a QA or
+design-review verdict, and still hands the operator's git and gh credentials to what a review runs.
 
 ```upgrade
 Applies-to: <3.1.0
