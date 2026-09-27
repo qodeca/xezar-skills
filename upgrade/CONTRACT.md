@@ -233,4 +233,5 @@ Each 3.1.0 stream writes one fragment with three sections, in this order:
 2. `## Upgrade entry` – symptom, what to do, what you lose, and the machine block (§5);
 3. `## Compatibility rows` – the rows for `BACKWARD_COMPATIBILITY.md`, or "none".
 
-The release PR folds the fragments in stream order and deletes the folder.
+The release PR folds the fragments in stream order and deletes the folder. The upgrade tool never
+reads the fragments: it reads upgrade entries from `UPGRADE_NOTES.md` only.
