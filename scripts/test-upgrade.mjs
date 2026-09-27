@@ -770,7 +770,11 @@ const lp1 = (files, confirmed) =>
 // 6. Each 3.1.0 machine block's Files: matches the kit-index diff
 // ---------------------------------------------------------------------------------------
 {
-  const lastTag = [...history].reverse().find((v) => v.tag);
+  // The base is the last release OLDER than the target. Once the release PR indexes the target
+  // itself (tag v3.1.0), "the last tagged entry" is the target, and the diff against the tree is
+  // empty: neither direction below could ever fire.
+  const lastTag = [...history].reverse().find((v) => v.tag && satisfies(`<${TARGET}`, v.version));
+  expect(lastTag && lastTag.version !== TARGET, `machine blocks: no tagged release older than ${TARGET} in the kit index`);
   const d = diffIndexes(lastTag, tree.index);
   const changed = [...d.added, ...d.removed, ...d.changed].filter((p) => tree.index.files[p]?.rewrite !== "generated" && lastTag.files[p]?.rewrite !== "generated");
   const notesDir = join(root, "docs/plans/3.1.0/notes");
