@@ -355,10 +355,14 @@ chore(xezar): upgrade kit to <target> – merged files
 
 Walk the `Actions:` of every upgrade entry in the range, oldest first:
 
-- `config-key=<key>` – add the key to `.xezar/pipeline/config.json` **only** when the clone's
-  `skills/xez-setup-agent-pipeline/references/config-fields.md` gives it a documented default.
-  Otherwise leave it unset and put it on the owner checklist with the question onboarding would
-  have asked. Never invent a value.
+- `config-key=<key>` – a documented default is a value the clone's
+  `skills/xez-setup-agent-pipeline/references/config-fields.md` marks **Default `<value>`** and
+  says an upgrade may leave unset (as for `changelog.format`). A line saying only what an absent
+  key means ("Absent means one flat system", "Absent or `[]` means no project entries") is **not**
+  a default. With a documented default you may leave the key unset or set that value. Without
+  one, leave it unset and put it on the owner checklist under "Config keys left unset" with the
+  question onboarding would have asked – `designSystem.modules` and `security.trustBoundaries`
+  always go there. Never invent a value.
 - `env-rename=<OLD>:<NEW>` – rename the variable in tracked files you are already upgrading; list
   every other place (shell profiles, CI secrets, machines) for the owner.
 - `label-sync` – do not change labels. Put it on the owner checklist.
@@ -532,7 +536,7 @@ red one.
 
 ## Owner checklist
 - Confirm each `Confirmed: no` register entry: <ids>.
-- Config keys left unset (no documented default) – answer on this branch, before the merge: <key – the question to answer>.
+- Config keys left unset (no documented default; `designSystem.modules` and `security.trustBoundaries` are never defaulted) – answer on this branch, before the merge: <key – the question to answer>.
 - After the merge: <restart the engine | restart the leader | label sync | env renames>.
 - On every machine that runs the leader or reviews: <per-machine actions>.
 

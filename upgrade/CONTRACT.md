@@ -234,7 +234,7 @@ Grammar:
 | `restart-leader` | Restart the leader after the merge. |
 | `restart-engine` | Restart the engine after the merge. |
 | `engine-min=<semver>` | The engine must be at least this version before the upgrade. |
-| `config-key=<dotted.key>` | A new config key exists. Add it only if it has a documented default (plan P7), otherwise put it on the owner checklist. |
+| `config-key=<dotted.key>` | A new config key exists. Add it only if `config-fields.md` marks a **Default** an upgrade may leave unset (plan P7); "absent means …" is not one. Otherwise put it on the owner checklist. |
 | `label-sync` | Re-sync the tracker label taxonomy. |
 | `env-rename=<OLD>:<NEW>` | An environment variable was renamed. |
 | `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`. |
