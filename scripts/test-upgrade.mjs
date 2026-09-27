@@ -774,7 +774,8 @@ const lp1 = (files, confirmed) =>
   const d = diffIndexes(lastTag, tree.index);
   const changed = [...d.added, ...d.removed, ...d.changed].filter((p) => tree.index.files[p]?.rewrite !== "generated" && lastTag.files[p]?.rewrite !== "generated");
   const notesDir = join(root, "docs/plans/3.1.0/notes");
-  const sources = [];
+  // The release PR folds the fragments into UPGRADE_NOTES.md and deletes the folder.
+  const sources = [["UPGRADE_NOTES.md", readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8")]];
   if (existsSync(notesDir)) for (const n of readdirSync(notesDir)) if (n.endsWith(".md") && n !== "README.md") sources.push([`docs/plans/3.1.0/notes/${n}`, readFileSync(join(notesDir, n), "utf8")]);
   const listed = new Map();
   for (const [src, text] of sources) {

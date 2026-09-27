@@ -1,3 +1,259 @@
+# 3.1.0 (2026-09-27)
+
+**Twelve fixes and features found while running the kit in live projects, design-system modules,
+and an upgrade tool that brings an onboarded project to 3.1.0 and keeps its local changes.** No
+behaviour of an installed project changes until you run the upgrade prompt
+(`upgrade/UPGRADE-PROMPT.md`) or apply the upgrade notes; they are one ordered block for 3.1.0.
+
+**A design system can be split into modules.** A project with more than one product surface lists
+them in `designSystem.modules` in `.xezar/pipeline/config.json` (name, folder, kind `system` or
+`brand-book`, `writable`, status `planned` → `draft` → `active`, `appPaths`, and optional
+`derivedFiles` with a `node tools/design-system/<script>.mjs` build and check command). The
+design-system, UX, UI, UI-test, code-review and visual-asset roles resolve the module first – the
+one the task names, else the one whose `appPaths` cover the surface, none means no system yet,
+several means BLOCKED – and trust the list from the base branch only; a design run may change only
+its module's status. A project without `designSystem.modules` reads one flat system, as before.
+Found in cmplus (its decision 0018), where the brand book and the admin portal's system share
+`docs/design-system/`.
+
+**The testing and dependency roles, and the shared contract of every role, stop assuming npm.**
+`xezar-dependency-maintenance` no longer says "use package-lock.json and the four real npm
+workspaces": it reads the install roots from `dependencies.units` (or the one root that
+`toolchain.providers` names), attributes an update to the unit that imports it, and runs that
+unit's **restore-dependencies**, **outdated** and **update-dependency** from its installed
+descriptor, `.xezar/pipeline/toolchains/<provider>.md`, in the unit's folder. A provider with no
+installed descriptor is a named blocker, not a guessed command. `xezar-testing` runs tests through
+the test command in `validation.commands` instead of `npm test`. The shared contract tail of all
+37 role skills tells the author to run the typecheck command `validation.commands` lists – and
+nothing when it lists none – instead of `npm run typecheck`. A single-root npm project resolves to
+the same commands as before (`npm ci`, `npm test`, `npm run typecheck`, `package-lock.json`). The
+lint gate now refuses a literal `npm`, `package-lock.json` or workspace count in a kit role skill's
+shared tail, and in any role skill body not on the new `npmLiteral` allowlist (#59).
+
+**`route.mjs` takes the author chain and lists only lanes independent of it (#50).**
+`node .xezar/checks/route.mjs <row> --author <lane> [--repair <lane>]…` removes every lane that
+shares a model (`engineModel`) with anyone in the chain, every lane that shares a vendor with it on
+a security or release row, and every lane of a vendor that the new optional `vendorExclusions`
+key in `.xezar/routing.json` names. Each removal prints `removed=<lane> reason=author-chain:
+shared model|shared vendor with <lane>`. An escalation lane that passes every ban and the chain is
+printed in the order as `lane=` followed by `escalation-eligible=<id>`, so the leader takes it
+without parking the choice; when nothing is left the answer is `wait=no-independent-lane`. An
+unknown lane in the chain exits 2. Without `--author` the output is byte-identical to before. The
+shipped defaults move to version 4 and name `anthropic` in `vendorExclusions`: Claude declines to
+review work a Claude model wrote or repaired, which left a leader in one consumer project parking 7
+of 12 overnight decisions as "owner decisions" that were only lane switches.
+
+**The leader guide ships the dispatch, quota and merge-queue rules consumers added by hand
+(#65).** The leader dispatches at once when ready work and headroom exist – that turn counts as
+an L3 run, never an L1 or L2 tick, so L3 stays the only dispatcher with at most one pending wake.
+It reads quota with `read_quota` before every dispatch and picks the login from that answer. With
+a GitHub merge queue on the base branch it merges with `gh pr merge --auto` instead of looping on
+update-branch; `.xezar/docs/close-out.md` states both paths and how to tell which applies, and
+`.xezar/docs/leader-guide-detail.md` gives the reasoning.
+
+**The leader's context carries the newest timeline entries, and says so when the owner's decisions
+are missing (#64).** The leader loader injects the newest timeline as its newest 40 entries (set
+`XEZAR_TIMELINE_ENTRIES` in the leader's environment for another number), followed by one line
+naming the full file and how many older entries were left out. An entry is one top-level `- ` list
+item with its continuation lines, so a multi-line entry is never split; the 64 KiB tail stays as a
+backstop. `decisions.md` is still injected whole. When the live campaign's `decisions.md` is
+missing, a symlink, not a regular file or unreadable, the context now opens with a `WARNING <nonce>:`
+line in its trusted part instead of skipping the file in silence. Found in Erfana, where the bound
+cut the injected context from about 90 KB to about 54 KB.
+
+**A project's own `.claude` settings no longer turn the kit's checks red (#69).**
+- `leader-context-loading.md` quotes only the kit's own `SessionStart` hook entry, and
+  `fenced-quotes.mjs` compares it structurally through a new `#entry:<key.path>` marker. A project
+  can add hooks of its own; a change to the kit's entry still fails.
+- `catalog-check.mjs` reports a widening Bash rule in the untracked `.claude/settings.local.json`
+  as a `WARNING` instead of failing, on that machine too (owner decision D10, recorded in
+  `DECISIONS.md`). The same rule in the committed `.claude/settings.json` still fails, and the
+  message now says what to do instead.
+- The settings check also refuses a chrome-devtools grant outside the kit's tool list (for
+  example `emulate` or `evaluate_script`) and a grant naming the whole browser server, in either
+  file.
+
+**Every agent step in every kit workflow has its own time limit (#52).** Until now only the main
+agent step of an authoring workflow carried `timeout: 2h`; the `handoff` step and the single step
+of every reading workflow carried none, so their limit was the runner's default – and the last
+step's default is no limit at all. On the pi runner a handoff sat for minutes after its fix was
+sealed, and one hung. Now `handoff` steps get `15m`, reading and review steps `2h`, the earlier
+steps of `deploy`, `integration` and `release` `30m` (the default they already fell through to),
+their closing report steps `1h`, `root-sync` `30m`, `issue-filing` `1h`, and the release publish
+step `12h`. The kit's `catalog-check.mjs` refuses an agent step with no `timeout`, or with
+`timeout: none`. The limit takes effect on pi once the engine honours step timeouts
+(qodeca/xezar#932).
+
+**Every review and QA step can run the change it judges, and use the whole browser (#63, D13).**
+The `qa`, `design-review`, `code-review`, `security-review`, `architecture-review` and
+`acceptance-verification` review steps now hold every chrome-devtools tool – `emulate`,
+`evaluate_script`, `lighthouse_audit`, the performance and heap tools – and a new script,
+`.xezar/checks/review-run.sh`: it checks the PR's head out in the run's own worktree, installs,
+runs one project command (tests, build) and starts or stops a dev server. It refuses git, gh,
+shells and wrappers. The steps still have no Edit or Write tool. A verdict needs the tree the
+review found: `verdict-write.sh` runs `review-run.sh finish` first and refuses the packet when HEAD
+or a tracked file changed. QA and design review may now move their own labels (`qa-approved` and
+`needs-qa`, `design-approved` and `needs-design`) through `gh-write.sh` with a verdict request –
+only for the PR's current head, after checking it out, on an unchanged tree. Review preflights
+run strict, without `--allow-root`. `catalog-check.mjs` refuses a review step without
+`review-run.sh` or without the full browser set, an Edit or Write tool in one, and a review-only
+browser tool anywhere else. The accepted cost – running PR code runs it with the operator's user
+rights – is in `SECURITY.md` and `DECISIONS.md`. Found in Erfana (qodeca/erfana#177, #202).
+
+**An install edited in place no longer counts as current, and a resume no longer reuses evidence
+over stale dependencies (#53).** In a repository with `dependencies.units`, each unit's stamp now
+also carries a metadata digest of everything in its `node_modules`: every entry's path, type and
+inode, a link's target, and a file's size, mtime and ctime. A package folder replaced, a file
+edited or a `.bin` entry swapped after stamping makes the unit stale, so the fast gate installs
+again instead of recording `deps-verified-current`. Build caches the gates write directly inside a
+`node_modules` (`.cache`, `.vite`, `.vite-temp`, `.vitest`) are left out while they hold no
+`package.json`, no `.bin` and no link; a link into one, a tree that cannot be read and a digest
+slower than `XEZ_DEPS_DIGEST_TIMEOUT_MS` (default 60000) each count as not fresh.
+`resume-complete.sh` now reuses sealed evidence only when the dependencies are fresh; a stale or
+unknown freshness check re-runs the gates, which install first. Measured on a 195,756-entry tree
+(three apps' `node_modules`, Apple M1 Max, Node 24, a heavily loaded machine): the stat walk
+alone takes 3–4.5 s, and `deps.mjs fresh` goes from about 0.9 s to about 5 s. The limit, stated in
+`.xezar/docs/worktrees.md`: anyone inside the task who can run `deps.mjs stamp` can re-stamp any
+tree, so the stamp is not a seal. A single npm root (no `dependencies.units`) is unchanged.
+
+**The changelog check and fold understand Keep a Changelog, and find the base branch from
+config.** A project whose `CHANGELOG.md` uses `## [Unreleased]` and `## [1.2.3] - YYYY-MM-DD`
+headings now gets the same protection as the house format: a pull request that edits
+`## [Unreleased]` directly is refused and a `changelog.d/` fragment is accepted, so parallel pull
+requests stop conflicting on the same lines. The format is detected from the file, or set with
+`changelog.format` (`auto`, `house`, `keep-a-changelog`) in `.xezar/pipeline/config.json`. In that
+format the release fold merges the fragments into the Unreleased content under `### Added`,
+`### Changed`, … (house headings map onto those groups), renames it to the new version and opens a
+fresh, empty `## [Unreleased]`. A new `changelog-fragments.mjs --verify` step, also run inside every
+fold before it writes, proves that no fragment was left behind and no line was lost.
+`changelog-check.sh --diff-base auto` now uses the configured `baseBranch`, then the remote's
+default branch, and never falls back to a hard-coded `main`. The house format behaves as before.
+(#57)
+
+**A project can name its own trust-boundary paths.** `security.trustBoundaries` in
+`.xezar/pipeline/config.json` – `[{ "pattern": "tools/example/**", "why": "<what the path
+decides>" }]` – adds paths to the security scan's machine-routed list, so a change to them sets
+`reviewerRequired` by machine instead of by a line in `CODE_REVIEW.md` that a reviewer has to
+remember. The list only adds: the kit's own entries always apply. It is read from the base branch
+tip (`origin/<baseBranch>`), never from the branch under review, so a branch that drops its own
+path from the list is still routed. Patterns hold literals, `?`, `*` and `**` only, matched by a
+small hand-written matcher (no glob library, no regular expression built from config); negation,
+braces, extglobs, character classes and regex characters are refused, and the list is capped at 64
+entries of at most 256 characters. Each match in `security.json` now names its `list` (`kit` or
+`project`). A project list that cannot be read or is invalid is never read as "no entries": a new
+`trust-boundary-config` check records `unknown` with the reason, `reviewerRequired` is set, and
+that check counts in the stage status. The four `packages/xezar/src/...` entries, which described
+the engine repository's own layout and matched nothing in a consumer project, are gone from the
+kit's list.
+
+**A repair's fix reaches GitHub only after the gates checked it, and only through one check
+(#54).** `address-review-findings` (review repairs and conflict repairs) used to push the fix to
+the pull request's branch from inside the agent step, before any gate, and record the push as
+`DELIVERED`; the gates then ran on the run's own, unchanged branch, so code nobody had gated landed
+on the PR. Now the repair moves its own `xez/<id>` branch onto the PR head and commits there, so
+readiness, the gates and the seal judge the real fix. The handoff pushes that sealed commit only
+through the new `.xezar/checks/push-check.sh --pr <n> --branch <head branch>`, which refuses unless
+HEAD is the sealed commit (`verify-evidence.sh --require-current` answers ELIGIBLE and the sealed
+sha is HEAD), the PR – read live with `gh pr view` – is open and in this repository (not a fork),
+the target is its head branch and not HEAD, `main`, `master`, `release/*`, the configured base or
+the PR's base, and the push is a fast-forward or a `--force-with-lease=refs/heads/<head>:<sha>`,
+never a bare force. It confirms the new tip with a live `git ls-remote`. Readiness now refuses a
+`DELIVERED` record and says what to do instead. No workflow step, config key or leader record is
+added. The known limit – two runs repairing one PR at once, and a same-user process pushing by
+other means – is signed in `SECURITY.md` and `DECISIONS.md` (D12).
+
+**A locally edited kit file can no longer look untouched to an upgrade (#55).** The onboarding
+manifest recorded a digest and an origin for every installed file, but nothing checked it after
+install, so a patched file kept its "copied" label and an upgrade could overwrite the patch in
+silence. A private project had 7 of 172 files drifted this way.
+
+**The drift check.** `.xezar/checks/manifest-drift.mjs` re-hashes every file the manifest lists and
+runs in `repository-checks.sh`, so every gate run fails on a file changed with no record. It prints
+`drift-status=pass|fail|not-applicable` and one `drift=<path> origin=<origin> reason=<reason>` line
+per problem. For a file the owner already had with a kit block appended, only that block is
+hashed. A manifest written before 3.1.0 (no `manifestVersion`) is not enforced: the check says so
+and passes.
+
+**The local-patch register.** A deliberate change is recorded in `.xezar/LOCAL-PATCHES.md` – one
+`## LP-<n> – <title>` entry per patch with `Files`, `Reason`, `Upstream`, `Since` and `Confirmed` –
+and the manifest entry gains `"patch": "LP-<n>"`. The check fails on a patch with no entry, on an
+entry with no matching manifest patch, and on an entry marked `Confirmed: no` until the owner
+confirms it. The format and the list of tracked files are in `.xezar/docs/local-patches.md`.
+
+**Onboarding writes manifest version 2** (`manifestVersion`, `version`, `files` with `sha256`,
+`origin`, `kitSource`, `kitBlob` and `renderInputs`) and checks it passes before the setup commit;
+`--verify` reads the check back. `xez-add-rule` refreshes the leader guide's recorded digest in the
+same commit as a new rule, because an owner rule is owner content, not a local patch.
+
+**The upgrade tool's engine.** The scripts the 3.1.0 upgrade prompt runs from a verified clone of
+this repository, against one project at a time. None of them is installed into a project.
+
+- **A kit index for every version since 1.2.0** (`upgrade/kit-index/`): each release tag, plus a
+  pseudo-version `<last tag>+<sha12>` for every other commit that changed the kit, because
+  projects were installed from the default branch. Each version maps every installed path to its
+  kit source, blob sha, sha256 and rewrite class, using that version's own copy table
+  (`upgrade/tools/lib/copy-map.mjs`). Built by `scripts/build-kit-index.mjs`, committed.
+- **Per-file base finding with a confidence** (`upgrade/tools/detect.mjs`): a file byte-equal to a
+  kit version, the manifest's recorded digest, the file after masking placeholders and absolute
+  paths, or the smallest line diff – high, medium, low, or unknown. A project that applied part of
+  an old upgrade by hand gets the right base for each file.
+- **A plan by class** (`upgrade/tools/plan.mjs`): unchanged, clean update, local only, already
+  upstream, both changed, base unknown, moved in the kit, routing before 3.0, unexplained local
+  change, new, removed, owner-shaped, per-machine and refused, with the stop-and-ask items
+  (unexplained change to a safety file, a permission change, a weakened safety check, an unsafe
+  path) and the upgrade-entry actions for the project's version range. It names config and
+  placeholder keys, never values.
+- **A mechanical applier** (`upgrade/tools/apply.mjs`): writes clean updates and new files,
+  deletes unchanged files the kit removed, and stages `git merge-file --zdiff3` results for Claude.
+  It checks every path before any write (repo-relative, no symlink on the way, inside the project,
+  in the copy map, not ignored, unchanged since the plan), refuses the whole run on one bad path,
+  and changes nothing when run twice.
+- **A verifier** (`upgrade/tools/verify.mjs`): no conflict marker, JSON and TOML still parse, no
+  config key lost or owner value changed, the leader guide's owner rules byte-equal, the register
+  bound to real files, and the refusing lines a new kit version added still present; then it
+  writes manifest v2 and runs the target kit's drift, catalog, route and repository checks.
+- **A new gate, `node scripts/test-upgrade.mjs`**, over committed synthetic installs of 1.2.0,
+  2.1.1, 3.0.0, 3.0.3 and one untagged commit (`scripts/fixtures/upgrade/`, built by
+  `scripts/build-upgrade-fixtures.mjs`), a customised install, and the plan's hard cases.
+
+**An upgrade prompt for kit projects.** `upgrade/UPGRADE-PROMPT.md` is a Claude Code prompt the
+owner pastes into a live project to bring its kit to the new release. It verifies the release
+before running any helper script, plans per file with a three-way merge, keeps every local
+change (recording unexplained ones as `Confirmed: no` register entries), stops to ask on safety
+and permission changes, works on a local branch `xezar/upgrade-<version>`, and writes a report
+with the owner checklist and rollback. It never pushes or opens a pull request.
+`upgrade/README.md` says how to run it and what it never does.
+
+**Routing sends much more work to DeepSeek, and DeepSeek V4 Pro reviews when Claude has no budget
+(#89).** With several projects running, the Claude and Codex quotas ran out fast, Claude first. The
+shipped routing table gains the lane `pi/deepseek-api/deepseek-v4-pro` (strong, no image input) and
+divides more work between it and `pi/deepseek-api/deepseek-flash`:
+
+- Flash is first in the simple rows (mechanical docs, bounded bug fixes, merge chains, dependency
+  maintenance), with V4 Pro second.
+- V4 Pro is first in the mid-size writing rows (docs writing, unit and integration tests,
+  observability, hotfix, one-finding review answers), with Flash second, then Codex, then Claude.
+- V4 Pro comes after the Codex lanes in the Opus-first rows (design, architecture, specs, research,
+  large implementation, refactor, migration) and in the other rows that list Codex.
+- V4 Pro is in no screen row, because it cannot see images; Flash is the no-Claude fallback there.
+- Localisation, which checks screens, takes Flash first and no V4 Pro; the design-system row is
+  unchanged.
+- V4 Pro is last in every review row that is not a screen row – re-checks, cold reviews,
+  acceptance, architecture and security review – the fallback when Claude has no budget. It never
+  reviews DeepSeek work: work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
+  `codex/gpt-6-astra`.
+
+Three routing bans relax, and the owner accepted the risk in `SECURITY.md` and `DECISIONS.md`: a
+V4 Pro review runs with a full shell, because pi's read-only lock is not proven live yet.
+- `tool-limits` lets a lane marked with the new optional `fullShellReviews` key judge in a review
+  row or a security row that only reads. `route.mjs --check` refuses the mark on a cheap, local or
+  advisory-only lane.
+- `pi-write-claude-review` lets `codex/gpt-6-astra` clear pi-written work.
+- `high-risk-other-vendor` lets V4 Pro review a risk-high change when no Claude lane has budget.
+
+Off switch: remove the model from a machine's pi config; the lane cache marks the lane unavailable
+and `route.mjs` drops it on that machine.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
