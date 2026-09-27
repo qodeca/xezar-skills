@@ -1,0 +1,31 @@
+{
+  "name": "config-no-default",
+  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys; one of them (changelog.format) has no documented default in config-fields.md (P7).",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "validation",
+          "commands"
+        ],
+        "value": [
+          "make lint",
+          "make test",
+          "make e2e"
+        ]
+      }
+    },
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "qa",
+          "enabled"
+        ],
+        "value": false
+      }
+    }
+  ]
+}

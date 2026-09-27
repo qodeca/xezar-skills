@@ -1,0 +1,11 @@
+{
+  "name": "unexplained-edit",
+  "situation": "Unexplained edit (D11): the owner added a checklist line to the pull-request template (not a safety file) and never registered it.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".github/pull_request_template.md",
+      "append": "- [ ] Screenshots attached for any UI change\n"
+    }
+  ]
+}

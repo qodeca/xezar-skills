@@ -1,0 +1,15 @@
+{
+  "name": "trust-boundary-patch",
+  "situation": "Both changed, overlapping: the owner patched the kit's trust-boundary list to add the project's deploy folder, right next to the lines 3.1.0 removes; 3.1.0 also adds a config key (security.trustBoundaries) meant for exactly this. Registered and confirmed.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/checks/lib/security-scan.mjs",
+      "replace": {
+        "find": "  { pattern: /^\\.github\\/workflows\\//,",
+        "with": "  { pattern: /^deploy\\//, why: \"the deploy scripts our CI runs with production credentials\" },\n  { pattern: /^\\.github\\/workflows\\//,"
+      }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – deploy/ is a trust boundary\n- Files: .xezar/checks/lib/security-scan.mjs\n- Reason: deploy/ runs with production credentials and must always get a security reviewer\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n"
+}
