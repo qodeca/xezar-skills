@@ -32,6 +32,7 @@
     "test:deps-units": "node scripts/test-deps-units.mjs",
     "test:compat-pins": "node scripts/test-compat-pins.mjs",
     "check:allowlists": "node scripts/check-allowlists.mjs",
+    "test:upgrade": "node scripts/test-upgrade.mjs",
     "test:guards": "node scripts/test-guards.mjs",
     "test:discovery-contracts": "node scripts/test-discovery-contracts.mjs",
     "test:agent-browser-codex": "bash scripts/test-agent-browser-codex.sh",

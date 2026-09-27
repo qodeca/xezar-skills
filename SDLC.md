@@ -192,6 +192,7 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-deps-units.mjs`
 - `node scripts/test-compat-pins.mjs`
 - `node scripts/check-allowlists.mjs`
+- `node scripts/test-upgrade.mjs`
 - `node scripts/test-guards.mjs`
 - `npm run check:generic-instructions`
 - `npm run test:generic-instructions`
