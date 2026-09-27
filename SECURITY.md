@@ -78,11 +78,14 @@ operator did not intend.
   direction to be wrong in.
 - **One reviewer without a proven read-only lock is accepted and recorded rather than found:** the
   onboarding kit's shipped routing lets the DeepSeek lane `pi/deepseek-api/deepseek-v4-pro`
-  (marked `fullShellReviews`) review, re-check, run QA and acceptance, review architecture and
-  security, and review risk-high changes when Claude has no budget – DeepSeek work included, on
-  security and release rows too, as long as another model wrote it. The pi runner applies a
-  reading step's command list through an extension whose lock is not yet proven live
-  (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
+  (marked `fullShellReviews`) judge in these reading rows only: `scoped-recheck`,
+  `full-cold-review`, `acceptance-verification`, `architecture-review`, `security-review` and
+  `verify-strong-claim`. It may also be the other-vendor reviewer of a risk-high change when
+  Claude has no budget – DeepSeek work included, as long as another model wrote it. It is in no
+  screen or QA row (`browser-qa`: it has no image input) and not in the `release`, `deploy` or
+  `rollback` rows; a change that puts it in a reading row not listed here is not covered by
+  this entry. The pi runner applies a reading step's command list through an extension whose
+  lock is not yet proven live (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
   commit or push. The review-and-QA protection still applies – a verdict or an own label is refused
   when the reviewed tree changed. The owner accepted it (#89), and `DECISIONS.md` → "Reviews fall
   to DeepSeek when Claude has no budget" states what it gives away. A second full-shell reviewer, a
