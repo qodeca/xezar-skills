@@ -1332,6 +1332,38 @@ breaks(
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start
+// U1 (#55): the manifest drift check and its place in the gate.
+breaks(
+  "a drift check that no longer compares digests is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("else if (seen.sha256 !== entry.sha256)", "else if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a silent edit exits 0, not 1",
+);
+
+breaks(
+  "a drift check that accepts an unconfirmed register entry is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("} else if (!lp.confirmed) {", "} else if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a patch with Confirmed: no exits 0, not 1",
+);
+
+breaks(
+  "a drift check that ignores register entries with no manifest patch is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("if (!entry || entry.patch !== id)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a register entry with no manifest patch exits 0, not 1",
+);
+
+breaks(
+  "a gate that no longer runs the drift check is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT"\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "no longer runs manifest-drift.mjs",
+);
 // 3.1.0-stream-U:end
 
 // --- the tree is left exactly as it was found --------------------------------

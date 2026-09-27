@@ -520,8 +520,33 @@ to carry — do not invent one, and do not tell the owner to run one.
   `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
   teammate cloning the repository gets the first and not the second, and a future migration
   reads both when present and degrades honestly when the local half is absent.
-- The drift check, which compares the installed setup against the current one and **reports**.
-  It never auto-updates: a file installed into a consumer repository never updates itself.
+
+  **The committed half is manifest version 2** — the shape and rules are the upgrade contract's,
+  and `.xezar/docs/local-patches.md` says which files it tracks. Write it **last**, after the
+  formatter run above, because every digest is of the file as committed:
+  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.1.0`),
+    or `<last release>+<12-character commit>` for an install between releases, or `unknown` when
+    the install names neither; the `kitBlob` values below still identify the kit exactly. `date`
+    and `descriptors` as above.
+  - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
+    file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
+    file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`,
+    `.xezar/docs/leader-guide.md`, `.xezar/routing.json`, and any file whose absolute path was
+    rewritten. `generated` — no kit source: the two `config.json` files and `labels.json`.
+    `owner-file-appended` — a file the project already had, with one block appended between
+    `<!-- xezar:kit:start -->` and `<!-- xezar:kit:end -->`; its `sha256` covers only that block,
+    both markers included.
+  - For `copied` and `adapted`: `kitSource`, the path under `kit/`, and `kitBlob`, the output of
+    `git hash-object` on that kit file. For `adapted`: `renderInputs`, every value a rewrite used,
+    as plain text under the placeholder's name (a generated array as its lines). Never a secret,
+    a token or an account name — those belong in the gitignored half. Leave `renderInputs` out
+    when the edits are not named values, as the routing screens' edits are not.
+  - No `patch` key: a fresh setup has no local patches, and no `.xezar/LOCAL-PATCHES.md`.
+- **The drift check passes before the commit.** `node .xezar/checks/manifest-drift.mjs` prints
+  `drift-status=pass` on the tree about to be committed; `repository-checks.sh` runs it at every
+  gate from then on. A `drift=` line here means a file changed after its digest was taken — hash
+  it again, never edit the check. It only **reports**: a file installed into a consumer repository
+  never updates itself.
 
 ## 6. Commit, open the pull request, and offer the merge
 

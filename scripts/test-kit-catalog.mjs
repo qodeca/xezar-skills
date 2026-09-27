@@ -804,6 +804,102 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start
+// --- U1 (#55). The manifest drift check, RUN on throwaway projects -----------------------------
+// A fresh setup passes; a silent edit fails; a recorded and confirmed patch passes; `Confirmed: no`
+// fails; a patch with no register entry fails; a register entry with no manifest patch fails;
+// only the kit block of an owner file is hashed; a version-1 manifest is not enforced; a file that
+// cannot be parsed exits 2; and the register example in the kit's own format document parses.
+{
+  const { createHash } = await import("node:crypto");
+  const sha = (text) => createHash("sha256").update(text).digest("hex");
+  const DRIFT = join(KIT, "checks/manifest-drift.mjs");
+  const lab = mkdtempSync(join(tmpdir(), "kit-drift-"));
+  const drift = (dir) => {
+    try {
+      return { code: 0, out: execFileSync("node", [DRIFT, dir], { encoding: "utf8", stdio: "pipe" }) };
+    } catch (error) {
+      return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+  };
+  const COPIED = "copied check\n";
+  const OWNER = "# Owner's notes\n\n<!-- xezar:kit:start -->\nkit block\n<!-- xezar:kit:end -->\n";
+  const BLOCK = "<!-- xezar:kit:start -->\nkit block\n<!-- xezar:kit:end -->";
+  const entry = (text, origin, extra = {}) => ({ sha256: sha(text), origin, ...extra });
+  const project = (name, { manifest, register, tree = {} } = {}) => {
+    const dir = join(lab, name);
+    const write = (p, text) => {
+      mkdirSync(dirname(join(dir, p)), { recursive: true });
+      writeFileSync(join(dir, p), text);
+    };
+    write(".xezar/checks/x.sh", COPIED);
+    write("AGENTS.md", OWNER);
+    for (const [p, text] of Object.entries(tree)) write(p, text);
+    if (manifest !== undefined) write(".xezar/onboarding.json", typeof manifest === "string" ? manifest : JSON.stringify(manifest));
+    if (register !== undefined) write(".xezar/LOCAL-PATCHES.md", register);
+    return dir;
+  };
+  const v2 = (files) => ({
+    manifestVersion: 2,
+    version: "3.1.0",
+    files: {
+      ".xezar/checks/x.sh": entry(COPIED, "copied", { kitSource: "checks/x.sh", kitBlob: "0".repeat(40) }),
+      "AGENTS.md": entry(BLOCK, "owner-file-appended"),
+      ...files,
+    },
+  });
+  const lp = (confirmed, files = ".xezar/checks/x.sh") =>
+    `# Local patches\n\n## LP-1 – keep the local check\n- Files: ${files}\n- Reason: a test\n- Upstream: local only\n- Since: 2026-09-27\n- Confirmed: ${confirmed}\n`;
+  const expect = (label, dir, code, lines) => {
+    const result = drift(dir);
+    if (result.code !== code) fail(`manifest-drift: ${label} exits ${result.code}, not ${code}:\n${result.out}`);
+    for (const line of lines)
+      if (!result.out.split("\n").includes(line)) fail(`manifest-drift: ${label} does not print "${line}":\n${result.out}`);
+  };
+  try {
+    expect("a project with no manifest", project("none"), 0, ["drift-status=not-applicable"]);
+    expect("a version-1 manifest with drift", project("v1", { manifest: { version: "3.0.3", files: { ".xezar/checks/x.sh": { sha256: "1".repeat(64), origin: "copied" } } } }), 0, ["drift-status=not-applicable"]);
+    expect("a fresh setup", project("fresh", { manifest: v2({ ".xezar/config.json": entry("{}\n", "generated") }), tree: { ".xezar/config.json": "{}\n" } }), 0, ["drift-status=pass"]);
+    expect("a silent edit", project("silent", { manifest: v2(), tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift-status=fail", "drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    expect("a deleted file", project("deleted", { manifest: v2({ ".xezar/gone.md": entry("x", "copied") }) }), 1, ["drift=.xezar/gone.md origin=copied reason=missing"]);
+    const patched = v2();
+    patched.files[".xezar/checks/x.sh"].patch = "LP-1";
+    expect("a recorded, confirmed patch", project("recorded", { manifest: patched, register: lp("yes"), tree: { ".xezar/checks/x.sh": "patched\n" } }), 0, ["drift-status=pass"]);
+    expect("a patch with Confirmed: no", project("unconfirmed", { manifest: patched, register: lp("no"), tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unconfirmed-patch"]);
+    expect("a patch with no register", project("unregistered", { manifest: patched, tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unregistered-patch"]);
+    expect("a patch whose entry does not list the file", project("unlisted", { manifest: patched, register: lp("yes", ".xezar/other.sh") }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unregistered-patch", "drift=.xezar/other.sh origin=none reason=register-without-manifest"]);
+    expect("a register entry with no manifest patch", project("orphan", { manifest: v2(), register: lp("yes") }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=register-without-manifest"]);
+    expect("an owner edit outside the kit block", project("owner-outside", { manifest: v2(), tree: { "AGENTS.md": OWNER.replace("# Owner's notes", "# Owner's notes, edited") } }), 0, ["drift-status=pass"]);
+    expect("an edit inside the kit block", project("owner-inside", { manifest: v2(), tree: { "AGENTS.md": OWNER.replace("kit block", "kit block, edited") } }), 1, ["drift=AGENTS.md origin=owner-file-appended reason=hash-mismatch"]);
+    const outside = join(lab, "outside.sh");
+    writeFileSync(outside, COPIED);
+    const linked = project("linked", { manifest: v2() });
+    rmSync(join(linked, ".xezar/checks/x.sh"));
+    symlinkSync(outside, join(linked, ".xezar/checks/x.sh"));
+    expect("a tracked file replaced by a link", linked, 1, ["drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    expect("a manifest that is not JSON", project("broken", { manifest: "{" }), 2, []);
+    expect("a manifest path that climbs out", project("climb", { manifest: v2({ "../x": entry("x", "copied") }) }), 2, []);
+    expect("an unknown origin", project("origin", { manifest: v2({ ".xezar/y": entry("x", "patched") }), tree: { ".xezar/y": "x" } }), 2, []);
+    expect("a register id used twice", project("twice", { manifest: patched, register: lp("yes") + lp("yes").replace("# Local patches\n", "") }), 2, []);
+    expect("a register entry missing a field", project("field", { manifest: patched, register: lp("yes").replace("- Since: 2026-09-27\n", "") }), 2, []);
+    // The kit's own format document: its example entry must be one this check accepts.
+    const doc = readFileSync(join(KIT, "docs/local-patches.md"), "utf8");
+    const example = /```markdown\n([\s\S]*?)```/.exec(doc);
+    if (!example) fail("kit/docs/local-patches.md has no ```markdown register example");
+    else {
+      const files = /^- Files: (.+)$/m.exec(example[1])[1].split(",").map((p) => p.trim());
+      const id = /^## (LP-[0-9]+)/m.exec(example[1])[1];
+      const m = { manifestVersion: 2, version: "3.1.0", files: {} };
+      const tree = {};
+      for (const p of files) {
+        m.files[p] = { ...entry("x", "copied"), patch: id };
+        tree[p] = "patched";
+      }
+      expect("the register example in kit/docs/local-patches.md", project("doc-example", { manifest: m, register: example[1], tree }), 0, ["drift-status=pass"]);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
 // 3.1.0-stream-U:end
 
 if (problems) {

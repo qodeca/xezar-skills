@@ -17,6 +17,9 @@ bash "$SCRIPT_DIR/local-tree.sh"
 
 node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 
+# Installed files still match `.xezar/onboarding.json`, or their change is in `.xezar/LOCAL-PATCHES.md`.
+node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT"
+
 # The routing file is checked as the working tree holds it, so a pull request that breaks it fails.
 if [ -f "$REPO_ROOT/.xezar/routing.json" ]; then
   node "$SCRIPT_DIR/route.mjs" --check "$REPO_ROOT/.xezar/routing.json"
