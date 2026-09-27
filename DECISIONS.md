@@ -1256,7 +1256,8 @@ Three bans relax, each as far as that needs and no further:
 - **`pi-write-claude-review`.** It gave pi-written work a Claude review before merge, so a model of
   another vendor always read it. That work may now be cleared by `codex/gpt-6-astra` when Sonnet
   has none. Given away: the guarantee that a Claude model read every pi-written change. A DeepSeek
-  lane still never clears DeepSeek work, because `never-author` bans the author's vendor.
+  lane may review DeepSeek work another model wrote (see the next entry), but that review alone
+  still does not clear the merge.
 - **`high-risk-other-vendor`.** It asked for a reviewer of another vendor than the author's, and with
   `tool-limits` that meant a Claude lane or Astra. When no Claude lane has budget, V4 Pro may now be
   that reviewer of a risk-high change. Given away: the other-vendor review of risk-high work may
@@ -1272,6 +1273,18 @@ The off switch is per machine: remove the model from that machine's pi config. T
 cache, written from `list_models`, then marks the lane unavailable and `route.mjs` drops it, so
 work falls back in row order – the same path a DeepSeek outage takes. There is no DeepSeek spend
 limit; step time limits (#52) stop a runaway task. `SECURITY.md` records the accepted risk.
+
+## A same-vendor reviewer is allowed on every row
+
+Owner decision (3.1.0 confirmations, #50, #89). Independence means a different model: `route.mjs
+--author` removes every lane that shares a model with the author chain, on every row, and removes
+lanes of the author's vendor only where `vendorExclusions` names that vendor (shipped: `anthropic`,
+because Claude declines to review Claude's work). Before, it also removed every same-vendor lane on
+security and release rows, and the docs said `never-author` banned the author's vendor. Now, when
+DeepSeek Flash wrote the work and Claude has no budget, DeepSeek V4 Pro may review it on every
+review row, security and release included. Given away: on those rows the second reader may share
+the author's vendor, its training and its blind spots. The off switch is data: name the vendor in
+`vendorExclusions`.
 
 ## A widening rule in local settings warns
 

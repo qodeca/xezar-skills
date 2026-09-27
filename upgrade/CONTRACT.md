@@ -85,7 +85,9 @@ JSON Schema (loose on purpose):
 Rules:
 
 - **`version` is the only version fact.** It is the kit version from the kit index (§3). An
-  install from an untagged commit uses a pseudo-version, `<last tag>+<sha12>`.
+  install from an untagged commit uses a pseudo-version, `<last tag>+<sha12>`. A writer never
+  writes `unknown`: onboarding stops when it can name neither. A reader still accepts an older
+  manifest that says `unknown` and treats it as no version, so every upgrade entry applies.
 - **`origin` is set at install time and never changes.**
   - `copied` – byte-identical to the kit file.
   - `adapted` – the kit file after copy-time rewrites; `renderInputs` holds every value a rewrite

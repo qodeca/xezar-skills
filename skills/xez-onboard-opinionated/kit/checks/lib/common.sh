@@ -581,7 +581,10 @@ deps_fingerprint() {
 }
 
 # Lives inside node_modules on purpose: wiping node_modules must also invalidate the
-# claim that node_modules is current.
+# claim that node_modules is current. Two lines: the input fingerprint, then
+# `contents=<digest>`, the #53 metadata digest of what is in node_modules (the stamp
+# itself left out), so a package folder swapped or a file edited after the install is
+# stale too. A stamp without the second line (written before 3.1.0) is never fresh.
 deps_stamp_path() {
   printf '%s/node_modules/.xezar-deps-stamp' "$TASK_CWD"
 }
@@ -596,10 +599,15 @@ deps_are_fresh() {
     0) node "$DEPS_MJS" fresh --root "$TASK_CWD" 2>/dev/null; return ;;
     2) return 1 ;;
   esac
+  local fp digest
   stamp="$(deps_stamp_path)"
   [ -f "$stamp" ] || return 1
   [ -d "$TASK_CWD/node_modules" ] || return 1
-  [ "$(cat "$stamp" 2>/dev/null)" = "$(deps_fingerprint)" ] || return 1
+  fp="$(deps_fingerprint)"
+  # The cheap line first, so a stale input never pays for the walk.
+  [ "$(sed -n 1p "$stamp" 2>/dev/null)" = "$fp" ] || return 1
+  digest="$(node "$DEPS_MJS" single-contents --root "$TASK_CWD" 2>/dev/null)" || return 1
+  [ "$(cat "$stamp" 2>/dev/null)" = "$(printf '%s\ncontents=%s' "$fp" "$digest")" ] || return 1
   deps_resolve_in_task 2>/dev/null
 }
 
@@ -681,8 +689,15 @@ write_deps_stamp() {
     0) node "$DEPS_MJS" stamp --root "$TASK_CWD"; return ;;
     2) return 1 ;;
   esac
+  local fp digest
   mkdir -p "$TASK_CWD/node_modules" || return 1
-  deps_fingerprint > "$(deps_stamp_path)"
+  fp="$(deps_fingerprint)" || return 1
+  # A tree with no digest is stamped as such, and deps_are_fresh never accepts that stamp.
+  if ! digest="$(node "$DEPS_MJS" single-contents --root "$TASK_CWD")"; then
+    printf 'deps: stamped as not fresh, so the next run installs again\n' >&2
+    digest=unavailable
+  fi
+  printf '%s\ncontents=%s\n' "$fp" "$digest" > "$(deps_stamp_path)"
 }
 
 # --- Gate evidence --------------------------------------------------------------------

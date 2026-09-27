@@ -2020,6 +2020,51 @@ breaks(
 );
 // 3.1.0-stream-R:end
 
+// 3.1.0-stream-OC:start
+// The owner's 3.1.0 confirmations. (1) A same-vendor reviewer on another model is allowed on every
+// row, security and release included, unless vendorExclusions names the vendor. (2) A single npm
+// root's stamp carries the #53 tree digest. (3) Onboarding never writes `version: "unknown"`.
+breaks(
+  "route that removes a same-vendor lane on a security row again is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (file.lanes[cid].vendor === lane.vendor && excluded.has(lane.vendor))", "if (file.lanes[cid].vendor === lane.vendor && (isSecurityRow(rowById, row) || excluded.has(lane.vendor)))"),
+  () => script("test-kit-catalog.mjs"),
+  "a same-vendor lane on another model is allowed on a security row",
+);
+
+breaks(
+  "the neverAuthor description that bans the author's vendor again is rejected",
+  "skills/xez-onboard-opinionated/kit/routing.schema.json",
+  (s) => s.replace("The lane, model and login that wrote or repaired the work are banned, on every row; its vendor is banned only where vendorExclusions names it. Checked at dispatch.", "The lane, login and vendor that wrote the work are banned; checked at dispatch."),
+  () => script("test-kit-facts.mjs"),
+  "neverAuthor does not say the author's model is banned",
+);
+
+breaks(
+  "a single-root freshness check that ignores the tree digest is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(`  [ "$(cat "$stamp" 2>/dev/null)" = "$(printf '%s\\ncontents=%s' "$fp" "$digest")" ] || return 1\n`, ""),
+  depsOnly53,
+  "single root stale: one package folder replaced inside node_modules",
+);
+
+breaks(
+  "a single-root digest that counts its own stamp file is rejected",
+  DEPS_MJS,
+  (s) => s.replace("      if (!rel && name === skipTop) continue;\n", ""),
+  depsOnly53,
+  "single root digest: installed and stamped is fresh",
+);
+
+breaks(
+  "onboarding that writes version unknown again is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("for an install between releases – never `unknown`:", "for an install between releases, or `unknown` when the install names neither:"),
+  () => script("test-kit-facts.mjs"),
+  "still allows version",
+);
+// 3.1.0-stream-OC:end
+
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:
 // a contributor runs this with their own work in progress, and their uncommitted edits

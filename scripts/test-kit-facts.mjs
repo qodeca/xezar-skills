@@ -1331,8 +1331,8 @@ function walk(rel, match) {
   const need = [
     ["no-self-review", /^A review, re-check or QA runs on a different model from the one that wrote the work\.$/, "is no longer word for word the ban #89 keeps"],
     ["local-never-writes", /^A lane with local: true is in no row with writes: true\.$/, "is no longer word for word the ban #89 keeps"],
-    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. A DeepSeek lane never clears DeepSeek work: never-author bans the author's vendor\.$/, "is relaxed further than #89 decided (Sonnet first, then Astra, never a DeepSeek lane on DeepSeek work)"],
-    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
+    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
+    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
     ["tool-limits", /^A lane with enforcesToolLimits: false is in no reading row \(writes: false and not runsCode\) and in no security-and-release row\. One exception: a lane with fullShellReviews: true may be in a review row, or a security row that only reads\.$/, "is relaxed further than #89 decided (fullShellReviews, review rows and security rows that only read)"],
   ];
   for (const [id, re, detail] of need) if (!re.test(rule(id))) fail(fact, "kit/routing.json", `ban ${id} ${detail}`);
@@ -1357,6 +1357,38 @@ function walk(rel, match) {
   checked.push(fact);
 }
 // 3.1.0-stream-R:end
+
+// 3.1.0-stream-OC:start
+// ---------------------------------------------------------------------------
+// FACT OC1 (owner confirmations for 3.1.0) -- two owner decisions, said the same way everywhere.
+// (1) Independence is a different MODEL: route.mjs removes the author chain's models on every row
+// and a vendor only through vendorExclusions, security and release rows included; the schema, the
+// routing doc, the ban texts and DECISIONS.md all say so, and none still says never-author bans the
+// author's vendor. (2) Onboarding never writes `version: "unknown"`: write.md stops instead.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT OC1: same-vendor reviewers are allowed on every row outside vendorExclusions, and onboarding never writes an unknown version";
+  const route = read(`${SKILL}/kit/checks/route.mjs`);
+  if (!/if \(file\.lanes\[cid\]\.vendor === lane\.vendor && excluded\.has\(lane\.vendor\)\) return `author-chain: shared vendor with \$\{cid\}`;/.test(route))
+    fail(fact, "kit/checks/route.mjs", "the author chain removes a same-vendor lane for a reason other than vendorExclusions (the owner allowed a same-vendor reviewer on every row, security and release included)");
+  const schema = JSON.parse(read(`${SKILL}/kit/routing.schema.json`));
+  const neverAuthor = JSON.stringify(schema).match(/"neverAuthor":\{"description":"([^"]*)"/)?.[1] ?? "";
+  if (!/model/.test(neverAuthor) || !/vendor is banned only where vendorExclusions names it/.test(neverAuthor))
+    fail(fact, "kit/routing.schema.json", `neverAuthor does not say the author's model is banned and its vendor only through vendorExclusions: "${neverAuthor}"`);
+  const doc = read(`${SKILL}/kit/docs/routing.md`);
+  if (!/Any other lane of the author's vendor stays, on every row – security and release rows included/.test(doc))
+    fail(fact, "kit/docs/routing.md", "does not say a same-vendor lane on another model stays on every row, security and release rows included");
+  for (const [file, text] of [["kit/docs/routing.md", doc], ["kit/routing.json", read(`${SKILL}/kit/routing.json`)], ["kit/routing.schema.json", read(`${SKILL}/kit/routing.schema.json`)], ["DECISIONS.md", read("DECISIONS.md")]]) {
+    if (/bans the author's vendor|shares a vendor with anyone in the chain, on a security or release row|lane, login and vendor that wrote the work are banned/.test(text))
+      fail(fact, file, "still says never-author bans the author's vendor, which the owner reversed");
+  }
+  if (!/^## A same-vendor reviewer is allowed on every row$/m.test(read("DECISIONS.md"))) fail(fact, "DECISIONS.md", "has no entry recording the owner's same-vendor decision");
+  const write = read(`${SKILL}/references/write.md`);
+  if (/or `unknown` when/.test(write) || !/When the install names \*\*neither\*\*[\s\S]{0,120}\*\*stop\*\*: write nothing/.test(write) || !/Never write `unknown`/.test(write))
+    fail(fact, "references/write.md", "does not stop when the kit version cannot be told, or still allows version \"unknown\" in the manifest");
+  checked.push(fact);
+}
+// 3.1.0-stream-OC:end
 
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);

@@ -4,9 +4,9 @@
 
 **`route.mjs` takes the author chain and lists only lanes independent of it (#50).**
 `node .xezar/checks/route.mjs <row> --author <lane> [--repair <lane>]…` removes every lane that
-shares a model (`engineModel`) with anyone in the chain, every lane that shares a vendor with it on
-a security or release row, and every lane of a vendor that the new optional `vendorExclusions`
-key in `.xezar/routing.json` names. Each removal prints `removed=<lane> reason=author-chain:
+shares a model (`engineModel`) with anyone in the chain, on every row, and every lane of a vendor
+that the new optional `vendorExclusions` key in `.xezar/routing.json` names. Any other lane of the
+author's vendor stays, security and release rows included. Each removal prints `removed=<lane> reason=author-chain:
 shared model|shared vendor with <lane>`. An escalation lane that passes every ban and the chain is
 printed in the order as `lane=` followed by `escalation-eligible=<id>`, so the leader takes it
 without parking the choice; when nothing is left the answer is `wait=no-independent-lane`. An

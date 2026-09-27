@@ -225,6 +225,42 @@ try {
     expect("resume: a freshness check that cannot finish re-runs the gates, never reuses (#53)", unknown.code === 2 && unknown.out.includes("would re-run"), unknown.out + unknown.err);
   }
 
+  // #53 on a single npm root (owner decision, 3.1.0): the stamp inside node_modules carries the same
+  // tree digest, so a package changed after install is stale there too, and a stamp an older kit
+  // wrote (the fingerprint alone) reads as not fresh, never as fresh.
+  {
+    const r = repo({
+      config: { validation: { commands: ["npm ci", "npm test"] } },
+      files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n' },
+    });
+    const nm = join(r, "node_modules");
+    write(join(nm, "left-pad/package.json"), '{"name":"left-pad"}\n');
+    write(join(nm, "left-pad/index.js"), "module.exports = 1;\n");
+    const fresh = () => sh(r, "deps_are_fresh").code;
+    const restamp = () => sh(r, "write_deps_stamp").code === 0 && fresh() === 0;
+    expect("single root digest: installed and stamped is fresh", restamp());
+    const stampFile = join(nm, ".xezar-deps-stamp");
+    const lines = readFileSync(stampFile, "utf8").split("\n");
+    expect("single root digest: the stamp is the fingerprint, then contents=<digest>", lines.length === 3 && /^[0-9a-f]{64}$/.test(lines[0]) && /^contents=[0-9a-f]{64}$/.test(lines[1]) && lines[2] === "", JSON.stringify(lines));
+    rmSync(join(nm, "left-pad"), { recursive: true });
+    write(join(nm, "left-pad/package.json"), '{"name":"left-pad"}\n');
+    write(join(nm, "left-pad/index.js"), "module.exports = 1;\n");
+    expect("single root stale: one package folder replaced inside node_modules (#53)", fresh() !== 0);
+    expect("single root digest: re-stamped, fresh again", restamp());
+    write(join(nm, "left-pad/index.js"), "module.exports = 2;\n");
+    expect("single root stale: a file edited in place, same size (#53)", fresh() !== 0);
+    expect("single root digest: re-stamped after the edit", restamp());
+    write(join(nm, ".vite/deps/chunk.js"), "x\n");
+    expect("single root digest: a build cache the gates write does not make the next run stale", fresh() === 0);
+    writeFileSync(stampFile, `${lines[0]}\n`);
+    expect("single root: a stamp an older kit wrote (fingerprint only) is not fresh, so the task reinstalls", fresh() !== 0);
+    expect("single root digest: a new stamp after the reinstall is fresh", restamp());
+    const slow = sh(r, "write_deps_stamp", { XEZ_DEPS_DIGEST_TIMEOUT_MS: "0" });
+    expect("single root digest: a stamp written when the digest timed out says so", slow.code === 0 && slow.err.includes("stamped as not fresh") && readFileSync(stampFile, "utf8").endsWith("contents=unavailable\n"), JSON.stringify(slow));
+    expect("single root refused: a stamp with no digest is never fresh, even once the digest is fast again", fresh() !== 0);
+    expect("single root digest: a normal stamp afterwards is fresh", restamp());
+  }
+
   // The guard suite breaks the #53 properties one at a time and needs only the block above.
   if (process.env.XEZ_DEPS_TEST_ONLY === "53") throw ONLY_53_DONE;
 
@@ -242,8 +278,12 @@ try {
     const want = sha(`${line("package-lock.json")}${line("package.json")}packageManager=npm@10.9.0\nnpm=10.9.0\nnode=${process.version}\n`);
     const fp = sh(r, "deps_fingerprint");
     expect("single root: deps_fingerprint is the old formula, byte for byte", fp.out === `${want}\n`, `got ${JSON.stringify(fp)} want ${want}`);
+    // The stamp's first line is still that fingerprint, byte for byte. Since 3.1.0 a second line
+    // follows, `contents=<digest>`: the #53 tree digest of node_modules, extended to the single
+    // root by owner decision. Here node_modules holds only the stamp, which the digest leaves out,
+    // so the digest is that of an empty tree: sha256 of nothing.
     const stamped = sh(r, "write_deps_stamp && deps_are_fresh && cat node_modules/.xezar-deps-stamp");
-    expect("single root: the stamp is still node_modules/.xezar-deps-stamp and makes the tree fresh", stamped.code === 0 && stamped.out === `${want}\n`, JSON.stringify(stamped));
+    expect("single root: the stamp is still node_modules/.xezar-deps-stamp, the old fingerprint then the tree digest, and makes the tree fresh", stamped.code === 0 && stamped.out === `${want}\ncontents=${sha("")}\n`, JSON.stringify(stamped));
     expect("single root: no unit stamp folder is created", !existsSync(join(r, ".local/xezar/cache/deps")));
     write(join(r, "package.json"), '{"name":"one","workspaces":["packages/*"]}\n');
     write(join(r, "packages/a/package.json"), '{"name":"a"}\n');
@@ -564,4 +604,4 @@ if (failures) {
   process.exit(1);
 }
 if (process.env.XEZ_DEPS_TEST_ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${asserts} assertions).`);
-else console.log(`Dependency units OK (${asserts} assertions: single root unchanged, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);
+else console.log(`Dependency units OK (${asserts} assertions: single root with its tree digest, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);

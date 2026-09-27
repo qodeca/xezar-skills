@@ -71,7 +71,8 @@ operator did not intend.
 - **One reviewer without a proven read-only lock is accepted and recorded rather than found:** the
   onboarding kit's shipped routing lets the DeepSeek lane `pi/deepseek-api/deepseek-v4-pro`
   (marked `fullShellReviews`) review, re-check, run QA and acceptance, review architecture and
-  security, and review risk-high changes when Claude has no budget. The pi runner applies a
+  security, and review risk-high changes when Claude has no budget – DeepSeek work included, on
+  security and release rows too, as long as another model wrote it. The pi runner applies a
   reading step's command list through an extension whose lock is not yet proven live
   (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
   commit or push. The review-and-QA protection still applies – a verdict or an own label is refused

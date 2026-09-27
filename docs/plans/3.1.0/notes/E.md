@@ -16,7 +16,8 @@ unknown freshness check re-runs the gates, which install first. Measured on a 19
 (three apps' `node_modules`, Apple M1 Max, Node 24, a heavily loaded machine): the stat walk
 alone takes 3–4.5 s, and `deps.mjs fresh` goes from about 0.9 s to about 5 s. The limit, stated in
 `.xezar/docs/worktrees.md`: anyone inside the task who can run `deps.mjs stamp` can re-stamp any
-tree, so the stamp is not a seal. A single npm root (no `dependencies.units`) is unchanged.
+tree, so the stamp is not a seal. A single npm root (no `dependencies.units`) gets the same
+digest; see the entry on single npm roots.
 
 ## Upgrade entry
 

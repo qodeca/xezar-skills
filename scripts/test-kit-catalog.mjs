@@ -856,7 +856,8 @@ for (const name of workflowFiles) {
     printed.push(...noCodex.split("\n").filter(Boolean));
     if (lanesOf(noCodex).length || !/^wait=no-independent-lane$/m.test(noCodex)) fail(`route full-cold-review for a Claude author with no codex program gave a lane instead of wait=no-independent-lane:\n${noCodex}`);
 
-    // A repair chain excludes every model in it, and every vendor in it on a security row.
+    // A repair chain excludes every model in it on every row; a vendor only through vendorExclusions,
+    // security rows included (owner decision, 3.1.0 confirmations).
     const chain = ["claude/opus", "codex/gpt-6-sol"];
     const review = run(shipped, "acceptance-verification", "--author", chain[0], "--repair", chain[1]);
     const reviewLanes = lanesOf(review);
@@ -866,10 +867,10 @@ for (const name of workflowFiles) {
     writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
     const sec = execFileSync("node", [ROUTE, "--file", shipped, "security-review", "--author", "codex/gpt-6-sol", "--repair", "claude/sonnet"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
     printed.push(...sec.split("\n").filter(Boolean));
-    if (lanesOf(sec).some((id) => ["openai", "anthropic"].includes(vendorOf(id)))) fail(`route security-review keeps a lane of a vendor in the repair chain:\n${sec}`);
-    if (!/^wait=no-independent-lane$/m.test(sec)) fail(`route security-review with both vendors in the chain does not wait:\n${sec}`);
+    if (lanesOf(sec).some((id) => vendorOf(id) === "anthropic")) fail(`route security-review keeps a Claude lane although vendorExclusions names anthropic and the chain has a Claude lane:\n${sec}`);
+    if (!/^lane=codex\/gpt-6-astra /m.test(sec) || /^wait=/m.test(sec)) fail(`route security-review drops codex/gpt-6-astra for a chain with another OpenAI model; a same-vendor lane on another model is allowed on a security row:\n${sec}`);
     const secOne = run(shipped, "security-review", "--author", "codex/gpt-5.6-terra");
-    if (!/^removed=codex\/gpt-6-astra reason=author-chain: shared vendor with codex\/gpt-5\.6-terra$/m.test(secOne) || !/^lane=claude\/opus /m.test(secOne)) fail(`route security-review does not exclude the author's vendor on a security row:\n${secOne}`);
+    if (/^removed=codex\/gpt-6-astra reason=author-chain/m.test(secOne) || !/^lane=claude\/opus /m.test(secOne) || !/^lane=codex\/gpt-6-astra /m.test(secOne)) fail(`route security-review removes the author's vendor on a security row, which only vendorExclusions may do:\n${secOne}`);
 
     // The vendor exclusion is data: dropped, a Claude lane may review Claude's work again; extended, it bites.
     const off = structuredClone(routing);
@@ -1526,11 +1527,17 @@ for (const name of workflowFiles) {
     // Reviews: for a Claude author V4 Pro is the first independent lane, then Astra.
     const claudeAuthor = lanesOf(run("claude,codex,pi", "full-cold-review", "--author", "claude/opus"));
     if (claudeAuthor.join(",") !== `${P},codex/gpt-6-astra`) fail(`route full-cold-review --author claude/opus gave [${claudeAuthor}], expected ${P} then codex/gpt-6-astra`);
-    // For DeepSeek-written work Sonnet comes before Astra, and a security row drops V4 Pro (same vendor).
+    // For DeepSeek-written work Sonnet comes before Astra. V4 Pro, another DeepSeek model, stays on
+    // every review row it is listed in, security rows included (owner decision, 3.1.0 confirmations).
     const dsAuthor = lanesOf(run("claude,codex,pi", "scoped-recheck", "--author", F));
     if (dsAuthor[0] !== "claude/sonnet" || !dsAuthor.includes("codex/gpt-6-astra")) fail(`route scoped-recheck --author ${F} gave [${dsAuthor}], expected claude/sonnet first and codex/gpt-6-astra offered`);
-    const dsSecurity = run("claude,codex,pi", "security-review", "--author", F);
-    if (!new RegExp(`^removed=${esc} reason=author-chain: shared vendor with ${F.replace(/[/.]/g, "\\$&")}$`, "m").test(dsSecurity)) fail(`route security-review keeps ${P} for a DeepSeek author:\n${dsSecurity}`);
+    for (const row of copy.rows.filter((r) => r.lanes?.includes(P) && r.neverAuthor === true)) {
+      const out = run("claude,codex,pi", row.id, "--author", F);
+      if (!lanesOf(out).includes(P)) fail(`route ${row.id} --author ${F} drops ${P}; a same-vendor lane on another model may review on every row:\n${out}`);
+    }
+    // The author's own model is still removed, on a security row too.
+    const flashSelf = run("claude,codex,pi", "security-review", "--author", P);
+    if (lanesOf(flashSelf).includes(P) || !new RegExp(`^removed=${esc} reason=author-chain: shared model with ${esc}$`, "m").test(flashSelf)) fail(`route security-review --author ${P} keeps the author's own model:\n${flashSelf}`);
     // V4 Pro reviews in a security row when nothing of its vendor wrote the work.
     if (!lanesOf(run("claude,codex,pi", "security-review", "--author", "codex/gpt-6-sol")).includes(P)) fail(`route security-review does not offer ${P} for a Codex author`);
   } catch (error) {
