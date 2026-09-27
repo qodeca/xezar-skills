@@ -1323,6 +1323,47 @@ breaks(
 // 3.1.0-stream-E:end
 
 // 3.1.0-stream-F:start
+// #57: the changelog check and fold, broken one rule at a time; test-kit-catalog.mjs runs them
+// on throwaway repositories whose base branch is `develop`.
+breaks(
+  "changelog --diff-base auto falls back to main instead of the configured base",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-check.sh",
+  (s) => s.replace('branch_candidates="origin/$configured $configured"', 'branch_candidates="main"'),
+  () => script("test-kit-catalog.mjs"),
+  "a fragment-only branch is accepted against the configured base",
+);
+
+breaks(
+  "changelog check no longer sees a Keep a Changelog Unreleased section",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-check.sh",
+  (s) => s.replace("UNRELEASED_RE='^## \\[?Unreleased", "UNRELEASED_RE='^## \\[?Pending"),
+  () => script("test-kit-catalog.mjs"),
+  "a direct `## [Unreleased]` edit is refused",
+);
+
+breaks(
+  "changelog verify step no longer checks the fragment lines",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("if ((have.get(line) ?? 0) < files.length)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "the verify step catches a lost fragment entry",
+);
+
+breaks(
+  "changelog fold maps a house heading onto the wrong Keep a Changelog group",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("'## ✨ Features': 'Added',", "'## ✨ Features': 'Changed',"),
+  () => script("test-kit-catalog.mjs"),
+  "the keep-a-changelog fold wrote an unexpected file",
+);
+
+breaks(
+  "changelog format accepts an unknown changelog.format value",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("if (!FORMATS.includes(value)) {", "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "an unknown changelog.format is refused",
+);
 // 3.1.0-stream-F:end
 
 // 3.1.0-stream-G:start
