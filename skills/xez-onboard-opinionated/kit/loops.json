@@ -9,7 +9,7 @@
       "mechanism": "cron",
       "schedule": "*/10 * * * *",
       "mayDispatch": false,
-      "prompt": "Check whether anything is waiting on you: a task in a blocked or question state, a review verdict you have not acted on, a PR that is mergeable now, or a finished task whose result you have not read. Act on what you find, one item at a time. Never start new work here - that is the pacing loop's job alone. If work finished and there is ready work to follow it, wake the pacing loop now instead of waiting for its clock; keep at most one such wake pending, replacing any earlier one. If nothing is waiting, do nothing and say so."
+      "prompt": "Check whether anything is waiting on you: a task in a blocked or question state, a review verdict you have not acted on, a PR that is mergeable now, or a finished task whose result you have not read. Act on what you find, one item at a time. Never start new work here - that is the pacing loop's job alone; a leader turn outside the loops that dispatches at once counts as a pacing run, and this tick is never one. If work finished and there is ready work to follow it, wake the pacing loop now instead of waiting for its clock; keep at most one such wake pending, replacing any earlier one. If nothing is waiting, do nothing and say so."
     },
     {
       "id": "L2",

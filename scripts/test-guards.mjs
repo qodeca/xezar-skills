@@ -1352,6 +1352,39 @@ breaks(
   () => script("test-kit-catalog.mjs"),
   "still offers a Claude lane",
 );
+
+// #65: the leader guide's dispatch, quota and merge-queue rules (FACT B1).
+breaks(
+  "dispatch at once made a second dispatcher, not an L3 run, is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("that turn – never an L1 or L2 tick, which wakes L3 instead – counts as an L3 run", "any turn may dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "does not say that dispatching at once is an L3 run",
+);
+
+breaks(
+  "the read-quota item dropped from the checklist is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("- [ ] Quota read from `read_quota` before this dispatch; every login verified", "- [ ] Every login verified before dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "checklist has no",
+);
+
+breaks(
+  "an L1 prompt that lets its own tick dispatch at once is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace("counts as a pacing run, and this tick is never one.", "counts as a pacing run."),
+  () => script("test-kit-facts.mjs"),
+  "L1's prompt does not say",
+);
+
+breaks(
+  "close-out that loses the merge-queue path is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => s.replace("`gh pr merge <number> --auto`", "update the branch and merge"),
+  () => script("test-kit-facts.mjs"),
+  "does not describe both merge paths",
+);
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start
