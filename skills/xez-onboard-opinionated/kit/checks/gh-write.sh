@@ -32,9 +32,10 @@
 # and only when `head` is the PR's current head, this worktree reviewed exactly that head
 # (`review-run.sh checkout`), and its tracked files are unchanged (`review-run.sh verify-unchanged`).
 # The role is not the request's word: it must be the `verdictRole` the engine froze for THIS step
-# – the run's workflow definition in the engine's runs index (`.local/xezar/runtime/runs.json`),
-# found by the run id (this worktree's directory name) and XEZ_STEP_ID. A code, security,
-# architecture or acceptance step declares no such role, so it moves no approval label; anything
+# – the run's workflow definition in the engine's runs index (`.local/xezar/runs.json`, one JSON
+# array at the top of the engine's data directory), found by the run id (this worktree's directory
+# name) and XEZ_STEP_ID. A code-review step declares `code-review`, and security, architecture or
+# acceptance steps declare no qa or design-review role, so they move no approval label; anything
 # unreadable is refused. A gate label is lifted only together with its approval label, in the
 # same request: `remove:["needs-qa"]` without `add:["qa-approved"]` is refused.
 #
@@ -96,7 +97,7 @@ step_verdict_role() {
     const runs = Array.isArray(raw) ? raw : (raw.runs ?? []);
     const step = (runs.find((r) => r.id === id)?.workflowDef?.steps ?? []).find((s) => s.id === stepId);
     if (typeof step?.verdictRole === "string") process.stdout.write(step.verdictRole);
-  ' "$MAIN_ROOT/.local/xezar/runtime/runs.json" "$TASK_ID" "$XEZ_STEP_ID" 2>/dev/null
+  ' "$MAIN_ROOT/.local/xezar/runs.json" "$TASK_ID" "$XEZ_STEP_ID" 2>/dev/null
 }
 
 # owner/repo of `origin`, from an https or ssh GitHub URL. Anything else is refused: the target

@@ -1228,9 +1228,10 @@ after checking that head out, and only on an unchanged tree. The browser stays `
 Three bindings keep that honest (3.1.0 review):
 
 - **The role is the step's, not the request's.** `gh-write.sh` reads the step's `verdictRole` from
-  the run's frozen workflow definition in the engine's runs index (`.local/xezar/runtime/runs.json`,
-  by the worktree's run id and `XEZ_STEP_ID`) and refuses a verdict request for any other role. A
-  code, security, architecture or acceptance step declares none, so it moves no approval label; an
+  the run's frozen workflow definition in the engine's runs index (`.local/xezar/runs.json`, a
+  top-level array the engine owns, by the worktree's run id and `XEZ_STEP_ID`) and refuses a verdict
+  request for any other role. A code-review step declares `code-review`, and security, architecture
+  or acceptance steps declare no qa or design-review role, so they move no approval label; an
   unreadable index refuses. A gate label is lifted only together with its approval label.
 - **What the review starts gets no git or gh credentials.** The program-name list in
   `review-run.sh` is a courtesy – `node -e`, `make` or a test suite can start git all the same – so

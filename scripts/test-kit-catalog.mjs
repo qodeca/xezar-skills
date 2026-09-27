@@ -1093,11 +1093,13 @@ for (const name of workflowFiles) {
     git(repo, "worktree", "add", "--quiet", "--detach", wt, "main");
 
     // The engine's runs index: the run's frozen workflow definition, where gh-write.sh reads the
-    // step's verdictRole (a request's own role is never trusted).
-    const runsIndex = join(repo, ".local/xezar/runtime/runs.json");
+    // step's verdictRole (a request's own role is never trusted). Engine 0.19.0 writes it at the TOP
+    // of its data directory as one JSON array of runs (runs/store.ts, `join(dataDir, 'runs.json')`),
+    // and a run's id is its worktree's directory name.
+    const runsIndex = join(repo, ".local/xezar/runs.json");
     const declareRole = (verdictRole) => {
       mkdirSync(dirname(runsIndex), { recursive: true });
-      writeFileSync(runsIndex, JSON.stringify({ runs: [{ id: "run-1", workflow: "qa", workflowDef: { steps: [{ id: "review", ...(verdictRole ? { verdictRole } : {}) }] } }] }));
+      writeFileSync(runsIndex, JSON.stringify([{ id: "run-1", workflow: "qa", workflowDef: { steps: [{ id: "review", ...(verdictRole ? { verdictRole } : {}) }] } }]));
     };
     declareRole("qa");
 
@@ -1155,8 +1157,10 @@ for (const name of workflowFiles) {
     // The role is the step's, from the engine's runs index – never the request's word.
     if (verdictLabel(prHead, ["design-approved"], "design-review", ["needs-design"]).status !== 1 || ghLog() !== "")
       fail("gh-write.sh lets a qa step claim a design-review verdict");
+    declareRole("code-review");
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a code-review step grant qa-approved");
     declareRole(undefined);
-    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a step that declares no verdictRole (a code or security review) grant qa-approved");
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a step that declares no verdictRole grant qa-approved");
     rmSync(runsIndex);
     if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved when the engine's runs index cannot be read");
     declareRole("qa");
@@ -1180,6 +1184,63 @@ for (const name of workflowFiles) {
     git(wt, "checkout", "--quiet", "--detach", prHead);
     rmSync(headRecord);
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a checkout whose head record was removed");
+
+    // The REAL shape: a trimmed copy of an engine 0.19.0 runs index (task text, prompts and paths
+    // stripped; ids, workflow and workflowDef.steps kept). Each run gets a worktree named by its id,
+    // and gh-write.sh must read back the role that run's review step declares.
+    const realRuns = JSON.parse(readFileSync(join(root, "scripts/fixtures/xezar-runs-index-0.19.0.json"), "utf8"));
+    if (!Array.isArray(realRuns)) fail("scripts/fixtures/xezar-runs-index-0.19.0.json is not an array of runs");
+    const realIndex = JSON.stringify(realRuns);
+    const oldIndex = join(repo, ".local/xezar/runtime/runs.json");
+    const roleSeen = (runId) => {
+      const runWt = join(repo, ".local/xezar/worktrees", runId);
+      if (!existsSync(runWt)) git(repo, "worktree", "add", "--quiet", "--detach", runWt, "main");
+      const saved = env.XEZ_TASK_ID;
+      env.XEZ_TASK_ID = runId;
+      try {
+        const out = sh(runWt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add: ["design-approved"], remove: ["needs-design"], verdict: { role: "design-review", head: prHead } })).out;
+        // A step declaring design-review passes the role check and is refused later (it checked no
+        // head out); any other step is refused naming the role it declares.
+        return (out.match(/declares verdictRole (\S+)/) ?? [null, "design-review"])[1];
+      } finally {
+        env.XEZ_TASK_ID = saved;
+      }
+    };
+    const logBefore = ghLog();
+    writeFileSync(runsIndex, realIndex);
+    for (const r of realRuns) {
+      const declared = (r.workflowDef?.steps ?? []).find((s) => s.id === "review")?.verdictRole ?? "none";
+      const seen = roleSeen(r.id);
+      if (seen !== declared) fail(`gh-write.sh reads verdictRole ${seen} for the ${r.workflow} run of a real runs index; its review step declares ${declared}`);
+    }
+    if (ghLog() !== logBefore) fail(`gh-write.sh ran gh for a verdict nobody checked a head out for:\n${ghLog()}`);
+    // The index at the path the kit once read (`.local/xezar/runtime/runs.json`) is not the engine's.
+    rmSync(runsIndex);
+    mkdirSync(dirname(oldIndex), { recursive: true });
+    writeFileSync(oldIndex, realIndex);
+    const designRun = realRuns.find((r) => r.workflow === "design-review");
+    if (roleSeen(designRun.id) !== "none") fail("gh-write.sh reads the runs index from .local/xezar/runtime/, where the engine never writes it");
+    rmSync(oldIndex);
+
+    // gate-record.sh reads the same index for its one migration exception: a producer-less gates
+    // check step of a run whose FROZEN gates command predates `--producer gates`, while the
+    // workflow file declares it. Real shape, with the flag stripped from the frozen command.
+    const implRun = structuredClone(realRuns.find((r) => r.workflow === "feature-implementation"));
+    const gatesStep = implRun.workflowDef.steps.find((s) => s.id === "gates");
+    gatesStep.command = gatesStep.command.replace(" --producer gates", "");
+    const producerCwd = join(run, "producer-cwd");
+    mkdirSync(join(producerCwd, ".xezar/workflows"), { recursive: true });
+    writeFileSync(join(producerCwd, ".xezar/workflows/feature-implementation.yaml"), "command: .xezar/checks/repo-gates.sh --fast --producer gates\n");
+    const producer = () => {
+      const probeEnv = { ...process.env, MAIN_ROOT: repo, TASK_ID: implRun.id, TASK_CWD: producerCwd };
+      delete probeEnv.XEZ_TASK_ID;
+      return execFileSync("bash", ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
+    };
+    writeFileSync(runsIndex, JSON.stringify([implRun]));
+    if (producer() !== "gates") fail("gate-record.sh does not find a pre-flag run's frozen gates step in the engine's runs index");
+    rmSync(runsIndex);
+    writeFileSync(oldIndex, JSON.stringify([implRun]));
+    if (producer() !== "author") fail("gate-record.sh reads the runs index from .local/xezar/runtime/, where the engine never writes it");
   } catch (error) {
     fail(`the review-run fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
   } finally {
