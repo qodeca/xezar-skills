@@ -175,10 +175,24 @@ const READ_ONLY_WORKFLOWS = new Set([
   "security-review",
 ]);
 
-// Steps that hold neither Edit nor Write but must RUN code – a build, a test, a dev server, a
-// browser – and so cannot live inside a prefix list. They run in their own detached worktree and
-// never touch the author's branch; that, not a shell limit, is their guarantee.
-const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "design-review", "qa"]);
+// Steps that hold neither Edit nor Write but must RUN code – a build, a test, a dev server –
+// and so cannot live inside a prefix list. They run in their own detached worktree and never
+// touch the author's branch; that, not a shell limit, is their guarantee. `qa` and
+// `design-review` left this list in #63: they look at the change through the browser tools and
+// run no PR code, so their review steps carry the reading `bashAllowlist` like every reader.
+const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification"]);
+
+// `emulate` switches a page's colour scheme, reduced motion and other media features. It is the
+// one browser tool beyond the descriptor's list that a review needs (#63), and it is granted only
+// here, in a workflow's own tool list – never through a settings file, and in no other workflow.
+const EMULATE_TOOL = "mcp__chrome-devtools__emulate";
+const EMULATE_WORKFLOWS = new Set(["design-review", "qa"]);
+
+// The engine's step wall clock (`workflows/types.ts`, `parseStepTimeout`): a positive whole number
+// of seconds, minutes or hours, at most 2^31-1 ms. "none" means no limit, which is refused below.
+const STEP_TIMEOUT_RE = /^(\d+)(s|m|h)$/;
+const STEP_TIMEOUT_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000 };
+const MAX_STEP_TIMEOUT_MS = 2_147_483_647;
 
 // the engine's `configSchema`.
 const CONFIG_KEYS = new Set([
@@ -345,6 +359,21 @@ function checkReaderStep(at, workflow, step) {
   }
 }
 
+// Every agent step carries its own wall clock (#52). Without one, the limit is the runner's
+// default, and the last step's default is none: a `handoff` that hangs after its work is sealed
+// holds the run open until someone notices.
+function checkStepTimeout(at, step) {
+  if (step.timeout === undefined || step.timeout === "") {
+    err(at, 'an agent step has no timeout, so its limit is whatever the runner defaults to – none at all for the last step; give it one sized for the job, such as "15m" or "2h"');
+    return;
+  }
+  const m = STEP_TIMEOUT_RE.exec(step.timeout);
+  const ms = m ? Number(m[1]) * STEP_TIMEOUT_UNIT_MS[m[2]] : 0;
+  if (!(ms > 0 && ms <= MAX_STEP_TIMEOUT_MS)) {
+    err(at, `timeout "${step.timeout}" is not a positive duration such as "45s", "90m" or "2h" ("none" is no limit, which an agent step may not have)`);
+  }
+}
+
 function checkWorkflow(file, doc) {
   if (!doc.name) err(file, 'missing "name"');
   if (Boolean(doc.steps) === Boolean(doc.skills)) {
@@ -377,6 +406,10 @@ function checkWorkflow(file, doc) {
         if (!existsSync(skillPath)) err(at, `names skill "${step.skill}", which has no file at ${skillPath}`);
       }
       checkReaderStep(at, basename(file).replace(/\.ya?ml$/, ""), step);
+      checkStepTimeout(at, step);
+    }
+    if (Array.isArray(step.allowedTools) && step.allowedTools.includes(EMULATE_TOOL) && !EMULATE_WORKFLOWS.has(basename(file).replace(/\.ya?ml$/, ""))) {
+      err(at, `grants ${EMULATE_TOOL}, which only the ${[...EMULATE_WORKFLOWS].join(" and ")} workflows may hold`);
     }
     if (isCheck) {
       // A check step's command must be a script this repo actually ships, so a renamed or

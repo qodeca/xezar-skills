@@ -910,6 +910,63 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start
+// #52: every agent step carries a timeout, and the kit's validator refuses one without.
+// #63: `emulate` only in qa and design-review, their review steps read-only with a bashAllowlist,
+// their preflight strict, and the browser descriptor saying so.
+{
+  const lab = mkdtempSync(join(tmpdir(), "kit-stream-d-"));
+  try {
+    mkdirSync(join(lab, ".xezar"));
+    for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(lab, ".xezar", dir), { recursive: true });
+    writeFileSync(join(lab, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    const wf = (name) => join(lab, ".xezar/workflows", name);
+    const refusal = (name, mutate, expect, what) => {
+      const original = readFileSync(wf(name), "utf8");
+      const changed = mutate(original);
+      if (changed === original) { fail(`stream D fixture: the ${what} mutation of ${name} matched nothing`); return; }
+      writeFileSync(wf(name), changed);
+      let out = "(it passed)";
+      try { execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), lab], { encoding: "utf8", stdio: "pipe" }); }
+      catch (error) { out = (error.stdout ?? "") + (error.stderr ?? ""); }
+      finally { writeFileSync(wf(name), original); }
+      if (!out.includes(expect)) fail(`catalog-check accepts ${what}:\n${out}`);
+    };
+    refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n"),
+      'step "handoff": an agent step has no timeout', "a handoff step with no timeout");
+    refusal("code-review.yaml", (t) => t.replace("    timeout: 2h\n", "    timeout: none\n"),
+      'timeout "none" is not a positive duration', "an agent step with timeout: none");
+    refusal("code-review.yaml", (t) => t.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, mcp__chrome-devtools__emulate]"),
+      "grants mcp__chrome-devtools__emulate, which only the design-review and qa workflows may hold", "emulate in code-review");
+    for (const name of ["qa.yaml", "design-review.yaml"]) {
+      refusal(name, (t) => t.replace(/\n    bashAllowlist: \[[^\n]*\]/, ""),
+        "it has no bashAllowlist", `a ${name} review step with no bashAllowlist`);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+
+  // The shipped data, read directly: a validator that passes is only half the claim.
+  const EMULATE = "mcp__chrome-devtools__emulate";
+  for (const name of readdirSync(join(KIT, "workflows")).filter((f) => f.endsWith(".yaml"))) {
+    const text = readFileSync(join(KIT, "workflows", name), "utf8");
+    const holds = text.includes(EMULATE);
+    const may = name === "qa.yaml" || name === "design-review.yaml";
+    if (holds !== may) fail(`kit/workflows/${name} ${holds ? "grants" : "does not grant"} ${EMULATE}; only qa and design-review do`);
+    if (may) {
+      if (!/\n    bashAllowlist: \[/.test(text)) fail(`kit/workflows/${name}: the review step has no bashAllowlist`);
+      if (!text.includes('command: ".xezar/checks/worktree-preflight.sh"\n') || text.includes("worktree-preflight.sh --allow-root")) {
+        fail(`kit/workflows/${name}: the preflight step is not the strict worktree-preflight.sh`);
+      }
+      for (const never of ["evaluate_script", "upload_file", "performance_", "take_heapsnapshot", "lighthouse_audit"]) {
+        if (text.includes(`mcp__chrome-devtools__${never}`)) fail(`kit/workflows/${name} grants mcp__chrome-devtools__${never}`);
+      }
+    }
+  }
+  const descriptor = readFileSync(join(KIT, "pipeline/browsers/chrome-devtools.md"), "utf8");
+  if (!/plus `emulate`[^.]*in the QA and design-review workflows only\s+\(`qa\.yaml`, `design-review\.yaml`\)/.test(descriptor)) {
+    fail("kit/pipeline/browsers/chrome-devtools.md no longer names emulate as allowed in the qa and design-review workflows only");
+  }
+}
 // 3.1.0-stream-D:end
 
 // 3.1.0-stream-E:start

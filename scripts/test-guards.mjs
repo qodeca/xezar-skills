@@ -1434,6 +1434,63 @@ breaks(
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start
+// #52: the timeout rule, and the shipped timeouts it protects.
+breaks(
+  "a catalog check that no longer asks an agent step for a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("      checkStepTimeout(at, step);\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a handoff step with no timeout",
+);
+
+breaks(
+  "a kit handoff step without a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/bug-fix.yaml",
+  (s) => s.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n"),
+  () => script("test-kit-catalog.mjs"),
+  'step "handoff": an agent step has no timeout',
+);
+
+// #63: emulate only in qa and design-review, their review steps read-only, their preflight strict.
+breaks(
+  "a catalog check that lets emulate into any workflow is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("step.allowedTools.includes(EMULATE_TOOL) && !EMULATE_WORKFLOWS", "step.allowedTools.includes(EMULATE_TOOL) && false && !EMULATE_WORKFLOWS"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts emulate in code-review",
+);
+
+breaks(
+  "a catalog check that lets qa run without a bashAllowlist again is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification"]);', 'const RUNS_CODE_WORKFLOWS = new Set(["acceptance-verification", "qa"]);'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a qa.yaml review step with no bashAllowlist",
+);
+
+breaks(
+  "emulate granted to code-review is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml",
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, mcp__chrome-devtools__emulate]"),
+  () => script("test-kit-catalog.mjs"),
+  "grants mcp__chrome-devtools__emulate, which only the design-review and qa workflows may hold",
+);
+
+breaks(
+  "a design-review preflight back on --allow-root is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/design-review.yaml",
+  (s) => s.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
+  () => script("test-kit-catalog.mjs"),
+  "kit/workflows/design-review.yaml: the preflight step is not the strict worktree-preflight.sh",
+);
+
+breaks(
+  "a browser descriptor that stops naming where emulate is allowed is rejected",
+  "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
+  (s) => s.replace("in the QA and design-review workflows only", "in review workflows"),
+  () => script("test-kit-catalog.mjs"),
+  "no longer names emulate as allowed in the qa and design-review workflows only",
+);
 // 3.1.0-stream-D:end
 
 // 3.1.0-stream-E:start

@@ -43,3 +43,4 @@ steps:
     name: Draft PR into the base branch
     prompt: "Hand off the design of: {{task}}. Follow the design system's lifecycle and storage pages for ownership and evidence; verify the sealed head and open the draft PR with needs-design. The author already owns the mockup and README handoff; make no content changes here. Independent design review remains pending."
     skill: xezar-handoff-draft-pr
+    timeout: 15m

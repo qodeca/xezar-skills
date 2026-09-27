@@ -5,11 +5,13 @@ description: Independent, read-only QA of a PR or a reviewed head
 
 # Independent, read-only QA of a PR or a reviewed head
 
-Exercise the change this task names — check the PR's head out (or use the head you were given) and run it, not just read the diff. Verify the fix actually fixes what it claims to, and check for regressions in adjacent behavior a diff-only read would miss. Never edit the PR's branch, adopt it, or create a duplicate PR: a finding that needs a code change goes back to the author, disputed with evidence or accepted as a scoped, recorded deferral — never fixed here.
+Exercise the change this task names — the running change, through the browser, not just the diff. Verify the fix actually fixes what it claims to, and check for regressions in adjacent behavior a diff-only read would miss. Never edit the PR's branch, adopt it, or create a duplicate PR: a finding that needs a code change goes back to the author, disputed with evidence or accepted as a scoped, recorded deferral — never fixed here.
 
 Inputs: the PR or head to QA, and what it claims to fix. Output: a single `## QA` PR comment — reviewed sha, verdict (PASS / FAIL), what was exercised and how, and each finding with a disposition — plus the SDLC QA-gate labels this verdict authorizes. Post the comment before anything else in this task risks not finishing; a QA verdict that exists only in this transcript did not happen (this role has no `handoff` step, so the PR comment is the delivery).
 
-To look at a page ad hoc – the running change, a design or design-system file, a smoke check, a click through the UI – use the `chrome-devtools` tools and save screenshots in the primary evidence directory. Never write or run an e2e suite with them; that stays with the project's own test tool.
+To look at a page ad hoc – the running change, a design or design-system file, a smoke check, a click through the UI – use the `chrome-devtools` tools and save screenshots in the primary evidence directory. Never write or run an e2e suite with them; that stays with the project's own test tool. `emulate` is granted to this role: use it to check dark mode, reduced motion and other media features.
+
+**Your shell reads; it does not run the change.** This step's `bashAllowlist` is the kit's reading set: `gh pr view`, `gh pr diff` and `gh pr checks`, git through `bash .xezar/checks/git-read.sh`, the comment and labels through `bash .xezar/checks/gh-write.sh`, the packet through `verdict-write.sh`. You cannot check a head out, install or start the app, or run the PR's code or tests. Exercise the change where it already runs – a URL the launch text or the PR names – and report each check you could not run as not run, never as passed.
 
 ## What a QA pass posts
 
@@ -17,7 +19,7 @@ Per `SDLC.md` § The QA gate, evidence is a PR comment whose first line is the h
 
 ## Labels this verdict may set
 
-On PASS: apply `qa-approved` and remove `needs-qa`. On FAIL: remove `merge-queue`, post what failed as findings, and remove `qa-approved` if it was applied in error — a failed QA run is a hard block regardless of every other signal (`SDLC.md` § The QA gate). Never apply `qa`, `qa-failed`, `blocked` or `do-not-merge`: this repository does not define those labels; `.xezar/checks/lib/project-policy.mjs` refuses them as a fail-safe for a fork that does, not a vocabulary this role should reach for. This role is independent QA, not the self-QA exception (`qa-self-verified` is for the PR's own author signing off, never for this role).
+On PASS: apply `qa-approved` and remove `needs-qa`. Post the comment with `jq -n '{action:"comment",kind:"pr",number:<number>,body:"<text>"}' | bash .xezar/checks/gh-write.sh` and ask for labels the same way (`action:"label"`). `gh-write.sh` never adds `qa-approved` and never removes `needs-qa`: when it refuses, say so in the `## QA` comment and record it in the packet's label evidence – the verdict stands. On FAIL: remove `merge-queue`, post what failed as findings, and remove `qa-approved` if it was applied in error — a failed QA run is a hard block regardless of every other signal (`SDLC.md` § The QA gate). Never apply `qa`, `qa-failed`, `blocked` or `do-not-merge`: this repository does not define those labels; `.xezar/checks/lib/project-policy.mjs` refuses them as a fail-safe for a fork that does, not a vocabulary this role should reach for. This role is independent QA, not the self-QA exception (`qa-self-verified` is for the PR's own author signing off, never for this role).
 
 **You are not the author, and that is stated, not assumed.** You cannot read the run record that says who wrote the change; the leader puts the author's lane, login and vendor in the launch text. Report independence in your verdict as one of three words: **confirmed** – the launch text names the author and it is not your lane; **not confirmed** – it names your lane: say so in your first line and stop; **unknown** – the launch text does not say: run the checks, and say unknown. Never write confirmed without that text. A self-QA sign-off under SDLC.md is the one exception, and it is labelled as one.
 
@@ -58,7 +60,7 @@ Leave `taskId` and `stepId` out: `verdict-write.sh` stamps both from the step's 
 
 `verdict` is `PASS` or `FAIL` and nothing else — this role has no third outcome, and a QA `PASS` is never business acceptance. `id` is stable for THIS report: the same id with identical content is a no-op, the same id with different content is refused. `reviewedHeadSha` is never abbreviated and never the branch's current head when that is not what you exercised.
 
-`labels` is evidence, not intent. `requestedAdd` / `requestedRemove` are what you asked `gh` to do (empty arrays when you asked for nothing). Then read the labels back and set:
+`labels` is evidence, not intent. `requestedAdd` / `requestedRemove` are what you asked `gh-write.sh` to do (empty arrays when you asked for nothing). Then read the labels back and set:
 
 - `"state": "verified"` with `observed` (what you read back) and `observedAt`, when every request applied;
 - `"state": "partial"` with the same two fields, when some applied or the read-back disagrees;

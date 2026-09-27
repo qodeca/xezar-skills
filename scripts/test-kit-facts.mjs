@@ -776,6 +776,8 @@ function walk(rel, match) {
   const DEBUG = new Set(["list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "get_css_styles"]);
   const WANT = Object.fromEntries(["qa", "design-review", "acceptance-verification", "design", "ui-design", "design-system"].map((w) => [w, ALLOWED]));
   WANT.research = ALLOWED.filter((t) => !DEBUG.has(t));
+  // #63: the two review workflows also hold `emulate`, through their own tool lists only.
+  WANT.qa = WANT["design-review"] = [...ALLOWED, "emulate"];
   const same = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
   const wfDir = `${SKILL}/kit/workflows`;
   for (const rel of walk(wfDir, /\.ya?ml$/)) {
