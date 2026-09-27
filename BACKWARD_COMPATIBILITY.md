@@ -33,11 +33,16 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `ci.requiredChecks` | `[]`, check names exactly as the check-runs API reports them | `kit/checks/integration-preflight.sh` |
 | `paths.designSystem` | `docs/design-system`, or the project's own | the kit's design role skills |
 | `dependencies.units` | absent (a single npm root); for a project with no root manifest, elements `{dir, provider, lockfile?, entry?}` with `provider` one of `npm`, `yarn` (Yarn 1), `dotnet` | `kit/checks/lib/deps.mjs`, through `deps-restore.sh`, `worktree-setup.sh`, `repo-gates.sh` and `lib/common.sh` — always from the remote's default branch |
+| `designSystem.modules` | absent (one flat system); for several product surfaces, elements `{name, folder, kind, writable, status, appPaths, derivedFiles?, buildCommand?, checkCommand?}` | the kit's design-system, UX, UI, UI-test, code-review and visual-asset role skills — always from the base branch |
 
-`dependencies.units` arrived in 3.0.2 and is the one key in this table **with** a meaning when
+`dependencies.units` arrived in 3.0.2 and is one of two keys in this table **with** a meaning when
 absent: today's single npm root, output unchanged. So it is additive for every existing project.
 An empty list, an unknown key in an element, or a provider outside the three is refused, not read
 as "no units"; loosening any of that, or reading the key from the working tree, is breaking.
+
+`designSystem.modules` arrived in 3.1.0 and is the other: absent means one flat design system at
+`paths.designSystem`, exactly as before. Renaming or removing an element field, adding a `kind` or
+`status` value a role does not know, or reading the list from the working tree, is breaking.
 
 The `ci.requiredChecks` and `paths.designSystem` rows were missing from this table until
 2026-09-21. `DECISIONS.md` records them being created in the **1.4.0 portability** work — the same
