@@ -1139,6 +1139,21 @@ for (const name of workflowFiles) {
     if (probe.status !== 0 || probe.out !== '""') fail(`git inside review-run.sh run still has a credential helper: ${probe.out}`);
     const clean = rr("verify-unchanged");
     if (clean.status !== 0 || !clean.out.includes("review-tree=unchanged")) fail(`review-run.sh fails an untouched worktree:\n${clean.out}`);
+    // A backend that confines a reading step to its worktree and its own folders (engine 0.19.0's
+    // confined Codex step) cannot write the git directories a checkout needs. Seen live under
+    // `codex sandbox -P :workspace`: the fetch and the checkout both die on "Operation not
+    // permitted". review-run.sh must say so plainly (exit 3), not half-fail as a refusal.
+    if (process.getuid?.() !== 0) {
+      const privateGitDir = git(wt, "rev-parse", "--absolute-git-dir");
+      for (const [what, dir] of [["the worktree's own git directory", privateGitDir], ["the shared git directory", join(repo, ".git")]]) {
+        chmodSync(dir, 0o555);
+        let confined;
+        try { confined = rr("checkout", "5"); } finally { chmodSync(dir, 0o755); }
+        if (confined.status !== 3 || !confined.out.includes("review-run=confined") || !confined.out.includes("report every check that needed running as not run")
+          || git(wt, "rev-parse", "HEAD") === prHead || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+          fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
+      }
+    }
     const checkout = rr("checkout", "5");
     if (checkout.status !== 0 || git(wt, "rev-parse", "HEAD") !== prHead) fail(`review-run.sh checkout does not check the PR's head out:\n${checkout.out}`);
     if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");

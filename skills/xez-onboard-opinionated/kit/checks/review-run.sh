@@ -46,7 +46,16 @@
 # had – whether the recorded head is a commit of the recorded pull request. A head the review made
 # up locally is not, and is refused; so is a checkout whose head record was removed.
 #
-# Exit: the command's own status for `run`; 0 ok, 1 refused or changed, 2 usage.
+# A sandbox that cannot write git. A checkout writes the worktree's own git directory and the
+# primary checkout's shared one (objects, refs), and both live outside the task worktree. A backend
+# that confines a reading step to the worktree plus the run's own folders – engine 0.19.0 runs a
+# Codex step with no Edit and no Write in `workspace-write` with exactly those writable roots –
+# cannot write them, so `checkout` probes both first and, when either is closed, exits 3 with
+# `review-run=confined` instead of failing half-way. Nothing of the PR can run in that step: judge
+# from the diff and report every check that needed running as not run (an evidence limit).
+#
+# Exit: the command's own status for `run`; 0 ok, 1 refused or changed, 2 usage, 3 confined
+# (`checkout` only: this step's sandbox cannot write git, so the PR cannot be checked out here).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -163,6 +172,16 @@ case "$sub" in
     printf '%s' "$1" | grep -Eq '^[1-9][0-9]{0,9}$' || refuse "\"$1\" is not a PR number"
     [ -f "$state/head" ] && refuse "this run already reviews $(cat "$state/head"); one reviewed head per run"
     [ -z "$(tracked_changes)" ] || refuse "the worktree has tracked changes before the checkout"
+    for gitdir in "$(git rev-parse --absolute-git-dir 2>/dev/null)" "$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)"; do
+      probe=""
+      [ -n "$gitdir" ] && probe="$(mktemp "$gitdir/xezar-review-probe.XXXXXX" 2>/dev/null)"
+      if [ -z "$probe" ]; then
+        echo "review-run=confined"
+        echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, engine 0.19.0). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
+        exit 3
+      fi
+      rm -f "$probe"
+    done
     gh pr checkout "$1" --detach || refuse "gh pr checkout $1 --detach failed"
     head="$(git rev-parse HEAD)" || exit 1
     want="$(gh pr view "$1" --json headRefOid --jq .headRefOid 2>/dev/null)" || want=""
