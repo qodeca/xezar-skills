@@ -338,6 +338,10 @@ including the config keys the upgrade's owner checklist asks you to add on the u
 Never "refresh the digest" of a drifted file: that erases the only sign that the file differs from
 the kit. The only digest refreshed in place is the leader guide's, by `xez-add-rule`.
 
+The new `local-tree.sh` also accepts the engine's run state (`runs.json`, `runs/`, `tmp/` and the
+rest) at the top of `.local/xezar/` in a project without `.xezar/workspace.json`: engine 0.19.0
+writes it there in every layout, and the older copy calls it loose and fails the gate.
+
 **What you lose by skipping it.** Nothing checks the manifest against the tree, so an upgrade
 cannot tell a patched file from an untouched one and may overwrite a local patch without a word.
 

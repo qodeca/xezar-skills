@@ -192,7 +192,10 @@ runs in `repository-checks.sh`, so every gate run fails on a file changed with n
 `drift-status=pass|fail|not-applicable` and one `drift=<path> origin=<origin> reason=<reason>` line
 per problem. For a file the owner already had with a kit block appended, only that block is
 hashed. A manifest written before 3.1.0 (no `manifestVersion`) is not enforced: the check says so
-and passes.
+and passes. The tidiness check that the same gate script runs, `local-tree.sh`, now accepts the
+engine's run state (`runs.json`, `runs/`, `tmp/` and the rest) at the top of `.local/xezar/` in a
+project without `.xezar/workspace.json`, where engine 0.19.0 writes it too; it used to call those
+entries loose and fail the gate there.
 
 **The local-patch register.** A deliberate change is recorded in `.xezar/LOCAL-PATCHES.md` – one
 `## LP-<n> – <title>` entry per patch with `Files`, `Reason`, `Upstream`, `Since` and `Confirmed` –
