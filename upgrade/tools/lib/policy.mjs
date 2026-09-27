@@ -77,9 +77,19 @@ export function isCheckLike(path) {
   );
 }
 
-/** A line that refuses, fails or stops something. Removing one is a candidate weakening. */
+/**
+ * A line that refuses, fails or stops something. Removing one is a candidate weakening.
+ * `exit "$rc"`, `exit $?` and `exit ${status}` pass a failure on, so they count too.
+ */
 export const SAFETY_LINE =
-  /(\bexit\s+[1-9]|\breturn\s+[1-9]|process\.exit\(\s*[1-9]|\bthrow\b|\brefus|\bfail|\bdie\b|\bdeny\b|\breject|\babort|set\s+-[a-z]*e)/i;
+  /(\bexit\s+[1-9]|\bexit\s+"?\$(\?|\{?[A-Za-z_])|\breturn\s+[1-9]|process\.exit\(\s*[1-9]|\bthrow\b|\brefus|\bfail|\bdie\b|\bdeny\b|\breject|\babort|set\s+-[a-z]*e)/i;
+
+/**
+ * A line that swallows a failure: `|| true`, `|| :`, `exit 0`, `set +e`, a step allowed to
+ * fail, a skipped hook. Adding one is a candidate weakening.
+ */
+export const WEAKENING_LINE =
+  /(\|\|\s*(true|:)\s*(#|;|$)|\bexit\s+0\b|\bset\s+\+[a-z]*e|continue-on-error:\s*true|--no-verify|process\.exit\(\s*0\s*\))/i;
 
 const PERMISSION_KEY = /allow|permission|hooks?$|mcpServers|mcp_servers|trust|approval|sandbox|prefix_rule|bashAllowlist|tools?$/i;
 const PERMISSION_LINE = /mcp__|bashAllowlist|allowed_?tools|--dangerously|permission|trust_level|prefix_rule|approval_policy|sandbox_mode|^\s*\[mcp_servers/i;
@@ -127,4 +137,14 @@ export function removedSafetyLines(baseText, mineText) {
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && SAFETY_LINE.test(l) && !mine.has(l));
+}
+
+/** Lines of `mine` that swallow a failure and are not in `base`. */
+export function addedWeakeningLines(baseText, mineText) {
+  if (baseText == null || mineText == null) return [];
+  const base = new Set(baseText.split("\n").map((l) => l.trim()));
+  return mineText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && WEAKENING_LINE.test(l) && !base.has(l));
 }

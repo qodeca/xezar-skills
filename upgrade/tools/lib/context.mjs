@@ -67,6 +67,34 @@ function defaultTarget(toolRoot, history, treeIndex) {
 }
 
 /**
+ * The kit versions a file's base may come from: every version before the target, minus the
+ * target's own unreleased development line (F1 in upgrade/evals/RESULTS.md).
+ *
+ * Upgrading to a release, the pseudo-versions after the last release before it are that
+ * release's development commits. Matching a project file against them names a pre-release
+ * draft as the base, often with the target's own text, so a stale hand-copied draft looks
+ * like a local change on an unchanged file and is kept. They are dropped – unless the
+ * manifest records one of them as the installed version (an install from that commit), and
+ * then the line is kept up to that commit. Older pseudo-versions, between two releases, stay:
+ * projects were installed from the default branch between tags. Upgrading to a
+ * pseudo-version (a development checkout) keeps everything before it.
+ */
+export function baseCandidates(history, target, projectVersion) {
+  const targetPos = history.findIndex((v) => v.version === target);
+  const before = targetPos >= 0 ? history.slice(0, targetPos) : history;
+  if (String(target).includes("+")) return before;
+  let lastRelease = -1;
+  for (let i = before.length - 1; i >= 0; i -= 1) {
+    if (!before[i].version.includes("+")) {
+      lastRelease = i;
+      break;
+    }
+  }
+  const installed = before.findIndex((v, i) => i > lastRelease && v.version === projectVersion);
+  return before.slice(0, Math.max(lastRelease, installed) + 1);
+}
+
+/**
  * @param {object} o
  * @param {string} o.project   project root
  * @param {string} [o.toolRoot] the xezar-skills checkout the tools run from
@@ -95,12 +123,10 @@ export function loadContext(o) {
       if (e.renamedFrom && theirs.files[p]) theirs.files[p].renamedFrom = e.renamedFrom;
     }
   }
-  const targetPos = history.findIndex((v) => v.version === target);
-  const candidates = targetPos >= 0 ? history.slice(0, targetPos) : history;
-
   const manifestPath = join(project, ".xezar/onboarding.json");
   if (!existsSync(manifestPath)) throw new Error("no .xezar/onboarding.json: this project was not onboarded with the kit");
   const manifest = readManifest(readFileSync(manifestPath, "utf8"));
+  const candidates = baseCandidates(history, target, manifest.version);
   const registerPath = join(project, ".xezar/LOCAL-PATCHES.md");
   const registerText = existsSync(registerPath) ? readFileSync(registerPath, "utf8") : null;
   const register = parseRegister(registerText);

@@ -1315,6 +1315,33 @@ function walk(rel, match) {
   }
   checked.push(fact);
 }
+
+// U-evals F2–F4: every stop the planner raises is named in the prompt's stop-and-ask list, and
+// every read-and-judge flag it sets is acted on in step 5. A planner reason the prompt never
+// names is a flag nobody reads: the eval runs caught those cases only on the model's initiative.
+{
+  const fact = "FACT U-plan-flags: the upgrade prompt acts on every stop and review reason the planner raises";
+  const where = "upgrade/UPGRADE-PROMPT.md";
+  const prompt = read(where);
+  const { STOP_REASONS, REVIEW_REASONS } = await import("../upgrade/tools/plan.mjs");
+  const planSrc = read("upgrade/tools/plan.mjs");
+  for (const [fn, list] of [["stop", STOP_REASONS], ["review", REVIEW_REASONS]]) {
+    for (const m of planSrc.matchAll(new RegExp(`\\b${fn}\\("([^"]+)"\\)`, "g")))
+      if (!list.includes(m[1])) fail(fact, "upgrade/tools/plan.mjs", `raises the ${fn} reason ${m[1]}, which its ${fn === "stop" ? "STOP" : "REVIEW"}_REASONS list does not hold`);
+  }
+  const section = (from, to) => {
+    const a = prompt.indexOf(from);
+    const b = a < 0 ? -1 : prompt.indexOf(to, a + from.length);
+    return a < 0 || b < 0 ? "" : prompt.slice(a, b);
+  };
+  const stops = section("## When you stop and ask", "## Report template");
+  const step5 = section("## Step 5 ", "## Step 6 ");
+  if (!stops) fail(fact, where, "has no \"When you stop and ask\" section before the report template");
+  if (!step5) fail(fact, where, "has no step 5 before step 6");
+  for (const r of STOP_REASONS) if (stops && !stops.includes(`\`${r}\``)) fail(fact, where, `does not name the planner's stop reason \`${r}\` in its stop-and-ask list`);
+  for (const r of REVIEW_REASONS) if (step5 && !step5.includes(`\`${r}\``)) fail(fact, where, `does not say in step 5 what to do with the planner's review reason \`${r}\``);
+  checked.push(fact);
+}
 // 3.1.0-stream-U:end
 
 // 3.1.0-stream-R:start

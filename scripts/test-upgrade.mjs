@@ -14,7 +14,11 @@
 //   5. the hard cases: a drifted v1 manifest, a partly applied old upgrade, an untagged
 //      install, a renamed kit file, pre-3.0 routing, unknown placeholder values, #49 files
 //      carried as a local patch, a project hook, unsafe paths, a weakened safety check,
-//      and a plan that went stale;
+//      and a plan that went stale; then the prompt eval findings (upgrade/evals/RESULTS.md):
+//      the target's unreleased development line is no base, an inferred base equal to the
+//      target never keeps the file, `exit "$rc"` -> `exit 0` and an added `|| true` stop, safety
+//      files kept or both-changed are flagged for reading, a routing field both sides changed
+//      stops, and an entry already covering a file gets no second draft;
 //   6. each 3.1.0 upgrade block's `Files:` matches the kit-index diff;
 //   7. the drift check (stream U1's kit/checks/manifest-drift.mjs) on upgraded fixtures and
 //      its own cases – skipped, and said so, while the kit does not ship it yet;
@@ -640,6 +644,126 @@ const unchangedChecks = Object.keys(fx303.files)
   const dir3 = materialize(loadFixture("3.0.0"), { name: "straight" });
   applyPlan(ctxFor(dir3), buildPlan(ctxFor(dir3)));
   expect(sameSnapshot(snapshot(dir2), snapshot(dir3)), "resume: an interrupted then resumed apply differs from a straight one");
+}
+
+// The prompt eval findings (upgrade/evals/RESULTS.md, F1–F7): each one the planner now settles.
+const lp1 = (files, confirmed) =>
+  `# Local patches\n\n## LP-1 – local change\n- Files: ${files}\n- Reason: r\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: ${confirmed}\n`;
+
+// 5j. F1: the target's own unreleased development line is never a base. A pre-release copy of
+// a file new in the target, matched to a development commit that already has the target's
+// text, was read as "local only" and the stale copy kept.
+{
+  const p = ".xezar/docs/local-patches.md";
+  expect(tree.index.files[p] && !base303.files[p], `dev-line: ${p} is no longer new in the target; re-aim this case`);
+  const devLine = { version: "3.0.3+00000000de01", commit: null, tag: null, files: tree.index.files };
+  const indexes = [...history.slice(0, history.indexOf(base303) + 1), devLine];
+  const paragraphs = fresh(p, fx303.renderInputs).split("\n\n");
+  paragraphs.splice(Math.floor(paragraphs.length / 2), 1);
+  const draft = `${paragraphs.join("\n\n")}\n## This project\n\nOur own rule.\n`;
+  const edit = (version) => (d) => {
+    write(d, p, draft);
+    write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    if (version) write(d, ".xezar/onboarding.json", `${JSON.stringify({ ...fx303.manifest, version }, null, 2)}\n`);
+  };
+  const ctx = (dir) => ctxFor(dir, { indexes, blobRepo: root });
+  const f = byPath(buildPlan(ctx(materialize(fx303, { name: "dev-line", edit: edit(null) })))).get(p);
+  expect(f?.class === "base-unknown" && f.action === "stage-theirs" && f.base.version === null, `dev-line: a pre-release copy of a new file is ${f?.class}/${f?.action} with base ${f?.base.version}, not base-unknown`);
+  // A project the manifest says was installed from that development commit keeps it as a base,
+  // and its inferred base still never keeps the copy unread.
+  const g = byPath(buildPlan(ctx(materialize(fx303, { name: "dev-install", edit: edit(devLine.version) })))).get(p);
+  expect(g?.base.version === devLine.version && g.action === "stage-theirs", `dev-line: an install recorded at ${devLine.version} got base ${g?.base.version} and action ${g?.action}`);
+}
+
+// 5k. F1: an inferred (low-confidence) base equal to the target is not proof the file is only
+// locally changed: stage theirs and judge, never keep.
+{
+  const p = unchangedChecks[0];
+  const dir = materialize(fx303, {
+    name: "low-base",
+    edit: (d) => {
+      write(d, p, `${read(d, p)}\n# local: one\n# local: two\n# local: three\n`);
+      const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+      delete m.files[p];
+      write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    },
+  });
+  const f = byPath(buildPlan(ctxFor(dir))).get(p);
+  expect(f?.base.confidence === "low", `low-base: ${p} got base confidence ${f?.base.confidence}; re-aim this case`);
+  expect(f?.class === "both-changed" && f.action === "stage-theirs", `low-base: a low-confidence base equal to the target gives ${f?.class}/${f?.action}, not both-changed/stage-theirs`);
+}
+
+// 5l. F2: a confirmed local patch that drops `exit "$rc"`, or adds `|| true`, in a file the
+// target did not touch, stops – and every kept local change to a safety file is on the
+// read-and-judge list. (The eval case does both at once: `exit "$rc"` -> `exit 0`.)
+{
+  const p = ".xezar/checks/security-scan.sh";
+  expect(unchangedChecks.includes(p) && pack[fx303.files[p]].includes('exit "$rc"\n'), `weaken-rc: ${p} changed in the target or lost its exit "$rc"; re-aim this case`);
+  const dir = materialize(fx303, {
+    name: "weaken-rc",
+    edit: (d) => {
+      write(d, p, read(d, p).replace('exit "$rc"\n', ""));
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    },
+  });
+  const f = byPath(buildPlan(ctxFor(dir))).get(p);
+  expect(f?.class === "local-only" && f.stops.includes("weakens-safety-check"), `weaken-rc: a dropped exit "$rc" is ${f?.class} with stops ${f?.stops}`);
+  expect(f?.reviews?.includes("safety-local-change"), `weaken-rc: a kept local change to a safety file is not on the read-and-judge list (${f?.reviews})`);
+  const q = unchangedChecks.find((x) => x !== p);
+  const dir2 = materialize(fx303, {
+    name: "weaken-true",
+    edit: (d) => {
+      write(d, q, `${read(d, q)}\nfalse || true\n`);
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(q, "yes"));
+    },
+  });
+  const g = byPath(buildPlan(ctxFor(dir2))).get(q);
+  expect(g?.stops.includes("weakens-safety-check"), `weaken-true: an added "|| true" in ${q} does not stop (${g?.class}, ${g?.stops})`);
+}
+
+// 5m. F3: a safety file both sides changed is on the read-and-judge list, however cleanly it merges.
+{
+  const p = changedSince303.find((x) => x.startsWith(".xezar/checks/") && x.endsWith(".sh"));
+  const dir = materialize(fx303, {
+    name: "semantic",
+    edit: (d) => {
+      write(d, p, `${read(d, p)}\n# local: trust our cache\n`);
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "yes"));
+    },
+  });
+  const f = byPath(buildPlan(ctxFor(dir))).get(p);
+  expect(f?.class === "both-changed" && f.reviews?.includes("safety-both-changed"), `semantic: a both-changed safety file ${p} is ${f?.class} with reviews ${f?.reviews}`);
+}
+
+// 5n. F4: the owner and the target changed the same routing field: a stop, naming the field. A
+// field only the owner changed is not a clash.
+{
+  const p = ".xezar/routing.json";
+  const withRouting = (name, change) =>
+    byPath(buildPlan(ctxFor(materialize(fx303, {
+      name,
+      edit: (d) => write(d, p, `${JSON.stringify(change(JSON.parse(read(d, p))), null, 2)}\n`),
+    })))).get(p);
+  const clash = withRouting("routing-clash", (r) => ({ ...r, vendorExclusions: [{ vendor: "openai", why: "ours" }] }));
+  expect(clash?.stops.includes("routing-clash") && clash.notes.some((n) => /both changed vendorExclusions/.test(n)), `routing-clash: both sides setting vendorExclusions gives stops ${clash?.stops}`);
+  const own = withRouting("routing-own", (r) => ({ ...r, tieRule: `${r.tieRule} (ours)` }));
+  expect(own && !own.stops.includes("routing-clash"), `routing-own: an owner-only routing change is reported as a clash (${own?.notes})`);
+}
+
+// 5o. F7: a local change an existing, unconfirmed register entry already covers gets no second draft.
+{
+  const p = ".github/ISSUE_TEMPLATE/config.yml";
+  const dir = materialize(fx303, {
+    name: "draft-dup",
+    edit: (d) => {
+      write(d, p, `${read(d, p)}# local note\n`);
+      write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "no"));
+    },
+  });
+  const plan = buildPlan(ctxFor(dir));
+  expect(plan.unexplained.includes(p), `draft-dup: ${p} is no longer unexplained; re-aim this case`);
+  expect(!plan.registerDrafts.add.some((d) => d.files.includes(p)), `draft-dup: a second register entry is drafted for ${p}, which LP-1 already covers`);
 }
 
 // ---------------------------------------------------------------------------------------

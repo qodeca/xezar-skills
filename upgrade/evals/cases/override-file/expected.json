@@ -20,9 +20,20 @@
       "path": ".xezar/checks/route.mjs"
     },
     {
-      "type": "jsonAbsent",
-      "path": ".xezar/pipeline/config.json",
-      "key": "changelog.format"
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "jsonAbsent",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format"
+        },
+        {
+          "type": "jsonEquals",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format",
+          "value": "auto"
+        }
+      ]
     },
     {
       "type": "equalsStart",

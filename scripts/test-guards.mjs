@@ -1932,6 +1932,79 @@ breaks(
   () => script("test-upgrade.mjs"),
   "verify: the repository check did not run in the project",
 );
+
+// The prompt eval findings (upgrade/evals/RESULTS.md F1–F7), one break per planner guard.
+breaks(
+  "an upgrade that offers the target's unreleased development commits as bases is rejected",
+  "upgrade/tools/lib/context.mjs",
+  (s) => s.replace("return before.slice(0, Math.max(lastRelease, installed) + 1);", "return before;"),
+  () => script("test-upgrade.mjs"),
+  "dev-line: a pre-release copy of a new file is",
+);
+
+breaks(
+  "an upgrade that keeps a file on an inferred base equal to the target is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('} else if (baseEqTheirs && f.base.confidence === "low") {', "} else if (false) {"),
+  () => script("test-upgrade.mjs"),
+  "low-base: a low-confidence base equal to the target gives",
+);
+
+breaks(
+  "an upgrade line test that misses a dropped exit \"$rc\" is rejected",
+  "upgrade/tools/lib/policy.mjs",
+  (s) => s.replace('|\\bexit\\s+"?\\$(\\?|\\{?[A-Za-z_])', ""),
+  () => script("test-upgrade.mjs"),
+  "weaken-rc: a dropped exit",
+);
+
+breaks(
+  "an upgrade that misses an added || true in a check is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const added = isCheckLike(p) && kept ? addedWeakeningLines(baseText, mine) : [];", "const added = [];"),
+  () => script("test-upgrade.mjs"),
+  "weaken-true: an added",
+);
+
+breaks(
+  "an upgrade that does not flag a kept local change to a safety file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (item.safety && ["local-only", "unexplained-local-change"].includes(item.class)) review("safety-local-change");', ""),
+  () => script("test-upgrade.mjs"),
+  "weaken-rc: a kept local change to a safety file is not on the read-and-judge list",
+);
+
+breaks(
+  "an upgrade that does not flag a both-changed safety file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (item.safety && item.class === "both-changed") review("safety-both-changed");', ""),
+  () => script("test-upgrade.mjs"),
+  "semantic: a both-changed safety file",
+);
+
+breaks(
+  "an upgrade that does not stop on a routing field both sides changed is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (c.both.length) stop("routing-clash");', ""),
+  () => script("test-upgrade.mjs"),
+  "routing-clash: both sides setting vendorExclusions",
+);
+
+breaks(
+  "an upgrade that drafts a second register entry for a covered file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('.filter((i) => (i.class === "unexplained-local-change" || i.unexplained) && !i.register.length)', '.filter((i) => i.class === "unexplained-local-change" || i.unexplained)'),
+  () => script("test-upgrade.mjs"),
+  "draft-dup: a second register entry is drafted",
+);
+
+breaks(
+  "an upgrade prompt that does not name a planner stop reason is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("(`routing-clash`; the plan", "(the plan"),
+  () => script("test-kit-facts.mjs"),
+  "does not name the planner's stop reason `routing-clash`",
+);
 // 3.1.0-stream-U:end
 
 // 3.1.0-stream-R:start

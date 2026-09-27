@@ -10,6 +10,10 @@
 //   3. otherwise the version with the smallest line diff             -> low ("base inferred")
 //   4. no candidate at all                                           -> unknown
 //
+// Candidates are the kit versions before the target, without the target's own unreleased
+// development commits (lib/context.mjs, baseCandidates): a hand-copied pre-release file has
+// no base, rather than a development commit's text that already equals the target.
+//
 // Run from the verified xezar-skills clone:
 //   node upgrade/tools/detect.mjs --project <dir> [--target <version>] [--json]
 //        [--blob-pack <file.json.gz>]… [--index-dir <dir>] [--kit <skill dir>] [--help]
