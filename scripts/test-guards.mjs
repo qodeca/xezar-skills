@@ -1754,6 +1754,58 @@ breaks(
 // 3.1.0-stream-G:end
 
 // 3.1.0-stream-H:start
+// #54: every refusal rule of push-check.sh, broken one at a time. test-kit-facts.mjs FACT H1 runs
+// the script against a stand-in gh and a local bare origin; test-kit-catalog.mjs pins the wiring.
+{
+  const PUSH_CHECK = "skills/xez-onboard-opinionated/kit/checks/push-check.sh";
+  const facts = () => script("test-kit-facts.mjs");
+  const pushBreak = (name, from, to, expect) => breaks(name, PUSH_CHECK, (s) => s.replace(from, to), facts, expect);
+
+  pushBreak("push-check that ignores an ineligible seal is rejected",
+    'if [ "$evidence_rc" -ne 0 ] || [ "$eligibility" != "ELIGIBLE" ]; then', "if false; then",
+    "does not refuse an unsealed HEAD");
+  pushBreak("push-check that pushes a HEAD other than the sealed commit is rejected",
+    'if [ -z "$sealed_sha" ] || [ "$sealed_sha" != "$HEAD_SHA" ]; then', 'if [ -z "$sealed_sha" ]; then',
+    "does not refuse a HEAD that changed after the seal");
+  pushBreak("push-check that pushes to a closed PR is rejected",
+    '[ "$pr_state" = "OPEN" ] || refuse', "true || refuse",
+    "does not refuse a closed PR");
+  pushBreak("push-check that pushes to a fork PR is rejected",
+    "  refuse push.pr-same-repo \"PR #$PR's head is not in", "  : push.pr-same-repo \"PR #$PR's head is not in",
+    "does not refuse a fork PR");
+  pushBreak("push-check that pushes to a branch other than the PR head is rejected",
+    '[ "$pr_head" = "$TARGET" ] || refuse', "true || refuse",
+    "does not refuse a branch other than the PR head");
+  pushBreak("push-check that lets main, master or release/* through is rejected",
+    "HEAD | main | master | release/*) return 0 ;;", "HEAD) return 0 ;;",
+    "does not refuse the protected branch master");
+  pushBreak("push-check that lets the project's base branch through is rejected",
+    '[ -n "${BASE_BRANCH:-}" ] && [ "$1" = "$BASE_BRANCH" ] && return 0', ":",
+    "does not refuse the protected branch develop");
+  pushBreak("push-check that lets the PR's own base branch through is rejected",
+    'if [ -n "$pr_base" ] && [ "$TARGET" = "$pr_base" ]; then', "if false; then",
+    "does not refuse the PR's own base branch");
+  pushBreak("push-check that accepts a bare --force is rejected",
+    "--force | -f | --force-with-lease | --force-if-includes", "--force-if-includes",
+    "does not refuse the bare force push --force with [push.no-bare-force]");
+  pushBreak("push-check that accepts a lease on a short ref is rejected",
+    'if [ "$lease_ref" = "$LEASE" ] || [ "$lease_ref" != "refs/heads/$TARGET" ] ||', 'if [ "$lease_ref" = "$LEASE" ] ||',
+    "does not refuse the bare force push --force-with-lease=feature/fix:");
+
+  const catalog = () => script("test-kit-catalog.mjs");
+  breaks("readiness that accepts a DELIVERED record again is rejected",
+    "skills/xez-onboard-opinionated/kit/checks/worktree-preflight.sh",
+    (s) => s.replace("That path is retired (#54): a repair", "Accepted: a repair"),
+    catalog, "readiness no longer refuses a DELIVERED record");
+  breaks("a repair handoff that pushes without push-check is rejected",
+    "skills/xez-onboard-opinionated/kit/workflows/address-review-findings.yaml",
+    (s) => s.replace("Push the sealed fix to the PR's own branch only through .xezar/checks/push-check.sh, then", "Push the fixes, then"),
+    catalog, "the handoff step does not push through .xezar/checks/push-check.sh");
+  breaks("a review-response skill that records DELIVERED again is rejected",
+    "skills/xez-onboard-opinionated/kit/skills/xezar-review-response.md",
+    (s) => s.replace("never write a `DELIVERED` record: readiness refuses it", "record the push as `DELIVERED`"),
+    catalog, "still tells a repair to push early and record DELIVERED");
+}
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start
