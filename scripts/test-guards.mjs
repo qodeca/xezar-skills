@@ -1437,6 +1437,58 @@ breaks(
 // 3.1.0-stream-D:end
 
 // 3.1.0-stream-E:start
+// #53 install freshness: the tree digest in deps.mjs and the fail-closed resume. Each property
+// breaks on its own; the gate runs only the #53 block of test-deps-units.mjs to keep the suite short.
+const depsOnly53 = () => run("env", ["XEZ_DEPS_TEST_ONLY=53", "node", "scripts/test-deps-units.mjs"]);
+const DEPS_MJS = "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs";
+
+breaks(
+  "a fresh check that ignores the tree digest is rejected",
+  DEPS_MJS,
+  (s) => s.replace('if (digest.line === "unavailable" || stamp !== stampContent(root, u, fp, digest.line)) return 1;', 'if (digest.line === "unavailable") return 1;'),
+  depsOnly53,
+  "one package folder replaced inside node_modules",
+);
+
+breaks(
+  "a build cache skipped while it holds a package, a .bin or a link is rejected",
+  DEPS_MJS,
+  (s) => s.replace('if (e.isSymbolicLink() || e.name === ".bin" || e.name === "package.json") return false;', "void e;"),
+  depsOnly53,
+  "a build cache that holds a package.json",
+);
+
+breaks(
+  "a link into a skipped build cache that is accepted is rejected",
+  DEPS_MJS,
+  (s) => s.replace("if (hit) throw new Unavailable(", "if (false) throw new Unavailable("),
+  depsOnly53,
+  "a link into a build cache the digest leaves out",
+);
+
+breaks(
+  "an unreadable folder skipped by the digest is rejected",
+  DEPS_MJS,
+  (s) => s.replace("try { names = readdirSync(dir); } catch (e) { throw new Unavailable(`${dir} cannot be read (${e.code})`); }", "try { names = readdirSync(dir); } catch { names = []; }"),
+  depsOnly53,
+  "a tree the digest cannot read is not fresh",
+);
+
+breaks(
+  "a digest with no timeout is rejected",
+  DEPS_MJS,
+  (s) => s.replace("return raw !== undefined && /^\\d{1,9}$/.test(raw) ? Number(raw) : 60000;", "return 60000;"),
+  depsOnly53,
+  "a digest that times out is not fresh",
+);
+
+breaks(
+  "a resume that reuses sealed evidence over stale dependencies is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/resume-complete.sh",
+  (s) => s.replace('[ "$FORCE_GATES" -eq 0 ] && [ "$DEPS_FRESH" -eq 1 ]; then NEED_GATES=0; fi', '[ "$FORCE_GATES" -eq 0 ]; then NEED_GATES=0; fi'),
+  depsOnly53,
+  "eligible evidence with stale dependencies plans a gate re-run",
+);
 // 3.1.0-stream-E:end
 
 // 3.1.0-stream-F:start
