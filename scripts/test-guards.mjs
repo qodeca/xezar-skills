@@ -1461,7 +1461,7 @@ breaks(
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
   (s) => s.replace('"resize_page", "get_css_styles",\n]);', '"resize_page", "get_css_styles", "emulate",\n]);'),
   () => script("test-kit-facts.mjs"),
-  "BROWSER_TOOLS is",
+  "SETTINGS_BROWSER_TOOLS is",
 );
 
 // #69: the kit's own hook entry is still guarded, and the settings check keeps its teeth.
@@ -1492,7 +1492,7 @@ breaks(
 breaks(
   "a browser grant outside the kit's tool list is rejected",
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
-  (s) => s.replace("if (!tool || !BROWSER_TOOLS.has(tool)) {", "if (!tool) {"),
+  (s) => s.replace("if (!tool || !SETTINGS_BROWSER_TOOLS.has(tool)) {", "if (!tool) {"),
   () => script("test-kit-catalog.mjs"),
   "catalog-check accepts browser grant mcp__chrome-devtools__emulate",
 );

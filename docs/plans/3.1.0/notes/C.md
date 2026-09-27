@@ -37,8 +37,9 @@ or with** `.xezar/docs/leader-context-loading.md`: an older `fenced-quotes.mjs` 
 `#entry:` marker as part of a file name and fails. If your `.claude/settings.json` or
 `.claude/settings.local.json` grants a chrome-devtools tool outside the kit's list, or
 `mcp__chrome-devtools` / `mcp__chrome-devtools__*`, replace it with exact allowed tool names (the
-kit's `.claude/settings.local.json` lists them); `emulate` comes from the `qa` and `design-review`
-workflows only. Timelines should keep one `- ` line per event at column 0, with continuation lines
+kit's `.claude/settings.local.json` lists them); `emulate`, `evaluate_script` and the other
+review-only tools come from the review and QA workflows' own tool lists only (D13, #82), never a
+settings file. Timelines should keep one `- ` line per event at column 0, with continuation lines
 indented. The leader picks up the new loader at its next session start.
 
 **What you lose by skipping it.** A project hook of your own keeps the base branch red; a local
@@ -56,7 +57,7 @@ Ledger row (`BACKWARD_COMPATIBILITY.md`, "The ledger of deliberate breaks"):
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
-| 2026-09-27 | the kit's `catalog-check.mjs` refuses a `permissions.allow` entry in `.claude/settings.json` or `.claude/settings.local.json` that grants a chrome-devtools tool outside the kit's list, or the whole `mcp__chrome-devtools` server | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and granted such a tool or the whole server in its settings | list only the exact tool names in the kit's `.claude/settings.local.json`; `emulate` is granted by the `qa` and `design-review` workflows, never by a settings file | a settings grant reaches every step, including reading steps, while the browser server runs outside every runner sandbox, so the exact tool list is the only limit it has |
+| 2026-09-27 | the kit's `catalog-check.mjs` refuses a `permissions.allow` entry in `.claude/settings.json` or `.claude/settings.local.json` that grants a chrome-devtools tool outside the kit's list, or the whole `mcp__chrome-devtools` server | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and granted such a tool or the whole server in its settings | list only the exact tool names in the kit's `.claude/settings.local.json`; `emulate` and the other review-only tools are granted by the review and QA workflows' own tool lists (D13), never by a settings file | a settings grant reaches every step, including reading steps, while the browser server runs outside every runner sandbox, so the exact tool list is the only limit it has |
 
 No new config key. `XEZAR_TIMELINE_ENTRIES` is an optional environment variable of the leader
 session, not a config key; unset means 40.

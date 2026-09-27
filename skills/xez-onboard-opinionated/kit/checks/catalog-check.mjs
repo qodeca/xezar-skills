@@ -557,10 +557,12 @@ if (!existsSync(workflowsDir)) {
 // give the same answer on every machine, and that file exists on one. The owner accepted the risk
 // that the widened rule is live on that machine.
 //
-// The browser is limited by exact tool names (FACT 23 in test-kit-facts.mjs), and `emulate` is
-// granted only by the two review workflows that need it, never by a settings file. So a
-// chrome-devtools grant outside this list, or one that names the whole server, fails in EITHER file.
-const BROWSER_TOOLS = new Set([
+// The browser is limited by exact tool names (FACT 23 in test-kit-facts.mjs), and `emulate`
+// and the other review-only tools are granted only by the review and QA workflows, in their own
+// tool lists (D13), never by a settings file. So a chrome-devtools grant outside this list, or one
+// that names the whole server, fails in EITHER file. It is not the workflows' browser list (D13
+// grants reviews more), so it has its own name.
+const SETTINGS_BROWSER_TOOLS = new Set([
   "navigate_page", "new_page", "list_pages", "select_page", "close_page", "take_snapshot", "take_screenshot",
   "list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "click", "fill",
   "fill_form", "hover", "press_key", "type_text", "wait_for", "handle_dialog", "resize_page", "get_css_styles",
@@ -586,8 +588,8 @@ for (const name of ["settings.json", "settings.local.json"]) {
     if (typeof rule !== "string") continue;
     if (/^mcp__(chrome-devtools(__|$)|\*)/.test(rule)) {
       const tool = /^mcp__chrome-devtools__([a-z_]+)$/.exec(rule)?.[1];
-      if (!tool || !BROWSER_TOOLS.has(tool)) {
-        err(`.claude/${name}`, `permissions.allow has "${rule}", a browser grant outside the allowed chrome-devtools tools or one naming the whole server; list only exact allowed tool names (emulate is granted by the qa and design-review workflows, never by a settings file)`);
+      if (!tool || !SETTINGS_BROWSER_TOOLS.has(tool)) {
+        err(`.claude/${name}`, `permissions.allow has "${rule}", a browser grant outside the allowed chrome-devtools tools or one naming the whole server; list only exact allowed tool names (emulate, evaluate_script and the other review-only tools are granted by the review and QA workflows, never by a settings file)`);
       }
       continue;
     }

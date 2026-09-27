@@ -958,11 +958,11 @@ function walk(rel, match) {
 {
   const fact = "FACT C2: catalog-check's browser tool list equals the kit's chrome-devtools grants";
   const check = read(`${SKILL}/kit/checks/catalog-check.mjs`);
-  const listed = [...(/^const BROWSER_TOOLS = new Set\(\[([\s\S]*?)\]\);/m.exec(check)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const listed = [...(/^const SETTINGS_BROWSER_TOOLS = new Set\(\[([\s\S]*?)\]\);/m.exec(check)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   const granted = (JSON.parse(read(`${SKILL}/kit/claude/settings.local.json`)).permissions?.allow ?? [])
     .filter((t) => t.startsWith("mcp__chrome-devtools__")).map((t) => t.slice("mcp__chrome-devtools__".length));
   if (!listed.length || listed.slice().sort().join() !== granted.slice().sort().join())
-    fail(fact, "kit/checks/catalog-check.mjs", `BROWSER_TOOLS is [${listed.join(", ")}], expected the kit's grants [${granted.join(", ")}]`);
+    fail(fact, "kit/checks/catalog-check.mjs", `SETTINGS_BROWSER_TOOLS is [${listed.join(", ")}], expected the kit's grants [${granted.join(", ")}]`);
   checked.push(fact);
 }
 // 3.1.0-stream-C:end
