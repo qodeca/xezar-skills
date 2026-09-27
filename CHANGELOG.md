@@ -1,6 +1,6 @@
 # 3.1.0 (2026-09-27)
 
-**Twelve fixes and features found while running the kit in live projects, design-system modules,
+**Thirteen fixes and features found while running the kit in live projects, design-system modules,
 and an upgrade tool that brings an onboarded project to 3.1.0 and keeps its local changes.** No
 behaviour of an installed project changes until you run the upgrade prompt
 (`upgrade/UPGRADE-PROMPT.md`) or apply the upgrade notes; they are one ordered block for 3.1.0.
