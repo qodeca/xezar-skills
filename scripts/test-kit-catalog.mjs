@@ -776,6 +776,36 @@ for (const name of workflowFiles) {
   }
 }
 
+// --- 3.1.0 stream anchors -------------------------------------------------------
+// Each 3.1.0 stream adds its cases between its own start and end lines, never elsewhere,
+// so parallel PRs do not touch the same lines. The release PR removes the markers.
+// 3.1.0-stream-A:start
+// 3.1.0-stream-A:end
+
+// 3.1.0-stream-B:start
+// 3.1.0-stream-B:end
+
+// 3.1.0-stream-C:start
+// 3.1.0-stream-C:end
+
+// 3.1.0-stream-D:start
+// 3.1.0-stream-D:end
+
+// 3.1.0-stream-E:start
+// 3.1.0-stream-E:end
+
+// 3.1.0-stream-F:start
+// 3.1.0-stream-F:end
+
+// 3.1.0-stream-G:start
+// 3.1.0-stream-G:end
+
+// 3.1.0-stream-H:start
+// 3.1.0-stream-H:end
+
+// 3.1.0-stream-U:start
+// 3.1.0-stream-U:end
+
 if (problems) {
   console.error(`\nkit catalog: ${problems} problem(s)`);
   process.exit(1);

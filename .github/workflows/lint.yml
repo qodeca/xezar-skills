@@ -2,8 +2,10 @@ name: lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
+  # The develop branch merges through a merge queue, which runs required checks on this event.
+  merge_group:
 
 # Least privilege. This workflow only reads the tree and runs offline checks; it
 # writes nothing back, so nothing beyond `contents: read` is granted. Without this

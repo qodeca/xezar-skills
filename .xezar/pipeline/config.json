@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "baseBranch": "auto",
+  "baseBranch": "develop",
   "tracker": "github",
   "browser": { "provider": "agent-browser" },
   "validation": {
