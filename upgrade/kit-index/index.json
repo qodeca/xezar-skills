@@ -1,0 +1,159 @@
+{
+  "versions": [
+    {
+      "commit": "3ff6de7fbaf4d2e3a40784b11b192c266c7d9bf4",
+      "tag": "v1.2.0",
+      "version": "1.2.0"
+    },
+    {
+      "commit": "0264da2493d63f6e550887a06b5a6e673e61d948",
+      "tag": null,
+      "version": "1.2.0+0264da2493d6"
+    },
+    {
+      "commit": "4f29baf10ebbe8ed7bbb22f876cc31fe5a49a3d4",
+      "tag": "v1.3.0",
+      "version": "1.3.0"
+    },
+    {
+      "commit": "30b27369cd4cadc39cf781b50a36fe4075088592",
+      "tag": null,
+      "version": "1.3.0+30b27369cd4c"
+    },
+    {
+      "commit": "b0406178b7a3e37547b04357e3e819a1f4a457a2",
+      "tag": null,
+      "version": "1.3.0+b0406178b7a3"
+    },
+    {
+      "commit": "d3bfd1abfe193b690b3c5a727447b3c69be3c903",
+      "tag": "v1.4.0",
+      "version": "1.4.0"
+    },
+    {
+      "commit": "18658f4f5a2bb72366e1f85ed0577acccf971ec9",
+      "tag": null,
+      "version": "1.4.0+18658f4f5a2b"
+    },
+    {
+      "commit": "c35a2c3b08b5a1a38b70f04042594dda98fffb46",
+      "tag": null,
+      "version": "1.4.0+c35a2c3b08b5"
+    },
+    {
+      "commit": "3fc192857d12e0c0619c24ad28ea79093d924914",
+      "tag": null,
+      "version": "1.4.0+3fc192857d12"
+    },
+    {
+      "commit": "19ba7fc0be7e7ac8e359682c1efc3f3f33f55473",
+      "tag": null,
+      "version": "1.4.0+19ba7fc0be7e"
+    },
+    {
+      "commit": "89bc38e6cdc0c1365eb6024739f5e01af62cd2cd",
+      "tag": null,
+      "version": "1.4.0+89bc38e6cdc0"
+    },
+    {
+      "commit": "90adcaf813918b495614847381242b3e6f59368f",
+      "tag": null,
+      "version": "1.4.0+90adcaf81391"
+    },
+    {
+      "commit": "8688c070c6ffccc48fbf9109dcec714301b80865",
+      "tag": null,
+      "version": "1.4.0+8688c070c6ff"
+    },
+    {
+      "commit": "d3ff32178e6cbd7ffe1afae1f182abf990a143fe",
+      "tag": null,
+      "version": "1.4.0+d3ff32178e6c"
+    },
+    {
+      "commit": "90b9ba3c23f45e60360b17b75355cfc3e6253367",
+      "tag": "v1.5.0",
+      "version": "1.5.0"
+    },
+    {
+      "commit": "198cdbf9b3e22056ae6ddb82e996e0953f7be271",
+      "tag": null,
+      "version": "1.5.0+198cdbf9b3e2"
+    },
+    {
+      "commit": "242caf434cba8b5a8da9499297b2a0ce3b51b080",
+      "tag": null,
+      "version": "1.5.0+242caf434cba"
+    },
+    {
+      "commit": "e9069f67413168b4169d4823193457ca7965b245",
+      "tag": "v1.6.0",
+      "version": "1.6.0"
+    },
+    {
+      "commit": "bc21288d4826d91a388cca1fa8aaa0d460fe8f09",
+      "tag": "v1.6.1",
+      "version": "1.6.1"
+    },
+    {
+      "commit": "c65be5247b2a8e2c2234616277995f5253e96117",
+      "tag": null,
+      "version": "1.6.1+c65be5247b2a"
+    },
+    {
+      "commit": "862b4359fe6d6b6504f9cb42023165e8122ceb84",
+      "tag": null,
+      "version": "1.6.1+862b4359fe6d"
+    },
+    {
+      "commit": "8a259e83e67b4b3f3c418576e19f29c38c5c86c8",
+      "tag": null,
+      "version": "1.6.1+8a259e83e67b"
+    },
+    {
+      "commit": "700d18752171c717d27292dab2055e1b9ba7044f",
+      "tag": "v2.0.0",
+      "version": "2.0.0"
+    },
+    {
+      "commit": "795ed928eefb61b8beaad7ce7218bca090c3f02c",
+      "tag": "v2.1.0",
+      "version": "2.1.0"
+    },
+    {
+      "commit": "9f6a7b3343d61900a09d1c618629ebd0301dd863",
+      "tag": "v2.1.1",
+      "version": "2.1.1"
+    },
+    {
+      "commit": "18464b8b7cbede13a550391b26d4f8f28d97ff6a",
+      "tag": "v3.0.0",
+      "version": "3.0.0"
+    },
+    {
+      "commit": "7a49146d0aaa23142c5b9cf58bd2fe87f444ecbd",
+      "tag": "v3.0.1",
+      "version": "3.0.1"
+    },
+    {
+      "commit": "7140051874c05b23abbb1fb72d5ae8553b6dd96e",
+      "tag": null,
+      "version": "3.0.1+7140051874c0"
+    },
+    {
+      "commit": "28f2baecf0c302fa2a7650693db4185d63efdef1",
+      "tag": "v3.0.2",
+      "version": "3.0.2"
+    },
+    {
+      "commit": "ec856f8479cc155fe6be8f59c92e3dfab22bbff6",
+      "tag": "v3.0.3",
+      "version": "3.0.3"
+    },
+    {
+      "commit": "3c7da59e353a6aee774dbb3356bde089e8f7b08d",
+      "tag": null,
+      "version": "3.0.3+3c7da59e353a"
+    }
+  ]
+}
