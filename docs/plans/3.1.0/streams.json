@@ -1,0 +1,25 @@
+{
+  "note": "Owned paths per 3.1.0 stream (plan §3). overlap.mjs reports any path two streams own that §3's shared table does not allow.",
+  "shared": [
+    "skills/xez-onboard-opinionated/kit/skills/",
+    "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+    "skills/xez-onboard-opinionated/kit/routing.json",
+    "skills/xez-onboard-opinionated/references/routing-defaults/4.json",
+    "skills/xez-onboard-opinionated/kit/workflows/address-review-findings.yaml",
+    "skills/xez-onboard-opinionated/kit/checks/lib/gate-results.mjs",
+    "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+    "skills/xez-onboard-opinionated/kit/docs/phase-record.md",
+    "skills/xez-onboard-opinionated/references/descriptor-digests.json",
+    "skills/xez-setup-agent-pipeline/references/config-fields.md"
+  ],
+  "streams": {
+    "A": ["skills/xez-onboard-opinionated/kit/skills/xezar-testing.md", "skills/xez-onboard-opinionated/kit/skills/xezar-dependency-maintenance.md", "skills/xez-onboard-opinionated/kit/skills/xezar-docs-maintenance.md", "skills/xez-onboard-opinionated/kit/pipeline/toolchains/", "skills/xez-setup-agent-pipeline/references/toolchains/", "scripts/allowlists.json", "skills/xez-onboard-opinionated/references/descriptor-digests.json"],
+    "B": ["skills/xez-onboard-opinionated/kit/checks/route.mjs", "skills/xez-onboard-opinionated/kit/routing.json", "skills/xez-onboard-opinionated/kit/routing.schema.json", "skills/xez-onboard-opinionated/references/routing-defaults/4.json", "skills/xez-onboard-opinionated/kit/docs/routing.md", "skills/xez-onboard-opinionated/kit/leader-guide.template.md", "skills/xez-onboard-opinionated/kit/docs/leader-guide-detail.md", "skills/xez-onboard-opinionated/kit/docs/close-out.md", "skills/xez-onboard-opinionated/kit/loops.json"],
+    "C": ["skills/xez-onboard-opinionated/kit/checks/leader-context.sh", "skills/xez-onboard-opinionated/kit/docs/leader-context-loading.md", "skills/xez-onboard-opinionated/kit/docs/campaign-notes.md", "skills/xez-onboard-opinionated/kit/checks/fenced-quotes.mjs", "skills/xez-onboard-opinionated/kit/checks/documented-output.mjs", "skills/xez-onboard-opinionated/kit/checks/documented-output.allowlist.json", "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs"],
+    "D": ["skills/xez-onboard-opinionated/kit/workflows/", "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs", "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md", "skills/xez-setup-agent-pipeline/references/browsers/chrome-devtools.md", "skills/xez-onboard-opinionated/references/descriptor-digests.json"],
+    "E": ["skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs", "skills/xez-onboard-opinionated/kit/checks/lib/common.sh", "skills/xez-onboard-opinionated/kit/checks/resume-complete.sh", "skills/xez-onboard-opinionated/kit/checks/lib/gate-results.mjs", "scripts/test-deps-units.mjs", "skills/xez-onboard-opinionated/kit/docs/phase-record.md"],
+    "F": ["skills/xez-onboard-opinionated/kit/checks/changelog-check.sh", "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs", "skills/xez-onboard-opinionated/kit/skills/xezar-release-changelog.md", "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh"],
+    "G": ["skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs", "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs", "skills/xez-onboard-opinionated/kit/checks/lib/project-policy.mjs", "skills/xez-setup-agent-pipeline/references/config-fields.md", "skills/xez-onboard-opinionated/kit/docs/phase-record.md"],
+    "U": ["upgrade/", "skills/xez-onboard-opinionated/references/write.md", "skills/xez-onboard-opinionated/references/verify.md", "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs", "skills/xez-onboard-opinionated/kit/docs/local-patches.md", "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh", "skills/xez-add-rule/SKILL.md", "scripts/test-upgrade.mjs", "scripts/build-upgrade-fixtures.mjs", "scripts/build-kit-index.mjs", "scripts/fixtures/upgrade/", ".xezar/pipeline/config.json", ".github/workflows/lint.yml", "SDLC.md", "package.json"]
+  }
+}
