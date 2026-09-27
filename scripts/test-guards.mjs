@@ -74,6 +74,10 @@ const statusBefore = run("git", ["status", "--porcelain"]).out;
  * not just "it failed", because a guard failing for an unrelated reason would otherwise
  * count as a pass.
  */
+const KIT_INDEX_PKG = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+const KIT_INDEX_PKG_IS_NEWEST =
+  JSON.parse(readFileSync(join(root, "upgrade/kit-index/index.json"), "utf8")).versions.at(-1)?.version === KIT_INDEX_PKG;
+
 function breaks(name, file, mutate, gate, expect) {
   asserts += 1;
   const path = join(root, file);
@@ -1859,11 +1863,18 @@ breaks(
 // PR indexes its own version last, this mutation changes nothing and must be re-aimed.
 breaks(
   "a stale kit index for the package version is rejected",
-  "upgrade/kit-index/index.json",
+  // Between releases the package version is not the newest entry, so the index is cut back
+  // to it. On a release commit it already is, so one file is dropped from its own index.
+  KIT_INDEX_PKG_IS_NEWEST ? `upgrade/kit-index/${KIT_INDEX_PKG}.json` : "upgrade/kit-index/index.json",
   (s) => {
-    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+    if (KIT_INDEX_PKG_IS_NEWEST) {
+      const data = JSON.parse(s);
+      const [first] = Object.keys(data.files);
+      delete data.files[first];
+      return `${JSON.stringify(data, null, 2)}\n`;
+    }
     const list = JSON.parse(s);
-    const at = list.versions.findIndex((v) => v.version === pkg);
+    const at = list.versions.findIndex((v) => v.version === KIT_INDEX_PKG);
     return at < 0 ? s : `${JSON.stringify({ versions: list.versions.slice(0, at + 1) }, null, 2)}\n`;
   },
   () => script("test-upgrade.mjs"),
