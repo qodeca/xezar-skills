@@ -1,5 +1,5 @@
 {
-  "commit": "a8726afe0ad168b1766fceeefc61282fb0880170",
+  "commit": "b068833173bee83e0d65cf377fa66ade805ec410",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -122,10 +122,10 @@
       "sha256": "01a4162d52b0708dec2f47bc4ed8dbf2dc12f44fac24a2eda7abcff6f0a1ab9d"
     },
     ".xezar/checks/gh-write.sh": {
-      "kitBlob": "0fc8663ef57ef2939abab1daffffc3bb30925a1c",
+      "kitBlob": "bd5e7636999ce7e0b5c72feb718d7454456a735a",
       "kitSource": "checks/gh-write.sh",
       "rewrite": "copied",
-      "sha256": "e459180c85769ee520b5454289d285947d1a4b3f0bfe1d6db31e8a9140198c0a"
+      "sha256": "532790ef020e5fbefc8e0a81dcfff1ad83e26ab22e568375a2ce3e4a9d8581c8"
     },
     ".xezar/checks/git-read.sh": {
       "kitBlob": "f2122b93e6344dcafab617552941ed5d51ef7b05",
@@ -176,10 +176,10 @@
       "sha256": "ed1ed5c0439d14f68480ef4d5f672c0d05eee67e6a6ac118f74a16ce541b5038"
     },
     ".xezar/checks/lib/gate-record.sh": {
-      "kitBlob": "fc39a1b4c35ddaf412f4d760cb11b5168be5e3c8",
+      "kitBlob": "7dc232f9008307298940987f01a12c92949c8166",
       "kitSource": "checks/lib/gate-record.sh",
       "rewrite": "copied",
-      "sha256": "fbbb61107ee61269a5167c84b0e758a3ffad459f5eb003aca4c03e97282e5372"
+      "sha256": "93017dfab241c2ca204c22a6b279be2a20de49c5d6c25d8fc859de27d2f3e6a1"
     },
     ".xezar/checks/lib/gate-results.mjs": {
       "kitBlob": "f4a8d9195071b8fb182328865cce27f55b461614",
@@ -302,10 +302,10 @@
       "sha256": "9bbffccaf43a699aa68fdfa35ed32381087d4199d898ad96506726885befb368"
     },
     ".xezar/checks/worktree-preflight.sh": {
-      "kitBlob": "2a55090d81aadfcec0ce5e5d3ac0138b2d6db479",
+      "kitBlob": "9bc1913d15fc4bbea7ce50aa2423b9999984a32c",
       "kitSource": "checks/worktree-preflight.sh",
       "rewrite": "copied",
-      "sha256": "fd879e37d32e5d264f6a8f8ad5527d7b691303694e472f131fd34e9c2bcb2bf8"
+      "sha256": "9a86fdf6983e424fd214de183e0f33932ce3a974aca8f6f9760b8ef3d908ab65"
     },
     ".xezar/checks/worktree-setup.sh": {
       "kitBlob": "aae00aefe94e4211adfbb8232340fec376de3be6",
@@ -960,5 +960,5 @@
     }
   },
   "tag": null,
-  "version": "3.0.3+a8726afe0ad1"
+  "version": "3.0.3+b068833173be"
 }

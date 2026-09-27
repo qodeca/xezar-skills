@@ -98,7 +98,9 @@ Rules:
 
   The list is closed: adding a value is a breaking change.
 - **`patch` present = locally patched.** It names a register entry (§2). A file with no `patch`
-  must hash-match `sha256`.
+  must hash-match `sha256`. A patched file may also be absent: a kit file the project removed on
+  purpose keeps its entry – what was installed – with the `patch`, so the next upgrade reads the
+  absence as the recorded local change and does not add the file back.
 - **`kitSource`** is the path under `kit/`. It is required for `copied` and `adapted`, and absent
   for `generated`.
 - **`kitBlob`** is the git blob sha of the kit file before rewrite. It is required for `copied` and
@@ -109,8 +111,11 @@ Rules:
   version's copy. A patched file's `sha256` is the digest of that copy, not of the patched file.
 - **What `files` lists**: the setup's machinery, as `.xezar/docs/local-patches.md` says. It never
   lists the project's own documents (`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`, the `CLAUDE.md`
-  files and their siblings) or an owner file merged without a kit block (`.mcp.json`,
-  `.codex/config.toml`, the root `.gitignore`), even where the kit index lists one. An owner file
+  files and their siblings), the project's configuration (`.xezar/config.json`,
+  `.xezar/pipeline/config.json`, `.xezar/pipeline/labels.json`, `.xezar/routing.json`), or an
+  owner file merged without a kit block (`.mcp.json`, `.codex/config.toml`, the root
+  `.gitignore`), even where the kit index lists one. The drift check ignores a configuration
+  entry an earlier 3.1.0 build wrote. An owner file
   with an appended kit block is the exception: it is listed as `owner-file-appended`.
 - **`renderInputs`** holds plain text only. A secret, token or account name never goes here; those
   live in the gitignored `.local/xezar/runtime/onboarding-identity.json`.

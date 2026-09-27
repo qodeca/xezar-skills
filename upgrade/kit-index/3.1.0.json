@@ -1,5 +1,5 @@
 {
-  "commit": "61ccc0440a97810e3ef6e8d3e659b457eb930e57",
+  "commit": "a50edc906f1e2896df466bb516c914b992e8239c",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -218,10 +218,10 @@
       "sha256": "a3089c9f5371538fa2aa8ac223b221626695bd6d066a322af8a9154e213fed4f"
     },
     ".xezar/checks/manifest-drift.mjs": {
-      "kitBlob": "38f6a3a28be0b90da27998d0205381f39c4bfe34",
+      "kitBlob": "530ffd008b392beec44440a5fb191274426b2fb5",
       "kitSource": "checks/manifest-drift.mjs",
       "rewrite": "copied",
-      "sha256": "9720b51f404eaedd43568ca78207fb199a9adb9d2a69ffdd3a5bad4a8fc054fc"
+      "sha256": "f7497e14ffb198a412a10ddaf4ef6c289a04441cf9441887c0e4b6ae1be0f725"
     },
     ".xezar/checks/merge-recovery.sh": {
       "kitBlob": "b6b3a3e081c536a3eaea41c0199d556f4fe66afb",
@@ -374,10 +374,10 @@
       "rewrite": "generated"
     },
     ".xezar/docs/local-patches.md": {
-      "kitBlob": "b01010455c4e6658958ba7bfe747f22df85cc17c",
+      "kitBlob": "b465199310d7b54cf4b2a896539ef391c9b498a0",
       "kitSource": "docs/local-patches.md",
       "rewrite": "copied",
-      "sha256": "8a8b3e9d8f1f06ef81fa35e44c1613f155bcf0353a123948b5affd5bbaeeb5fa"
+      "sha256": "dc3270c3fea3cf2bb11514a52d9a2464b183675637e51946ebec777737abacb6"
     },
     ".xezar/docs/parallel-tasks.md": {
       "kitBlob": "e457464ac3fa26aee7b24e17d0866930c8bd6026",

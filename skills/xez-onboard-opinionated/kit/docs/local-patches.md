@@ -12,12 +12,15 @@ It runs in `repository-checks.sh`, so every gate run re-hashes every recorded fi
 
 ## What the manifest tracks
 
-The setup's machinery: every file installed from the kit, including the leader guide and
-`.xezar/routing.json`, and the configuration the kit's checks read (`.xezar/config.json`,
-`.xezar/pipeline/config.json`, `.xezar/pipeline/labels.json`). It does **not** track the project's
-own documents, which the pipeline's roles edit in normal work: `AGENTS.md`, `SDLC.md`,
-`CODE_REVIEW.md`, `BACKWARD_COMPATIBILITY.md`, `SECURITY.md`, the `CLAUDE.md` files, the designs
-index and the campaign folders. Nor does it track a file the project already had that the setup
+The setup's machinery: every file installed from the kit, including the leader guide. It does
+**not** track the project's own documents, which the pipeline's roles edit in normal work:
+`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`, `BACKWARD_COMPATIBILITY.md`, `SECURITY.md`, the
+`CLAUDE.md` files, the designs index and the campaign folders. Nor does it track the project's
+configuration – `.xezar/config.json`, `.xezar/pipeline/config.json`,
+`.xezar/pipeline/labels.json` and `.xezar/routing.json` – which routing changes, new gate
+commands, label changes and design-module status updates edit as ordinary work; the security
+scan's trust boundary and `route.mjs --check` guard those instead. A manifest that still lists
+one of them (written by an earlier 3.1.0 build) is not failed for it. Nor does it track a file the project already had that the setup
 merged into without a kit block (`.mcp.json`, `.codex/config.toml`, the root `.gitignore`), or any
 gitignored file. `.xezar/onboarding.json` and `.xezar/LOCAL-PATCHES.md` never list themselves.
 
@@ -61,6 +64,11 @@ until the owner reads it and changes it to `yes`. Only the owner makes that chan
 owner's own words in the guide's owner section; that skill refreshes the guide's recorded digest
 in the same commit instead of adding a register entry.
 
+**Removing a kit file on purpose.** A deletion is a local patch like any other: delete the file,
+add a register entry listing it, and add `"patch": "LP-<n>"` to its manifest entry, which stays
+in the manifest. The check then accepts the absence, and an upgrade keeps the file removed
+instead of adding it back as new.
+
 **Undoing a patch.** Restore the kit's file, remove the `patch` key, and remove the path from the
 entry (the whole entry when it was the last path). An upgrade that finds the change already
 upstream drafts this removal for you.
@@ -74,7 +82,7 @@ manifest or the register cannot be parsed.
 | Reason | Meaning | What to do |
 |---|---|---|
 | `hash-mismatch` | The file changed and nothing records why (also: a link, or a path leaving the repository). | Record it as a local patch, or restore the file. |
-| `missing` | The manifest lists a file the tree does not have. | Restore it; a deliberate removal is a local patch too. |
+| `missing` | The manifest lists a file the tree does not have, and its entry carries no `patch`. | Restore it, or record the removal as a local patch (above). |
 | `unregistered-patch` | The entry names `LP-<n>`, but the register has no such entry or it does not list this file. | Add the entry or the path. |
 | `unconfirmed-patch` | The entry says `Confirmed: no`. | The owner reads it and sets `yes`. |
 | `register-without-manifest` | The register lists a path whose manifest entry does not carry that patch (`origin=none`: no entry at all). | Add the `patch` key, or remove the path from the register. |

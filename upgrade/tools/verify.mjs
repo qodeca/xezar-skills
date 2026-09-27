@@ -13,6 +13,8 @@
 //   config-value-changed an owner value in a config file changed
 //   owner-rules-changed the leader guide's "## Owner's rules" section is not byte-equal to before
 //   register-binding    a register entry naming a missing file, or a file naming a missing entry
+//                       (a kit file the project removed on purpose is not missing: the entry
+//                       records the removal, and the manifest keeps the file's entry with it)
 //   safety-line-missing a refusing line the target kit added to a resolved safety file is absent
 // "Before" is the commit the plan was made on (plan.json startCommit).
 //
@@ -132,7 +134,7 @@ export function invariants(ctx, plan) {
   for (const e of reg.entries) {
     for (const f of e.files) {
       if (!isRepoRelative(f)) problem("register-binding", f, `${e.id} names an unsafe path`);
-      else if (ctx.readMine(f).text == null) problem("register-binding", f, `${e.id} names a file that does not exist`);
+      else if (ctx.readMine(f).text == null && !recordableRemoval(ctx, f)) problem("register-binding", f, `${e.id} names a file that does not exist`);
     }
   }
   const manifestFiles = ctx.manifest.raw.files;
@@ -163,6 +165,46 @@ export function invariants(ctx, plan) {
 }
 
 const ORIGINS = new Set(["copied", "adapted", "generated", "owner-file-appended"]);
+const HEX64 = /^[0-9a-f]{64}$/;
+const HEX40 = /^[0-9a-f]{40}$/;
+
+/** A kit file manifest v2 would record, were it present: in the target, tracked, shared. */
+function recordable(ctx, p) {
+  const e = ctx.theirs.files[p];
+  if (!e || isNeverTouched(p) || isNotRecorded(p)) return false;
+  if (ctx.git.isGit && ctx.git.ignored(p)) return false; // per-machine: never recorded
+  return !(e.rewrite !== "generated" && ctx.theirsCopyMap.get(p)?.perMachine);
+}
+
+/**
+ * The manifest entry for a kit file the project removed on purpose, without its `patch`: what
+ * was installed (the old v2 entry, else the manifest's hint, else the detected base, else the
+ * target), so the next upgrade still knows the file and reads its absence as the local change
+ * the register records. Null when no digest is known.
+ */
+export function removedEntry(ctx, p, detected = null) {
+  const e = ctx.theirs.files[p];
+  const old = ctx.manifest.manifestVersion >= 2 ? ctx.manifest.raw.files?.[p] ?? null : null;
+  const hint = ctx.manifest.hints.get(p) ?? {};
+  const base = detected?.base?.entry ?? null;
+  const sha = [old?.sha256, hint.sha256, base?.sha256, e.sha256].find((x) => typeof x === "string" && HEX64.test(x));
+  if (!sha) return null;
+  const recorded = old?.origin ?? hint.origin;
+  const entry = { sha256: sha, origin: ORIGINS.has(recorded) && recorded !== "owner-file-appended" ? recorded : e.rewrite };
+  if (e.rewrite !== "generated") {
+    const src = typeof old?.kitSource === "string" && HEX40.test(old?.kitBlob ?? "") ? old : base ?? e;
+    entry.kitSource = src.kitSource;
+    entry.kitBlob = src.kitBlob;
+    const inputs = old?.renderInputs ?? hint.renderInputs;
+    if (e.rewrite === "adapted" && inputs && Object.keys(inputs).length) entry.renderInputs = inputs;
+  }
+  return entry;
+}
+
+/** A register path that is absent but can be recorded as a removal (see removedEntry). */
+function recordableRemoval(ctx, p) {
+  return Boolean(ctx.readMine(p).missing && recordable(ctx, p) && removedEntry(ctx, p));
+}
 
 /** The kit-owned block of an owner file, markers included (upgrade/CONTRACT.md §1.2). */
 export function appendedBlock(text) {
@@ -210,11 +252,15 @@ export function manifestV2(ctx) {
   const detection = detect(ctx);
   const detectedByPath = new Map(detection.files.map((f) => [f.path, f]));
   for (const [p, e] of Object.entries(ctx.theirs.files).sort(([a], [b]) => (a < b ? -1 : 1))) {
-    if (isNeverTouched(p) || isNotRecorded(p)) continue;
+    if (!recordable(ctx, p)) continue;
     const mine = ctx.readMine(p);
-    if (mine.text == null) continue;
-    if (ctx.git.isGit && ctx.git.ignored(p)) continue; // per-machine: never recorded
-    if (e.rewrite !== "generated" && ctx.theirsCopyMap.get(p)?.perMachine) continue;
+    if (mine.text == null) {
+      // Removed on purpose: a register entry covers the absence, and the entry keeps what was
+      // installed. Removed with no register entry: not recorded (the drift check would fail it).
+      const removed = mine.missing && patchOf.has(p) ? removedEntry(ctx, p, detectedByPath.get(p)) : null;
+      if (removed) files[p] = { ...removed, patch: patchOf.get(p) };
+      continue;
+    }
     // `origin` is set at install time and never changes: keep a recorded one.
     const recorded = oldFiles[p]?.origin ?? ctx.manifest.hints.get(p)?.origin;
     const entry = { sha256: sha256(mine.text), origin: ORIGINS.has(recorded) && recorded !== "owner-file-appended" ? recorded : e.rewrite };

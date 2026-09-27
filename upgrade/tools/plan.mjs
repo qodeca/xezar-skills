@@ -12,6 +12,8 @@
 //     counts: { <class>: n },
 //     files: [ { path, class, action, base: { version, confidence, via }, mineSha256,
 //                theirs: { kitSource, kitBlob, sha256, rewrite } | null, renamedFrom?,
+//                (a generated file written from a kit template, the leader guide, has that
+//                template as its kitSource)
 //                renderKeys?, missingKeys?, register: [LP-n], registerConfirmed,
 //                safety, stops: [reason], reviews: [reason], notes: [text] } ],
 //     stops: [ { path, reason } ], reviews: [ { path, reason } ], unexplained: [path],
@@ -43,7 +45,8 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { sha256 } from "./lib/hash.mjs";
+import { git, gitBlobSha, sha256 } from "./lib/hash.mjs";
+import { SKILL_DIR } from "./lib/kit-index.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
 import { render, placeholdersIn } from "./lib/rewrites.mjs";
@@ -80,6 +83,30 @@ export const CLASSES = [
   "per-machine",
   "refused",
 ];
+
+/**
+ * Generated files the setup writes from a kit template. The index gives a generated file no kit
+ * source, so without this the plan would point Claude at nothing to merge from.
+ */
+export const GENERATED_TEMPLATES = { ".xezar/docs/leader-guide.md": "leader-guide.template.md" };
+
+/**
+ * Did the template change between the project's kit version and the target? true, false, or
+ * null when that cannot be told (no known version, or a clone without that commit's history).
+ */
+export function templateChanged(ctx, template) {
+  const v = ctx.history.find((x) => x.version === ctx.manifest.version);
+  let target;
+  try {
+    target = gitBlobSha(readFileSync(join(ctx.kitSkillDir, "kit", template)));
+  } catch {
+    return null;
+  }
+  if (!v?.commit) return null;
+  const out = git(["rev-parse", "--verify", "-q", `${v.commit}:${SKILL_DIR}/kit/${template}`], ctx.toolRoot, { allowFail: true });
+  const base = (out ?? "").trim();
+  return /^[0-9a-f]{40}$/.test(base) ? base !== target : null;
+}
 
 /** Placeholder values recovered from every adapted file, for files that have none of their own. */
 function globalInputs(detection) {
@@ -299,6 +326,15 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       if (!exists && !te) continue;
       item.class = "owner-shaped";
       item.action = "list";
+      const template = te?.rewrite === "generated" ? GENERATED_TEMPLATES[p] : null;
+      if (template && existsSync(join(ctx.kitSkillDir, "kit", template))) {
+        item.theirs.kitSource = template;
+        item.notes.push(`generated from the kit's ${template}: theirs is that template, so take what it adds outside the owner's own sections`);
+        const changed = templateChanged(ctx, template);
+        if (changed === true) item.notes.push("template changed in the kit since the project's version: merge its changes in");
+        else if (changed === false) item.notes.push("template unchanged in the kit since the project's version");
+        else item.notes.push("could not tell whether the template changed since the project's version: compare mine with it in full");
+      }
       if (te?.kitSource && exists) {
         const t = ctx.theirsText(p);
         const grants = permissionGrants(p, f.mineText, t);
@@ -388,14 +424,19 @@ export function buildPlan(ctx, detection = detect(ctx)) {
         push();
         continue;
       }
-      if (installedAtBase && f.base.confidence === "high") {
-        // The manifest recorded it; the project removed it.
-        item.class = "unexplained-local-change";
+      if (installedAtBase || reg.length) {
+        // The manifest (or the register) records it; the project removed it. Any manifest
+        // record counts, not only one that names a known base: an adapted file's v1 digest is
+        // of the rendered text, and a file taken for new would be added back without a word.
+        // A confirmed register entry keeps the removal; otherwise it is the owner's call.
+        item.class = item.registerConfirmed ? "local-only" : "unexplained-local-change";
         item.action = "keep";
-        item.notes.push("recorded in the manifest and missing from the tree");
-        if (!item.registerConfirmed) {
-          if (item.safety) stop("unexplained-safety-file");
-        }
+        item.notes.push(
+          item.registerConfirmed
+            ? "removed locally, and the register records the removal: kept removed"
+            : "recorded in the manifest and missing from the tree: keep it removed (register entry) or restore it",
+        );
+        if (!item.registerConfirmed && item.safety) stop("unexplained-safety-file");
         push();
         continue;
       }
