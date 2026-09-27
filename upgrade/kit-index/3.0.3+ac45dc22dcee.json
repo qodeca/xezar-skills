@@ -1,5 +1,5 @@
 {
-  "commit": "d7744c7397dc7a56fe66adced6e170080de78255",
+  "commit": "ac45dc22dcee7e17bf76b69611f57de0dd2a7020",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -959,6 +959,6 @@
       "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+ac45dc22dcee"
 }
