@@ -366,7 +366,7 @@
       ],
       "notes": [
         "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     },
     {
@@ -416,7 +416,7 @@
       ],
       "notes": [
         "pi lanes return to this row when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     },
     {
@@ -553,7 +553,7 @@
         }
       ],
       "notes": [
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     },
     {
@@ -1518,7 +1518,7 @@
       "notes": [
         "Starts only on the owner's word, quoting the commit.",
         "Security, design and Major-claim verdicts inside a release still go to their own rows.",
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     },
     {
@@ -1547,7 +1547,7 @@
       ],
       "neverAuthor": true,
       "notes": [
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     },
     {
@@ -1576,7 +1576,7 @@
       ],
       "neverAuthor": true,
       "notes": [
-        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex and drops the pi shell."
+        "Codex and pi lanes leave this row until their runner blocks writes in a reading step; the engine confines Codex, and pi still runs with a full shell (qodeca/xezar#935)."
       ]
     }
   ]

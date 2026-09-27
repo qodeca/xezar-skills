@@ -179,6 +179,46 @@
       "commit": "73e6e685baf290130702deebfcd38581d455c101",
       "tag": null,
       "version": "3.0.3+73e6e685baf2"
+    },
+    {
+      "commit": "6c76bf79c759c6e7fb9e8c6b626158229d5d80cd",
+      "tag": null,
+      "version": "3.0.3+6c76bf79c759"
+    },
+    {
+      "commit": "9b614cef6dd0c3c006d8841bb526537a1c386fd0",
+      "tag": null,
+      "version": "3.0.3+9b614cef6dd0"
+    },
+    {
+      "commit": "98a8467e500c42d1c46baf0de78d78df85059f1d",
+      "tag": null,
+      "version": "3.0.3+98a8467e500c"
+    },
+    {
+      "commit": "4512f9f9a8f872c822c62a5832720fa334e026d2",
+      "tag": null,
+      "version": "3.0.3+4512f9f9a8f8"
+    },
+    {
+      "commit": "87bc5964c657975925e5c8da7467f3dac56ecb38",
+      "tag": null,
+      "version": "3.0.3+87bc5964c657"
+    },
+    {
+      "commit": "882e91f064b9276a4ec79a06beac487c6e346871",
+      "tag": null,
+      "version": "3.0.3+882e91f064b9"
+    },
+    {
+      "commit": "8aa0b71403fa309c8b575b5e723c6218b5687ea9",
+      "tag": null,
+      "version": "3.0.3+8aa0b71403fa"
+    },
+    {
+      "commit": "12370f76707f56ff53f2c09672d470679683f353",
+      "tag": "v3.1.0",
+      "version": "3.1.0"
     }
   ]
 }

@@ -34,15 +34,28 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.designSystem` | `docs/design-system`, or the project's own | the kit's design role skills |
 | `dependencies.units` | absent (a single npm root); for a project with no root manifest, elements `{dir, provider, lockfile?, entry?}` with `provider` one of `npm`, `yarn` (Yarn 1), `dotnet` | `kit/checks/lib/deps.mjs`, through `deps-restore.sh`, `worktree-setup.sh`, `repo-gates.sh` and `lib/common.sh` — always from the remote's default branch |
 | `designSystem.modules` | absent (one flat system); for several product surfaces, elements `{name, folder, kind, writable, status, appPaths, derivedFiles?, buildCommand?, checkCommand?}` | the kit's design-system, UX, UI, UI-test, code-review and visual-asset role skills — always from the base branch |
+| `changelog.format` | absent (`auto`: detected from the file's headings); `house` or `keep-a-changelog` to pin it | `kit/checks/changelog-fragments.mjs`, and through it `kit/checks/changelog-check.sh` |
+| `security.trustBoundaries` | absent (no project entries); elements `{pattern, why}`, `pattern` of literals, `?`, `*` and `**`, at most 64 entries of at most 256 characters | `kit/checks/lib/security-scan.mjs`, grammar in `kit/checks/lib/config-grammar.mjs` – always from the base branch tip |
 
-`dependencies.units` arrived in 3.0.2 and is one of two keys in this table **with** a meaning when
+`dependencies.units` arrived in 3.0.2 and is one of four keys in this table **with** a meaning when
 absent: today's single npm root, output unchanged. So it is additive for every existing project.
 An empty list, an unknown key in an element, or a provider outside the three is refused, not read
 as "no units"; loosening any of that, or reading the key from the working tree, is breaking.
 
-`designSystem.modules` arrived in 3.1.0 and is the other: absent means one flat design system at
+`designSystem.modules` arrived in 3.1.0 and is another: absent means one flat design system at
 `paths.designSystem`, exactly as before. Renaming or removing an element field, adding a `kind` or
 `status` value a role does not know, or reading the list from the working tree, is breaking.
+
+`changelog.format` arrived in 3.1.0 and has a meaning when absent – detect, which reads every file
+written before 3.1.0 as `house`, exactly as before. An unknown value is refused, not read as
+"detect". Removing a value or changing what `auto` detects is breaking.
+
+`security.trustBoundaries` arrived in 3.1.0 and has a meaning when absent: no project entries, the
+kit's list unchanged. So it is additive for every existing project. It can only add to the kit's
+list. An invalid list – a refused pattern, a missing `why`, an unknown field, more than 64 entries
+or an entry over 256 characters – routes the change to review and is never read as "no entries";
+loosening that, letting the list remove a kit entry, or reading it from the working tree or the
+merge-base, is breaking.
 
 The `ci.requiredChecks` and `paths.designSystem` rows were missing from this table until
 2026-09-21. `DECISIONS.md` records them being created in the **1.4.0 portability** work — the same
@@ -116,8 +129,46 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
 - **The `Gate:` verdict line and the gate `NAME=value` lines** emitted by `merge-gate.sh` and `gate-status.sh` – line-anchored `^Gate: ` (and `Status=` from the status script), one line per gate plus a `Blocking=` list. Parsers split a `NAME=value` line on the **first** `=` and never source the output as shell. `Status:` is reserved and is not the verdict keyword; renaming `Gate:` is breaking.
 - **The verification record** (a fenced `text` block of `NAME=value` lines carrying `Head=`, `Base=`, `Skill=`, `At=`, repeated `Gate=`/`Status=` pairs and `Verdict=`) – written through **put-verification-record**, read through **get-verification-record**. Parsers split on the **first** `=` only, never source it as shell, and ignore names they do not know, so the grammar can grow without breaking a reader. A tracker with no record support, or a pull request with no record, is **not** a failure: the record was never a gate input, so a consumer reports it as unavailable and decides from the tracker API as it always did.
 - **The five gate statuses** (`pass`, `findings`, `unknown`, `not-applicable`, `evidence-unavailable`) – produced by `gate-status.sh` and read by every gate consumer. Hyphenated, because the consumer is POSIX `sh` and an unquoted `case` word-splits on a space. Only `pass` and `not-applicable` are satisfied; renaming one, or adding a sixth that a consumer's `case` does not handle, is breaking.
-- **The onboarding kit's routing file** (`.xezar/routing.json`, `schemaVersion: 1`, shape in `kit/routing.schema.json`) – written by `xez-onboard-opinionated`, edited by the owner through pull requests, read by `kit/checks/route.mjs`, and through it by the leader (`kit/docs/routing.md`) and the L2/L3 loops. It grows **additively**: a new field is optional, and `route.mjs` ignores a key it does not know and warns. Renaming or removing a field, changing what a field means, or adding a required one is breaking, and so is changing the `NAME=value` lines `route.mjs <row id>` prints (`lane=`, `removed=`, `wait=`, `also=` and the rest), which the leader parses after the first `=`. `defaults.version` is raised only when the shipped defaults change, and every version is kept under `references/routing-defaults/` for the upgrade comparison.
+- **The onboarding kit's routing file** (`.xezar/routing.json`, `schemaVersion: 1`, shape in `kit/routing.schema.json`) – written by `xez-onboard-opinionated`, edited by the owner through pull requests, read by `kit/checks/route.mjs`, and through it by the leader (`kit/docs/routing.md`) and the L2/L3 loops. It grows **additively**: a new field is optional, and `route.mjs` ignores a key it does not know and warns. Renaming or removing a field, changing what a field means, or adding a required one is breaking, and so is changing the `NAME=value` lines `route.mjs <row id>` prints (`lane=`, `removed=`, `wait=`, `also=` and the rest), which the leader parses after the first `=`. `defaults.version` is raised only when the shipped defaults change, and every version is kept under `references/routing-defaults/` for the upgrade comparison. Added in 3.1.0, all additive:
+  - `.xezar/routing.json` gains an optional top-level key `vendorExclusions`: a list of
+    `{ vendor, why? }`; missing means none. It is read only by `route.mjs <row> --author …`. Its
+    shape is checked by `route.mjs --check`.
+  - `route.mjs <row id>` gains the optional `--author <lane>` and repeatable `--repair <lane>`
+    arguments. Only with `--author` does it print the new lines `escalation-eligible=<id>`,
+    `wait=no-independent-lane` and `removed=<lane> reason=author-chain: …`, and it prints eligible
+    escalation lanes as `lane=` instead of `escalation=… by=hand`. Without `--author` every line is
+    unchanged (pinned by a golden test in `scripts/test-kit-catalog.mjs`).
+  - A lane in `.xezar/routing.json` gains the optional key `fullShellReviews` (boolean; missing
+    means false). It is read only by `route.mjs`: a lane with it may be in a review row, or a
+    security row with `writes: false`, although `enforcesToolLimits` is false.
+  - Shipped routing defaults are now version 4 (`references/routing-defaults/4.json`). Version 4
+    gains the lane `pi/deepseek-api/deepseek-v4-pro` and relaxes the rule text of `tool-limits`,
+    `pi-write-claude-review` and `high-risk-other-vendor`. The ban ids are unchanged.
 - **Discovery output lines from `xez-discover`** (`Product brief:`, `Coverage:`, `Collection plan:`, `Next:`) – line-anchored like the chaining lines; `product-brief.md` is read by `xez-brainstorm`, `xez-spec-writing` and `xez-prepare-issue` when present.
+- **The onboarding manifest and the local-patch register** (`.xezar/onboarding.json` version 2 and
+  `.xezar/LOCAL-PATCHES.md`, both specified in `upgrade/CONTRACT.md` §1–§2) – written by
+  `xez-onboard-opinionated`, `xez-add-rule` and the upgrade tool, read by
+  `kit/checks/manifest-drift.mjs` and the upgrade tool. The `origin` list is closed, the register
+  grammar is fixed, and the check's `drift-status=` / `drift=` lines and exit codes (0, 1, 2) are
+  parsed after the first `=`. Adding an origin or a drift reason, renaming a register field, or
+  changing what `patch` means is breaking. A manifest without `manifestVersion` stays readable as
+  version 1 and is never enforced. A writer never records `version: "unknown"`; a reader still
+  accepts an older manifest that does and treats it as no version.
+- **The kit index** (`upgrade/kit-index/index.json` and `<version>.json`, shape in
+  `upgrade/CONTRACT.md` §3) – written by `scripts/build-kit-index.mjs`, read by every later
+  upgrade tool. A version file, once committed for a tag, never changes; adding a version is
+  additive. Renaming or removing a field, or changing what `rewrite` or `renamedFrom` means, is
+  breaking.
+- **The upgrade plan** (`.local/xezar/scratch/upgrade/plan.json`, `planVersion: 1`, and the
+  `NAME=value` lines of `detect.mjs`, `apply.mjs` and `verify.mjs`) – written by the tools, read by
+  the upgrade prompt and by `apply.mjs`/`verify.mjs`. Class and action names are a closed list;
+  adding one, or renaming one, is breaking for the prompt that branches on them, and raises
+  `planVersion`.
+- **The `upgrade` machine block** that ends every `UPGRADE_NOTES.md` entry from 3.1.0 on (grammar
+  and the closed action list in `upgrade/CONTRACT.md` §5) – written by each release, read by the
+  upgrade tool (`upgrade/tools/lib/machine-block.mjs`) and every later upgrade prompt. A reader
+  refuses an unknown action, so adding an action, renaming a key or an action, or changing what
+  one means is breaking.
 
 **Breaking:** changing any of these formats so an unmodified consumer skill can no longer parse output produced by a modified producer (or vice versa). **Required path:** update producer and all consumers in one PR, and keep the parser tolerant of the previous format when consumer repos may hold old artifacts (committed plans, descriptors).
 
@@ -143,10 +194,25 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Nine breaks have shipped, all deliberate. Each gets a row here on the day it ships:
+Twenty-four breaks have shipped, all deliberate. Each gets a row here on the day it ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
+| 2026-09-27 | `route.mjs --check` refuses a `vendorExclusions` that is not a list, names a vendor twice, or names a vendor no lane has | nobody with a file written before 3.1.0: the key did not exist | fix or drop the entry | an exclusion that matches no lane is a ban that silently does nothing |
+| 2026-09-27 | `route.mjs` exits 2 on an `--author` or `--repair` lane that is not in `routing.json`, and on `--repair` without `--author` | only callers of the new arguments | run without `--author` and check independence by hand, as before | an unknown author must never read as "independent of everything" |
+| 2026-09-27 | the kit's `catalog-check.mjs` refuses a `permissions.allow` entry in `.claude/settings.json` or `.claude/settings.local.json` that grants a chrome-devtools tool outside the kit's list, or the whole `mcp__chrome-devtools` server | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and granted such a tool or the whole server in its settings | list only the exact tool names in the kit's `.claude/settings.local.json`; `emulate` and the other review-only tools are granted by the review and QA workflows' own tool lists (D13), never by a settings file | a settings grant reaches every step, including reading steps, while the browser server runs outside every runner sandbox, so the exact tool list is the only limit it has |
+| 2026-09-27 | the kit's `catalog-check.mjs` refuses an agent step with no `timeout`, or with `timeout: none` | a project that copies the new `catalog-check.mjs` and has **its own** workflow with an agent step and no `timeout` – its gate turns red until the step gets one | add a `timeout` such as `15m` or `2h` to each agent step, sized for the job (`UPGRADE_NOTES.md`) | without it the limit is the runner's default, and the last step's default is none: a handoff that hangs after its work is sealed holds the run open (#52) |
+| 2026-09-27 | the kit's `catalog-check.mjs` requires every review and QA step (`qa`, `design-review`, `code-review`, `security-review`, `architecture-review`, `acceptance-verification`) to carry `review-run.sh` and every chrome-devtools tool, refuses Edit or Write in one and `--allow-root` in its preflight, and refuses the review-only browser tools in any other workflow (D13) | a project that copies the new `catalog-check.mjs` and kept its own review workflows, or granted `emulate`, `evaluate_script` or another review-only tool elsewhere | copy the kit's six review workflows, or add `review-run.sh` and the full browser list from `code-review.yaml` to each review step; remove the review-only tools from any other workflow | a reviewer that cannot run the change passes what it cannot see; the grant stays in exactly the steps that judge a change and cannot edit it (#63) |
+| 2026-09-27 | `changelog-check.sh` refuses a direct edit of `## [Unreleased]` in a Keep a Changelog file, and `changelog-fragments.mjs` refuses a fragment heading that format has no group for (`## Highlights`, `## 👥 Contributors`) there | a Keep a Changelog project with a `changelog.d/` folder, whose pull requests edited `CHANGELOG.md` directly and passed | write `changelog.d/<pr-or-branch>.md` instead, under a Keep a Changelog group or a house heading that maps onto one | that project's pull requests all conflicted on the same lines (about eight conflict repairs in one project) |
+| 2026-09-27 | `changelog-check.sh` and `changelog-fragments.mjs` exit 2 on an unknown `changelog.format` or an unparseable `.xezar/pipeline/config.json` | a project with a typo in that key, or a broken config | fix the value (`auto`, `house`, `keep-a-changelog`) or the JSON | a typo must not silently pick the other format |
+| 2026-09-27 | `--diff-base auto` no longer falls back to `origin/main` or `main`: it uses the gate base, then `baseBranch` from `.xezar/config.json` or `.xezar/pipeline/config.json`, then the remote's default branch; a configured base that does not resolve leaves the rule unchecked and says so | a project whose base is not `main`, running the check outside a gate run | fetch the configured base branch | `main` is the wrong base there and turned the base's own commits into a false refusal |
+| 2026-09-27 | the fold verifies itself before it writes, and refuses a fold that would leave a fragment line out of the new section or drop a changelog line | nobody in practice – the fold never did either | nothing | a lost entry is now caught before the file is written, not after the release |
+| 2026-09-27 | the kit's security scan dropped its four `packages/xezar/src/...` trust-boundary entries, and now reads `security.trustBoundaries` from `refs/remotes/origin/<baseBranch>`, recording `unknown` and requiring a reviewer when that ref does not resolve or the list is invalid | a project whose own layout matched `packages/xezar/src/{server,agent-config,mcp,workspace}/`; a checkout that runs the gates without the base branch fetched | add the removed paths to `security.trustBoundaries`; fetch the base branch before running the gates | the entries described one repository's layout and matched nothing elsewhere; a project list read from anywhere but the base tip could be removed by the branch it is meant to route |
+| 2026-09-27 | readiness (`worktree-preflight.sh --readiness`) refuses a `DELIVERED` record with `scope.delivery-record`, and a repair's push goes through `push-check.sh`, which refuses an unsealed or changed HEAD, a closed or fork PR, a branch other than the PR head, a protected branch and a bare force push | every project whose repairs pushed to the PR branch before the gates and recorded `DELIVERED`; a repair in flight at upgrade time | move the run's own branch onto the PR head and commit there, as `xezar-review-response` now says; re-dispatch a repair that already wrote `DELIVERED` | a repair that pushed freely put ungated code on pull requests and could push anywhere; now only the sealed commit reaches the PR's own head branch |
+| 2026-09-27 | `repository-checks.sh` runs `manifest-drift.mjs`, which fails the gate on a file listed in a version-2 `.xezar/onboarding.json` that changed with no `.xezar/LOCAL-PATCHES.md` entry, or whose entry says `Confirmed: no` | a project onboarded or upgraded to 3.1.0 that edits a kit file in place | record the change in the register and add `patch` to the manifest entry, or restore the file (`.xezar/docs/local-patches.md`); a version-1 manifest is not enforced | an unrecorded edit to a kit file is overwritten by the next upgrade that trusts the manifest; failing the gate is the only point where the edit can still be explained |
+| 2026-09-27 | The shipped defaults relax three bans: a full-shell pi lane may review (`tool-limits`), `codex/gpt-6-astra` may clear pi-written work (`pi-write-claude-review`), and V4 Pro may review risk-high work when Claude has no budget (`high-risk-other-vendor`) | every project that merges the 3.1.0 routing defaults | nothing to keep working; to keep the old bans, leave `fullShellReviews` off the lane and keep the old ban texts and orders when merging | Claude's quota ran out within the week across the owner's projects; the owner accepted the risk (#89) |
+| 2026-09-27 | `route.mjs --check` refuses `fullShellReviews` that is not a boolean, or is true on a cheap, local or advisory-only lane | nobody with a file written before 3.1.0: the key did not exist | drop the key or fix the lane | the owner accepted a full-shell reviewer for a strong lane that gives verdicts, and nothing wider |
+| 2026-09-27 | `xez-onboard-opinionated` stops before writing anything when the kit's version cannot be told (no release tag and no commit id), where it used to write `version: "unknown"` | anyone onboarding from a copy of the skills that carries neither, such as a hand-copied folder | install the skills from a release or a git checkout of the collection and run onboarding again; the saved interview answers resume | an unknown version leaves the upgrade tool guessing what a project is upgrading from; the owner decided a setup must name its version |
 | 2026-09-22 | the minimum engine version in `compat.json` raised from 0.18.0 to 0.19.0 | anyone running engine 0.18.x: the onboarding skill's preflight refuses until they upgrade | `npm install -g @qodeca/xezar`, or stay on xezar-skills 2.1.1, which supports 0.18.0 | 0.19.0 is the first engine that makes a reading step read-only on Claude, and the shipped routing gives review and release work only to lanes that rely on it |
 | 2026-09-22 | the leader's routing moved from the prose table `.xezar/docs/model-routing.md` to `.xezar/routing.json`, read through `route.mjs`; the onboarding skill no longer writes the markdown table, and its `references/routing-rows.md` is gone | a project onboarded by `xez-onboard-opinionated` before 3.0.0 that copies the new `loops.json` or leader docs without migrating: the new L3 prompt runs `route.mjs`, which refuses when there is no `routing.json` on the base branch | run `/xez-onboard-opinionated --section routing`, which writes the file from the shipped defaults, carries the rotations over and deletes the markdown table; or keep the old `loops.json` and docs until you do (`UPGRADE_NOTES.md`) | a prose table cannot be checked, so a ban in it was a ban the leader had to remember; as data, every ban a file can decide is applied by a script, and routing is read from the base branch so a change under review cannot reroute its own review |
 | 2026-09-22 | `paths.analysis` removed: no longer in the config the setup writes, not resolved by the loading snippet, no directory created | nobody in practice – nothing ever read it. A committed config that still has the key keeps working, because readers ignore it | nothing; optionally delete the key and the empty `.xezar/pipeline/analysis/` (`UPGRADE_NOTES.md`) | a key nothing reads misleads every reader of the config, and a major version is the one time removing it is allowed |

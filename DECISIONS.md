@@ -1326,3 +1326,34 @@ and a process running as the same OS user pushing by other means (the check is a
 kit follows, not a permission the engine enforces). Closing either needs an engine-issued,
 run-scoped grant. `SECURITY.md` lists the limit; `scripts/test-kit-facts.mjs` FACT H1 runs the
 script and `scripts/test-guards.mjs` breaks each refusal.
+
+## Why 3.1.0 is a minor release
+
+Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather than assumed, as the
+1.5.0 entry did:
+
+- **Skill names and layout.** No skill is renamed, moved or removed; the release adds and changes
+  files only.
+- **The config file.** Three keys arrive – `designSystem.modules`, `changelog.format` and
+  `security.trustBoundaries` – and each has a meaning when absent that is exactly the old
+  behaviour. No key is removed or renamed and no default flips.
+- **Tracker, toolchain, security and browser contracts.** No operation is added, renamed or
+  changed. The chrome-devtools descriptor changes only its rules text, to say which workflows hold
+  the review-only tools (D13).
+- **Cross-skill file formats.** `.xezar/routing.json` grows additively (`vendorExclusions`,
+  `fullShellReviews`), and `route.mjs` prints new lines only when called with the new `--author`
+  argument; without it the output is byte-identical, pinned by a golden test. The shipped routing
+  defaults move to version 4 and the earlier versions stay under `references/routing-defaults/`.
+  The onboarding manifest version 2 is additive, and a manifest without `manifestVersion` is read as
+  version 1 and never enforced. The kit index, the upgrade plan and the `upgrade` machine block are
+  new formats.
+- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains one script,
+  `test:upgrade`, and loses none.
+- **The fourteen ledger rows** are new refusals in kit checks and relaxed routing bans. Kit content
+  is fresh-install scope: an installed check never updates itself, so each refusal reaches a
+  project only when its owner copies the new file or runs the upgrade prompt, and each row says
+  what to do then. The relaxed bans reach a project only when it merges routing defaults version
+  4.
+
+So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
+not 4.0.0.

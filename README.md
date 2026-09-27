@@ -104,6 +104,8 @@ This refreshes the installed skill files to their latest versions. It does not o
 
 That skill applies the relevant [UPGRADE_NOTES.md](UPGRADE_NOTES.md) migrations while preserving local edits.
 
+A project onboarded with `xez-onboard-opinionated` upgrades its kit with the upgrade prompt instead: [`upgrade/UPGRADE-PROMPT.md`](upgrade/UPGRADE-PROMPT.md), run by hand from a verified clone at the release tag, one project at a time. It keeps local changes, works on a local branch and never pushes. [`upgrade/README.md`](upgrade/README.md) says how to run it.
+
 Coming from the predecessor collection? [UPGRADE_NOTES.md](UPGRADE_NOTES.md) carries the one-time migration: remove the old skill set, install this one, move the pipeline files to `.xezar/pipeline/`.
 
 ℹ️ A few skills drive a real browser through the configured browser provider — [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md), [`xez-integration-tests`](docs/skills/xez-integration-tests.md), [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md), and [`xez-ux-review-pr`](docs/skills/xez-ux-review-pr.md). Because of that, skills.sh validation may flag them as **Medium** or **High** risk. Read any skill before you run it; these three run as shipped in the Xezar project itself.
