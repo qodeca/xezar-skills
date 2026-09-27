@@ -1618,14 +1618,16 @@ breaks(
   "no longer runs manifest-drift.mjs",
 );
 
-// scripts/test-upgrade.mjs (plan §7 break cases). The drift-check break case (one byte in a
-// copied file) lands with stream U1's manifest-drift.mjs.
+// scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent
+// one-byte edit; these cover the upgrade tool's own checks.
+// A new installed path that no fragment's upgrade block lists. Aimed at the copy table rather
+// than at one fragment, so it holds however many streams list the same file.
 breaks(
   "a changed kit file no 3.1.0 upgrade block lists is rejected",
-  "docs/plans/3.1.0/notes/pr-49.md",
-  (s) => s.replace(/^(Files: )\.xezar\/skills\/xezar-code-review\.md; /m, "$1"),
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/^(\| `kit\/loops\.json` \| `\.xezar\/loops\.json` \|\n)/m, "$1| `kit/loops.json` | `.xezar/loops-copy.json` |\n"),
   () => script("test-upgrade.mjs"),
-  "but no 3.1.0 upgrade block lists it",
+  ".xezar/loops-copy.json changed since",
 );
 
 // Truncating the index list at package.json's version makes that version the newest indexed

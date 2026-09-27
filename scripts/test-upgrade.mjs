@@ -673,7 +673,7 @@ const unchangedChecks = Object.keys(fx303.files)
 // ---------------------------------------------------------------------------------------
 function drift(dir) {
   try {
-    return { code: 0, out: execFileSync("node", [DRIFT], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    return { code: 0, out: execFileSync("node", [DRIFT, dir], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
   } catch (e) {
     return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
   }

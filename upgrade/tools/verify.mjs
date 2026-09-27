@@ -238,7 +238,7 @@ export function projectChecks(ctx, which) {
   const results = [];
   if (which.includes("drift")) {
     const drift = join(kit, "manifest-drift.mjs");
-    if (existsSync(drift)) results.push(runCheck("drift", "node", [drift], ctx.project));
+    if (existsSync(drift)) results.push(runCheck("drift", "node", [drift, ctx.project], ctx.project));
     else results.push({ name: "drift", status: "skipped", out: "the target kit has no manifest-drift.mjs" });
   }
   if (which.includes("catalog")) results.push(runCheck("catalog", "node", [join(kit, "catalog-check.mjs"), ctx.project], ctx.project));
