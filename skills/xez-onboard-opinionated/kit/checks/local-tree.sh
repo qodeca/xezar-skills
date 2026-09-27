@@ -14,8 +14,9 @@
 # file is a judgement, and a check that silently removes work is worse than the mess.
 set -uo pipefail
 
+# Usage: local-tree.sh [repository-root] (default: the project this copy is installed in).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+REPO_ROOT="$(cd "${1:-$SCRIPT_DIR/../..}" && pwd -P)" || exit 2
 LOCAL="$REPO_ROOT/.local/xezar"
 
 # The six named subfolders. Anything else at the top level is loose.

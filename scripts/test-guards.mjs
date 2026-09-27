@@ -1806,6 +1806,15 @@ breaks(
   () => script("test-kit-facts.mjs"),
   "accepts a run that did not stop on a weakened safety check",
 );
+
+// Run from the clone, repository-checks.sh without an argument checks the clone's skill folder.
+breaks(
+  "a verify that runs the repository check without the project root is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace('[join(kit, "repository-checks.sh"), ctx.project]', '[join(kit, "repository-checks.sh")]'),
+  () => script("test-upgrade.mjs"),
+  "verify: the repository check did not run in the project",
+);
 // 3.1.0-stream-U:end
 
 // 3.1.0-stream-R:start

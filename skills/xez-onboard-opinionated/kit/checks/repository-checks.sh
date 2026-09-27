@@ -6,14 +6,22 @@
 # link checker or a contract test. Under `set -e` an unconditional call to a missing file aborts
 # the whole gate on the first one, and every check after it silently never runs - which reads as
 # "the gate passed" to anyone watching the exit code.
+#
+# Usage: repository-checks.sh [repository-root]. The root defaults to the project this copy is
+# installed in (two folders up). The upgrade tool passes the project it verifies, because it runs
+# these checks from its own clone, where two folders up is the clone's skill folder.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
+if [ "$#" -gt 1 ]; then
+  printf 'repository-checks: usage: repository-checks.sh [repository-root]\n' >&2
+  exit 2
+fi
+REPO_ROOT="$(cd "${1:-$SCRIPT_DIR/../..}" && pwd -P)"
 
 skip() { printf 'repository-checks: skipped %s (%s)\n' "$1" "$2"; }
 
 # The `.local/xezar/` working area keeps its six named subfolders and nothing loose at the top.
-bash "$SCRIPT_DIR/local-tree.sh"
+bash "$SCRIPT_DIR/local-tree.sh" "$REPO_ROOT"
 
 node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 
