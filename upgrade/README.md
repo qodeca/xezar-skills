@@ -56,6 +56,25 @@ The prompt reads it with the line-anchored pattern `^Release-Commit: ([0-9a-f]{4
 with the clone's `git rev-parse HEAD` and with the sha `gh release verify` resolves for the tag.
 A release whose notes lack the line, or carry it twice, stops the upgrade before anything runs.
 
+## Releasing a version the tool upgrades to
+
+`scripts/build-kit-index.mjs` records, for each release, `commit` = the commit its `v<version>`
+tag points at. A commit cannot contain its own sha, so the index entry committed before tagging
+names a stand-in commit (for 3.1.0, a local-only tag on the last commit that changed the kit).
+Release in this order:
+
+1. Merge the release and tag the release commit on `main` (`v<version>`).
+2. Publish the GitHub release with `Release-Commit: <that sha>` in its notes (next section).
+3. In a clone with full history and all tags, re-run `node scripts/build-kit-index.mjs`, and
+   commit the refreshed index to `develop`; it reaches `main` with the next release.
+
+Until step 3 lands, the index at the tag carries the stand-in `commit`. The tools do not read
+that field – they read file contents by `kitBlob` – and a clone at the tag works even with no
+index file for its own version: the target is computed from the kit tree in the clone, and the
+target's unreleased development commits are still left out as bases. The one thing a committed
+target index adds is `renamedFrom` (a kit file moved since the last release); without it a moved
+file shows as new plus removed instead of moved. 3.1.0 moves no kit file.
+
 ## What it never does
 
 - It never pushes, never opens a pull request and never merges. It commits only on its own local

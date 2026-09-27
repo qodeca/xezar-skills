@@ -36,7 +36,7 @@ import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
 import { isRepoRelative, resolveInside } from "./lib/paths.mjs";
-import { SAFETY_LINE, isCheckLike } from "./lib/policy.mjs";
+import { SAFETY_LINE, isCheckLike, isNeverTouched } from "./lib/policy.mjs";
 import { detect } from "./detect.mjs";
 import { extractInputs } from "./lib/rewrites.mjs";
 
@@ -183,6 +183,7 @@ export function manifestV2(ctx) {
   const detection = detect(ctx);
   const inputsByPath = new Map(detection.files.map((f) => [f.path, f.base?.inputs ?? null]));
   for (const [p, e] of Object.entries(ctx.theirs.files).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    if (isNeverTouched(p)) continue;
     const mine = ctx.readMine(p);
     if (mine.text == null) continue;
     if (ctx.git.isGit && ctx.git.ignored(p)) continue; // per-machine: never recorded
@@ -208,7 +209,7 @@ export function manifestV2(ctx) {
   // Owner files with an appended kit block (AGENTS.md, CLAUDE.md) are in no kit index: carry
   // each recorded one over, hashing only the block between the markers.
   for (const [p, h] of ctx.manifest.hints) {
-    if (h.origin !== "owner-file-appended" || files[p]) continue;
+    if (h.origin !== "owner-file-appended" || files[p] || isNeverTouched(p)) continue;
     const text = ctx.readMine(p).text;
     const block = text == null ? null : appendedBlock(text);
     if (block !== null) files[p] = { sha256: sha256(block), origin: "owner-file-appended", ...(patchOf.has(p) ? { patch: patchOf.get(p) } : {}) };

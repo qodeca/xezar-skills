@@ -39,7 +39,7 @@
 //
 // Exit: 0 written; 2 cannot run.
 
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -105,17 +105,11 @@ export function inputsFor(ctx, f, global) {
 
 /** The upgrade entries whose Applies-to covers the project's version. */
 export function upgradeEntries(toolRoot, projectVersion) {
+  // UPGRADE_NOTES.md only: a release folds its working notes into it, so the plan never
+  // depends on which commit was tagged.
   const sources = [];
   const notes = join(toolRoot, "UPGRADE_NOTES.md");
   if (existsSync(notes)) sources.push(["UPGRADE_NOTES.md", readFileSync(notes, "utf8")]);
-  const fragments = join(toolRoot, "docs/plans/3.1.0/notes");
-  if (existsSync(fragments)) {
-    for (const name of readdirSync(fragments).sort()) {
-      if (name.endsWith(".md") && name !== "README.md") {
-        sources.push([`docs/plans/3.1.0/notes/${name}`, readFileSync(join(fragments, name), "utf8")]);
-      }
-    }
-  }
   const entries = [];
   const errors = [];
   for (const [source, text] of sources) {
@@ -356,14 +350,24 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       continue;
     }
 
-    // --- removed from kit -----------------------------------------------------------------
+    // --- in no kit version at all: the project's own file, which the manifest or the
+    // register names. Base and theirs are both absent, so it is local only and kept.
+    if (!te && !ctx.history.some((v) => v.files[p])) {
+      if (!exists) continue;
+      item.class = "local-only";
+      item.action = "keep";
+      item.notes.push("no kit version ever shipped this file: the project's own, kept as it is");
+      push();
+      continue;
+    }
+
+    // --- removed from kit: installed, gone upstream, and in the base index ---------------
     if (!te) {
       if (!exists) continue;
       item.class = "removed-from-kit";
       const baseEntry = f.base.entry;
-      const inBaseIndex = ctx.candidates.some((v) => v.files[p]);
       const mineIsBase = baseEntry && f.mineText != null && (sha256(f.mineText) === baseEntry.sha256 || (f.base.text != null && render(f.base.text, inputsFor(ctx, f, global)).text === f.mineText));
-      if (inBaseIndex && mineIsBase && ["high", "medium"].includes(f.base.confidence)) {
+      if (mineIsBase && ["high", "medium"].includes(f.base.confidence)) {
         item.action = "delete";
       } else {
         item.action = "keep";
@@ -582,10 +586,18 @@ export function summary(plan) {
     const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
     lines.push(c ? `- ${a} (${c.status}: ${engine})` : `- ${a}`);
   }
-  if (plan.errors.length) {
-    lines.push("", "## Errors", "");
-    for (const e of plan.errors) lines.push(`- ${e}`);
+  lines.push("", "## Engine minimum", "");
+  if (!plan.engine) lines.push("None: this range sets no engine minimum.");
+  else {
+    const found = plan.engine.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found: compare with `xezar --version`";
+    for (const c of plan.engine.checks) lines.push(`- ${c.min}: ${c.status} (${found})`);
   }
+  lines.push("", "## Per-machine files", "");
+  if (!plan.perMachine.length) lines.push("None.");
+  for (const p of plan.perMachine) lines.push(`- ${p}`);
+  lines.push("", "## Errors", "");
+  if (!plan.errors.length) lines.push("None.");
+  for (const e of plan.errors) lines.push(`- ${e}`);
   return `${lines.join("\n")}\n`;
 }
 

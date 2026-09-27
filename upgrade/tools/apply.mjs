@@ -5,7 +5,8 @@
 //        [--blob-pack <f>]… [--index-dir <dir>] [--kit <skill dir>] [--help]
 //
 // Reads <project>/.local/xezar/scratch/upgrade/plan.json (from plan.mjs) and does only what
-// it says; a file with a stop is only ever staged, never written:
+// it says; a file with a stop is only ever staged, never written – a write-theirs or delete
+// held back by a stop stages mine and theirs, and prints held=<path> reason=<stop,…>:
 //   write-theirs  write the target kit file, re-rendered with the file's placeholder values
 //   delete        delete a file the kit removed, only when unchanged and in the base index
 //   stage-merge   `git merge-file --zdiff3` of mine/base/theirs into the staging folder
@@ -22,7 +23,7 @@
 // Running apply twice changes nothing the second time.
 //
 // Output: NAME=value lines – applied=<path> op=<op>, done=<path>, staged=<path> merge=<exit>,
-// refused=<path> reason=<why>, and last apply-status=ok|refused.
+// held=<path> reason=<stop,…>, refused=<path> reason=<why>, and last apply-status=ok|refused.
 // Exit: 0 ok; 3 refused (nothing written); 2 cannot run.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync } from "node:fs";
@@ -68,10 +69,10 @@ export function applyPlan(ctx, plan) {
   const done = [];
 
   for (const item of plan.files) {
-    // A stop holds back every write to the project; staging only fills the scratch folder,
-    // which is what Claude reads before it asks.
+    // A stop holds back every write to the project: the file is staged instead (mine and
+    // theirs), which is what Claude reads before it asks. Staging only fills the scratch folder.
     if (!MECHANICAL.has(item.action)) continue;
-    if (item.stops.length && !item.action.startsWith("stage-")) continue;
+    const held = item.stops.length && !item.action.startsWith("stage-") ? item.stops.join(",") : null;
     const p = item.path;
     try {
       const full = resolveInside(ctx.project, p);
@@ -86,7 +87,7 @@ export function applyPlan(ctx, plan) {
       const current = exists ? sha256(readFileSync(full)) : null;
       const theirsRaw = ctx.theirsText(p);
 
-      if (item.action === "write-theirs") {
+      if (held === null && item.action === "write-theirs") {
         const r = render(theirsRaw, inputsFor(ctx, f, global));
         if (r.missing.length) throw new PathRefused(p, `placeholder values unknown: ${r.missing.join(", ")}`);
         const want = sha256(r.text);
@@ -97,7 +98,7 @@ export function applyPlan(ctx, plan) {
         if (untracked) throw new PathRefused(p, "untracked: never overwritten");
         if (current !== item.mineSha256) throw new PathRefused(p, "changed since the plan was made: re-run plan.mjs");
         ops.push({ op: "write", path: p, full, text: r.text, mode: exists ? null : ctx.theirsMode(p) });
-      } else if (item.action === "delete") {
+      } else if (held === null && item.action === "delete") {
         if (current === null) {
           done.push(p);
           continue;
@@ -109,11 +110,13 @@ export function applyPlan(ctx, plan) {
         const source = item.renamedFrom ?? p;
         const mineFull = resolveInside(ctx.project, source);
         const mineText = existsSync(mineFull) ? readFileSync(mineFull, "utf8") : null;
-        if (mineText === null) {
+        if (mineText === null && held === null) {
           done.push(p);
           continue;
         }
-        if (sha256(mineText) !== item.mineSha256) throw new PathRefused(p, "changed since the plan was made: re-run plan.mjs");
+        if ((mineText === null ? null : sha256(mineText)) !== (item.mineSha256 ?? null)) {
+          throw new PathRefused(p, "changed since the plan was made: re-run plan.mjs");
+        }
         const sf = det.get(source) ?? f;
         const inputs = inputsFor(ctx, sf, global);
         const theirs = theirsRaw == null ? null : render(theirsRaw, inputs).text;
@@ -123,7 +126,7 @@ export function applyPlan(ctx, plan) {
           if (baseRaw == null) throw new PathRefused(p, "base content unavailable: fetch the kit's full history");
           base = render(baseRaw, inputs).text;
         }
-        ops.push({ op: item.action, path: p, mineText, base, theirs, stage: stageDir(ctx, p) });
+        ops.push({ op: held === null ? item.action : "stage-theirs", held, path: p, mineText, base, theirs, stage: stageDir(ctx, p) });
       }
     } catch (e) {
       if (!(e instanceof PathRefused)) throw e;
@@ -147,7 +150,7 @@ export function applyPlan(ctx, plan) {
     } else {
       const { full } = o.stage;
       mkdirSync(dirname(full), { recursive: true });
-      writeFileSync(`${full}.mine`, o.mineText);
+      if (o.mineText !== null) writeFileSync(`${full}.mine`, o.mineText);
       if (o.theirs !== null) writeFileSync(`${full}.theirs`, o.theirs);
       let merge = null;
       if (o.op === "stage-merge") {
@@ -167,7 +170,7 @@ export function applyPlan(ctx, plan) {
         }
         writeFileSync(`${full}.merged`, text);
       }
-      results.push({ path: o.path, op: o.op, merge });
+      results.push(o.held === null ? { path: o.path, op: o.op, merge } : { path: o.path, op: "held", reason: o.held });
     }
   }
   const record = { target: ctx.target, results, done };
@@ -194,6 +197,7 @@ function main() {
   for (const x of r.refused) console.log(`refused=${x.path} reason=${x.reason}`);
   for (const x of r.results ?? []) {
     if (x.op === "write" || x.op === "delete") console.log(`applied=${x.path} op=${x.op}`);
+    else if (x.op === "held") console.log(`held=${x.path} reason=${x.reason}`);
     else console.log(`staged=${x.path} op=${x.op}${x.merge === null ? "" : ` merge=${x.merge}`}`);
   }
   for (const p of r.done) console.log(`done=${p}`);
