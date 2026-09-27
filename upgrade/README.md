@@ -34,9 +34,13 @@ time, when they decide to.
    the register changes, the permission changes, the owner checklist and the rollback steps.
 6. **Confirm the new register entries.** Entries it wrote in `.xezar/LOCAL-PATCHES.md` say
    `Confirmed: no`, and the drift check stays red until you change each to `yes`.
-7. **Deliver it yourself.** Push the branch, open the pull request, wait for green, merge, then
-   follow the report's checklist on every machine that runs the leader or reviews, and restart
-   the engine and the leader.
+7. **Deliver it yourself.** First answer the checklist's "config keys left unset" on the branch:
+   add each key your project uses to `.xezar/pipeline/config.json` and commit it there. The kit
+   reads keys such as `security.trustBoundaries` and `designSystem.modules` from the base branch,
+   so a key added after the merge does nothing until a second pull request merges. Then push the
+   branch, open the pull request, wait for green, merge, follow the rest of the report's
+   checklist on every machine that runs the leader or reviews, and restart the engine and the
+   leader.
 
 Try it on a throwaway clone of the project first. The release plan
 (`docs/plans/release-3.1.0.md` §7 and §9) describes the dry run and the order of projects.

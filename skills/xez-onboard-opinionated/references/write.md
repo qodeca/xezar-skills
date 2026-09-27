@@ -32,8 +32,22 @@ Comparing **ids and providers only**. Never a label, and never anything from ins
 
 **The kit version is settled here too, before anything is written.** The manifest's `version`
 (§5) is the collection release this skill came from, or `<last release>+<12-character commit>`
-for an install between releases. When the install names **neither** – no release tag and no
-commit id – **stop**: write nothing, and tell the owner plainly that the kit's version cannot be
+for an install between releases. Read it from the folder this skill runs from, in this order:
+
+1. **A git checkout of the collection.** `git -C <skill folder> describe --tags --exact-match`
+   names a `v<version>` tag → that version, without the `v`. No tag on HEAD, but
+   `git -C <skill folder> describe --tags --abbrev=0` names the last release and
+   `git -C <skill folder> rev-parse --short=12 HEAD` the commit → `<last release>+<commit>`.
+2. **A copy the skills installer put there** – not a git checkout, and the installer's lock file
+   (the project's `skills-lock.json`, or the global one for a global install) lists this skill
+   with the collection as its source. The installer copies the collection's default branch,
+   which carries releases only, so the version is the release this copy ships: the literal in
+   §5, which the collection's own gate (`scripts/test-kit-facts.mjs`) keeps equal to its
+   `package.json` version. That literal is never read for a git checkout, and never for a copy
+   no installer recorded.
+
+When the install names **neither** (a hand-copied folder, a checkout git cannot describe),
+**stop**: write nothing, and tell the owner plainly that the kit's version cannot be
 told, so a later upgrade would not know what it is upgrading from, and that they should install
 the skills from a release or from a git checkout of the collection and run onboarding again. The
 interview answers are saved, so that run resumes. Never write `unknown`, and never guess a version.
@@ -537,9 +551,10 @@ to carry — do not invent one, and do not tell the owner to run one.
   **The committed half is manifest version 2** — the shape and rules are the upgrade contract's,
   and `.xezar/docs/local-patches.md` says which files it tracks. Write it **last**, after the
   formatter run above, because every digest is of the file as committed:
-  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.1.0`),
+  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.1.0`
+    for an installer copy of this release; a git checkout reads its own tag or commit),
     or `<last release>+<12-character commit>` for an install between releases – never `unknown`:
-    an install that names neither stopped in §0. The `kitBlob` values below still identify the kit
+    an install that names neither stopped in §0 (how to read it is there). The `kitBlob` values below still identify the kit
     exactly. `date` and `descriptors` as above.
   - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
     file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit

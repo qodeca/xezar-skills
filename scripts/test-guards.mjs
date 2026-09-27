@@ -2147,6 +2147,14 @@ breaks(
   () => script("test-kit-facts.mjs"),
   "still allows version",
 );
+
+breaks(
+  "an onboarding version literal that differs from package.json is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/then `version` — the collection release the kit came from \(`[^`]+`/, "then `version` — the collection release the kit came from (`0.0.1`"),
+  () => script("test-kit-facts.mjs"),
+  "the manifest version literal an installer copy writes is \"0.0.1\"",
+);
 // 3.1.0-stream-OC:end
 
 // --- the tree is left exactly as it was found --------------------------------

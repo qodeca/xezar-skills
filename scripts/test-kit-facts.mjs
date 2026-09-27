@@ -1413,6 +1413,12 @@ function walk(rel, match) {
   const write = read(`${SKILL}/references/write.md`);
   if (/or `unknown` when/.test(write) || !/When the install names \*\*neither\*\*[\s\S]{0,120}\*\*stop\*\*: write nothing/.test(write) || !/Never write `unknown`/.test(write))
     fail(fact, "references/write.md", "does not stop when the kit version cannot be told, or still allows version \"unknown\" in the manifest");
+  // An installer copy has no tag or commit to read, so it writes the release literal in §5. A
+  // literal left behind by a version bump would stamp every such onboarding with the wrong kit.
+  const literal = write.match(/then `version` — the collection release the kit came from \(`([^`]+)`/)?.[1];
+  const pkgVersion = JSON.parse(read("package.json")).version;
+  if (literal !== pkgVersion)
+    fail(fact, "references/write.md", `the manifest version literal an installer copy writes is ${literal ? `"${literal}"` : "missing"}, but package.json says "${pkgVersion}"`);
   checked.push(fact);
 }
 // 3.1.0-stream-OC:end

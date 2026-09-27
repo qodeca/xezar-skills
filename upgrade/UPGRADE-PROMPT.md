@@ -507,7 +507,7 @@ red one.
 
 ## Owner checklist
 - Confirm each `Confirmed: no` register entry: <ids>.
-- Config keys left unset (no documented default): <key – the question to answer>.
+- Config keys left unset (no documented default) – answer on this branch, before the merge: <key – the question to answer>.
 - After the merge: <restart the engine | restart the leader | label sync | env renames>.
 - On every machine that runs the leader or reviews: <per-machine actions>.
 

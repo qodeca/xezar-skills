@@ -24,8 +24,10 @@ the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release,
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
 are the same changes for a hand upgrade: **one ordered block – apply them top to bottom, in the
-order below**, and skip an entry whose symptom your repository does not have. Each entry ends with
-an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and actions for the tool.
+order below**. Skip an entry only when your repository does not have its symptom **and** no entry
+you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
+brings. Each entry ends with an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and
+actions for the tool.
 
 **Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
 mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
@@ -38,6 +40,21 @@ single-root freshness. Entries 3 and 11 change the same routing files: copy
 `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once against the defaults
 version 4, which carries both changes. Entries 6 and 12 copy the same `deps.mjs` and
 `worktrees.md`: copy them once.
+
+**Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
+older file:
+
+- Entry 1 needs entry 5: `design-review.yaml` runs the new `review-run.sh`, which only entry 5
+  brings, and an older `catalog-check.mjs` refuses that allowlist entry.
+- Entry 2 needs entries 5 and 9: six of its role skills run `review-run.sh` (entry 5), and
+  `xezar-handoff-draft-pr.md` and `xezar-review-response.md` push through `push-check.sh` (entry 9).
+- Entries 3 and 11 need each other: routing defaults version 4 carries both, and neither can be
+  merged without the other's part of it.
+- Entry 4 needs entry 5: its `catalog-check.mjs` refuses a workflow agent step with no `timeout`
+  and a review step without `review-run.sh`, and only entry 5's workflows carry both.
+- Entry 5 needs entry 9: its `address-review-findings.yaml` pushes through `push-check.sh`.
+- Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
+  only entry 10 installs that file.
 
 **After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
 and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists its
@@ -52,8 +69,11 @@ portal) has one flat design system, so design roles mix the surfaces, or the pro
 kit files as a local patch.
 
 **What to do.** Copy the six role skills and five workflows below from the kit. A project that
-wants modules then adds `designSystem.modules` to `.xezar/pipeline/config.json`. A project without
-it keeps one flat system and needs nothing else.
+wants modules adds `designSystem.modules` to `.xezar/pipeline/config.json` in the same upgrade
+pull request, before it merges: the design roles read the key only from the base branch, so it
+works from that merge on. The upgrade prompt never fills it in – it lists the key on the owner
+checklist, which you answer on the upgrade branch before you push it. A project without the key
+keeps one flat system and needs nothing else.
 
 **What you lose by skipping it.** Design roles cannot tell modules apart; a project that patched
 these files keeps a local patch it must carry by hand.
@@ -96,8 +116,12 @@ PRs cycle through update-branch and a full CI run again and again while a merge 
 
 **What to do.** Copy `.xezar/checks/route.mjs` **first**, before the docs, loops and leader guide:
 an older `route.mjs` reads `--author` as a row id and refuses the call. Then merge
-`.xezar/routing.json` from defaults version 3 to 4 (the only change is the `vendorExclusions` key
-and the version number; keep your own edits), copy the schema, the three docs and `loops.json`,
+`.xezar/routing.json` from defaults version 3 to 4, keeping your own edits. Version 4 carries this
+entry's `vendorExclusions` key **and** entry 11's changes (the `pi/deepseek-api/deepseek-v4-pro`
+lane, its places in the rows, and the three relaxed ban texts), so merge the whole of
+`routing-defaults/4.json` in one go, with entry 11. Never set `defaults.version` to 4 on a file
+that took only part of it: the version then claims changes the file does not have, and a later
+merge starts from the wrong base. Copy the schema, the three docs and `loops.json`,
 and merge the fixed part of the leader guide – the checklist line about the lane, the dispatch
 and quota line under "Standing loops", the merge-queue sentence under "Review discipline", and
 the quota item in the checklist – keeping your "Owner's rules" section as it is. Restart the
@@ -207,7 +231,8 @@ branch is not `main` gets a changelog refusal for commits that are already on it
 
 **What to do.** Copy the three check files and the release role skill below from the kit. A Keep a
 Changelog project needs nothing else: the format is detected. To pin it, add
-`"changelog": { "format": "keep-a-changelog" }` to `.xezar/pipeline/config.json`. The protection
+`"changelog": { "format": "keep-a-changelog" }` to `.xezar/pipeline/config.json` in the upgrade
+pull request; the older check never reads the key, and until you add it `auto` applies. The protection
 still needs a `changelog.d/` folder, as before.
 
 **What you lose by skipping it.** A Keep a Changelog project keeps the conflicts and has no fold
@@ -231,8 +256,13 @@ project carries a local patch to `.xezar/checks/lib/security-scan.mjs` that adds
 
 **What to do.** Copy the files below from the kit. To route paths of your own, add
 `security.trustBoundaries` to `.xezar/pipeline/config.json` – each entry a `pattern` and a
-one-line `why` – and merge it to the base branch; the scan reads the list only from there. Drop
-any local patch that added paths to `TRUST_BOUNDARIES`, and move those paths into the key. Nothing
+one-line `why` – **in the same pull request as the new scan, or in a config-only pull request
+merged before it**, never in a follow-up after it. The scan reads the list only from the base
+branch, so the paths are routed from the moment the key is there; a follow-up leaves them
+unrouted between the two merges. The older scan ignores the key, so merging it first is safe. The
+upgrade prompt never fills the key in: it lists it on the owner checklist, which you answer on the
+upgrade branch before you push it. Drop any local patch that added paths to `TRUST_BOUNDARIES`,
+and move those paths into the key in that same pull request. Nothing
 is needed when the project adds no paths: an absent key means no project entries. The security
 stage now reads the pipeline config from `refs/remotes/origin/<baseBranch>`; a checkout where that
 ref does not resolve records `unknown` and requires a reviewer on every non-empty change, so keep

@@ -1373,11 +1373,15 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
   new formats.
 - **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains one script,
   `test:upgrade`, and loses none.
-- **The fourteen ledger rows** are new refusals in kit checks and relaxed routing bans. Kit content
-  is fresh-install scope: an installed check never updates itself, so each refusal reaches a
-  project only when its owner copies the new file or runs the upgrade prompt, and each row says
-  what to do then. The relaxed bans reach a project only when it merges routing defaults version
-  4.
+- **The fifteen ledger rows.** Fourteen are new refusals in kit checks and relaxed routing bans.
+  Kit content is fresh-install scope: an installed check never updates itself, so each refusal
+  reaches a project only when its owner copies the new file or runs the upgrade prompt, and each
+  row says what to do then. The relaxed bans reach a project only when it merges routing defaults
+  version 4. The fifteenth is onboarding's version stop: `xez-onboard-opinionated` now stops
+  where it used to write `version: "unknown"`. It fires only on a new onboarding run from a copy
+  of the skills with neither a release tag nor a commit id (a hand-copied folder); it never
+  touches a project already onboarded, whose manifest is not rewritten, and the saved interview
+  answers resume once the skills are installed from a release or a git checkout.
 
 So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
 not 4.0.0.
