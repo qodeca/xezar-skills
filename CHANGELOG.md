@@ -234,6 +234,9 @@ this repository, against one project at a time. None of them is installed into a
 - **A new gate, `node scripts/test-upgrade.mjs`**, over committed synthetic installs of 1.2.0,
   2.1.1, 3.0.0, 3.0.3 and one untagged commit (`scripts/fixtures/upgrade/`, built by
   `scripts/build-upgrade-fixtures.mjs`), a customised install, and the plan's hard cases.
+- The guard suite (`scripts/test-guards.mjs`) leaves the per-PR gate, which drops to twenty-three
+  commands, and runs nightly on `develop` instead (`.github/workflows/nightly-guards.yml`); a
+  failure opens one "Nightly guard suite failed" issue.
 
 **An upgrade prompt for kit projects.** `upgrade/UPGRADE-PROMPT.md` is a Claude Code prompt the
 owner pastes into a live project to bring its kit to the new release. It verifies the release

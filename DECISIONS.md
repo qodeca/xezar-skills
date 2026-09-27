@@ -154,8 +154,32 @@ a guard failing for an unrelated reason would otherwise count as a pass.
 
 It mutates real tracked files and restores them in a `finally`, then compares `git status`
 against a snapshot taken before the run, so a contributor's own work in progress is not
-mistaken for a mutation the suite failed to undo. The cost is honest: it runs `lint.sh`
-about ten times, so it is the slowest entry in the gate list.
+mistaken for a mutation the suite failed to undo. The cost is honest: it re-runs the gates
+once per deliberate defect, so it is the slowest check in the repository — slow enough that it
+left the per-PR gate (next entry).
+
+## The guard suite runs nightly
+
+**Owner: Marcin. Decided 2026-09-27.**
+
+`scripts/test-guards.mjs` is no longer in `validation.commands` or `lint.yml`. It runs once a
+night on `develop` from `.github/workflows/nightly-guards.yml`, and a failure opens – or comments
+on – one "Nightly guard suite failed" issue. It stays in `package.json` as `test:guards`, opted
+out of the gate in `scripts/allowlists.json` with this reason.
+
+**Why.** The suite had grown to about twenty-five of the roughly thirty minutes every PR spent in
+CI, and it grows with every guard. Sharding it across runners was the alternative; the owner chose
+nightly, because sharding keeps the cost on every PR and adds a matrix to maintain, while the
+suite's findings are rare and not urgent to the minute.
+
+**What it costs.** A PR can now land a guard that no longer fires – or break an existing one – and
+nobody learns it until the next morning's run, after the merge rather than before it. The rule
+that every guard needs a deliberate-break case stays; only when the case runs has changed.
+Anyone adding or changing a guard can still run the suite by hand (`npm run test:guards`); it
+takes a lock, so only one copy runs per checkout at a time.
+
+Scheduled workflows fire only from the default branch, so the nightly run starts once this file
+reaches `main` with the 3.1.0 release.
 
 ## The label taxonomy is data, not memory
 

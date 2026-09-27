@@ -8,11 +8,15 @@ Ranked by what breaking it would cost, not by how much code it touches. Counts m
 2026-09-21; they move whenever a gate gains a case, so re-read them from the gate's own output
 rather than trusting this table for a precise number.
 
+Every ✅ runs on every PR, except the `test-guards.mjs` break cases: the guard suite runs nightly
+on `develop` (`.github/workflows/nightly-guards.yml`), so a guard that stops firing is found the
+next morning, not before merge. Rows 21, 25 and 27 lean on those cases.
+
 | # | Behaviour | Checked by | Runs in CI? |
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 109 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 109 deliberate defects | ✅ nightly, not on every PR |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values; inside a vendored `kit/`, paths from the engine's own repository | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 227 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text, and the kit role skills' shared contract, have not drifted across their copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
