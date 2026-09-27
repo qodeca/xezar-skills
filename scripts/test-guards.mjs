@@ -1563,6 +1563,38 @@ breaks(
 );
 
 breaks(
+  "a gh-write.sh that takes a verdict's role from the request is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('[ "$declared" = "$verdict_role" ] ||', "true ||"),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh lets a qa step claim a design-review verdict",
+);
+
+breaks(
+  "a gh-write.sh that lifts a gate label without its approval label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('[ -z "$verdict_removed" ] || [ -n "$verdict_added" ] ||', "true ||"),
+  () => script("test-kit-catalog.mjs"),
+  "remove needs-qa without adding qa-approved",
+);
+
+breaks(
+  "a review-run.sh that hands the operator's credentials to what it runs is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('    no_credentials\n    "$@"', '    "$@"'),
+  () => script("test-kit-catalog.mjs"),
+  "a child of review-run.sh run still sees the operator's git or gh credentials",
+);
+
+breaks(
+  "a review-run.sh that trusts a rewritten head record is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(`if ! printf '%s\\n' "$known" | grep -Fqx -- "$recorded"; then`, "if false; then"),
+  () => script("test-kit-catalog.mjs"),
+  "whose head record was rewritten to match it",
+);
+
+breaks(
   "a browser descriptor that stops saying where the review tools are granted is rejected",
   "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
   (s) => s.replace("granted by their own tool lists only", "granted anywhere"),

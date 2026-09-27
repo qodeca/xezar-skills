@@ -31,8 +31,12 @@
 #   design-review  add design-approved, remove needs-design
 # and only when `head` is the PR's current head, this worktree reviewed exactly that head
 # (`review-run.sh checkout`), and its tracked files are unchanged (`review-run.sh verify-unchanged`).
-# The role is the request's word: a step's verdict role is not visible to a script, so the
-# engine's packet check (a packet whose role the step does not declare is refused) is the other half.
+# The role is not the request's word: it must be the `verdictRole` the engine froze for THIS step
+# – the run's workflow definition in the engine's runs index (`.local/xezar/runtime/runs.json`),
+# found by the run id (this worktree's directory name) and XEZ_STEP_ID. A code, security,
+# architecture or acceptance step declares no such role, so it moves no approval label; anything
+# unreadable is refused. A gate label is lifted only together with its approval label, in the
+# same request: `remove:["needs-qa"]` without `add:["qa-approved"]` is refused.
 #
 # Exit: gh's own status on a run, 1 on a refusal, 2 on usage.
 set -uo pipefail
@@ -46,7 +50,16 @@ VERDICT_REMOVE_qa="needs-qa"
 VERDICT_ADD_design_review="design-approved"
 VERDICT_REMOVE_design_review="needs-design"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/common.sh
+. "$SCRIPT_DIR/lib/common.sh"
 COMMENT_MAX_BYTES=65536
+# Never taken from the environment: bash imports every exported variable as a shell variable.
+verdict_role=""
+verdict_head=""
+verdict_used=""
+verdict_added=""
+verdict_removed=""
+from_json=""
 
 usage() {
   echo "usage: gh-write.sh comment pr|issue <number>   (text on stdin)" >&2
@@ -69,6 +82,21 @@ own_label() {
 has_word() {
   case " $2 " in *" $1 "*) return 0 ;; esac
   return 1
+}
+
+# The verdictRole the engine declared for this step, or nothing. Read from the run's frozen workflow
+# definition, never from the request or from a workflow file in the tree under review.
+step_verdict_role() {
+  resolve_task_paths >/dev/null 2>&1 || return 1
+  [ -n "${TASK_ID:-}" ] && [ -z "${TASK_ID_CONFLICT:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || return 1
+  node -e '
+    const fs = require("node:fs");
+    const [index, id, stepId] = process.argv.slice(1);
+    const raw = JSON.parse(fs.readFileSync(index, "utf8"));
+    const runs = Array.isArray(raw) ? raw : (raw.runs ?? []);
+    const step = (runs.find((r) => r.id === id)?.workflowDef?.steps ?? []).find((s) => s.id === stepId);
+    if (typeof step?.verdictRole === "string") process.stdout.write(step.verdictRole);
+  ' "$MAIN_ROOT/.local/xezar/runtime/runs.json" "$TASK_ID" "$XEZ_STEP_ID" 2>/dev/null
 }
 
 # owner/repo of `origin`, from an https or ssh GitHub URL. Anything else is refused: the target
@@ -111,6 +139,9 @@ if [ $# -eq 0 ]; then
         verdict_head="$(jq -r 'if (.verdict | type) == "object" and (.verdict.head | type) == "string" then .verdict.head else "" end' <<<"$request")"
         case "$verdict_role" in qa | design-review) ;; *) refuse "verdict.role must be qa or design-review" ;; esac
         printf '%s' "$verdict_head" | grep -Eq '^[0-9a-f]{40}$' || refuse "verdict.head must be the full 40-character sha you reviewed"
+        declared="$(step_verdict_role)" || declared=""
+        [ "$declared" = "$verdict_role" ] ||
+          refuse "this step declares verdictRole ${declared:-none} in the run's workflow, so a $verdict_role verdict is not its to give (D13)"
       fi
       ;;
   esac
@@ -130,7 +161,7 @@ repo="$(origin_repo)" || exit 1
 case "$action" in
   comment)
     [ $# -eq 0 ] || usage
-    if [ -n "${from_json:-}" ]; then
+    if [ -n "$from_json" ]; then
       body="$json_body"
     else
       body="$(head -c $((COMMENT_MAX_BYTES + 1)))" || refuse "could not read stdin"
@@ -149,16 +180,18 @@ case "$action" in
       printf '%s' "$label" | grep -Eq '^[a-z0-9][a-z0-9-]{0,49}$' || refuse "\"$label\" is not a label name"
       case "$flag" in
         --add)
-          if [ -n "${verdict_role:-}" ] && [ "$label" = "$(own_label ADD)" ]; then
+          if [ -n "$verdict_role" ] && [ "$label" = "$(own_label ADD)" ]; then
             verdict_used=1
+            verdict_added=1
           elif has_word "$label" "$NEVER_ADD"; then
             refuse "\"$label\" is an approval label; a reviewer grants only its own, with a verdict request (D13)"
           fi
           args+=(--add-label "$label")
           ;;
         --remove)
-          if [ -n "${verdict_role:-}" ] && [ "$label" = "$(own_label REMOVE)" ]; then
+          if [ -n "$verdict_role" ] && [ "$label" = "$(own_label REMOVE)" ]; then
             verdict_used=1
+            verdict_removed=1
           elif has_word "$label" "$NEVER_REMOVE"; then
             refuse "\"$label\" blocks a merge; a reviewer lifts only its own gate label, with a verdict request (D13)"
           fi
@@ -168,8 +201,10 @@ case "$action" in
       esac
       shift 2
     done
-    if [ -n "${verdict_used:-}" ]; then
+    if [ -n "$verdict_used" ]; then
       [ "$kind" = pr ] || refuse "a verdict label goes on a pull request"
+      [ -z "$verdict_removed" ] || [ -n "$verdict_added" ] ||
+        refuse "\"$(own_label REMOVE)\" is lifted only together with \"$(own_label ADD)\" in the same request (D13)"
       current="$(gh pr view "$number" --repo "$repo" --json headRefOid --jq .headRefOid 2>/dev/null)" || current=""
       [ "$current" = "$verdict_head" ] || refuse "the PR's head is ${current:-unknown}, not the reviewed $verdict_head; the verdict is void"
       bash "$SCRIPT_DIR/review-run.sh" verify-unchanged >/dev/null || refuse "this worktree's tracked files or HEAD changed during the review"

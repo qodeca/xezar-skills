@@ -32,6 +32,20 @@
 # that would run another program unseen (bash, sh, zsh, dash, env, eval, exec, xargs, nohup,
 # command, timeout, nice). Never the project's main checkout: this script refuses to run there.
 #
+# The name list is a courtesy, not the boundary: `node -e`, `python3 -c`, `make`, a test suite or
+# an npm lifecycle script can start git or gh all the same. So what `install`, `run` and `start`
+# start gets NO git or gh credentials: GH_TOKEN and GITHUB_TOKEN (and the enterprise pair) are set
+# to a value GitHub refuses, GH_CONFIG_DIR is an empty directory, git's credential helpers are
+# reset, askpass and terminal prompts fail, SSH has no agent and no ssh command. A git or gh the
+# child starts therefore cannot push, merge or label. What it does NOT stop: the child is still
+# arbitrary code with the operator's user rights, so a program written to do it can read a
+# credential store (the keychain, ~/.config/gh) directly. That residue is accepted in D13.
+#
+# The reviewed head is recorded in <evidence>/review/head, which a child can rewrite as well. So
+# verify-unchanged also asks GitHub – with this script's own credentials, which the child never
+# had – whether the recorded head is a commit of the recorded pull request. A head the review made
+# up locally is not, and is refused; so is a checkout whose head record was removed.
+#
 # Exit: the command's own status for `run`; 0 ok, 1 refused or changed, 2 usage.
 set -uo pipefail
 
@@ -73,6 +87,21 @@ valid_name() {
   printf '%s' "${1:-}" | grep -Eq '^[a-z0-9][a-z0-9-]{0,31}$' || refuse "\"${1:-}\" is not a name (lower-case letters, digits and -)"
 }
 
+# Withhold git and gh credentials from every command this script starts for the review.
+no_credentials() {
+  local empty="$state/no-credentials"
+  mkdir -p "$empty/gh" || refuse "cannot create $empty"
+  export GH_TOKEN="xezar-review-has-no-credentials" GITHUB_TOKEN="xezar-review-has-no-credentials"
+  export GH_ENTERPRISE_TOKEN="xezar-review-has-no-credentials" GITHUB_ENTERPRISE_TOKEN="xezar-review-has-no-credentials"
+  export GH_CONFIG_DIR="$empty/gh" GH_PROMPT_DISABLED=1
+  export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=false SSH_ASKPASS=false SSH_ASKPASS_REQUIRE=never GCM_INTERACTIVE=never
+  export GIT_SSH_COMMAND=false GIT_SSH=false
+  # An empty credential.helper, set from the environment, clears every helper the system, global
+  # and repository config list (the macOS keychain, the git credential manager).
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=
+  unset SSH_AUTH_SOCK
+}
+
 tracked_changes() {
   git status --porcelain --untracked-files=no 2>/dev/null
 }
@@ -89,7 +118,7 @@ stop_one() {
 }
 
 verify_unchanged() {
-  local head recorded changes
+  local head recorded changes pr known
   head="$(git rev-parse HEAD 2>/dev/null)" || { echo "review-tree=fail"; echo "review-run.sh: HEAD cannot be read" >&2; return 1; }
   if [ -f "$state/head" ]; then
     recorded="$(cat "$state/head")"
@@ -98,6 +127,19 @@ verify_unchanged() {
       echo "review-run.sh: HEAD is $head, and the reviewed head was $recorded – the review moved or committed" >&2
       return 1
     fi
+    pr="$(cat "$state/pr" 2>/dev/null)"
+    known=""
+    printf '%s' "$pr" | grep -Eq '^[1-9][0-9]{0,9}$' &&
+      known="$(gh pr view "$pr" --json headRefOid,commits --jq '.headRefOid, .commits[].oid' 2>/dev/null)"
+    if ! printf '%s\n' "$known" | grep -Fqx -- "$recorded"; then
+      echo "review-tree=fail"
+      echo "review-run.sh: the recorded head $recorded is not a commit of PR #${pr:-?} on GitHub – the head record was rewritten, or GitHub could not be asked" >&2
+      return 1
+    fi
+  elif [ -f "$state/pr" ]; then
+    echo "review-tree=fail"
+    echo "review-run.sh: PR #$(cat "$state/pr") was checked out and its head record is gone – the review removed it" >&2
+    return 1
   else
     if ! git merge-base --is-ancestor HEAD "refs/heads/$BASE_BRANCH" 2>/dev/null &&
        ! git merge-base --is-ancestor HEAD "refs/remotes/origin/$BASE_BRANCH" 2>/dev/null; then
@@ -131,10 +173,12 @@ case "$sub" in
     ;;
   install)
     [ $# -eq 0 ] || usage
+    no_credentials
     bash "$SCRIPT_DIR/deps-restore.sh"
     ;;
   run)
     check_program "${1:-}"
+    no_credentials
     "$@"
     ;;
   start)
@@ -146,6 +190,7 @@ case "$sub" in
     if [ -f "$state/$name.pid" ] && kill -0 "$(cat "$state/$name.pid")" 2>/dev/null; then
       refuse "\"$name\" is already running"
     fi
+    no_credentials
     nohup "$@" >"$state/$name.log" 2>&1 </dev/null &
     printf '%s\n' "$!" >"$state/$name.pid"
     echo "review-started=$name pid=$! log=$state/$name.log"

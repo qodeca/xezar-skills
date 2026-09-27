@@ -1225,13 +1225,35 @@ no verdict. QA and design review may move their own labels (`qa-approved`/`needs
 after checking that head out, and only on an unchanged tree. The browser stays `--isolated
 --headless`, so its profile holds no session of the operator's.
 
+Three bindings keep that honest (3.1.0 review):
+
+- **The role is the step's, not the request's.** `gh-write.sh` reads the step's `verdictRole` from
+  the run's frozen workflow definition in the engine's runs index (`.local/xezar/runtime/runs.json`,
+  by the worktree's run id and `XEZ_STEP_ID`) and refuses a verdict request for any other role. A
+  code, security, architecture or acceptance step declares none, so it moves no approval label; an
+  unreadable index refuses. A gate label is lifted only together with its approval label.
+- **What the review starts gets no git or gh credentials.** The program-name list in
+  `review-run.sh` is a courtesy – `node -e`, `make` or a test suite can start git all the same – so
+  `install`, `run` and `start` replace `GH_TOKEN`/`GITHUB_TOKEN` (and the enterprise pair) with a
+  refused value, point `GH_CONFIG_DIR` at an empty directory, clear every git credential helper
+  (an empty `credential.helper` from the environment), make askpass and prompts fail, and drop the
+  SSH agent and ssh command.
+- **A rewritten head record is caught.** The started code can rewrite `<evidence>/review/head`, so
+  `verify-unchanged` also asks GitHub, with the script's own credentials, whether the recorded
+  head is a commit of the recorded PR; a head the review made locally is not. A removed record
+  after a checkout fails as well.
+
 The cost, named: running a pull request's code means running whatever it does, with the operator's
-user rights – the tool list is not the boundary once `npm test` runs. A hostile change can read
-what that user can read, reach the network, or remove the review's own state so the unchanged-tree
-check is skipped. That is the trust a writing step's gates already give the same code; a reviewer
-now gives it too. `SECURITY.md` lists it as accepted. `scripts/test-kit-catalog.mjs` runs
-`review-run.sh`, the verdict labels and the verdict refusal; `test-kit-facts.mjs` FACT 23 pins the
-tool lists.
+user rights – the tool list is not the boundary once `npm test` runs, and withholding credentials
+from the environment is not a sandbox. A program written for it can still read what that user can
+read, a credential store (the keychain, `~/.config/gh`) included, reach the network, rewrite the
+engine's runs index, or remove the review's own state. What the bindings do guarantee is narrower
+and real: the reviewer agent itself cannot claim a role its step does not declare, and git or gh
+started the ordinary way by the review's commands cannot push, merge or label. That is the trust a
+writing step's gates already give the same code; a reviewer now gives it too. `SECURITY.md` lists
+it as accepted. `scripts/test-kit-catalog.mjs` runs `review-run.sh`, the verdict labels, the role
+binding, the credential withholding, the head-record check and the verdict refusal;
+`test-kit-facts.mjs` FACT 23 pins the tool lists.
 
 ## Reviews fall to DeepSeek when Claude has no budget
 

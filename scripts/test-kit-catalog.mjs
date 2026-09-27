@@ -1092,13 +1092,22 @@ for (const name of workflowFiles) {
     const wt = join(repo, ".local/xezar/worktrees/run-1");
     git(repo, "worktree", "add", "--quiet", "--detach", wt, "main");
 
+    // The engine's runs index: the run's frozen workflow definition, where gh-write.sh reads the
+    // step's verdictRole (a request's own role is never trusted).
+    const runsIndex = join(repo, ".local/xezar/runtime/runs.json");
+    const declareRole = (verdictRole) => {
+      mkdirSync(dirname(runsIndex), { recursive: true });
+      writeFileSync(runsIndex, JSON.stringify({ runs: [{ id: "run-1", workflow: "qa", workflowDef: { steps: [{ id: "review", ...(verdictRole ? { verdictRole } : {}) }] } }] }));
+    };
+    declareRole("qa");
+
     const bin = join(run, "bin");
     mkdirSync(bin);
     const log = join(run, "gh.log");
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2" in\n  "pr checkout") git checkout --quiet --detach ${prHead} ;;\n  "pr view") echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
     chmodSync(join(bin, "gh"), 0o755);
     const handoff = join(run, "handoff");
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
     const sh = (cwd, script, args = [], input = "") => {
       try {
         const out = execFileSync("bash", [`.xezar/checks/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
@@ -1108,8 +1117,8 @@ for (const name of workflowFiles) {
       }
     };
     const rr = (...args) => sh(wt, "review-run.sh", args);
-    const verdictLabel = (head, add = ["qa-approved"]) =>
-      sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add, remove: ["needs-qa"], verdict: { role: "qa", head } }));
+    const verdictLabel = (head, add = ["qa-approved"], role = "qa", remove = ["needs-qa"]) =>
+      sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add, remove, verdict: { role, head } }));
     const packet = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass" } }));
     const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
 
@@ -1118,6 +1127,14 @@ for (const name of workflowFiles) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
     }
     if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
+    // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,
+    // so it must not inherit the operator's credentials.
+    const child = rr("run", "node", "-e", "process.stdout.write([process.env.GH_TOKEN, process.env.GITHUB_TOKEN, process.env.SSH_AUTH_SOCK ?? '', process.env.GIT_TERMINAL_PROMPT].join(' '))");
+    if (child.status !== 0 || child.out.includes("operator-secret-token") || child.out.includes("operator-agent.sock") || !child.out.endsWith(" 0"))
+      fail(`a child of review-run.sh run still sees the operator's git or gh credentials:\n${child.out}`);
+    // The last credential.helper git sees must be the empty one that clears every helper before it.
+    const probe = rr("run", "node", "-e", "const v = require('child_process').execFileSync('git', ['config', '--get-all', 'credential.helper'], { encoding: 'utf8' }).split(String.fromCharCode(10)); v.pop(); process.stdout.write(JSON.stringify(v.at(-1)))");
+    if (probe.status !== 0 || probe.out !== '""') fail(`git inside review-run.sh run still has a credential helper: ${probe.out}`);
     const clean = rr("verify-unchanged");
     if (clean.status !== 0 || !clean.out.includes("review-tree=unchanged")) fail(`review-run.sh fails an untouched worktree:\n${clean.out}`);
     const checkout = rr("checkout", "5");
@@ -1135,6 +1152,16 @@ for (const name of workflowFiles) {
 
     if (verdictLabel("0".repeat(40)).status !== 1) fail("gh-write.sh grants qa-approved for a head that is not the PR's");
     if (verdictLabel(prHead, ["design-approved"]).status !== 1) fail("gh-write.sh lets a qa verdict add design-approved");
+    // The role is the step's, from the engine's runs index – never the request's word.
+    if (verdictLabel(prHead, ["design-approved"], "design-review", ["needs-design"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a qa step claim a design-review verdict");
+    declareRole(undefined);
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a step that declares no verdictRole (a code or security review) grant qa-approved");
+    rmSync(runsIndex);
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved when the engine's runs index cannot be read");
+    declareRole("qa");
+    // A gate label is lifted only with its approval label, in the same request.
+    if (verdictLabel(prHead, []).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a verdict request remove needs-qa without adding qa-approved");
     const granted = verdictLabel(prHead);
     if (granted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
       fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
@@ -1146,6 +1173,13 @@ for (const name of workflowFiles) {
 
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
+    // A child can rewrite the head record too; the recorded head must still be a commit of the PR on GitHub.
+    const headRecord = join(repo, ".local/xezar/tasks/run-1/review/head");
+    writeFileSync(headRecord, `${git(wt, "rev-parse", "HEAD")}\n`);
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a review commit whose head record was rewritten to match it");
+    git(wt, "checkout", "--quiet", "--detach", prHead);
+    rmSync(headRecord);
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a checkout whose head record was removed");
   } catch (error) {
     fail(`the review-run fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
   } finally {
