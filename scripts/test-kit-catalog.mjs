@@ -908,6 +908,102 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start
+// --- C. A project's own .claude settings (#69) --------------------------------------------------
+// C1: the kit's docs quote only the kit's own SessionStart entry, so a project that adds hooks of
+// its own keeps the quote and documented-output checks green, while a change to the kit's entry
+// still fails the quote check. C2: a widening Bash rule in the untracked settings.local.json warns
+// and a committed one fails; a browser grant outside the kit's tool list fails in either file.
+{
+  const lab = mkdtempSync(join(tmpdir(), "kit-claude-settings-"));
+  const out = (error) => (error.stdout ?? "") + (error.stderr ?? "");
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    for (const dir of ["checks", "docs"]) cpSync(join(KIT, dir), join(project, ".xezar", dir), { recursive: true });
+    mkdirSync(join(project, ".claude"));
+    cpSync(join(KIT, "claude/settings.json"), join(project, ".claude/settings.json"));
+    const g = (...a) => execFileSync("git", ["-C", project, ...a], { stdio: "pipe" });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    g("add", "-A");
+    g("-c", "user.name=kit", "-c", "user.email=kit@example.invalid", "commit", "--quiet", "-m", "kit");
+    const env = { ...process.env };
+    delete env.XEZAR_LEADER;
+    const check = (name) => execFileSync("node", [join(project, `.xezar/checks/${name}`), project], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    const settingsPath = join(project, ".claude/settings.json");
+    const kitSettings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    const own = { type: "command", command: "bash scripts/project-hook.sh", timeout: 5 };
+    const withOwnHooks = structuredClone(kitSettings);
+    withOwnHooks.hooks.PreToolUse = [{ matcher: "Bash", hooks: [own] }];
+    withOwnHooks.hooks.SessionStart.unshift({ matcher: "startup", hooks: [own] });
+    writeFileSync(settingsPath, `${JSON.stringify(withOwnHooks, null, 2)}\n`);
+    for (const name of ["fenced-quotes.mjs", "documented-output.mjs"]) {
+      try {
+        check(name);
+      } catch (error) {
+        fail(`a project's own second hook in .claude/settings.json turns ${name} red:\n${out(error)}`);
+      }
+    }
+    const changed = structuredClone(withOwnHooks);
+    changed.hooks.SessionStart[1].hooks[0].timeout = 30;
+    writeFileSync(settingsPath, `${JSON.stringify(changed, null, 2)}\n`);
+    let quoteOut = "";
+    try {
+      check("fenced-quotes.mjs");
+    } catch (error) {
+      quoteOut = out(error);
+    }
+    if (!quoteOut.includes("fenced quote differs from .claude/settings.json#entry:hooks.SessionStart"))
+      fail("fenced-quotes accepts a changed kit SessionStart hook entry in .claude/settings.json");
+  } catch (error) {
+    fail(`the .claude settings quote fixture could not be built or run: ${error.message}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+
+  const stage = mkdtempSync(join(tmpdir(), "kit-catalog-settings-"));
+  try {
+    mkdirSync(join(stage, ".xezar"));
+    for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(stage, ".xezar", dir), { recursive: true });
+    writeFileSync(join(stage, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    cpSync(join(KIT, "claude"), join(stage, ".claude"), { recursive: true });
+    const kitFiles = Object.fromEntries(["settings.json", "settings.local.json"].map((f) => [f, JSON.parse(readFileSync(join(KIT, "claude", f), "utf8"))]));
+    const catalog = () => {
+      try {
+        return { code: 0, out: execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" }) };
+      } catch (error) {
+        return { code: error.status ?? 1, out: out(error) };
+      }
+    };
+    const withRule = (file, rule) => {
+      for (const [name, body] of Object.entries(kitFiles)) {
+        const copy = structuredClone(body);
+        if (name === file) {
+          copy.permissions ??= {};
+          copy.permissions.allow = [...(copy.permissions.allow ?? []), rule];
+        }
+        writeFileSync(join(stage, ".claude", name), `${JSON.stringify(copy, null, 2)}\n`);
+      }
+      return catalog();
+    };
+    const widening = "Bash(make deploy:*)";
+    let r = withRule("settings.local.json", widening);
+    if (r.code !== 0) fail(`catalog-check fails the repository check on a widening rule in settings.local.json, an untracked file:\n${r.out}`);
+    else if (!r.out.includes(`WARNING .claude/settings.local.json: permissions.allow has "${widening}", which widens every reading step's shell on this machine`) || !r.out.includes("xezar-leader-settings.json"))
+      fail(`catalog-check does not warn, with the fix, on a widening rule in settings.local.json:\n${r.out}`);
+    r = withRule("settings.json", widening);
+    if (r.code === 0 || !r.out.includes(`.claude/settings.json: permissions.allow has "${widening}", which widens every reading step's shell`))
+      fail(`catalog-check accepts a widening Bash rule in committed .claude/settings.json:\n${r.out}`);
+    for (const file of ["settings.json", "settings.local.json"]) {
+      for (const grant of ["mcp__chrome-devtools__emulate", "mcp__chrome-devtools__evaluate_script", "mcp__chrome-devtools", "mcp__chrome-devtools__*"]) {
+        r = withRule(file, grant);
+        if (r.code === 0 || !r.out.includes(`permissions.allow has "${grant}", a browser grant outside the allowed chrome-devtools tools`))
+          fail(`catalog-check accepts browser grant ${grant} in .claude/${file}`);
+      }
+    }
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
+}
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start

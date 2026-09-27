@@ -1431,6 +1431,71 @@ breaks(
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start
+// #64: the timeline is cut by entries, and a decisions.md the loader cannot read is announced.
+breaks(
+  "a leader loader that keeps 400 timeline entries instead of 40 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace("TIMELINE_ENTRIES_DEFAULT=40", "TIMELINE_ENTRIES_DEFAULT=400"),
+  () => script("test-kit-facts.mjs"),
+  "the timeline is not cut to its newest 40 entries",
+);
+
+breaks(
+  "a leader loader that drops the timeline pointer line is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace("printf '\\n[timeline cut: showing", "printf '\\n[timeline: showing"),
+  () => script("test-kit-facts.mjs"),
+  "no pointer line naming the full timeline file",
+);
+
+breaks(
+  "a leader loader that skips a missing decisions.md in silence is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace('  if [ -n "$decisions_problem" ]; then\n    printf \'WARNING', '  if false; then\n    printf \'WARNING'),
+  () => script("test-kit-facts.mjs"),
+  "no WARNING with the nonce, before the guide, for a missing decisions.md",
+);
+
+breaks(
+  "a settings check whose browser tool list drifts from the kit's grants is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('"resize_page", "get_css_styles",\n]);', '"resize_page", "get_css_styles", "emulate",\n]);'),
+  () => script("test-kit-facts.mjs"),
+  "BROWSER_TOOLS is",
+);
+
+// #69: the kit's own hook entry is still guarded, and the settings check keeps its teeth.
+breaks(
+  "a changed kit SessionStart hook entry still fails the quote check",
+  "skills/xez-onboard-opinionated/kit/claude/settings.json",
+  (s) => s.replace('"timeout": 15', '"timeout": 30'),
+  () => script("test-kit-catalog.mjs"),
+  "fenced quote differs from .claude/settings.json#entry:hooks.SessionStart",
+);
+
+breaks(
+  "a widening Bash rule in committed .claude/settings.json that only warns is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const committed = name === "settings.json";', 'const committed = false;'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a widening Bash rule in committed .claude/settings.json",
+);
+
+breaks(
+  "a widening rule in the untracked settings.local.json that fails the repository check is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const committed = name === "settings.json";', 'const committed = true;'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check fails the repository check on a widening rule in settings.local.json",
+);
+
+breaks(
+  "a browser grant outside the kit's tool list is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (!tool || !BROWSER_TOOLS.has(tool)) {", "if (!tool) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts browser grant mcp__chrome-devtools__emulate",
+);
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start

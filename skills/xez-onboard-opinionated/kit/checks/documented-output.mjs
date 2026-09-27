@@ -208,6 +208,16 @@ function setupLeaderContextFixture(row, scratch) {
     throw new FixtureSetupError(`could not copy ${row.script}: ${error.message}`);
   }
   writeFileSync(path.join(root, '.xezar/docs/leader-guide.md'), '# Fixture leader guide\n');
+  // A live campaign whose timeline is longer than the loader keeps, so the loud case also runs the
+  // entry cut and its pointer line.
+  const campaign = path.join(root, '.xezar/campaigns/20260101-fixture');
+  mkdirSync(campaign, { recursive: true });
+  writeFileSync(path.join(campaign, 'README.md'), '# Fixture campaign\n');
+  writeFileSync(path.join(campaign, 'decisions.md'), '# Decisions\n');
+  writeFileSync(
+    path.join(campaign, 'timeline-2026-01-01.md'),
+    Array.from({ length: 45 }, (_, index) => `- 2026-01-01 09:${String(index).padStart(2, '0')} - fixture event\n`).join(''),
+  );
   for (const args of [
     ['init', '-q', '-b', 'main'],
     ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'add', '-A'],

@@ -861,6 +861,110 @@ function walk(rel, match) {
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start
+// ---------------------------------------------------------------------------
+// FACT C1 (#64) -- the leader gets the newest timeline ENTRIES and a pointer, and a decisions.md it
+// cannot load is announced in the trusted part of the context, never skipped in silence. RUN, on a
+// throwaway primary checkout, because both halves are behaviour a text pin cannot see.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT C1: newest timeline entries plus a pointer; a decisions.md the loader cannot read is a WARNING";
+  const where = "kit/checks/leader-context.sh";
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const lab = fs.mkdtempSync(join(tmpdir(), "kit-leader-context-"));
+  try {
+    // The loader names files by their physical path (`pwd -P`); macOS's temp folder is a symlink.
+    const repo = join(fs.realpathSync(lab), "repo");
+    const camp = join(repo, ".xezar/campaigns/20260901-fixture");
+    fs.mkdirSync(join(repo, ".xezar/checks"), { recursive: true });
+    fs.mkdirSync(join(repo, ".xezar/docs"), { recursive: true });
+    fs.mkdirSync(camp, { recursive: true });
+    fs.cpSync(join(root, SKILL, "kit/checks/leader-context.sh"), join(repo, ".xezar/checks/leader-context.sh"));
+    fs.writeFileSync(join(repo, ".xezar/docs/leader-guide.md"), "# Guide\n");
+    fs.writeFileSync(join(camp, "README.md"), "# Campaign\n");
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
+    const timeline = join(camp, "timeline-2026-09-01.md");
+    const decisions = join(camp, "decisions.md");
+    // Multi-line entries, and a fenced block whose list-looking line belongs to the entry above it.
+    const entries = (n) => "# Timeline\n\n" + Array.from({ length: n }, (_, i) =>
+      `- 2026-09-01 10:${String(i).padStart(2, "0")} - event ${i + 1}\n  detail of event ${i + 1}\n` +
+      (i === n - 1 ? "```text\n- not an entry\n```\n" : "")).join("");
+    const load = (extra = {}) => {
+      const env = { ...process.env, XEZAR_LEADER: "1", ...extra };
+      for (const k of ["XEZ_HANDOFF_FILE", "XEZ_TODOS_FILE", "XEZ_TASK_ID", "XEZAR_TIMELINE_ENTRIES"]) if (!(k in extra)) delete env[k];
+      const out = execFileSync("bash", [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
+      return JSON.parse(out).hookSpecificOutput.additionalContext;
+    };
+    const kept = (ctx) => [...ctx.matchAll(/^- 2026-09-01 \d\d:\d\d - event (\d+)$/gm)].map((m) => Number(m[1]));
+    const same = (a, b) => a.join() === b.join();
+    const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+    fs.writeFileSync(decisions, "# Decisions\n- 2026-09-01 owner: keep going\n");
+    fs.writeFileSync(timeline, entries(45));
+    let ctx = load();
+    if (!same(kept(ctx), range(6, 45)))
+      fail(fact, where, `the timeline is not cut to its newest 40 entries: kept [${kept(ctx).join(", ")}]`);
+    if (!ctx.includes("detail of event 45\n```text\n- not an entry\n```"))
+      fail(fact, where, "a multi-line entry, or the fenced block inside it, was split by the entry cut");
+    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${timeline}: read it on demand.]`))
+      fail(fact, where, "no pointer line naming the full timeline file and the entries left out");
+    if (/WARNING/.test(ctx)) fail(fact, where, "prints a WARNING although decisions.md is a normal file");
+    if (!ctx.includes("- 2026-09-01 owner: keep going")) fail(fact, where, "decisions.md is no longer injected");
+
+    ctx = load({ XEZAR_TIMELINE_ENTRIES: "3" });
+    if (!same(kept(ctx), range(43, 45))) fail(fact, where, `XEZAR_TIMELINE_ENTRIES=3 kept [${kept(ctx).join(", ")}], expected [43, 44, 45]`);
+    ctx = load({ XEZAR_TIMELINE_ENTRIES: "x" });
+    if (!same(kept(ctx), range(6, 45))) fail(fact, where, "an invalid XEZAR_TIMELINE_ENTRIES does not fall back to 40");
+
+    fs.writeFileSync(timeline, entries(40));
+    ctx = load();
+    if (!same(kept(ctx), range(1, 40)) || ctx.includes("[timeline cut:") || !ctx.includes("# Timeline"))
+      fail(fact, where, "a timeline of 40 entries or fewer is no longer loaded whole");
+
+    // The warning: before the guide, outside the untrusted region, with the region's nonce.
+    const warned = (label, reason) => {
+      const text = load();
+      const nonce = /--- ([0-9a-f]+): BEGIN UNTRUSTED CAMPAIGN RECORD ---/.exec(text)?.[1];
+      const line = `WARNING ${nonce}: ${decisions} ${reason},`;
+      const at = text.indexOf(line);
+      if (!nonce || at < 0 || at > text.indexOf("=== .xezar/docs/leader-guide.md"))
+        fail(fact, where, `no WARNING with the nonce, before the guide, for a ${label} decisions.md`);
+    };
+    fs.rmSync(decisions);
+    warned("missing", "is missing");
+    fs.symlinkSync(join(camp, "README.md"), decisions);
+    warned("symlinked", "is a symlink, which the loader refuses");
+    fs.rmSync(decisions);
+    if (typeof process.getuid === "function" && process.getuid() !== 0) {
+      fs.writeFileSync(decisions, "# Decisions\n");
+      fs.chmodSync(decisions, 0o000);
+      warned("unreadable", "is not readable");
+      fs.chmodSync(decisions, 0o644);
+    }
+  } catch (error) {
+    fail(fact, where, `the loader fixture could not be built or run: ${error.message}`);
+  } finally {
+    fs.rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT C2 (#69) -- the settings check refuses a browser grant by the same list the kit ships. Its
+// own copy of the chrome-devtools tools must equal the kit's local settings, or it refuses the
+// kit's own grants (or passes one the kit never gives).
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT C2: catalog-check's browser tool list equals the kit's chrome-devtools grants";
+  const check = read(`${SKILL}/kit/checks/catalog-check.mjs`);
+  const listed = [...(/^const BROWSER_TOOLS = new Set\(\[([\s\S]*?)\]\);/m.exec(check)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const granted = (JSON.parse(read(`${SKILL}/kit/claude/settings.local.json`)).permissions?.allow ?? [])
+    .filter((t) => t.startsWith("mcp__chrome-devtools__")).map((t) => t.slice("mcp__chrome-devtools__".length));
+  if (!listed.length || listed.slice().sort().join() !== granted.slice().sort().join())
+    fail(fact, "kit/checks/catalog-check.mjs", `BROWSER_TOOLS is [${listed.join(", ")}], expected the kit's grants [${granted.join(", ")}]`);
+  checked.push(fact);
+}
 // 3.1.0-stream-C:end
 
 // 3.1.0-stream-D:start
