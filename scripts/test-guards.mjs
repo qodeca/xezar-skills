@@ -1617,6 +1617,58 @@ breaks(
   () => script("test-kit-facts.mjs"),
   "no longer runs manifest-drift.mjs",
 );
+
+// scripts/test-upgrade.mjs (plan §7 break cases). The drift-check break case (one byte in a
+// copied file) lands with stream U1's manifest-drift.mjs.
+breaks(
+  "a changed kit file no 3.1.0 upgrade block lists is rejected",
+  "docs/plans/3.1.0/notes/pr-49.md",
+  (s) => s.replace(/^(Files: )\.xezar\/skills\/xezar-code-review\.md; /m, "$1"),
+  () => script("test-upgrade.mjs"),
+  "but no 3.1.0 upgrade block lists it",
+);
+
+// Truncating the index list at package.json's version makes that version the newest indexed
+// one, so the release check compares it with the tree and must find it stale. Once the release
+// PR indexes its own version last, this mutation changes nothing and must be re-aimed.
+breaks(
+  "a stale kit index for the package version is rejected",
+  "upgrade/kit-index/index.json",
+  (s) => {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+    const list = JSON.parse(s);
+    const at = list.versions.findIndex((v) => v.version === pkg);
+    return at < 0 ? s : `${JSON.stringify({ versions: list.versions.slice(0, at + 1) }, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "is stale: re-run scripts/build-kit-index.mjs",
+);
+
+breaks(
+  "a customised upgrade fixture with a customisation removed is rejected",
+  "scripts/fixtures/upgrade/customised/customisations.json",
+  (s) => {
+    const spec = JSON.parse(s);
+    spec.customisations = spec.customisations.filter((c) => c.id !== "leader-rule");
+    return `${JSON.stringify(spec, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "which customisations.json no longer makes",
+);
+
+breaks(
+  "a manifest digest one byte off no longer gives a high-confidence base",
+  "scripts/fixtures/upgrade/3.0.3/fixture.json",
+  (s) => {
+    const fx = JSON.parse(s);
+    const p = ".xezar/docs/routing.md";
+    const d = fx.manifest.files[p].sha256;
+    fx.manifest.files[p].sha256 = `${d.slice(0, -1)}${d.endsWith("0") ? "1" : "0"}`;
+    return `${JSON.stringify(fx, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "3.0.3: .xezar/docs/routing.md base confidence medium, expected high",
+);
 // 3.1.0-stream-U:end
 
 // --- the tree is left exactly as it was found --------------------------------

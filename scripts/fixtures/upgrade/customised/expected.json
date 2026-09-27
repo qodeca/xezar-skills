@@ -1,0 +1,18 @@
+{
+  "note": "What scripts/test-upgrade.mjs expects of the customised fixture. `diff` is every path whose content differs from the same install upgraded without customisations.",
+  "classes": {
+    "override": "not-listed",
+    "config-value": "owner-shaped",
+    "routing-row": "owner-shaped",
+    "leader-rule": "owner-shaped",
+    "patched-check": "local-only"
+  },
+  "diff": [
+    ".xezar/LOCAL-PATCHES.md",
+    ".xezar/docs/leader-guide.md",
+    ".xezar/pipeline/config.json",
+    ".xezar/pipeline/overrides/xezar-implementation.md",
+    ".xezar/routing.json",
+    "auto:untouched-check"
+  ]
+}
