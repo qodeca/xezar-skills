@@ -1,0 +1,219 @@
+#!/usr/bin/env node
+// Compares the onboarding manifest with the files in the working tree, and the manifest with the
+// local-patch register.
+//
+//   manifest-drift.mjs [repository-root]
+//
+// Why this exists. `.xezar/onboarding.json` records a digest and an origin for every file the
+// setup installed, so a later upgrade knows how carefully to treat each one. Nothing kept that
+// record honest: a file edited in place kept its install-time digest, and an upgrade that trusted
+// "copied" would overwrite the edit without a word. This check re-hashes every entry and binds
+// every recorded local patch to its entry in `.xezar/LOCAL-PATCHES.md`
+// (format: `.xezar/docs/local-patches.md`).
+//
+// Rules, from the upgrade contract (manifest version 2):
+// - a file with no `patch` must hash-match its recorded `sha256`;
+// - for `owner-file-appended`, only the block from `<!-- xezar:kit:start -->` to
+//   `<!-- xezar:kit:end -->`, both markers included, is hashed – the rest is the owner's;
+// - a file with `patch: LP-n` needs register entry LP-n listing that path, and the entry must say
+//   `Confirmed: yes` – an entry a tool drafted stays red until the owner confirms it;
+// - every path a register entry lists needs a manifest entry carrying that patch.
+// A manifest without `manifestVersion` (version 1, written before 3.1.0) is not enforced: the
+// check says so and passes. No manifest at all is not applicable either.
+//
+// Nothing here is followed: a symbolic link is never read through, and a path that leaves the
+// repository is reported, not opened. It reads the working tree, because it is a gate and a pull
+// request's own silent edit must fail that pull request.
+//
+// Output is `NAME=value` lines, parsed after the first `=`, never sourced as shell:
+//   drift-status=pass|fail|not-applicable
+//   drift=<path> origin=<origin> reason=<hash-mismatch|missing|unregistered-patch|unconfirmed-patch|register-without-manifest>
+// A path the manifest does not know prints `origin=none`. Explanations go to stderr.
+// Exit: 0 pass or not-applicable, 1 fail, 2 the manifest or register cannot be parsed.
+// No dependencies: `node:` built-ins only.
+
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join, relative, resolve, sep, isAbsolute } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const MANIFEST = ".xezar/onboarding.json";
+const REGISTER = ".xezar/LOCAL-PATCHES.md";
+const ORIGINS = ["copied", "adapted", "generated", "owner-file-appended"];
+const FIELDS = ["Files", "Reason", "Upstream", "Since", "Confirmed"];
+const HEX64 = /^[0-9a-f]{64}$/;
+const PATCH_ID = /^LP-[0-9]+$/;
+const START = "<!-- xezar:kit:start -->";
+const END = "<!-- xezar:kit:end -->";
+
+const say = (line) => process.stdout.write(`${line}\n`);
+const explain = (line) => process.stderr.write(`manifest-drift: ${line}\n`);
+const unparseable = (line) => {
+  explain(line);
+  process.exit(2);
+};
+
+if (process.argv.length > 3) unparseable("usage: manifest-drift.mjs [repository-root]");
+const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const root = realpathSync(process.argv[2] ? resolve(process.argv[2]) : scriptRoot);
+
+// A manifest key or register path: repo-relative, no `..` segment, no backslash.
+const safePath = (p) =>
+  typeof p === "string" && p.length > 0 && !p.startsWith("/") && !p.includes("\\") &&
+  !p.split("/").some((part) => part === ".." || part === "");
+
+// --- the manifest ------------------------------------------------------------------------------
+const manifestPath = join(root, MANIFEST);
+if (!existsSync(manifestPath)) {
+  say("drift-status=not-applicable");
+  explain(`no ${MANIFEST} in this project, so there is nothing to compare`);
+  process.exit(0);
+}
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+} catch (error) {
+  unparseable(`${MANIFEST} is not valid JSON: ${error.message}`);
+}
+if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
+  unparseable(`${MANIFEST} is not a JSON object`);
+if (!("manifestVersion" in manifest)) {
+  say("drift-status=not-applicable");
+  explain(
+    `${MANIFEST} is manifest version 1, which records no trustworthy per-file digests. ` +
+    "The 3.1.0 upgrade writes version 2; this check enforces from then on.",
+  );
+  process.exit(0);
+}
+if (!Number.isInteger(manifest.manifestVersion) || manifest.manifestVersion < 2)
+  unparseable(`${MANIFEST}: manifestVersion must be an integer of 2 or more`);
+const files = manifest.files;
+if (files === null || typeof files !== "object" || Array.isArray(files))
+  unparseable(`${MANIFEST}: "files" must be an object`);
+for (const [path, entry] of Object.entries(files)) {
+  if (!safePath(path)) unparseable(`${MANIFEST}: "${path}" is not a repository-relative path`);
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry))
+    unparseable(`${MANIFEST}: the entry for ${path} is not an object`);
+  if (typeof entry.sha256 !== "string" || !HEX64.test(entry.sha256))
+    unparseable(`${MANIFEST}: the entry for ${path} has no 64-hex sha256`);
+  if (!ORIGINS.includes(entry.origin))
+    unparseable(`${MANIFEST}: the entry for ${path} has origin "${entry.origin}", not one of ${ORIGINS.join(", ")}`);
+  if ("patch" in entry && (typeof entry.patch !== "string" || !PATCH_ID.test(entry.patch)))
+    unparseable(`${MANIFEST}: the entry for ${path} has patch "${entry.patch}", not LP-<n>`);
+}
+
+// --- the register ------------------------------------------------------------------------------
+// One heading per entry, then bullet fields; the entry runs to the next `## ` heading. Text
+// between entries is ignored. All five fields are required, once each.
+const register = new Map();
+const registerPath = join(root, REGISTER);
+if (existsSync(registerPath)) {
+  let current = null;
+  const close = () => {
+    if (!current) return;
+    for (const field of FIELDS)
+      if (!(field in current.fields)) unparseable(`${REGISTER}: ${current.id} has no "${field}:" line`);
+    const f = current.fields;
+    if (!/^(yes|no)$/.test(f.Confirmed)) unparseable(`${REGISTER}: ${current.id} Confirmed must be yes or no`);
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(f.Since)) unparseable(`${REGISTER}: ${current.id} Since must be YYYY-MM-DD`);
+    if (!/^(local only|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#[0-9]+)$/.test(f.Upstream))
+      unparseable(`${REGISTER}: ${current.id} Upstream must be <owner>/<repo>#<n> or "local only"`);
+    const paths = f.Files.split(",").map((p) => p.trim());
+    for (const p of paths) if (!safePath(p)) unparseable(`${REGISTER}: ${current.id} lists "${p}", not a repository-relative path`);
+    register.set(current.id, { files: paths, confirmed: f.Confirmed === "yes" });
+    current = null;
+  };
+  for (const line of readFileSync(registerPath, "utf8").split(/\r?\n/)) {
+    if (line.startsWith("## ")) {
+      close();
+      const heading = /^## (LP-[0-9]+) [–-] (.+)$/.exec(line);
+      if (heading) {
+        if (register.has(heading[1])) unparseable(`${REGISTER}: ${heading[1]} appears twice`);
+        current = { id: heading[1], fields: {} };
+      } else if (/^## LP-/.test(line)) {
+        unparseable(`${REGISTER}: "${line}" does not match "## LP-<n> – <title>"`);
+      }
+      continue;
+    }
+    if (!current) continue;
+    const field = /^- (Files|Reason|Upstream|Since|Confirmed): (.+)$/.exec(line);
+    if (!field) continue;
+    if (field[1] in current.fields) unparseable(`${REGISTER}: ${current.id} has "${field[1]}:" twice`);
+    current.fields[field[1]] = field[2].trim();
+  }
+  close();
+}
+
+// --- comparing ---------------------------------------------------------------------------------
+const within = (candidate) => {
+  const rel = relative(root, candidate);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+};
+
+// The digest of what the tree holds for this entry, or a reason it has none.
+function digest(path, origin) {
+  const full = join(root, path);
+  let stat;
+  try {
+    stat = lstatSync(full);
+  } catch {
+    return { reason: "missing" };
+  }
+  // A link is not the installed file, and reading through one could leave the repository.
+  if (!stat.isFile()) return { reason: "hash-mismatch", note: "is not a regular file" };
+  let real;
+  try {
+    real = realpathSync(full);
+  } catch {
+    return { reason: "missing" };
+  }
+  if (!within(real)) return { reason: "hash-mismatch", note: "resolves outside the repository" };
+  let bytes = readFileSync(real);
+  if (origin === "owner-file-appended") {
+    const text = bytes.toString("utf8");
+    const start = text.indexOf(START);
+    const end = start < 0 ? -1 : text.indexOf(END, start);
+    if (start < 0 || end < 0 || text.indexOf(START, start + 1) >= 0)
+      return { reason: "hash-mismatch", note: "does not hold exactly one kit block" };
+    bytes = Buffer.from(text.slice(start, end + END.length), "utf8");
+  }
+  return { sha256: createHash("sha256").update(bytes).digest("hex") };
+}
+
+const drift = [];
+const report = (path, origin, reason, note) => {
+  drift.push(`drift=${path} origin=${origin} reason=${reason}`);
+  if (note) explain(`${path}: ${note}`);
+};
+
+for (const [path, entry] of Object.entries(files).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+  const seen = digest(path, entry.origin);
+  if (seen.reason === "missing") {
+    report(path, entry.origin, "missing", "recorded in the manifest, absent from the tree");
+    continue;
+  }
+  if (entry.patch) {
+    const lp = register.get(entry.patch);
+    if (!lp || !lp.files.includes(path)) {
+      report(path, entry.origin, "unregistered-patch", `names ${entry.patch}, which ${lp ? "does not list this file" : `is not in ${REGISTER}`}`);
+    } else if (!lp.confirmed) {
+      report(path, entry.origin, "unconfirmed-patch", `${entry.patch} says Confirmed: no; the owner confirms it by changing that to yes`);
+    }
+    continue;
+  }
+  if (seen.reason) report(path, entry.origin, seen.reason, seen.note);
+  else if (seen.sha256 !== entry.sha256)
+    report(path, entry.origin, "hash-mismatch", `changed since it was recorded; record the change in ${REGISTER} or restore the file`);
+}
+
+for (const [id, lp] of register) {
+  for (const path of lp.files) {
+    const entry = files[path];
+    if (!entry || entry.patch !== id)
+      report(path, entry ? entry.origin : "none", "register-without-manifest", `${id} lists it, but its manifest entry does not carry patch ${id}`);
+  }
+}
+
+say(`drift-status=${drift.length ? "fail" : "pass"}`);
+for (const line of drift) say(line);
+process.exit(drift.length ? 1 : 0);

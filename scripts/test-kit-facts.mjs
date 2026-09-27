@@ -1023,6 +1023,26 @@ function walk(rel, match) {
 // 3.1.0-stream-H:end
 
 // 3.1.0-stream-U:start
+// U1 (#55): the drift check runs at every gate, and the prose that writes and edits the manifest
+// names the same markers and version the check reads. A gate line removed, or a marker spelled
+// differently in one place, lets a silent edit through or turns a fresh setup red.
+{
+  const fact = "FACT U1: the manifest drift check runs in the gate and agrees with the prose that writes the manifest";
+  const checks = read(`${SKILL}/kit/checks/repository-checks.sh`);
+  if (!/^node "\$SCRIPT_DIR\/manifest-drift\.mjs" "\$REPO_ROOT"$/m.test(checks))
+    fail(fact, "kit/checks/repository-checks.sh", "no longer runs manifest-drift.mjs, so a silently edited kit file passes the gate");
+  const script = read(`${SKILL}/kit/checks/manifest-drift.mjs`);
+  for (const marker of ["<!-- xezar:kit:start -->", "<!-- xezar:kit:end -->"]) {
+    if (!script.includes(`"${marker}"`)) fail(fact, "kit/checks/manifest-drift.mjs", `does not hash the block marked ${marker}`);
+    for (const where of [`${SKILL}/references/write.md`, `${SKILL}/kit/docs/local-patches.md`])
+      if (!read(where).includes(marker)) fail(fact, where, `does not name the kit block marker ${marker}`);
+  }
+  if (!/"manifestVersion": 2/.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, "references/write.md", "no longer writes manifest version 2, so a fresh setup's manifest is never checked");
+  if (!/manifest-drift\.mjs/.test(read("skills/xez-add-rule/SKILL.md")))
+    fail(fact, "skills/xez-add-rule/SKILL.md", "no longer records a new rule in the manifest, so the first owner rule turns the drift check red");
+  checked.push(fact);
+}
 // 3.1.0-stream-U:end
 
 if (problems.length) {
