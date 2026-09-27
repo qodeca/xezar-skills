@@ -783,6 +783,127 @@ for (const name of workflowFiles) {
 // 3.1.0-stream-A:end
 
 // 3.1.0-stream-B:start
+// --- #50: the author chain in route.mjs --------------------------------------------------------
+// `route <row> --author <lane> [--repair <lane>]…` removes every lane that is not independent of
+// the chain; without `--author` the output is byte-identical to 3.0.x (the golden hash below was
+// taken from the 3.0.3 script on the frozen defaults copy 3.json, so it changes only when the
+// no-author output does). Every line either form prints parses as NAME=value after the first `=`.
+{
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { KNOWN, check } = await import(pathToFileURL(ROUTE).href);
+  const { createHash } = await import("node:crypto");
+  const schema = JSON.parse(readFileSync(join(KIT, "routing.schema.json"), "utf8"));
+  const a = [...(KNOWN.vendorExclusion ?? [])].sort().join(",");
+  const b = Object.keys(schema.properties.vendorExclusions?.items?.properties ?? {}).sort().join(",");
+  if (!a || a !== b) fail(`route.mjs KNOWN.vendorExclusion is [${a}] and routing.schema.json says [${b}] -- the script and the schema must name the same keys`);
+
+  const lab = mkdtempSync(join(tmpdir(), "kit-route-chain-"));
+  const printed = [];
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const stage = (name, file) => {
+      const copy = structuredClone(file);
+      copy.tools.claude.rotation = ["acct-one", "acct-two"];
+      copy.tools.codex.rotation = ["acct-three"];
+      writeFileSync(join(project, `.xezar/${name}.json`), JSON.stringify(copy));
+      return `.xezar/${name}.json`;
+    };
+    const env = { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex,pi" };
+    const run = (file, ...args) => {
+      const out = execFileSync("node", [ROUTE, "--file", file, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+      printed.push(...out.split("\n").filter(Boolean));
+      return out;
+    };
+    const runCode = (file, ...args) => {
+      try { execFileSync("node", [ROUTE, "--file", file, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env }); return { code: 0, err: "" }; }
+      catch (error) { return { code: error.status, err: error.stderr ?? "" }; }
+    };
+    const lanesOf = (out) => out.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
+    const shipped = stage("routing-shipped", routing);
+
+    // Golden: no --author, every row, without and with a fresh lane cache.
+    const frozen = JSON.parse(readFileSync(join(root, SKILL, "references/routing-defaults/3.json"), "utf8"));
+    const old = stage("routing", frozen);
+    const ids = frozen.rows.map((r) => r.id);
+    let golden = run(old, ...ids);
+    const cacheDir = join(project, ".local/xezar/runtime");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { "claude/sonnet": { available: false, reason: "quota" } } }));
+    golden += run(old, ...ids).replace(/checkedAt=\S+/g, "checkedAt=<now>");
+    rmSync(join(project, ".local"), { recursive: true, force: true });
+    const GOLDEN = "dc1e715b6a94c6ac1e598380da61cfd2786ba7c3a21bd2ab428de93135e25e65";
+    if (createHash("sha256").update(golden).digest("hex") !== GOLDEN) fail("route without --author no longer prints byte-identical output (golden hash of every row of routing-defaults/3.json differs) -- the leader parses these lines");
+    if (/escalation-eligible=|author-chain/.test(golden)) fail("route prints author-chain lines without --author");
+
+    // A Claude-authored PR on full-cold-review gets a non-Claude lane, never a Claude lane.
+    const vendorOf = (id) => routing.lanes[id]?.vendor;
+    const modelOf = (id) => routing.lanes[id]?.engineModel ?? routing.lanes[id]?.model;
+    for (const author of ["claude/opus", "claude/sonnet"]) {
+      const out = run(shipped, "full-cold-review", "--author", author);
+      const got = lanesOf(out);
+      if (!got.length && !/^wait=no-independent-lane$/m.test(out)) fail(`route full-cold-review --author ${author} gave no lane and no wait=no-independent-lane:\n${out}`);
+      if (got.some((id) => vendorOf(id) === "anthropic")) fail(`route full-cold-review --author ${author} still offers a Claude lane: [${got}]`);
+      if (!/^removed=claude\/opus reason=author-chain: shared (model|vendor) with claude\/\S+$/m.test(out)) fail(`route full-cold-review --author ${author} does not say why it removed claude/opus:\n${out}`);
+      for (const id of got) if (routing.reservedLanes[id]?.escalation && !new RegExp(`^escalation-eligible=${id.replace(/[/.]/g, "\\$&")}$`, "m").test(out)) fail(`route lists escalation lane ${id} as eligible without an escalation-eligible line`);
+      if (/ by=hand$/m.test(out)) fail("route still prints an escalation lane as by=hand when an author chain is given");
+    }
+    // Nothing independent left: wait, never an invented fallback.
+    const noCodex = execFileSync("node", [ROUTE, "--file", shipped, "full-cold-review", "--author", "claude/opus"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude" } });
+    printed.push(...noCodex.split("\n").filter(Boolean));
+    if (lanesOf(noCodex).length || !/^wait=no-independent-lane$/m.test(noCodex)) fail(`route full-cold-review for a Claude author with no codex program gave a lane instead of wait=no-independent-lane:\n${noCodex}`);
+
+    // A repair chain excludes every model in it, and every vendor in it on a security row.
+    const chain = ["claude/opus", "codex/gpt-6-sol"];
+    const review = run(shipped, "acceptance-verification", "--author", chain[0], "--repair", chain[1]);
+    const reviewLanes = lanesOf(review);
+    if (reviewLanes.some((id) => chain.map(modelOf).includes(modelOf(id)))) fail(`route acceptance-verification keeps a lane that shares a model with the repair chain: [${reviewLanes}]`);
+    if (!/^removed=codex\/gpt-6-sol reason=author-chain: shared model with codex\/gpt-6-sol$/m.test(review)) fail(`route does not remove the repairer's own model:\n${review}`);
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
+    const sec = run(shipped, "security-review", "--author", "codex/gpt-6-sol", "--repair", "claude/sonnet");
+    if (lanesOf(sec).some((id) => ["openai", "anthropic"].includes(vendorOf(id)))) fail(`route security-review keeps a lane of a vendor in the repair chain:\n${sec}`);
+    if (!/^wait=no-independent-lane$/m.test(sec)) fail(`route security-review with both vendors in the chain does not wait:\n${sec}`);
+    const secOne = run(shipped, "security-review", "--author", "codex/gpt-5.6-terra");
+    if (!/^removed=codex\/gpt-6-astra reason=author-chain: shared vendor with codex\/gpt-5\.6-terra$/m.test(secOne) || !/^lane=claude\/opus /m.test(secOne)) fail(`route security-review does not exclude the author's vendor on a security row:\n${secOne}`);
+
+    // The vendor exclusion is data: dropped, a Claude lane may review Claude's work again; extended, it bites.
+    const off = structuredClone(routing);
+    delete off.vendorExclusions;
+    const offOut = run(stage("routing-off", off), "full-cold-review", "--author", "claude/opus");
+    if (lanesOf(offOut)[0] !== "claude/sonnet") fail(`route with no vendorExclusions does not offer claude/sonnet for a claude/opus author:\n${offOut}`);
+    const more = structuredClone(routing);
+    more.vendorExclusions = [...(more.vendorExclusions ?? []), { vendor: "openai" }];
+    const moreOut = run(stage("routing-more", more), "full-cold-review", "--author", "codex/gpt-6-sol");
+    if (lanesOf(moreOut).includes("codex/gpt-6-astra")) fail(`route ignores a vendorExclusions entry a project added:\n${moreOut}`);
+    // --check validates the key.
+    for (const [bad, expect] of [[[{ vendor: "nobody" }], "is the vendor of no lane"], [{ vendor: "anthropic" }, "must be a list"], [[{ vendor: "anthropic" }, { vendor: "anthropic" }], "is named twice"]]) {
+      const broken = structuredClone(routing);
+      broken.vendorExclusions = bad;
+      if (!check(broken).errors.some((e) => e.includes(expect))) fail(`route check accepts vendorExclusions ${JSON.stringify(bad)} (expected "${expect}")`);
+    }
+
+    // An unknown lane in the chain, or a chain without an author, is a usage error: exit 2.
+    for (const args of [["full-cold-review", "--author", "claude/no-such"], ["full-cold-review", "--author", "claude/opus", "--repair", "nobody"], ["full-cold-review", "--repair", "claude/opus"], ["--rows", "--author", "claude/opus"]]) {
+      const r = runCode(shipped, ...args);
+      if (r.code !== 2) fail(`route ${args.join(" ")} exits ${r.code}, expected 2 (a usage error):\n${r.err}`);
+    }
+
+    // Grammar: every line either form prints is a comment or NAME=value, parsed after the first `=`.
+    for (const l of printed) {
+      if (l.startsWith("# ")) continue;
+      const i = l.indexOf("=");
+      if (i < 1 || !/^[a-z][a-z-]*$/.test(l.slice(0, i))) fail(`route printed a line that does not parse as NAME=value: ${JSON.stringify(l)}`);
+    }
+  } catch (error) {
+    fail(`the author-chain route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start

@@ -77,6 +77,19 @@
       }
     },
 
+    "vendorExclusions": {
+      "description": "Optional; missing means none. Each names a vendor whose lanes never take work that a lane of the same vendor wrote or repaired. The route script applies it when the leader passes the author chain (`--author`, `--repair`); it is data, so a project may drop or extend it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["vendor"],
+        "properties": {
+          "vendor": { "$ref": "#/$defs/slug" },
+          "why": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+
     "tieRule": { "$ref": "#/$defs/text" },
 
     "noMatch": {

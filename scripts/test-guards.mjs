@@ -1354,6 +1354,80 @@ breaks(
 // 3.1.0-stream-A:end
 
 // 3.1.0-stream-B:start
+// #50: the author chain. Each way route.mjs or the routing file could let a dependent lane through,
+// or change what the leader already parses, is a break of its own.
+breaks(
+  "route that ignores the author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (!chain) return null;\n    const lane = file.lanes[id];", "    return null;\n    const lane = file.lanes[id];"),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
+
+breaks(
+  "route output without --author that changes by one word is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('out.push(`${line("escalation", lid)} by=hand`)', 'out.push(`${line("escalation", lid)} by=leader`)'),
+  () => script("test-kit-catalog.mjs"),
+  "no longer prints byte-identical output",
+);
+
+breaks(
+  "route that prints an author-chain line that is not NAME=value is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("`escalation-eligible=${lid}`", "`escalation-eligible ${lid}`"),
+  () => script("test-kit-catalog.mjs"),
+  "does not parse as NAME=value",
+);
+
+breaks(
+  "a vendor exclusion naming a vendor no lane has is rejected",
+  ROUTING,
+  routingEdit((f) => { f.vendorExclusions = [{ vendor: "nobody" }]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is the vendor of no lane",
+);
+
+breaks(
+  "the shipped Claude vendor exclusion dropped from routing.json is rejected",
+  ROUTING,
+  routingEdit((f) => { delete f.vendorExclusions; }),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
+
+// #65: the leader guide's dispatch, quota and merge-queue rules (FACT B1).
+breaks(
+  "dispatch at once made a second dispatcher, not an L3 run, is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("that turn – never an L1 or L2 tick, which wakes L3 instead – counts as an L3 run", "any turn may dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "does not say that dispatching at once is an L3 run",
+);
+
+breaks(
+  "the read-quota item dropped from the checklist is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("- [ ] Quota read from `read_quota` before this dispatch; every login verified", "- [ ] Every login verified before dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "checklist has no",
+);
+
+breaks(
+  "an L1 prompt that lets its own tick dispatch at once is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace("counts as a pacing run, and this tick is never one.", "counts as a pacing run."),
+  () => script("test-kit-facts.mjs"),
+  "L1's prompt does not say",
+);
+
+breaks(
+  "close-out that loses the merge-queue path is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => s.replace("`gh pr merge <number> --auto`", "update the branch and merge"),
+  () => script("test-kit-facts.mjs"),
+  "does not describe both merge paths",
+);
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start

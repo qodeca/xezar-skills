@@ -817,6 +817,43 @@ function walk(rel, match) {
 // 3.1.0-stream-A:end
 
 // 3.1.0-stream-B:start
+// ---------------------------------------------------------------------------
+// FACT B1 (#65) -- the leader guide ships the dispatch, quota and merge-queue rules, and L3 is
+// still the only dispatcher. Two consumer projects added these three rules by hand; the template
+// carries them now, the reasoning lives in the detail page and close-out, and "dispatch at once"
+// is an L3 run, never a second dispatcher and never an L1 or L2 tick.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT B1: the leader guide carries dispatch-at-once, read-quota and merge-queue, and L3 stays the only dispatcher";
+  const guide = read(`${SKILL}/kit/leader-guide.template.md`);
+  const body = guide.split("## One-page checklist")[0];
+  const checklist = guide.split("## One-page checklist")[1] ?? "";
+  const need = [
+    [body, /\*\*L3 is the only dispatcher\.\*\*/, "no longer says **L3 is the only dispatcher.**"],
+    [body, /\*\*Dispatch at once\*\*[^\n]*never an L1 or L2 tick[^\n]*counts as an L3 run/, "does not say that dispatching at once is an L3 run, never an L1 or L2 tick"],
+    [body, /\*\*Before every dispatch, read quota\*\*[^\n]*`read_quota`/, "does not tell the leader to read quota with `read_quota` before every dispatch"],
+    [body, /merge queue[^\n]*`gh pr merge --auto`[^\n]*never update-branch in a loop[^\n]*close-out\.md/, "does not give the merge-queue path with its pointer to close-out.md"],
+    [checklist, /Quota read from `read_quota` before this dispatch/, "checklist has no \"Quota read from `read_quota` before this dispatch\" item"],
+  ];
+  for (const [text, re, detail] of need) if (!re.test(text)) fail(fact, "kit/leader-guide.template.md", detail);
+
+  const loops = JSON.parse(read(`${SKILL}/kit/loops.json`));
+  const l1 = (loops.loops ?? []).find((l) => l.id === "L1");
+  if (!l1 || !/Never start new work here/.test(l1.prompt) || !/dispatches at once counts as a pacing run, and this tick is never one/.test(l1.prompt))
+    fail(fact, "kit/loops.json", "L1's prompt does not say that dispatching at once is a pacing run and never this tick");
+  if (!(loops.rules ?? []).some((r) => /^L3 is the only loop that may dispatch/.test(r)))
+    fail(fact, "kit/loops.json", "the rule \"L3 is the only loop that may dispatch\" is gone");
+
+  const detail = read(`${SKILL}/kit/docs/leader-guide-detail.md`);
+  if (!/\*\*Why dispatching at once is safe\.\*\*[\s\S]*?at most one wake is still pending/.test(detail))
+    fail(fact, "kit/docs/leader-guide-detail.md", "does not explain why dispatching at once keeps at most one pending wake");
+  if (!/\*\*Why a merge queue changes the merge steps\.\*\*[\s\S]*?update-branch/.test(detail))
+    fail(fact, "kit/docs/leader-guide-detail.md", "does not explain why update-branch loops cost CI time");
+  const close = read(`${SKILL}/kit/docs/close-out.md`);
+  if (!/\*\*No queue\.\*\*[^\n]*[Uu]pdate the branch/.test(close) || !/\*\*Queue on\.\*\*[^\n]*`gh pr merge <number> --auto`/.test(close) || !/mergeQueue/.test(close))
+    fail(fact, "kit/docs/close-out.md", "does not describe both merge paths and how to tell which applies");
+  checked.push(fact);
+}
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start
