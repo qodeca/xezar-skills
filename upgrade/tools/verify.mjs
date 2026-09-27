@@ -14,7 +14,10 @@
 //   owner-rules-changed the leader guide's "## Owner's rules" section is not byte-equal to before
 //   register-binding    a register entry naming a missing file, or a file naming a missing entry
 //                       (a kit file the project removed on purpose is not missing: the entry
-//                       records the removal, and the manifest keeps the file's entry with it)
+//                       records the removal, and the manifest keeps the file's entry with it),
+//                       or a register entry naming a file the manifest does not track (an owner
+//                       document, a per-machine file, one merged into without a kit block),
+//                       which the drift check would fail as register-without-manifest
 //   safety-line-missing a refusing line the target kit added to a resolved safety file is absent
 // "Before" is the commit the plan was made on (plan.json startCommit).
 //
@@ -38,7 +41,7 @@ import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
 import { isRepoRelative, resolveInside } from "./lib/paths.mjs";
-import { SAFETY_LINE, isCheckLike, isNeverTouched, isNotRecorded } from "./lib/policy.mjs";
+import { OWNER_CONFIG, SAFETY_LINE, isCheckLike, isNeverTouched, isNotRecorded } from "./lib/policy.mjs";
 import { detect } from "./detect.mjs";
 import { extractInputs, normalisedMatch, render } from "./lib/rewrites.mjs";
 import { lineDistance } from "./lib/diff.mjs";
@@ -134,7 +137,12 @@ export function invariants(ctx, plan) {
   for (const e of reg.entries) {
     for (const f of e.files) {
       if (!isRepoRelative(f)) problem("register-binding", f, `${e.id} names an unsafe path`);
-      else if (ctx.readMine(f).text == null && !recordableRemoval(ctx, f)) problem("register-binding", f, `${e.id} names a file that does not exist`);
+      else if (ctx.readMine(f).text == null) {
+        if (!recordableRemoval(ctx, f)) problem("register-binding", f, `${e.id} names a file that does not exist`);
+      } else if (!OWNER_CONFIG.includes(f) && !tracked(ctx, f)) {
+        // The drift check skips the owner's configuration, so an entry for it is let through.
+        problem("register-binding", f, `${e.id} names a file the manifest does not track; a kept owner-side change goes in the report's merge decisions, not the register`);
+      }
     }
   }
   const manifestFiles = ctx.manifest.raw.files;
@@ -199,6 +207,17 @@ export function removedEntry(ctx, p, detected = null) {
     if (e.rewrite === "adapted" && inputs && Object.keys(inputs).length) entry.renderInputs = inputs;
   }
   return entry;
+}
+
+/**
+ * A present file manifest v2 records, so a register entry can bind to it: a recordable kit file,
+ * or an owner file with a recorded, still-present appended kit block (see manifestV2).
+ */
+function tracked(ctx, p) {
+  if (recordable(ctx, p)) return true;
+  if (isNeverTouched(p) || ctx.manifest.hints.get(p)?.origin !== "owner-file-appended") return false;
+  const text = ctx.readMine(p).text;
+  return text != null && appendedBlock(text) !== null;
 }
 
 /** A register path that is absent but can be recorded as a removal (see removedEntry). */

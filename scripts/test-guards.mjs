@@ -1911,6 +1911,17 @@ breaks(
 // Truncating the index list at package.json's version makes that version the newest indexed
 // one, so the release check compares it with the tree and must find it stale. Once the release
 // PR indexes its own version last, this mutation changes nothing and must be re-aimed.
+// A changed kit file dropped from the one 3.1.0 block that lists it. The base of this check is
+// the last release OLDER than the target: once the release indexes the target itself, a base of
+// "the newest tagged entry" diffs the target with itself and this case passes silently.
+breaks(
+  "a changed kit file dropped from its 3.1.0 upgrade block's Files: line is rejected",
+  "UPGRADE_NOTES.md",
+  (s) => s.replace("Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/gate-record.sh;", "Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh;"),
+  () => script("test-upgrade.mjs"),
+  ".xezar/checks/lib/gate-record.sh changed since 3.0.3 but no 3.1.0 upgrade block lists it",
+);
+
 breaks(
   "a stale kit index for the package version is rejected",
   // Between releases the package version is not the newest entry, so the index is cut back

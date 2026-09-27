@@ -14,7 +14,10 @@
 // reads tags (CI checks out shallow). The release PR re-runs it for the new tag.
 //
 // Run:   node scripts/build-kit-index.mjs [--ref HEAD] [--out upgrade/kit-index] [--check]
-//        --check rebuilds into memory and fails if the committed files differ.
+//        --check rebuilds into memory and fails if the committed files differ, or if a commit the
+//        committed index records is not an ancestor of --ref (an index built on a branch that was
+//        squash-merged points at commits no clone of the release has). No gate runs --check: it
+//        needs full history and tags, and the index is rebuilt at release time (upgrade/README.md).
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from "node:fs";
@@ -143,8 +146,27 @@ for (let i = 0; i < versions.length; i += 1) {
 const listing = { versions: built.map(({ version, commit, tag }) => ({ version, commit, tag })) };
 const outputs = new Map([["index.json", stableJson(listing)], ...built.map((ix) => [`${ix.version}.json`, stableJson(ix)])]);
 
+/** True when `commit` exists here and is an ancestor of (or equal to) `ref`. */
+function isAncestor(commit) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", commit, ref], { cwd: root, stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 if (check) {
   let bad = 0;
+  const committedListing = join(outDir, "index.json");
+  if (existsSync(committedListing)) {
+    for (const v of JSON.parse(readFileSync(committedListing, "utf8")).versions ?? []) {
+      if (!isAncestor(v.commit)) {
+        console.error(`kit index records ${v.version} at ${v.commit}, which is not an ancestor of ${ref}: rebuild the index on the release line`);
+        bad += 1;
+      }
+    }
+  }
   for (const [name, text] of outputs) {
     const path = join(outDir, name);
     if (!existsSync(path) || readFileSync(path, "utf8") !== text) {

@@ -1,6 +1,6 @@
 {
   "case": "config-no-default",
-  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys. changelog.format now has a documented default (auto, F6): it is either set to that default or left unset and put on the owner checklist, never invented; owner values never change.",
+  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys. changelog.format now has a documented default (auto, F6): it is either set to that default or left unset and put on the owner checklist, never invented; owner values never change. designSystem.modules and security.trustBoundaries have no upgrade default (\"absent means ...\" is not one): both stay unset and are on the owner checklist.",
   "invariants": [
     {
       "type": "finished"
@@ -62,6 +62,24 @@
           "key": "changelog.format",
           "value": "auto"
         }
+      ]
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "designSystem.modules"
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "security.trustBoundaries"
+    },
+    {
+      "type": "reportSection",
+      "heading": "Owner checklist",
+      "contains": [
+        "designSystem.modules",
+        "security.trustBoundaries"
       ]
     }
   ]

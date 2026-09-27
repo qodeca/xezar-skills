@@ -743,6 +743,15 @@ for (const name of workflowFiles) {
     if (without.code === 0 || !without.out.includes("future-engine-state.json (file at the top level)")) fail(`local-tree.sh without the engine's list passed a name it does not know:\n${without.out}`);
     standIn(`echo '{"schemaVersion":1,"scope":"local-xezar-top-level","names":[{"name":"../x","kind":"file"},{"name":"future-engine-state.json","kind":"socket"}]}'`);
     if (run().code === 0) fail("local-tree.sh took a name from engine output that is not a plain file or folder name");
+    // The global layout (no .xezar/workspace.json): engine 0.19.0 still writes its run state at the
+    // top of .local/xezar/ (projectDataDir). With no engine on PATH, the kit's own list must pass it.
+    rmSync(join(project, ".xezar/workspace.json"));
+    rmSync(join(project, ".local/xezar/future-engine-state.json"));
+    for (const d of ["runs", "tmp", "writer-claims"]) mkdirSync(join(project, ".local/xezar", d), { recursive: true });
+    for (const f of ["runs.json", "ui-state.json", "launch-key"]) writeFileSync(join(project, ".local/xezar", f), "{}\n");
+    standIn("exit 1");
+    const global = run();
+    if (global.code !== 0) fail(`local-tree.sh calls the engine's own run state loose in a project with no .xezar/workspace.json:\n${global.out}`);
   } catch (error) {
     fail(`local-tree fixture could not be built or run: ${error.message}`);
   } finally {
