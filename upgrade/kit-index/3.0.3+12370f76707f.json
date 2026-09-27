@@ -1,5 +1,5 @@
 {
-  "commit": "84819ea3e73e788b407c18a0d5067f48d9e3ca54",
+  "commit": "12370f76707f56ff53f2c09672d470679683f353",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -122,10 +122,10 @@
       "sha256": "01a4162d52b0708dec2f47bc4ed8dbf2dc12f44fac24a2eda7abcff6f0a1ab9d"
     },
     ".xezar/checks/gh-write.sh": {
-      "kitBlob": "0fc8663ef57ef2939abab1daffffc3bb30925a1c",
+      "kitBlob": "f3665b0b047505c816f39cfa6d208f92d24862f5",
       "kitSource": "checks/gh-write.sh",
       "rewrite": "copied",
-      "sha256": "e459180c85769ee520b5454289d285947d1a4b3f0bfe1d6db31e8a9140198c0a"
+      "sha256": "93fb986fa8e8ca7d16221d763136ecb91737cd1a5de07cfa27c2f3a56b0e35e4"
     },
     ".xezar/checks/git-read.sh": {
       "kitBlob": "f2122b93e6344dcafab617552941ed5d51ef7b05",
@@ -260,10 +260,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "dd4c117293ed3cca65dac8b652d86b142e644f8e",
+      "kitBlob": "0d92f25d8bf74f9547526d816c453261f92813c2",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "b7602ccf3f0b7f49c97dcc82951fd956e0742a18feb6894ec90ba287cd133955"
+      "sha256": "c3742f40e2b28ca185d74425ce38c4f49ef237d4f3377bdaf01f31ee9dcd5f82"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
@@ -959,6 +959,6 @@
       "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+12370f76707f"
 }
