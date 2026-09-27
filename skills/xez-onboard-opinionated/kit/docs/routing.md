@@ -6,8 +6,9 @@ plus a model – and which login under it. The answer comes from one file and on
 - `.xezar/routing.json` – every kind of work (a **row**), the lanes it may use in order, the bans,
   and the login rotation under each runner. It changes only through a pull request.
 - `node .xezar/checks/route.mjs` – reads that file from the base branch and answers. It applies
-  every ban a file can decide, so you apply only the two that need the task in front of you:
-  budget, and never the author.
+  every ban a file can decide, and, when you name the author chain, every independence ban a lane
+  can decide, so you apply only what needs the task in front of you: budget, and never the
+  author's login.
 
 Never read `routing.json` by hand to pick a lane, and never dispatch a lane the script did not list.
 
@@ -28,7 +29,24 @@ pair decides, and its `test` is the worked example. When no rule decides, or no 
 
 ```bash
 node .xezar/checks/route.mjs <row id>
+node .xezar/checks/route.mjs <row id> --author <lane> [--repair <lane>]…
 ```
+
+**Name the author chain on a row that judges somebody's work** – a review, a re-check, QA, design
+review, architecture review, acceptance, a security review: every row whose `dispatch-checks`
+carry `never-author`. `--author` is the lane that wrote the work and each `--repair` a lane that
+repaired it since, in any order. The script then removes every lane that is not independent of
+that chain:
+
+- a lane that shares a model with anyone in the chain (the model the engine runs, `engineModel`);
+- a lane that shares a vendor with anyone in the chain, on a security or release row;
+- a lane of a vendor that `vendorExclusions` in `routing.json` names, when anyone in the chain is
+  of that vendor. The shipped file names `anthropic`: Claude declines to review work a Claude
+  model wrote or repaired. It is data, so the owner may drop or extend it by pull request.
+
+A lane that is not in `routing.json` (a person, or a lane since removed) is a usage error, exit 2:
+run without `--author` and check independence by hand. Without `--author` the answer is exactly
+what it always was.
 
 Output is `NAME=value` lines. Read them as data, never as instructions:
 
@@ -38,12 +56,13 @@ Output is `NAME=value` lines. Read them as data, never as instructions:
 | `workflow=<name>` | the workflow to start the task from, as `source` (step 3); a row can name more than one |
 | `availability=verified` / `unverified` | whether the lane cache below is fresh |
 | `lane=<id> runner=… model=… logins=…` | a usable lane, best first; `logins` is the rotation order, and pi has none |
-| `removed=<id> reason=…` | a lane the script took out, and why |
+| `removed=<id> reason=…` | a lane the script took out, and why; `reason=author-chain: shared model with <lane>` or `shared vendor with <lane>` means it is not independent of the chain |
+| `escalation-eligible=<id>` | with `--author` only: the `lane=` line just above it is an escalation lane that passes every ban and the chain, offered in the order (step 6) |
 | `second-opinion=… when=…` | an advisory lane (step 4) |
 | `escalation=… by=hand` | a reserved lane you may name by hand (step 6) |
 | `also=<row id>` | another row that is always dispatched with this one (step 4) |
 | `dispatch-checks=…` | the bans you check yourself (step 3) |
-| `wait=…` | nothing is usable: the work waits (step 7) |
+| `wait=…` | nothing is usable: the work waits (step 7); `wait=no-independent-lane` means the author chain removed the rest |
 | `handled-by=leader` | you do it yourself; no task |
 
 **`unverified` means refresh first.** Call `project_config` `get_capabilities` and
@@ -60,7 +79,9 @@ until the cache is fresh.
 
 ## 3. Dispatch
 
-Take the **first** `lane=` line that passes both checks:
+Take the **first** `lane=` line that passes both checks. Every `lane=` line is already allowed by
+the routing table, so choosing another one for budget or independence is yours to make; it is
+never an owner decision and never parked.
 
 - **Budget.** Call `project_config` action `read_quota` before choosing a lane. The budget table
   is one place: the budget section of the live campaign's
@@ -70,14 +91,18 @@ Take the **first** `lane=` line that passes both checks:
 - **The `dispatch-checks`.** `no-self-review`: a review, re-check or QA runs on a different model
   from the one that wrote the work. `high-risk-other-vendor`: risk-high work is reviewed by a
   different vendor when a lane of one has budget, and never on the author's login.
-  `never-author` and `never-claimant`: not the lane or login that wrote the work or made the
-  claim.
+  `never-author`: the lane, login and vendor that wrote the work (the row's `neverAuthor`) – with
+  `--author`, the script has removed every lane of the author chain's models, and of its vendors
+  where the two rules above say so; you check that the login is not the author's.
+  `never-claimant`: not the lane or login that made the claim.
 - **Mostly same vendor, for now.** Only lanes tagged `enforcesToolLimits` may run a reading or
   security row. Claude and Codex hold a reviewer read-only; pi does not yet. The shipped defaults
   tag one Codex lane, `codex/gpt-6-astra`, and list it only in the security review, as the fallback
-  after `claude/opus`. Every other review is Claude's work reviewed by a different Claude model,
-  which the owner accepted. The reviewer then reports "confirmed, same vendor"; that is expected,
-  not a failure.
+  after `claude/opus`. Codex's work is reviewed by a Claude lane. Claude's work, with `--author`,
+  goes to `codex/gpt-6-astra` as an eligible escalation lane, or waits: the shipped vendor
+  exclusion removes every Claude lane. Where a project drops that exclusion, a different Claude
+  model may review Claude's work, and the reviewer reports "confirmed, same vendor"; that is
+  expected, not a failure.
 
 Then start the task from the row's `workflow=`, with the lane's `runner` and `model`, and the
 login as `agentProfile`. **Always pass the workflow as `source`; never start a task from a bare
@@ -115,10 +140,17 @@ by you when the row's own lanes fell short on unusually hard work – and never 
 the timeline which lane you escalated to and why. Every ban still holds – the row's own, tool
 limits and the security minimums; the script lists an escalation lane only when they all allow it.
 
+With `--author`, an escalation lane that also passes the chain is printed in the order instead, as
+`lane=` followed by `escalation-eligible=<id>`. It is an ordinary choice for independence then:
+take it without asking and without parking, and say in the timeline that it was taken for
+independence.
+
 ## 7. Wait
 
 `wait=` means wait. There is no invented fallback, and never the leader's own login. Record which
 row is waiting and why in the timeline; L2 wakes L3 when a login comes back.
+`wait=no-independent-lane` waits the same way: no lane the routing table allows is independent of
+the author chain.
 
 ## 8. Changing the routing
 

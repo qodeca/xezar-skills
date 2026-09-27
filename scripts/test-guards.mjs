@@ -1311,6 +1311,47 @@ breaks(
 // 3.1.0-stream-A:end
 
 // 3.1.0-stream-B:start
+// #50: the author chain. Each way route.mjs or the routing file could let a dependent lane through,
+// or change what the leader already parses, is a break of its own.
+breaks(
+  "route that ignores the author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (!chain) return null;\n    const lane = file.lanes[id];", "    return null;\n    const lane = file.lanes[id];"),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
+
+breaks(
+  "route output without --author that changes by one word is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('out.push(`${line("escalation", lid)} by=hand`)', 'out.push(`${line("escalation", lid)} by=leader`)'),
+  () => script("test-kit-catalog.mjs"),
+  "no longer prints byte-identical output",
+);
+
+breaks(
+  "route that prints an author-chain line that is not NAME=value is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("`escalation-eligible=${lid}`", "`escalation-eligible ${lid}`"),
+  () => script("test-kit-catalog.mjs"),
+  "does not parse as NAME=value",
+);
+
+breaks(
+  "a vendor exclusion naming a vendor no lane has is rejected",
+  ROUTING,
+  routingEdit((f) => { f.vendorExclusions = [{ vendor: "nobody" }]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is the vendor of no lane",
+);
+
+breaks(
+  "the shipped Claude vendor exclusion dropped from routing.json is rejected",
+  ROUTING,
+  routingEdit((f) => { delete f.vendorExclusions; }),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
 // 3.1.0-stream-B:end
 
 // 3.1.0-stream-C:start

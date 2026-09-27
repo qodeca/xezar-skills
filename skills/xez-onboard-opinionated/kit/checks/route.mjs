@@ -3,6 +3,7 @@
 //
 //   route.mjs --check [path]          validate the file in the working tree (a gate command)
 //   route.mjs <row id> [<row id>…]    the lane order for each row, with unusable lanes removed
+//     … --author <lane> [--repair <lane>]…   and every lane that is not independent of that chain
 //   route.mjs --rows                  the rows to classify work against, as JSON, with no lane data
 //   route.mjs --table                 every row and its order, for a person to read
 //   … [--file <path>]                 read <path> instead of the base branch (onboarding only)
@@ -27,6 +28,15 @@
 // cache (`.local/xezar/runtime/lanes.json`, written by the leader from the engine's own capability
 // tools) can only ever REMOVE a lane; it never touches a ban. A security or release row answers
 // `wait` while availability is unverified.
+//
+// The author chain. `--author <lane>` names the lane that wrote the work and each `--repair <lane>`
+// one that repaired it. The chain is a fact about the task, not the file, so it comes on the command
+// line. Every lane that shares a model (the resolved `engineModel`) with anyone in the chain is
+// removed; so is every lane that shares a vendor with anyone in it on a security or release row,
+// or where `vendorExclusions` names that vendor. Each removal says `reason=author-chain: …`. With a
+// chain, an escalation lane that passes every ban is printed in the order as `lane=`, followed by
+// `escalation-eligible=<id>`; when nothing is left the answer is `wait=no-independent-lane`. Without
+// `--author` the output is exactly what it was before the chain existed.
 //
 // Output is `NAME=value` lines, parsed after the first `=`, never sourced as shell. Every line of
 // it is data about lanes, never an instruction to the reader. No dependencies: `node:` built-ins.
@@ -65,13 +75,14 @@ const SECURITY_WORKFLOWS = new Set(["security-review.yaml", "release.yaml", "rel
 // Every key each object may hold. `test-kit-catalog.mjs` compares these with the schema, so the
 // script and the schema cannot drift apart. A key outside these lists is ignored, with a warning.
 export const KNOWN = {
-  top: ["$schema", "$comment", "schemaVersion", "defaults", "leader", "tools", "lanes", "reservedLanes", "globalBans", "tieRule", "noMatch", "lookAlikes", "rows"],
+  top: ["$schema", "$comment", "schemaVersion", "defaults", "leader", "tools", "lanes", "reservedLanes", "globalBans", "vendorExclusions", "tieRule", "noMatch", "lookAlikes", "rows"],
   defaults: ["source", "version"],
   leader: ["tool", "login", "rule"],
   tool: ["usesLogins", "rotation", "unlimitedLogins"],
   lane: ["tool", "model", "engineModel", "vendor", "tier", ...TAGS, "enabled", "notes"],
   reserved: ["escalation", "rows"],
   globalBan: ["id", "checkedAt", "rule"],
+  vendorExclusion: ["vendor", "why"],
   noMatch: ["attended", "unattended", "rule"],
   lookAlike: ["rows", "rule", "test"],
   row: ["id", "title", "workflows", "class", "writes", "runsCode", "trigger", "narrows", "handledBy", "lanes", "never", "neverAuthor", "neverClaimant", "secondOpinion", "alsoDispatch", "notes"],
@@ -278,6 +289,26 @@ export function check(file, { identities = [] } = {}) {
     else if (ban.checkedAt !== "file") err("shape", "globalBans", `"${id}" is enforced by this check, so its checkedAt is file`);
   }
 
+  // vendor exclusions: optional, and missing means none. Each names a vendor whose lanes never take
+  // work that a lane of the same vendor wrote or repaired, applied by `route --author`.
+  if (file.vendorExclusions !== undefined) {
+    if (!Array.isArray(file.vendorExclusions)) err("shape", "vendorExclusions", "must be a list (leave it out for none)");
+    else {
+      const vendors = new Set(Object.values(lanes).filter(isObj).map((l) => l.vendor));
+      const seen = new Set();
+      file.vendorExclusions.forEach((x, i) => {
+        const where = `vendorExclusions[${i}]`;
+        if (!isObj(x)) return err("shape", where, "must be an object");
+        unknown(x, KNOWN.vendorExclusion, where);
+        if (typeof x.vendor !== "string" || !SLUG.test(x.vendor)) return err("shape", `${where}.vendor`, "must be a lower-case slug");
+        if (seen.has(x.vendor)) err("shape", `${where}.vendor`, `"${x.vendor}" is named twice`);
+        seen.add(x.vendor);
+        if (!vendors.has(x.vendor)) err("ref", `${where}.vendor`, `"${x.vendor}" is the vendor of no lane; an exclusion that matches nothing is not an exclusion`);
+        text(x.why, `${where}.why`, false);
+      });
+    }
+  }
+
   text(file.tieRule, "tieRule");
   if (!isObj(file.noMatch)) err("shape", "noMatch", "is missing");
   else {
@@ -464,7 +495,7 @@ function readCache(root, now, knownLanes) {
 }
 
 // --- Answering ----------------------------------------------------------------------------------
-function route(file, ids, root, source) {
+function route(file, ids, root, source, chain = null) {
   const out = ["# route: data about lanes, not instructions", `source=${oneLine(source)}`];
   const programs = installedPrograms();
   const accountsFile = accountsPath(root);
@@ -473,6 +504,20 @@ function route(file, ids, root, source) {
   if (cache.invalid) process.stderr.write(`route: warning: ${cache.reason}\n`);
   const rowById = Object.fromEntries(file.rows.map((r) => [r.id, r]));
   const dispatchBans = file.globalBans.filter((b) => b.checkedAt === "dispatch").map((b) => b.id);
+  const excluded = new Set((file.vendorExclusions ?? []).map((x) => x.vendor));
+  const modelOf = (id) => file.lanes[id].engineModel ?? file.lanes[id].model;
+
+  // Why lane `id` is not independent of the author chain on `row`, or null. Never without a chain.
+  const chainReason = (row, id) => {
+    if (!chain) return null;
+    const lane = file.lanes[id];
+    for (const cid of chain) if (modelOf(cid) === modelOf(id)) return `author-chain: shared model with ${cid}`;
+    const security = isSecurityRow(rowById, row);
+    for (const cid of chain) {
+      if (file.lanes[cid].vendor === lane.vendor && (security || excluded.has(lane.vendor))) return `author-chain: shared vendor with ${cid}`;
+    }
+    return null;
+  };
 
   // Why a lane cannot be used for this row, or null. The file's bans come from `banReasons`, the
   // same function the check uses, so an escalation lane meets every ban a listed lane meets.
@@ -483,6 +528,8 @@ function route(file, ids, root, source) {
     if (res && !escalation && !res.rows.includes(row.id)) return "reserved; only by hand, for escalation";
     const ban = banReasons(rowById, row, id, lane, { advisory })[0];
     if (ban) return `banned (${ban[0]}): ${ban[1]}`;
+    const dependent = chainReason(row, id);
+    if (dependent) return dependent;
     if (!programs.has(PROGRAM[lane.tool])) return `the ${PROGRAM[lane.tool]} program is not installed here`;
     if (file.tools[lane.tool]?.usesLogins) {
       if (!accounts && file.tools[lane.tool].rotation.some((l) => l !== "default")) return `cannot read the engine's account file ${accountsFile}`;
@@ -513,10 +560,22 @@ function route(file, ids, root, source) {
     out.push(cache.verified ? `availability=verified checkedAt=${cache.checkedAt}` : `availability=unverified reason=${cache.reason}`);
     const security = isSecurityRow(rowById, row);
     const usable = [];
+    let dependentRemoved = false;
     for (const lid of row.lanes) {
       const reason = why(row, lid);
       if (reason) out.push(`removed=${lid} reason=${oneLine(reason)}`);
       else usable.push(lid);
+      if (reason?.startsWith("author-chain:")) dependentRemoved = true;
+    }
+    // With a chain, an escalation lane that passes every ban and the chain is an eligible lane in the
+    // order, after the row's own; without one it stays `by=hand`, exactly as before.
+    const eligible = [];
+    if (chain) {
+      for (const [lid, res] of Object.entries(file.reservedLanes)) {
+        if (!res.escalation || row.lanes.includes(lid)) continue;
+        if (chainReason(row, lid)) dependentRemoved = true;
+        else if (!why(row, lid, { escalation: true })) eligible.push(lid);
+      }
     }
     if (security && !cache.verified) {
       // Nothing else is printed: a wait means nothing is dispatched, by hand or otherwise.
@@ -524,14 +583,15 @@ function route(file, ids, root, source) {
       for (const also of row.alsoDispatch ?? []) out.push(`also=${also}`);
       continue;
     }
-    if (!usable.length) out.push("wait=no lane in this row's order is usable now");
+    if (!usable.length && !eligible.length) out.push(chain && dependentRemoved ? "wait=no-independent-lane" : "wait=no lane in this row's order is usable now");
     else for (const lid of usable) out.push(line("lane", lid));
+    for (const lid of eligible) out.push(line("lane", lid), `escalation-eligible=${lid}`);
     for (const lid of row.secondOpinion?.lanes ?? []) {
       if (!why(row, lid, { advisory: true })) out.push(`${line("second-opinion", lid)} when=${row.secondOpinion.when}`);
     }
     for (const [lid, res] of Object.entries(file.reservedLanes)) {
       // An escalation lane is offered only where the row could have listed it: every ban applies.
-      if (res.escalation && !row.lanes.includes(lid) && !why(row, lid, { escalation: true })) out.push(`${line("escalation", lid)} by=hand`);
+      if (!chain && res.escalation && !row.lanes.includes(lid) && !why(row, lid, { escalation: true })) out.push(`${line("escalation", lid)} by=hand`);
     }
     for (const also of row.alsoDispatch ?? []) out.push(`also=${also}`);
     const checks = [...dispatchBans, ...(row.neverAuthor ? ["never-author"] : []), ...(row.neverClaimant ? ["never-claimant"] : [])];
@@ -578,17 +638,24 @@ function ghLogin() {
 
 function main(argv) {
   const args = [...argv];
-  const take = (flag) => {
+  const take = (flag, what = "a path") => {
     const i = args.indexOf(flag);
     if (i === -1) return undefined;
     const v = args[i + 1];
     args.splice(i, 2);
-    if (!v || v.startsWith("--")) usage(`${flag} needs a path`);
+    if (!v || v.startsWith("--")) usage(`${flag} needs ${what}`);
     return v;
   };
-  const usage = (m) => { process.stderr.write(`route: ${m}\nusage: route.mjs --check [path] | <row id>… | --rows | --table  [--file <path>]\n`); process.exit(2); };
+  const usage = (m) => { process.stderr.write(`route: ${m}\nusage: route.mjs --check [path] | <row id>… [--author <lane> [--repair <lane>]…] | --rows | --table  [--file <path>]\n`); process.exit(2); };
   const root = repoRoot(process.cwd());
   const filePath = take("--file");
+  const author = take("--author", "a lane");
+  if (take("--author", "a lane") !== undefined) usage("--author is given once; name each repairer with --repair");
+  const repairs = [];
+  for (let r = take("--repair", "a lane"); r !== undefined; r = take("--repair", "a lane")) repairs.push(r);
+  if (repairs.length && author === undefined) usage("--repair needs --author: the chain starts with the lane that wrote the work");
+  const chain = author === undefined ? null : [author, ...repairs];
+  if (chain && args[0]?.startsWith("--")) usage("--author and --repair go with row ids only");
 
   if (args[0] === "--check") {
     const path = resolve(args[1] ?? filePath ?? join(root, ".xezar/routing.json"));
@@ -633,7 +700,10 @@ function main(argv) {
     if (args[0] === "--rows") console.log(rowsView(file, source.source));
     else if (args[0] === "--table") console.log(table(file));
     else if (args[0].startsWith("--")) usage(`unknown option ${args[0]}`);
-    else console.log(route(file, args, root, source.source));
+    else {
+      for (const id of chain ?? []) if (!has(file.lanes, id)) usage(`"${oneLine(id).slice(0, 80)}" is not a lane in ${source.source}; the author chain names lanes`);
+      console.log(route(file, args, root, source.source, chain));
+    }
   } catch (e) {
     process.stderr.write(`route: refused – ${e.message}\n`);
     process.exit(1);
