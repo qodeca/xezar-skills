@@ -1778,6 +1778,24 @@ breaks(
   () => script("test-upgrade.mjs"),
   "3.0.3: .xezar/docs/routing.md base confidence medium, expected high",
 );
+
+// U4: the upgrade prompt names a helper script that does not exist.
+breaks(
+  "an upgrade prompt that names a missing helper script is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("node <clone>/upgrade/tools/detect.mjs", "node <clone>/upgrade/tools/detect-files.mjs"),
+  () => script("test-kit-facts.mjs"),
+  "names upgrade/tools/detect-files.mjs, which does not exist",
+);
+
+// U4: an unreconciled command mark left in the upgrade prompt.
+breaks(
+  "an upgrade prompt with a verify-cli mark left in is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("## Step 2 – Detect\n", "## Step 2 – Detect\n\n<!-- verify-cli -->\n"),
+  () => script("test-kit-facts.mjs"),
+  "still carries a verify-cli mark",
+);
 // 3.1.0-stream-U:end
 
 // --- the tree is left exactly as it was found --------------------------------

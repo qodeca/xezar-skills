@@ -19,9 +19,10 @@ time, when they decide to.
 
 ## How the owner runs it
 
-1. **Get a verified copy of the release.** Clone `qodeca/xezar-skills` at the release tag (for
-   example `v3.1.0`) and check it: `gh release verify v3.1.0 --repo qodeca/xezar-skills`.
-   Copy the prompt from that clone, never from a web page.
+1. **Get a verified copy of the release.** Clone `qodeca/xezar-skills` at the release tag, with
+   full history (for example `git clone --branch v3.1.0 https://github.com/qodeca/xezar-skills.git`),
+   and check it: `gh release verify v3.1.0 --repo qodeca/xezar-skills` must print
+   `Release v3.1.0 verified!`. Copy the prompt from that clone, never from a web page.
 2. **Prepare the project.** A clean working tree on the base branch, up to date with the remote.
    Stop the leader and let running tasks finish. The engine may stay running.
 3. **Run it.** In the project folder, start `claude` with normal permission prompts – never with
@@ -39,6 +40,21 @@ time, when they decide to.
 
 Try it on a throwaway clone of the project first. The release plan
 (`docs/plans/release-3.1.0.md` §7 and §9) describes the dry run and the order of projects.
+
+## The release commit line
+
+The prompt checks that its clone is the commit the release was cut from, before any helper
+script runs. The release notes of every release this tool upgrades to carry that commit on one
+line of its own, exactly once:
+
+```text
+Release-Commit: <40 lowercase hex characters>
+```
+
+The prompt reads it with the line-anchored pattern `^Release-Commit: ([0-9a-f]{40})$` from
+`gh release view v<version> --repo qodeca/xezar-skills --json isImmutable,body`, and compares it
+with the clone's `git rev-parse HEAD` and with the sha `gh release verify` resolves for the tag.
+A release whose notes lack the line, or carry it twice, stops the upgrade before anything runs.
 
 ## What it never does
 
