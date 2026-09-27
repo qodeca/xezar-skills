@@ -1595,6 +1595,14 @@ breaks(
 );
 
 breaks(
+  "a review-run.sh checkout that stops probing whether its sandbox can write git is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('      if [ -z "$probe" ]; then\n        echo "review-run=confined"', '      if false; then\n        echo "review-run=confined"'),
+  () => script("test-kit-catalog.mjs"),
+  "does not exit 3 with review-run=confined",
+);
+
+breaks(
   "a browser descriptor that stops saying where the review tools are granted is rejected",
   "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
   (s) => s.replace("granted by their own tool lists only", "granted anywhere"),
@@ -2143,6 +2151,22 @@ breaks(
   routingEdit((f) => { f.globalBans.find((b) => b.id === "no-self-review").rule = "A review, re-check or QA prefers a different model from the one that wrote the work."; }),
   () => script("test-kit-facts.mjs"),
   "ban no-self-review is no longer word for word",
+);
+
+breaks(
+  "a SECURITY.md accepted-risk entry that pre-accepts V4 Pro in a QA row it is not in is rejected",
+  "SECURITY.md",
+  (s) => s.replace("`verify-strong-claim`. It may also", "`verify-strong-claim`, `browser-qa`. It may also"),
+  () => script("test-kit-facts.mjs"),
+  "the accepted-risk entry lists the full-shell reviewer in reading rows",
+);
+
+breaks(
+  "a SECURITY.md accepted-risk entry that says V4 Pro is absent from a row it is in is rejected",
+  "SECURITY.md",
+  (s) => s.replace("not in the `release`, `deploy` or", "not in the `security-review`, `release`, `deploy` or"),
+  () => script("test-kit-facts.mjs"),
+  "as one the full-shell reviewer is not in",
 );
 // 3.1.0-stream-R:end
 

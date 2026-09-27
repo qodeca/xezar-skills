@@ -1375,6 +1375,20 @@ function walk(rel, match) {
   const security = read("SECURITY.md");
   if (!/One reviewer without a proven read-only lock is accepted and recorded[\s\S]*?pi\/deepseek-api\/deepseek-v4-pro[\s\S]*?full shell[\s\S]*?The owner accepted it \(#89\)[\s\S]*?"Reviews fall\s+to DeepSeek when Claude has no budget"/.test(security))
     fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell V4 Pro reviewer that the owner accepted (#89) and that points at its DECISIONS.md entry");
+  // The entry lists the reading rows the full-shell lane judges in, and SECURITY.md outranks the
+  // routing file, so the list must be exactly the rows the routing gives it: a wider list would
+  // pre-accept a placement the owner never accepted, and a row named as excluded must be one it is
+  // truly absent from.
+  const accepted = security.split("One reviewer without a proven read-only lock")[1]?.split(/\n- \*\*/)[0] ?? "";
+  const listed = (accepted.match(/judge in these reading rows only:([\s\S]*?)\./)?.[1]?.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).sort();
+  const actual = routing.rows.filter((r) => r.writes === false && marked.some((m) => r.lanes.includes(m))).map((r) => r.id).sort();
+  if (listed.join(",") !== actual.join(","))
+    fail(fact, "SECURITY.md", `the accepted-risk entry lists the full-shell reviewer in reading rows [${listed}], but kit/routing.json puts it in [${actual}]`);
+  const rowIds = new Set(routing.rows.map((r) => r.id));
+  const rest = accepted.split(/judge in these reading rows only:[\s\S]*?\./)[1] ?? "";
+  for (const id of (rest.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).filter((x) => rowIds.has(x)))
+    if (routing.rows.find((r) => r.id === id).lanes.some((l) => marked.includes(l)))
+      fail(fact, "SECURITY.md", `the accepted-risk entry names row \`${id}\` as one the full-shell reviewer is not in, but kit/routing.json puts it there`);
   const decisions = read("DECISIONS.md");
   const entry = decisions.split(/^## Reviews fall to DeepSeek when Claude has no budget$/m)[1]?.split(/^## /m)[0] ?? "";
   if (!entry) fail(fact, "DECISIONS.md", "has no \"Reviews fall to DeepSeek when Claude has no budget\" entry, which SECURITY.md cites");

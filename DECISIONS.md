@@ -1268,6 +1268,21 @@ Three bindings keep that honest (3.1.0 review):
   head is a commit of the recorded PR; a head the review made locally is not. A removed record
   after a checkout fails as well.
 
+**Where a reviewer cannot run the change (3.1.0 review).** A checkout writes the worktree's own git
+directory and the primary checkout's shared one, and both lie outside the task worktree. Engine
+0.19.0 runs a Codex step with no Edit and no Write in `workspace-write` whose only writable roots
+are the worktree and `additionalDirectories` (the run's evidence, handoff and temp folders), so
+there `gh pr checkout` fails – seen live under `codex sandbox -P :workspace`: "Operation not
+permitted" on `.git/worktrees/<id>/index.lock` and `FETCH_HEAD`. That reaches every reading row
+with a Codex lane (`security-review`'s `codex/gpt-6-astra`, `acceptance-verification`,
+`browser-qa`, the design rows); Claude and pi lanes are not confined this way. Chosen, as the most
+reversible option: `review-run.sh checkout` probes both git directories first and exits 3 with
+`review-run=confined`, and the review roles judge from the diff and name it as an evidence limit.
+A QA or design-review verdict label needs the checkout, so on such a lane it is refused and the
+role says so. Not chosen yet: a trusted checkout step before the review step, or asking the engine
+to add the git directories and the package-manager cache to a reading step's writable roots –
+either would let a Codex reviewer run the change, and either is a larger change than this review.
+
 The cost, named: running a pull request's code means running whatever it does, with the operator's
 user rights – the tool list is not the boundary once `npm test` runs, and withholding credentials
 from the environment is not a sandbox. A program written for it can still read what that user can

@@ -371,7 +371,9 @@ const writeTreeId = (root, u) => {
 // None of this stops a writer inside the task who can run `deps.mjs stamp`: it re-stamps whatever
 // tree is there. The stamp tells an honest run its install is unchanged; it is not a seal.
 const SINGLE_STAMP = ".xezar-deps-stamp";
-const BUILD_CACHES = new Set([".cache", ".vite", ".vite-temp", ".vitest"]);
+// `.tmp` is where TypeScript's `tsc -b` writes its build info in every create-vite TS template
+// (`tsBuildInfoFile: ./node_modules/.tmp/...`), and `.astro` is Astro's default `cacheDir`.
+const BUILD_CACHES = new Set([".cache", ".vite", ".vite-temp", ".vitest", ".tmp", ".astro"]);
 const DIGEST_TIMEOUT_MS = (() => {
   const raw = process.env.XEZ_DEPS_DIGEST_TIMEOUT_MS;
   return raw !== undefined && /^\d{1,9}$/.test(raw) ? Number(raw) : 60000;

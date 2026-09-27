@@ -103,6 +103,11 @@ run strict, without `--allow-root`. `catalog-check.mjs` refuses a review step wi
 `review-run.sh` or without the full browser set, an Edit or Write tool in one, and a review-only
 browser tool anywhere else. The accepted cost – running PR code runs it with the operator's user
 rights – is in `SECURITY.md` and `DECISIONS.md`. Found in Erfana (qodeca/erfana#177, #202).
+A Codex review lane cannot run the change yet: engine 0.19.0 confines a Codex step with no Edit
+and no Write to its worktree and the run's own folders, and a checkout must write git outside
+them. `review-run.sh checkout` now says so – exit 3, `review-run=confined` – and the review roles
+judge from the diff and name it as an evidence limit; on such a lane a QA or design-review label
+cannot move.
 
 **An install edited in place no longer counts as current, and a resume no longer reuses evidence
 over stale dependencies (#53).** In a repository with `dependencies.units`, each unit's stamp now
@@ -110,7 +115,7 @@ also carries a metadata digest of everything in its `node_modules`: every entry'
 inode, a link's target, and a file's size, mtime and ctime. A package folder replaced, a file
 edited or a `.bin` entry swapped after stamping makes the unit stale, so the fast gate installs
 again instead of recording `deps-verified-current`. Build caches the gates write directly inside a
-`node_modules` (`.cache`, `.vite`, `.vite-temp`, `.vitest`) are left out while they hold no
+`node_modules` (`.cache`, `.vite`, `.vite-temp`, `.vitest`, `.tmp`, `.astro`) are left out while they hold no
 `package.json`, no `.bin` and no link; a link into one, a tree that cannot be read and a digest
 slower than `XEZ_DEPS_DIGEST_TIMEOUT_MS` (default 60000) each count as not fresh.
 `resume-complete.sh` now reuses sealed evidence only when the dependencies are fresh; a stale or

@@ -163,6 +163,12 @@ try {
     write(join(nm, ".vitest/results.json"), "{}\n");
     write(join(nm, "other/node_modules/.cache/x.json"), "{}\n");
     expect("digest: a gate run that writes build caches inside node_modules does not make the next run stale (#53)", fresh() === 0);
+    // `tsc -b` in a create-vite TS template writes its build info to node_modules/.tmp (seen on a
+    // real react-ts scaffold: install, then `npm run build`), and Astro's default cacheDir is
+    // node_modules/.astro. Neither may turn the next --fast gate or resume into a reinstall.
+    write(join(nm, ".tmp/tsconfig.app.tsbuildinfo"), "{}\n");
+    write(join(nm, ".astro/data-store.json"), "{}\n");
+    expect("digest: tsc -b build info in node_modules/.tmp and Astro's node_modules/.astro cache do not make the next run stale", fresh() === 0);
     write(join(nm, ".vite/deps/chunk.js"), "y, and longer\n");
     expect("digest: a cache rewritten by the next gate run is still fresh", fresh() === 0);
     const cacheCase = (name, build, undo) => {
@@ -173,6 +179,7 @@ try {
     };
     cacheCase("a build cache that holds a package.json is digested like the rest", () => write(join(nm, ".cache/evil/package.json"), "{}\n"), () => rmSync(join(nm, ".cache/evil"), { recursive: true }));
     cacheCase("a build cache that holds a .bin", () => write(join(nm, ".vite/.bin/tool"), "x\n"), () => rmSync(join(nm, ".vite/.bin"), { recursive: true }));
+    cacheCase("a .tmp cache that holds a package.json is digested like the rest", () => write(join(nm, ".tmp/evil/package.json"), "{}\n"), () => rmSync(join(nm, ".tmp/evil"), { recursive: true }));
     cacheCase("a build cache that holds a link", () => symlinkSync("../other", join(nm, ".cache/ln")), () => rmSync(join(nm, ".cache/ln")));
     cacheCase("a cache-named folder that is not directly inside a node_modules", () => write(join(nm, "other/.cache/x"), "x\n"), () => rmSync(join(nm, "other/.cache"), { recursive: true }));
     symlinkSync(".cache/babel", join(nm, "sneaky"));
@@ -252,6 +259,8 @@ try {
     expect("single root digest: re-stamped after the edit", restamp());
     write(join(nm, ".vite/deps/chunk.js"), "x\n");
     expect("single root digest: a build cache the gates write does not make the next run stale", fresh() === 0);
+    write(join(nm, ".tmp/tsconfig.app.tsbuildinfo"), "{}\n");
+    expect("single root digest: tsc -b build info in node_modules/.tmp does not make the next run stale", fresh() === 0);
     writeFileSync(stampFile, `${lines[0]}\n`);
     expect("single root: a stamp an older kit wrote (fingerprint only) is not fresh, so the task reinstalls", fresh() !== 0);
     expect("single root digest: a new stamp after the reinstall is fresh", restamp());
