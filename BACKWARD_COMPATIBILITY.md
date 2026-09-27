@@ -156,8 +156,11 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
   accepts an older manifest that does and treats it as no version.
 - **The kit index** (`upgrade/kit-index/index.json` and `<version>.json`, shape in
   `upgrade/CONTRACT.md` §3) – written by `scripts/build-kit-index.mjs`, read by every later
-  upgrade tool. A version file, once committed for a tag, never changes; adding a version is
-  additive. Renaming or removing a field, or changing what `rewrite` or `renamedFrom` means, is
+  upgrade tool. A version file, once committed for a tag, never changes, with one exception: the
+  release's own file names a stand-in `commit` until the tag exists, and may have its `commit`
+  and `tag` refreshed once, right after tagging (`upgrade/README.md`, "Releasing a version the
+  tool upgrades to"), before any project installs from it; its `files` entries never change.
+  Adding a version is additive. Renaming or removing a field, or changing what `rewrite` or `renamedFrom` means, is
   breaking.
 - **The upgrade plan** (`.local/xezar/scratch/upgrade/plan.json`, `planVersion: 1`, and the
   `NAME=value` lines of `detect.mjs`, `apply.mjs` and `verify.mjs`) – written by the tools, read by

@@ -208,7 +208,12 @@ Exit codes:
 ## 5. Upgrade entry machine block
 
 Every upgrade entry in `UPGRADE_NOTES.md` from 3.1.0 on ends with one fenced block tagged
-`upgrade`. It replaces the older `Digests:` line.
+`upgrade`. It replaces the older `Digests:` line. Older entries with a step outside the tool's
+reach (the 3.0.2 steps among them) carry one too. The planner lists every entry in the project's
+range that has **no** block (`unblockedEntries`) so its steps are read, never dropped: an entry is
+in range under a heading "upgrading an onboarded project to X" when the project is below X, and
+otherwise when it is dated on or after the day the project's kit version was committed (all
+entries when that day cannot be read).
 
 ````text
 ```upgrade
@@ -237,7 +242,7 @@ Grammar:
 | `config-key=<dotted.key>` | A new config key exists. Add it only if `config-fields.md` marks a **Default** an upgrade may leave unset (plan P7); "absent means …" is not one. Otherwise put it on the owner checklist. |
 | `label-sync` | Re-sync the tracker label taxonomy. |
 | `env-rename=<OLD>:<NEW>` | An environment variable was renamed. |
-| `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`. |
+| `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`, `add-runner-model` (`<detail>` is the lane, `<runner>/<provider>/<model>`: add the model to that runner's model config). In `trust-codex-project:<absolute-project-path>`, the detail stands for the project's absolute path. |
 
 ## 6. Stream fragments – `docs/plans/3.1.0/notes/<stream>.md`
 

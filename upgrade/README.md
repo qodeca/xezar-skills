@@ -64,13 +64,19 @@ A release whose notes lack the line, or carry it twice, stops the upgrade before
 
 `scripts/build-kit-index.mjs` records, for each release, `commit` = the commit its `v<version>`
 tag points at. A commit cannot contain its own sha, so the index entry committed before tagging
-names a stand-in commit (for 3.1.0, a local-only tag on the last commit that changed the kit).
+names a stand-in commit: the commit a local-only `v<version>` tag sat on when the index was built.
+That commit must be on the release line – `node scripts/build-kit-index.mjs --check --ref <ref>`
+refuses an index commit that is not an ancestor of `<ref>` – so the index is rebuilt with the
+stand-in on the release branch's own head, after its last kit change, just before tagging; one
+built on a branch that was later squash-merged names a commit the release does not contain.
 Release in this order:
 
 1. Merge the release and tag the release commit on `main` (`v<version>`).
 2. Publish the GitHub release with `Release-Commit: <that sha>` in its notes (next section).
 3. In a clone with full history and all tags, re-run `node scripts/build-kit-index.mjs`, and
-   commit the refreshed index to `develop`; it reaches `main` with the next release.
+   commit the refreshed index to `develop`; it reaches `main` with the next release. This is the
+   one change a committed version file allows (`BACKWARD_COMPATIBILITY.md`): the target's own
+   file gets its `commit` and `tag` refreshed, once; its `files` entries stay as they were.
 
 Until step 3 lands, the index at the tag carries the stand-in `commit`. The tools do not read
 that field – they read file contents by `kitBlob` – and a clone at the tag works even with no

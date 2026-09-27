@@ -31,7 +31,10 @@ actions for the tool.
 
 **Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
 mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
-refused after entry 9; re-dispatch it.
+refused after entry 9; re-dispatch it. A review, QA or repair run checks out the pull request's head,
+and with it that head's own `.xezar/checks/`: on a pull request branched before the upgrade those
+are the old scripts, with no `review-run.sh` or `push-check.sh`. After the merge, merge the base
+branch into every open pull request before a review or a repair runs on it.
 
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
@@ -52,7 +55,11 @@ older file:
   merged without the other's part of it.
 - Entry 4 needs entry 5: its `catalog-check.mjs` refuses a workflow agent step with no `timeout`
   and a review step without `review-run.sh`, and only entry 5's workflows carry both.
-- Entry 5 needs entry 9: its `address-review-findings.yaml` pushes through `push-check.sh`.
+- Entry 5 needs entry 9: its `address-review-findings.yaml` pushes through `push-check.sh`. It also
+  needs `.xezar/checks/deps-restore.sh`, which `review-run.sh install` runs: a project onboarded
+  before 3.0.2 that skipped 3.0.2's monorepo entry lacks it, so copy it from the kit, with entry
+  12 (or entry 6, for a project with `dependencies.units`) for the `lib/common.sh` and
+  `lib/deps.mjs` it sources. It is not in entry 5's block: it has not changed since 3.0.2.
 - Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
   only entry 10 installs that file.
 
@@ -161,7 +168,8 @@ the day's timeline; and a missing `decisions.md` still goes unannounced.
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/fenced-quotes.mjs; .xezar/checks/leader-context.sh; .xezar/checks/documented-output.mjs; .xezar/checks/catalog-check.mjs; .xezar/docs/fenced-quotes.md; .xezar/docs/leader-context-loading.md; .xezar/docs/campaign-notes.md
+Files: .xezar/checks/fenced-quotes.mjs; .xezar/checks/leader-context.sh; .xezar/checks/documented-output.mjs; .xezar/checks/catalog-check.mjs; .xezar/docs/fenced-quotes.md; .xezar/docs/leader-context-loading.md; .xezar/docs/campaign-notes.md; .claude/settings.json =merge
+Actions: per-machine=remove-mcp-permission:mcp__chrome-devtools__*; per-machine=remove-mcp-permission:mcp__chrome-devtools
 ```
 
 ### 5. Workflow timeouts and review runs – a handoff hangs, or a review stops on a browser-tool denial
@@ -173,7 +181,10 @@ cannot start the app it should test.
 
 **What to do.** Copy the kit's workflows, `catalog-check.mjs`, `gh-write.sh`, `verdict-write.sh`,
 `lib/gate-record.sh`, the new `review-run.sh`, the seven role skills and the chrome-devtools
-descriptor listed below. A
+descriptor listed below. `review-run.sh install` runs `.xezar/checks/deps-restore.sh`: a project
+without it (a single-root project onboarded before 3.0.2 that skipped 3.0.2's monorepo entry)
+copies it from the kit too – `cp $K/checks/deps-restore.sh .xezar/checks/` – with entry 12's
+`lib/common.sh` and `lib/deps.mjs`, which it sources. A
 project with **its own** workflows gives each agent step a `timeout` (`15m` for a handoff, `2h`
 for a main step) – the new check refuses one without. A project that kept its own review
 workflows adds `"bash .xezar/checks/review-run.sh"` to each review step's `bashAllowlist`, grants
@@ -372,6 +383,7 @@ work.
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge
+Actions: per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro
 ```
 
 ### 12. Single-root freshness – a root `node_modules` edited in place still counts as current
@@ -430,6 +442,11 @@ once: stamps written before this change carry no tree identity, so they no longe
 **What you lose by skipping it.** Local install evidence can certify a tree the task did not
 install, or a solution it did not restore.
 
+```upgrade
+Applies-to: <3.0.3
+Files: .xezar/checks/lib/deps.mjs
+```
+
 ## 2026-09-24 – upgrading an onboarded project to 3.0.2
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.0.2. The entries under
@@ -469,6 +486,10 @@ Digests: `.xezar/checks/lib/bootstrap.mjs`, `.xezar/docs/worktrees.md`.
 **What you lose by skipping it.** Every kit PR blocks new tasks until someone pulls the primary
 checkout by hand.
 
+```upgrade
+Applies-to: <3.0.2
+```
+
 ### 2. Verdict – reviewers' verdicts are refused or missing
 
 **Symptom – either of two.** A review task ends with no comment on the PR, and its log shows
@@ -492,6 +513,10 @@ Digests: every `.xezar/skills/xezar-*.md`, `.xezar/checks/verdict-write.sh`,
 **What you lose by skipping it.** Claude reviewers' verdicts stay unposted or unrecorded; the
 leader posts them by hand or waits.
 
+```upgrade
+Applies-to: <3.0.2
+```
+
 ### 3. Merge deny – the leader's merge is "denied by the Claude Code auto mode classifier"
 
 **Symptom.** `gh pr merge` is denied with `[Merge Without Review]` or no reason, even with an allow
@@ -510,6 +535,11 @@ If you added `--allowedTools "Bash(gh pr merge *)"` to the launcher yourself, th
 it. Digests: `scripts/xezar-leader.sh`, and a new one for `scripts/xezar-leader-settings.json`.
 
 **What you lose by skipping it.** The leader cannot merge; every merge waits for you.
+
+```upgrade
+Applies-to: <3.0.2
+Actions: restart-leader
+```
 
 ### 4. Browser config – Codex browser QA fails with "Permission denied (1100)", or agents have no browser
 
@@ -567,6 +597,11 @@ Digests: `.mcp.json`, the seven workflows, `.xezar/checks/config-guard.sh`,
 **What you lose by skipping it.** Agents cannot look at a page; Codex browser QA keeps failing,
 and design and QA verdicts rest on no screenshot.
 
+```upgrade
+Applies-to: <3.0.2
+Actions: per-machine=trust-codex-project:<absolute-project-path>; per-machine=enable-mcp-server:chrome-devtools; per-machine=add-mcp-permission:mcp__chrome-devtools__navigate_page; per-machine=add-mcp-permission:mcp__chrome-devtools__new_page; per-machine=add-mcp-permission:mcp__chrome-devtools__list_pages; per-machine=add-mcp-permission:mcp__chrome-devtools__select_page; per-machine=add-mcp-permission:mcp__chrome-devtools__close_page; per-machine=add-mcp-permission:mcp__chrome-devtools__take_snapshot; per-machine=add-mcp-permission:mcp__chrome-devtools__take_screenshot; per-machine=add-mcp-permission:mcp__chrome-devtools__list_console_messages; per-machine=add-mcp-permission:mcp__chrome-devtools__get_console_message; per-machine=add-mcp-permission:mcp__chrome-devtools__list_network_requests; per-machine=add-mcp-permission:mcp__chrome-devtools__get_network_request; per-machine=add-mcp-permission:mcp__chrome-devtools__click; per-machine=add-mcp-permission:mcp__chrome-devtools__fill; per-machine=add-mcp-permission:mcp__chrome-devtools__fill_form; per-machine=add-mcp-permission:mcp__chrome-devtools__hover; per-machine=add-mcp-permission:mcp__chrome-devtools__press_key; per-machine=add-mcp-permission:mcp__chrome-devtools__type_text; per-machine=add-mcp-permission:mcp__chrome-devtools__wait_for; per-machine=add-mcp-permission:mcp__chrome-devtools__handle_dialog; per-machine=add-mcp-permission:mcp__chrome-devtools__resize_page; per-machine=add-mcp-permission:mcp__chrome-devtools__get_css_styles; restart-leader
+```
+
 ### 5. Routing v3 – filing, browser QA, conflict repair and security review route wrongly
 
 **Symptom – any of these.** A filing task checks for duplicates, then stops ("cannot create
@@ -589,6 +624,10 @@ cp $K/docs/ui-operations.md .xezar/docs/
 
 **What you lose by skipping it.** Nothing breaks. The leader keeps filing issues itself, browser
 QA keeps failing on Codex first, and a browser-config change skips security review.
+
+```upgrade
+Applies-to: <3.0.2
+```
 
 ### 6. Workflow dispatch – the leader starts tasks from `xez-auto-*` skills, not the project's workflows
 
@@ -621,6 +660,11 @@ the quota before choosing a lane.
 **What you lose by skipping it.** The budget table goes stale, and dispatch keeps spending a turn
 on logins that are out.
 
+```upgrade
+Applies-to: <3.0.2
+Actions: restart-leader
+```
+
 ### 8. Owner's rules – my owner rules are spread across the leader guide
 
 **Symptom.** No `## Owner's rules` section in `.xezar/docs/leader-guide.md`. `xez-add-rule` now
@@ -630,6 +674,10 @@ writes every rule there, and creates the section the first time it runs (entry 6
 `## Owner's rules` yourself, word for word, with their dates.
 
 **What you lose by skipping it.** Nothing. Old rules keep working where they are.
+
+```upgrade
+Applies-to: <3.0.2
+```
 
 ### 9. Skills text – a security review loops round after round
 

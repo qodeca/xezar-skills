@@ -8,7 +8,7 @@ const ACTION = [
   /^config-key=[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/,
   /^label-sync$/,
   /^env-rename=[A-Z0-9_]+:[A-Z0-9_]+$/,
-  /^per-machine=(add-mcp-permission|remove-mcp-permission|enable-mcp-server|trust-codex-project):\S+$/,
+  /^per-machine=(add-mcp-permission|remove-mcp-permission|enable-mcp-server|trust-codex-project|add-runner-model):\S+$/,
 ];
 
 /** "3.0.2+abc" -> [3,0,2]. Anything else -> null. */
@@ -92,4 +92,49 @@ export function parseBlocks(text, source = "") {
     blocks.push(block);
   }
   return { blocks, errors };
+}
+
+/**
+ * The entries of an UPGRADE_NOTES.md text, one per unit a reader applies: a `### ` step under a
+ * dated `## ` heading, or the dated `## ` heading itself when it has no steps. Each unit says
+ * whether it ends in an `upgrade` block. `date` is the heading's YYYY-MM-DD; `before` is X when
+ * the `## ` heading reads "upgrading an onboarded project to X" (its steps apply below X).
+ * Headings inside fenced code are not headings. A `## ` heading with no date is a how-to, not
+ * an entry, and is skipped.
+ */
+export function parseEntries(text, source = "") {
+  const units = [];
+  let fence = false;
+  let top = null;
+  let unit = null;
+  const close = () => {
+    if (unit) units.push(unit);
+    unit = null;
+  };
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const l = lines[i];
+    if (/^\s*```/.test(l)) {
+      if (!fence && unit && /^```upgrade\s*$/.test(l)) unit.hasBlock = true;
+      fence = !fence;
+      continue;
+    }
+    if (fence) continue;
+    const h2 = /^## (.*)$/.exec(l);
+    const h3 = /^### (.*)$/.exec(l);
+    if (h2) {
+      close();
+      const d = /^(\d{4}-\d{2}-\d{2}) – /.exec(h2[1]);
+      const b = /upgrading an onboarded project to (\d+\.\d+\.\d+)\b/.exec(h2[1]);
+      top = d ? { title: h2[1].trim(), date: d[1], before: b ? b[1] : null, line: i + 1 } : null;
+      if (top) unit = { source, line: i + 1, heading: top.title, date: top.date, before: top.before, hasBlock: false, top: true };
+    } else if (h3 && top) {
+      // The heading's own unit held only its preamble: its steps are the units.
+      if (unit?.top) unit = null;
+      close();
+      unit = { source, line: i + 1, heading: `${top.title} / ${h3[1].trim()}`, date: top.date, before: top.before, hasBlock: false, top: false };
+    }
+  }
+  close();
+  return units.map(({ top: _t, ...u }) => u);
 }

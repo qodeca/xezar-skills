@@ -268,7 +268,12 @@ v2 manifest. A write or delete a stop holds back is staged (mine and theirs) and
 `held=<path> reason=<stop,…>`, instead of being skipped without a line. `plan.md` shows the
 engine minimum, the per-machine files and the errors. Before the first commit the prompt checks
 for active git hooks and asks whether the upgrade commits may run them. Upgrade entries are read
-from `UPGRADE_NOTES.md` only.
+from `UPGRADE_NOTES.md` only. Every step the tool cannot perform reaches the owner checklist:
+3.1.0's chrome-devtools grant swap and V4 Pro model config, and 3.0.2's Codex trust, MCP server
+enable and browser-tool grants, are machine-block actions (a new `per-machine=add-runner-model`
+verb), and an entry in the project's range with no block is listed in `plan.md` for the agent to
+read. A permission file new to the project (`.codex/config.toml` before 3.0.2) now stops for the
+owner like any other permission change.
 
 **Routing sends much more work to DeepSeek, and DeepSeek V4 Pro reviews when Claude has no budget
 (#89).** With several projects running, the Claude and Codex quotas ran out fast, Claude first. The
