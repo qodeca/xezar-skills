@@ -30,6 +30,14 @@ the whole point:
 
 Comparing **ids and providers only**. Never a label, and never anything from inside a profile.
 
+**The kit version is settled here too, before anything is written.** The manifest's `version`
+(§5) is the collection release this skill came from, or `<last release>+<12-character commit>`
+for an install between releases. When the install names **neither** – no release tag and no
+commit id – **stop**: write nothing, and tell the owner plainly that the kit's version cannot be
+told, so a later upgrade would not know what it is upgrading from, and that they should install
+the skills from a release or from a git checkout of the collection and run onboarding again. The
+interview answers are saved, so that run resumes. Never write `unknown`, and never guess a version.
+
 ## 1. Copy what is copied
 
 From this skill's `kit/` into the project:
@@ -530,9 +538,9 @@ to carry — do not invent one, and do not tell the owner to run one.
   and `.xezar/docs/local-patches.md` says which files it tracks. Write it **last**, after the
   formatter run above, because every digest is of the file as committed:
   - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.1.0`),
-    or `<last release>+<12-character commit>` for an install between releases, or `unknown` when
-    the install names neither; the `kitBlob` values below still identify the kit exactly. `date`
-    and `descriptors` as above.
+    or `<last release>+<12-character commit>` for an install between releases – never `unknown`:
+    an install that names neither stopped in §0. The `kitBlob` values below still identify the kit
+    exactly. `date` and `descriptors` as above.
   - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
     file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
     file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`,

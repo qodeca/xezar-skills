@@ -936,6 +936,21 @@ if (!HAS_DRIFT) {
   expect(ev.version === "0.21.3" && ev.source === "node_modules/@qodeca/xezar", `engine-min: the project's pinned engine is not read: ${JSON.stringify(ev)}`);
 }
 
+// 3.1.0-stream-OC:start
+// Onboarding no longer writes `version: "unknown"` (owner decision): it stops instead. A manifest an
+// older kit wrote with "unknown" must still upgrade: no version means every upgrade entry applies,
+// and the manifest the upgrade writes names the target, never "unknown".
+{
+  const dir = materialize({ ...fx303, manifest: { ...fx303.manifest, version: "unknown" } }, { name: "unknown-version" });
+  const ctx = ctxFor(dir);
+  const plan = buildPlan(ctx);
+  const known = buildPlan(ctxFor(materialize(fx303, { name: "known-version" })));
+  expect(plan.projectVersion === "unknown" && plan.files.length > 0, `unknown version: an old manifest saying "unknown" does not plan (${plan.projectVersion}, ${plan.files.length} files)`);
+  expect(plan.upgradeEntries.length >= known.upgradeEntries.length, `unknown version: fewer upgrade entries apply (${plan.upgradeEntries.length}) than for a known 3.0.3 (${known.upgradeEntries.length}); with no version every entry must apply`);
+  expect(manifestV2(ctx).version === TARGET, "unknown version: the manifest the upgrade writes does not name the target version");
+}
+// 3.1.0-stream-OC:end
+
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.
 expect(Array.isArray(detect(ctxFor(upgraded.get("3.0.3"))).files), "detect() no longer returns a file list");
 expect(typeof manifestV2 === "function", "verify.mjs no longer exports manifestV2");

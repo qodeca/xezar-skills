@@ -38,11 +38,14 @@ carry `never-author`. `--author` is the lane that wrote the work and each `--rep
 repaired it since, in any order. The script then removes every lane that is not independent of
 that chain:
 
-- a lane that shares a model with anyone in the chain (the model the engine runs, `engineModel`);
-- a lane that shares a vendor with anyone in the chain, on a security or release row;
+- a lane that shares a model with anyone in the chain (the model the engine runs, `engineModel`),
+  on every row;
 - a lane of a vendor that `vendorExclusions` in `routing.json` names, when anyone in the chain is
   of that vendor. The shipped file names `anthropic`: Claude declines to review work a Claude
   model wrote or repaired. It is data, so the owner may drop or extend it by pull request.
+
+Any other lane of the author's vendor stays, on every row – security and release rows included:
+a different model of the same vendor is independent enough (owner decision).
 
 A lane that is not in `routing.json` (a person, or a lane since removed) is a usage error, exit 2:
 run without `--author` and check independence by hand. Without `--author` the answer is exactly
@@ -95,22 +98,24 @@ never an owner decision and never parked.
   from the one that wrote the work. `high-risk-other-vendor`: risk-high work is reviewed by a
   different vendor when a lane of one has budget, and never on the author's login; when no
   Claude lane has budget, `pi/deepseek-api/deepseek-v4-pro` may be that reviewer.
-  `never-author`: the lane, login and vendor that wrote the work (the row's `neverAuthor`) – with
-  `--author`, the script has removed every lane of the author chain's models, and of its vendors
-  where the two rules above say so; you check that the login is not the author's.
+  `never-author`: the lane, model and login that wrote the work (the row's `neverAuthor`), and its
+  vendor only where `vendorExclusions` names it – with `--author`, the script has removed every
+  lane of the author chain's models and of its excluded vendors; you check that the login is not
+  the author's.
   `never-claimant`: not the lane or login that made the claim.
 - **Who may judge.** Only lanes tagged `enforcesToolLimits` may run a reading or security row,
   with one exception the owner accepted (#89): a lane marked `fullShellReviews` may judge in a
   review row, or a security row that only reads, although its runner does not hold it read-only.
   Claude and Codex hold a reviewer read-only; pi does not yet, so the shipped
   `pi/deepseek-api/deepseek-v4-pro` reviews with a full shell. It is last in every review row
-  that is not a screen row – the fallback when Claude has no budget – and never judges DeepSeek
-  work: `never-author` bans the author's vendor. The shipped defaults tag one Codex lane,
-  `codex/gpt-6-astra`, as a reviewer; it is listed in the security review after `claude/opus`.
+  that is not a screen row – the fallback when Claude has no budget – and may judge DeepSeek
+  work another DeepSeek model wrote: `never-author` bans the author's model, not its vendor. The
+  shipped defaults tag one Codex lane, `codex/gpt-6-astra`, as a reviewer; it is listed in the security review after `claude/opus`.
   Claude's work, with `--author`, goes to `pi/deepseek-api/deepseek-v4-pro` or to
   `codex/gpt-6-astra` as an eligible escalation lane, or waits: the shipped vendor exclusion
   removes every Claude lane. Work a pi lane wrote merges after a review on a Claude lane,
-  `claude/sonnet` first, or else on `codex/gpt-6-astra` (`pi-write-claude-review`). Where a
+  `claude/sonnet` first, or else on `codex/gpt-6-astra` (`pi-write-claude-review`); a V4 Pro
+  review of DeepSeek work may run, but alone it does not clear the merge. Where a
   project drops the vendor exclusion, a different Claude model may review Claude's work, and the
   reviewer reports "confirmed, same vendor"; that is expected, not a failure.
 

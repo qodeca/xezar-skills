@@ -32,8 +32,9 @@
 // The author chain. `--author <lane>` names the lane that wrote the work and each `--repair <lane>`
 // one that repaired it. The chain is a fact about the task, not the file, so it comes on the command
 // line. Every lane that shares a model (the resolved `engineModel`) with anyone in the chain is
-// removed; so is every lane that shares a vendor with anyone in it on a security or release row,
-// or where `vendorExclusions` names that vendor. Each removal says `reason=author-chain: …`. With a
+// removed on every row; so is every lane of a vendor that `vendorExclusions` names when anyone in
+// the chain is of that vendor. Any other lane of the same vendor stays, on every row, security and
+// release rows included (owner decision). Each removal says `reason=author-chain: …`. With a
 // chain, an escalation lane that passes every ban is printed in the order as `lane=`, followed by
 // `escalation-eligible=<id>`; when nothing is left the answer is `wait=no-independent-lane`. Without
 // `--author` the output is exactly what it was before the chain existed.
@@ -524,9 +525,8 @@ function route(file, ids, root, source, chain = null) {
     if (!chain) return null;
     const lane = file.lanes[id];
     for (const cid of chain) if (modelOf(cid) === modelOf(id)) return `author-chain: shared model with ${cid}`;
-    const security = isSecurityRow(rowById, row);
     for (const cid of chain) {
-      if (file.lanes[cid].vendor === lane.vendor && (security || excluded.has(lane.vendor))) return `author-chain: shared vendor with ${cid}`;
+      if (file.lanes[cid].vendor === lane.vendor && excluded.has(lane.vendor)) return `author-chain: shared vendor with ${cid}`;
     }
     return null;
   };

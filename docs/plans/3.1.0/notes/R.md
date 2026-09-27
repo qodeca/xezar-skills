@@ -17,9 +17,8 @@ divides more work between it and `pi/deepseek-api/deepseek-flash`:
 - Localisation, which checks screens, takes Flash first and no V4 Pro; the design-system row is
   unchanged.
 - V4 Pro is last in every review row that is not a screen row – re-checks, cold reviews,
-  acceptance, architecture and security review – the fallback when Claude has no budget. It never
-  reviews DeepSeek work: work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
-  `codex/gpt-6-astra`.
+  acceptance, architecture and security review – the fallback when Claude has no budget. Work a
+  DeepSeek lane wrote merges after a review by `claude/sonnet` first, then `codex/gpt-6-astra`.
 
 Three routing bans relax, and the owner accepted the risk in `SECURITY.md` and `DECISIONS.md`: a
 V4 Pro review runs with a full shell, because pi's read-only lock is not proven live yet.

@@ -205,12 +205,12 @@
     {
       "id": "pi-write-claude-review",
       "checkedAt": "merge",
-      "rule": "What a pi lane wrote merges only after a review on a Claude lane, claude/sonnet first, or else on codex/gpt-6-astra. A DeepSeek lane never clears DeepSeek work: never-author bans the author's vendor."
+      "rule": "What a pi lane wrote merges only after a review on a Claude lane, claude/sonnet first, or else on codex/gpt-6-astra. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge."
     },
     {
       "id": "high-risk-other-vendor",
       "checkedAt": "dispatch",
-      "rule": "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. When no Claude lane has budget, pi/deepseek-api/deepseek-v4-pro may be that reviewer, full shell and all."
+      "rule": "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. When no Claude lane has budget, pi/deepseek-api/deepseek-v4-pro may be that reviewer, full shell and all, of DeepSeek work too when another model wrote it."
     },
     {
       "id": "tool-limits",
@@ -1246,7 +1246,7 @@
       ],
       "neverAuthor": true,
       "notes": [
-        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It never reviews DeepSeek work: never-author bans the author's vendor.",
+        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It may review DeepSeek work too, when another model wrote it: never-author bans the author's model, not its vendor.",
         "Other Codex and pi lanes leave this row until their runner blocks writes in a reading step."
       ]
     },
@@ -1277,7 +1277,7 @@
         "A very large diff may escalate to codex/gpt-6-astra.",
         "Sonnet is never the only reviewer of risk-high work.",
         "A pi second opinion returns when the engine honours a bash allowlist on pi (qodeca/xezar#856).",
-        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It never reviews DeepSeek work: never-author bans the author's vendor.",
+        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It may review DeepSeek work too, when another model wrote it: never-author bans the author's model, not its vendor.",
         "Other Codex and pi lanes leave this row until their runner blocks writes in a reading step."
       ]
     },
@@ -1381,7 +1381,7 @@
       ],
       "neverAuthor": true,
       "notes": [
-        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It never reviews DeepSeek work: never-author bans the author's vendor.",
+        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It may review DeepSeek work too, when another model wrote it: never-author bans the author's model, not its vendor.",
         "Other Codex and pi lanes leave this row until their runner blocks writes in a reading step."
       ]
     },
@@ -1484,7 +1484,7 @@
       "neverClaimant": true,
       "notes": [
         "A merge-blocking claim is re-proven on the base branch with a throwaway test.",
-        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It never reviews DeepSeek work: never-author bans the author's vendor.",
+        "pi/deepseek-api/deepseek-v4-pro reviews here with a full shell when Claude has no budget; the owner accepted that risk (#89). It may review DeepSeek work too, when another model wrote it: never-author bans the author's model, not its vendor.",
         "Other Codex and pi lanes leave this row until their runner blocks writes in a reading step."
       ]
     },

@@ -13,6 +13,9 @@
 //                                       60000, and a digest that gave up is not fresh)
 //   deps.mjs resolve     --root <dir>   exit 0 when every install is this task's own; problems on stderr
 //   deps.mjs versions    --root <dir>   the unit tools' versions as JSON, for the gate record
+//   deps.mjs single-contents --root <dir>  a single npm root only: the tree digest of its
+//                                       node_modules, the stamp file left out; "unavailable" and
+//                                       exit 1 when it cannot be taken (lib/common.sh stamps it)
 //
 // WHERE THE UNITS COME FROM. `dependencies.units` in `.xezar/pipeline/config.json`, read from the
 // BASE BRANCH (`origin/<remote default>`), the way `route.mjs` reads routing: what gets installed
@@ -367,6 +370,7 @@ const writeTreeId = (root, u) => {
 // A tree that cannot be read is refused, never skipped, and so is a walk slower than the timeout.
 // None of this stops a writer inside the task who can run `deps.mjs stamp`: it re-stamps whatever
 // tree is there. The stamp tells an honest run its install is unchanged; it is not a seal.
+const SINGLE_STAMP = ".xezar-deps-stamp";
 const BUILD_CACHES = new Set([".cache", ".vite", ".vite-temp", ".vitest"]);
 const DIGEST_TIMEOUT_MS = (() => {
   const raw = process.env.XEZ_DEPS_DIGEST_TIMEOUT_MS;
@@ -391,7 +395,9 @@ function inertCache(dir, deadline) {
   return true;
 }
 
-function treeDigest(nm) {
+// `skipTop` names one entry directly inside `nm` that is left out: the single npm root's own stamp
+// file, which lives in node_modules and is written after the digest.
+function treeDigest(nm, skipTop = null) {
   const deadline = Date.now() + DIGEST_TIMEOUT_MS;
   const hash = createHash("sha256");
   const caches = [];
@@ -402,6 +408,7 @@ function treeDigest(nm) {
     try { names = readdirSync(dir); } catch (e) { throw new Unavailable(`${dir} cannot be read (${e.code})`); }
     names.sort();
     for (const name of names) {
+      if (!rel && name === skipTop) continue;
       const p = join(dir, name);
       const r = rel ? `${rel}/${name}` : name;
       let st;
@@ -655,6 +662,19 @@ function main() {
       if (bin) console.log(bin);
     }
     return 0;
+  }
+  // A single npm root (no units): the same #53 digest over its one node_modules, so a package
+  // changed after install is stale there too. lib/common.sh writes and compares the stamp.
+  if (command === "single-contents") {
+    if (units) { console.error("deps: dependency units are configured; single-contents is for a single npm root"); return 2; }
+    const nm = join(root, "node_modules");
+    if (!lstat(nm)?.isDirectory()) { console.log("none"); return 0; }
+    try { console.log(treeDigest(nm, SINGLE_STAMP)); return 0; } catch (e) {
+      if (!(e instanceof Unavailable)) throw e;
+      console.error(`deps: ${e.message}`);
+      console.log("unavailable");
+      return 1;
+    }
   }
   if (!units) { console.error("deps: no dependency units are configured (dependencies.units on the base branch)"); return 2; }
   switch (command) {
