@@ -518,6 +518,9 @@ deps_units_mode() {
 deps_use_pinned_node() {
   local root bin
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd -P)" || return 0
+  # A review's copy of the kit (.local/xezar/cache/kit/checks, see review-run.sh) sits deeper than
+  # `.xezar/checks/lib`; the checkout it serves is the repository the current directory is in.
+  [ -d "$root/.xezar" ] || root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
   [ -f "$root/.nvmrc" ] || return 0
   command -v node >/dev/null 2>&1 || return 0
   bin="$(node "$DEPS_MJS" node-pin --root "$root" 2>/dev/null)" || return 0

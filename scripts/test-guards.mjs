@@ -770,7 +770,7 @@ breaks(
 breaks(
   "a role doc that pipes into a write script with arguments is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
-  (s) => s.replace("| bash .xezar/checks/verdict-write.sh`: one JSON request", "| bash .xezar/checks/verdict-write.sh packet`: one JSON request"),
+  (s) => s.replace("| bash .local/xezar/cache/kit/checks/verdict-write.sh`: one JSON request", "| bash .local/xezar/cache/kit/checks/verdict-write.sh packet`: one JSON request"),
   () => script("test-kit-catalog.mjs"),
   "the engine's lock refuses a pipe into a script with arguments",
 );
@@ -1600,6 +1600,34 @@ breaks(
   (s) => s.replace('      if [ -z "$probe" ]; then\n        echo "review-run=confined"', '      if false; then\n        echo "review-run=confined"'),
   () => script("test-kit-catalog.mjs"),
   "does not exit 3 with review-run=confined",
+);
+
+// A checkout replaces the tracked .xezar/checks/ with the PR head's own copies, so a review runs
+// the kit step's copy outside the tracked tree. Each half breaks on its own: the kit step stops
+// writing the copy, a review allowlist may name the tracked copy again, or a head that tracks a
+// file where the copy lives is kept.
+breaks(
+  "a kit step that no longer copies the review's own scripts is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/bootstrap.mjs",
+  (s) => s.replace("fs.renameSync(stage,trusted);", "fs.rmSync(stage,{recursive:true,force:true});"),
+  () => script("test-kit-catalog.mjs"),
+  "the kit step does not copy the primary's checks/",
+);
+
+breaks(
+  "a catalog check that lets a review step run a kit script from the tracked tree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (review && /^bash \\.xezar\\/checks\\//.test(entry)", "if (false && /^bash \\.xezar\\/checks\\//.test(entry)"),
+  () => script("test-kit-catalog.mjs"),
+  "running verdict-write.sh from the tracked tree",
+);
+
+breaks(
+  "a review-run.sh checkout that keeps a head replacing the review's own scripts is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('if [ -n "$(git ls-files -- .local/xezar/cache/kit | head -1)" ]; then', "if false; then"),
+  () => script("test-kit-catalog.mjs"),
+  "keeps a PR head that replaced the review's own scripts",
 );
 
 breaks(

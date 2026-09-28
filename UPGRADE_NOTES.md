@@ -31,10 +31,7 @@ actions for the tool.
 
 **Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
 mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
-refused after entry 9; re-dispatch it. A review, QA or repair run checks out the pull request's head,
-and with it that head's own `.xezar/checks/`: on a pull request branched before the upgrade those
-are the old scripts, with no `review-run.sh` or `push-check.sh`. After the merge, merge the base
-branch into every open pull request before a review or a repair runs on it.
+refused after entry 9; re-dispatch it.
 
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
@@ -184,10 +181,15 @@ cannot start the app it should test.
 descriptor listed below. `review-run.sh install` runs `.xezar/checks/deps-restore.sh`: a project
 without it (a single-root project onboarded before 3.0.2 that skipped 3.0.2's monorepo entry)
 copies it from the kit too – `cp $K/checks/deps-restore.sh .xezar/checks/` – with entry 12's
-`lib/common.sh` and `lib/deps.mjs`, which it sources. A
+`lib/common.sh` and `lib/deps.mjs`, which it sources. The new `lib/bootstrap.mjs` copies the
+kit's scripts to `.local/xezar/cache/kit/checks/` on every kit step, and the review workflows run
+them only from there: checking a pull request out replaces `.xezar/checks/` with that pull
+request's own copies, which on a pull request branched before this upgrade are the old ones. A
 project with **its own** workflows gives each agent step a `timeout` (`15m` for a handoff, `2h`
 for a main step) – the new check refuses one without. A project that kept its own review
-workflows adds `"bash .xezar/checks/review-run.sh"` to each review step's `bashAllowlist`, grants
+workflows adds `"bash .local/xezar/cache/kit/checks/review-run.sh"` to each review step's
+`bashAllowlist` and changes every other `bash .xezar/checks/` entry there to
+`bash .local/xezar/cache/kit/checks/` (the new check refuses the old form in a review step), grants
 it every `mcp__chrome-devtools__*` tool the kit's `code-review.yaml` lists, and drops
 `--allow-root` from its preflight.
 
@@ -202,7 +204,7 @@ the author's, even in a run whose gates step was frozen before the producer flag
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new; .xezar/checks/verdict-write.sh; .xezar/pipeline/browsers/chrome-devtools.md; .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md; .xezar/workflows/acceptance-verification.yaml; .xezar/workflows/address-review-findings.yaml; .xezar/workflows/architecture-review.yaml; .xezar/workflows/architecture.yaml; .xezar/workflows/bug-fix.yaml; .xezar/workflows/business-analysis.yaml; .xezar/workflows/code-review.yaml; .xezar/workflows/dependency-maintenance.yaml; .xezar/workflows/deploy.yaml; .xezar/workflows/deprecation-plan.yaml; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/docs-maintenance.yaml; .xezar/workflows/feature-implementation.yaml; .xezar/workflows/hotfix.yaml; .xezar/workflows/integration-tests.yaml; .xezar/workflows/integration.yaml; .xezar/workflows/issue-filing.yaml; .xezar/workflows/issue-triage.yaml; .xezar/workflows/localisation.yaml; .xezar/workflows/migration.yaml; .xezar/workflows/observability.yaml; .xezar/workflows/performance.yaml; .xezar/workflows/plan-and-spec.yaml; .xezar/workflows/qa.yaml; .xezar/workflows/refactor.yaml; .xezar/workflows/regression-suite.yaml; .xezar/workflows/release-prep.yaml; .xezar/workflows/release.yaml; .xezar/workflows/research.yaml; .xezar/workflows/root-sync.yaml; .xezar/workflows/security-review.yaml; .xezar/workflows/spike.yaml; .xezar/workflows/testing-and-verification.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/ui-tests.yaml; .xezar/workflows/visual-asset.yaml
+Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/bootstrap.mjs; .xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new; .xezar/checks/verdict-write.sh; .xezar/pipeline/browsers/chrome-devtools.md; .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md; .xezar/workflows/acceptance-verification.yaml; .xezar/workflows/address-review-findings.yaml; .xezar/workflows/architecture-review.yaml; .xezar/workflows/architecture.yaml; .xezar/workflows/bug-fix.yaml; .xezar/workflows/business-analysis.yaml; .xezar/workflows/code-review.yaml; .xezar/workflows/dependency-maintenance.yaml; .xezar/workflows/deploy.yaml; .xezar/workflows/deprecation-plan.yaml; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/docs-maintenance.yaml; .xezar/workflows/feature-implementation.yaml; .xezar/workflows/hotfix.yaml; .xezar/workflows/integration-tests.yaml; .xezar/workflows/integration.yaml; .xezar/workflows/issue-filing.yaml; .xezar/workflows/issue-triage.yaml; .xezar/workflows/localisation.yaml; .xezar/workflows/migration.yaml; .xezar/workflows/observability.yaml; .xezar/workflows/performance.yaml; .xezar/workflows/plan-and-spec.yaml; .xezar/workflows/qa.yaml; .xezar/workflows/refactor.yaml; .xezar/workflows/regression-suite.yaml; .xezar/workflows/release-prep.yaml; .xezar/workflows/release.yaml; .xezar/workflows/research.yaml; .xezar/workflows/root-sync.yaml; .xezar/workflows/security-review.yaml; .xezar/workflows/spike.yaml; .xezar/workflows/testing-and-verification.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/ui-tests.yaml; .xezar/workflows/visual-asset.yaml
 ```
 
 ### 6. Install freshness – a `node_modules` edited in place still counts as current
@@ -306,7 +308,8 @@ project added a local patch to get repairs past readiness.
 that let a repair push before the gates or skip readiness. Nothing to configure: the script reads
 the base branch from `.xezar/config.json` and the PR live through `gh`, which the handoff already
 uses. A repair already in flight that wrote `DELIVERED` is refused at readiness after the upgrade;
-re-dispatch it.
+re-dispatch it. A repair of a pull request branched before the base changed `.xezar/checks/` merges
+the base into it first, so its gates and its push run the current kit.
 
 **What you lose by skipping it.** Repairs keep pushing ungated code to pull requests, and nothing
 stops a repair pushing to the wrong PR's branch, a protected branch, or with a bare force.

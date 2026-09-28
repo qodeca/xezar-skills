@@ -1249,7 +1249,7 @@ no verdict. QA and design review may move their own labels (`qa-approved`/`needs
 after checking that head out, and only on an unchanged tree. The browser stays `--isolated
 --headless`, so its profile holds no session of the operator's.
 
-Three bindings keep that honest (3.1.0 review):
+Four bindings keep that honest (3.1.0 review):
 
 - **The role is the step's, not the request's.** `gh-write.sh` reads the step's `verdictRole` from
   the run's frozen workflow definition in the engine's runs index (`.local/xezar/runs.json`, a
@@ -1267,6 +1267,18 @@ Three bindings keep that honest (3.1.0 review):
   `verify-unchanged` also asks GitHub, with the script's own credentials, whether the recorded
   head is a commit of the recorded PR; a head the review made locally is not. A removed record
   after a checkout fails as well.
+- **The review runs its own kit, not the pull request's.** Checking a PR head out replaces the
+  tracked `.xezar/checks/` with that head's copies: missing on a PR branched before the project
+  took 3.1.0, older, or changed by the PR itself – and a changed `gh-write.sh` would run with the
+  step's own gh credentials. So the kit step (`lib/bootstrap.mjs`) writes a fresh copy of the
+  primary checkout's `.xezar/checks/` to `.local/xezar/cache/kit/checks/` in the task worktree,
+  outside the tracked tree, and a review step's `bashAllowlist` names only those copies
+  (`catalog-check.mjs` refuses a `bash .xezar/checks/` entry there). Git overwrites an ignored file
+  on checkout, so `review-run.sh checkout` refuses a head that tracks anything under
+  `.local/xezar/cache/kit/`, returns to where it was and copies the scripts again. Not chosen:
+  calling the primary checkout's scripts directly. An allowlist entry is a literal prefix – the
+  engine's lock refuses a `$` or a substitution – so it would be `../../../../.xezar/checks/…`, and
+  pi's worktree guard refuses a command naming a primary-checkout path outside the worktree.
 
 **Where a reviewer cannot run the change (3.1.0 review).** A checkout writes the worktree's own git
 directory and the primary checkout's shared one, and both lie outside the task worktree. Engine
@@ -1292,7 +1304,8 @@ and real: the reviewer agent itself cannot claim a role its step does not declar
 started the ordinary way by the review's commands cannot push, merge or label. That is the trust a
 writing step's gates already give the same code; a reviewer now gives it too. `SECURITY.md` lists
 it as accepted. `scripts/test-kit-catalog.mjs` runs `review-run.sh`, the verdict labels, the role
-binding, the credential withholding, the head-record check and the verdict refusal;
+binding, the credential withholding, the head-record check, the verdict refusal and a PR head
+whose own `.xezar/checks/` is missing or tampered;
 `test-kit-facts.mjs` FACT 23 pins the tool lists.
 
 ## Reviews fall to DeepSeek when Claude has no budget
@@ -1388,6 +1401,15 @@ and a process running as the same OS user pushing by other means (the check is a
 kit follows, not a permission the engine enforces). Closing either needs an engine-issued,
 run-scoped grant. `SECURITY.md` lists the limit; `scripts/test-kit-facts.mjs` FACT H1 runs the
 script and `scripts/test-guards.mjs` breaks each refusal.
+
+Moving onto the PR head also puts the PR's own `.xezar/checks/` in the worktree, and readiness,
+the gates, the seal and the push all run from there. On a PR branched before the base changed
+those scripts, that is an older kit, which the workflow's newer commands and evidence format
+refuse. So when the base changed `.xezar/checks/` after the PR branched, the repair merges the base
+into the PR's branch first, the same merge a conflict repair makes (3.1.0 review). Not chosen:
+running the repair's gates from the kit step's copy as a review does – the gate list names
+`.xezar/checks/` scripts by path and binds its id to them, and the gates are meant to judge the
+tree that will merge.
 
 ## Why 3.1.0 is a minor release
 
