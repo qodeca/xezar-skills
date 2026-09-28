@@ -87,7 +87,8 @@ Rules:
 - **`version` is the only version fact.** It is the kit version from the kit index (§3). An
   install from an untagged commit uses a pseudo-version, `<last tag>+<sha12>`. A writer never
   writes `unknown`: onboarding stops when it can name neither. A reader still accepts an older
-  manifest that says `unknown` and treats it as no version, so every upgrade entry applies.
+  manifest that says `unknown` and treats it as no version: the planner takes the version most
+  of the files with a sure base agree on, and when there is none, every upgrade entry applies.
 - **`origin` is set at install time and never changes.**
   - `copied` – byte-identical to the kit file.
   - `adapted` – the kit file after copy-time rewrites; `renderInputs` holds every value a rewrite
@@ -110,8 +111,9 @@ Rules:
   target's text. A file kept at its old version, or resolved to the owner's side, keeps the old
   version's copy. A patched file's `sha256` is the digest of that copy, not of the patched file.
 - **What `files` lists**: the setup's machinery, as `.xezar/docs/local-patches.md` says. It never
-  lists the project's own documents (`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`, the `CLAUDE.md`
-  files and their siblings), the project's configuration (`.xezar/config.json`,
+  lists the project's own documents (`AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`,
+  `BACKWARD_COMPATIBILITY.md`, `SECURITY.md`, the `CLAUDE.md` files and their siblings), the
+  project's configuration (`.xezar/config.json`,
   `.xezar/pipeline/config.json`, `.xezar/pipeline/labels.json`, `.xezar/routing.json`), or an
   owner file merged without a kit block (`.mcp.json`, `.codex/config.toml`, the root
   `.gitignore`), even where the kit index lists one. The drift check ignores such an entry an
@@ -133,7 +135,7 @@ Rules:
   `<!-- xezar:kit:start -->` and `<!-- xezar:kit:end -->`.
 
 Upgrade path: the upgrade tool writes a v2 manifest (plan §6.5 step 7). The drift check (§4) reads
-v2 only. On a v1 manifest it prints `not-applicable` with the migration line and exits 0.
+version 2 or later only. On a v1 manifest it prints `not-applicable` with the migration line and exits 0.
 
 ## 2. Local-patch register – `.xezar/LOCAL-PATCHES.md`
 
@@ -253,6 +255,8 @@ Grammar:
 | `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`, `add-runner-model` (`<detail>` is the lane, `<runner>/<provider>/<model>`: add the model to that runner's model config). In `trust-codex-project:<absolute-project-path>`, the detail stands for the project's absolute path. |
 
 ## 6. Stream fragments – `docs/plans/3.1.0/notes/<stream>.md`
+
+Used during 3.1.0 development only: the release folded the fragments and deleted the folder.
 
 Each 3.1.0 stream writes one fragment with three sections, in this order:
 

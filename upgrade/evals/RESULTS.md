@@ -144,6 +144,9 @@ What changed, per finding:
 | `config-no-default` | PASS 8/8 | **Incomplete** 6/9 | Ended in step 5: the session's permission system refused a leader-guide merge command ("… denied by the Claude Code auto mode classifier. Reason: [Instruction Poisoning]"). Not retried. |
 | `unexplained-edit` | PASS 9/9 | **Incomplete** 5/10 | Ended in step 5: a hook refused the run's own clean-up of a stray `/tmp` file ("BLOCKED: Destructive rm targeting system or home directory"). Not retried. |
 
+`config-no-default` gained three invariants after this run (#108: `designSystem.modules` and
+`security.trustBoundaries` unset and on the checklist); a re-run grades 12 lines, not 9.
+
 **8 of 10 pass; 2 ended early on an environment refusal, not on a procedure fault.** Every full
 run left `repository-checks.sh` red only on `local-tree` (F9), reported as per-machine.
 

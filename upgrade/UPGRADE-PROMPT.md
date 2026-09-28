@@ -95,9 +95,11 @@ owner can do, and change nothing more.
 - **a permission change** – a merge result that adds or widens an allow rule, a hook, an MCP
   server, a tool grant (for example a `mcp__...` name), a Codex rule or a Codex trust entry,
   compared with mine.
-- **owner-shaped files** – `.xezar/pipeline/config.json`, `.xezar/routing.json`,
+- **owner-shaped files** – `.xezar/pipeline/config.json`, `.xezar/config.json`,
+  `.xezar/pipeline/labels.json`, `.xezar/routing.json`,
   `.xezar/docs/leader-guide.md`, `SDLC.md`, `CODE_REVIEW.md`, the kit-appended sections of
-  `CLAUDE.md` and `AGENTS.md`, `.mcp.json`, `.claude/settings.json`, `.codex/config.toml`. The
+  `CLAUDE.md` and `AGENTS.md`, `.mcp.json`, `.claude/settings.json`, `.codex/config.toml`, and every
+  file the kit generates rather than copies (such as the tracker descriptor). The
   owner's decisions live in these; the tool gives you facts about them and you merge them by
   meaning.
 
@@ -351,8 +353,9 @@ a time, in the plan's order. For each one:
    manifest tracks, such as `.claude/settings.json`: when the kept merge differs from the kit's
    copy (a project hook, a local permission), draft its `Confirmed: no` entry. Only an
    owner-shaped file the manifest never records (the kit's `.xezar/docs/local-patches.md`, "What
-   the manifest tracks" – the four config files, `SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`, the
-   `CLAUDE.md` files, `.mcp.json`, `.codex/config.toml`), the leader guide's owner content (its
+   the manifest tracks" – the four config files, `SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`,
+   `BACKWARD_COMPATIBILITY.md`, `SECURITY.md`, the `CLAUDE.md` files, `.mcp.json`,
+   `.codex/config.toml`, the root `.gitignore`), the leader guide's owner content (its
    generated values and `## Owner's rules`) and a per-machine file get no register entry: record
    what you kept there under "Merge decisions" in the report.
 
@@ -520,11 +523,12 @@ the owner may want `plan.json`.
 | Routing before 3.0 | `.xezar/docs/model-routing.md` exists and `.xezar/routing.json` does not | writes the `<target>` `routing.json` | convert the owner's lanes and rules into it, and list every converted rule in the report |
 | Unexplained local change | mine matches no known version, or a file the manifest records is missing from the tree (a local removal), and no confirmed register entry covers it | lists it | keep it (a removed file stays removed) and draft a register entry with `Confirmed: no`. In a safety file, **stop and ask first**; an owner who wants a removed file back restores it by hand |
 | Permission change | the merge would add an allow rule, hook, MCP server, tool grant, or Codex rule or trust | – | **always stop and ask**; the report gets a "permission changes" section with before and after |
-| New in kit | not installed, and neither the manifest nor the register records it | adds it | check that it fits the project's config |
+| New in kit | not installed, and neither the manifest nor the register records it | adds it; stages theirs when a placeholder value is unknown; skips an optional descriptor the project did not install | check that it fits the project's config |
 | Removed from kit | installed, gone upstream, and in the base index | deletes it when it is unchanged from its base (`delete`); keeps it when it was edited locally (`keep`) | flag every kept one in the report |
 | Owner-shaped | the owner-shaped files listed above | gives facts only | merge by meaning: new config keys follow step 6; owner values never change; `routing.json` merges three ways against the defaults of its `defaults.version` (the clone's `skills/xez-onboard-opinionated/references/routing-defaults/<n>.json`); the leader guide keeps its `## Owner's rules` section untouched; JSON and TOML merge key by key |
 | Per-machine | any gitignored or untracked file | never writes it | list the change as a per-machine action for the owner |
 | Never touched | `.xezar/pipeline/overrides/**`, application code, campaign notes | – | – |
+| Refused | an unsafe path: absolute, with `..`, a symlink or under one, or outside the project | lists it; never reads or writes it | stop (`unsafe-path`): tell the owner which path and why |
 
 ## When you stop and ask
 
@@ -546,7 +550,8 @@ Stop and ask the owner, and do not write the file until they answer, when:
 7. a git hook is active, or git config names a command git runs (`core.fsmonitor`, a
    `filter.<name>` clean, smudge or process, `diff.external` or `GIT_EXTERNAL_DIFF`, a
    `diff.<name>.textconv` or `.command`; step 0) – ask whether the
-   upgrade's git commands may run it.
+   upgrade's git commands may run it;
+8. the planner refused a path (`unsafe-path:<why>`).
 
 Each question states: the file, what the project has, what `<target>` brings, the realistic
 options, your recommendation and why, and what stays blocked until they answer. Record the

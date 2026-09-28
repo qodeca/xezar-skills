@@ -131,7 +131,8 @@ customization without asking.
      installed skills name (grep the installed skills' `SKILL.md` files for
      `**operation-name**` references when in doubt), the browser provider resolves
      to an existing descriptor, and the config still parses (`jq . "$CONFIG"`).
-   - Leave the changes uncommitted for review, then print the final report per
+   - Deliver the changes as one pull request through `references/pr-finalize.md` (left
+     uncommitted only when no tracker is configured – see Rules), then print the final report per
      `references/report-templates.md` — effect of changed operations/config,
      verification outcome, and actionable conflicts or provider gaps. Link the
      diff; omit no-change sections and routine upgrade-log narration.
@@ -178,7 +179,6 @@ customization without asking.
 - Custom tracker and browser providers get a gap report, not an auto-generated implementation.
 - Idempotent: a second run right after a successful one must report "already current" and change
   nothing.
-- Leave changes uncommitted for the operator's review; suggest the commit, don't make it.
 
 ## Security boundaries
 

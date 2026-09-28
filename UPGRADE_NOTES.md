@@ -29,8 +29,8 @@ Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. T
 the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
-are the same changes for a hand upgrade, which ends with the verifier writing the new manifest
-(entry 10): **one ordered block – apply them top to bottom, in the
+are the same changes for a hand upgrade, which ends – after the last entry, 13 – with the verifier
+writing the new manifest (described in entry 10): **one ordered block – apply them top to bottom, in the
 order below**. Skip an entry only when your repository does not have its symptom **and** no entry
 you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
 brings. Each entry ends with an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and
@@ -202,7 +202,9 @@ or with** `.xezar/docs/leader-context-loading.md`: an older `fenced-quotes.mjs` 
 kit's `.claude/settings.local.json` lists them); `emulate`, `evaluate_script` and the other
 review-only tools come from the review and QA workflows' own tool lists only (D13, #82), never a
 settings file. Timelines should keep one `- ` line per event at column 0, with continuation lines
-indented. The leader picks up the new loader at its next session start.
+indented. The leader picks up the new loader at its next session start. Three docs pages in the
+list – `documented-output.md`, `parallel-tasks.md` and `ui-operations.md` – only correct their
+wording (the excluded `.local/` folder, the gate lanes, a dead link, a path only the engine's repository has); copy them with the rest.
 
 **What you lose by skipping it.** A project hook of your own keeps the base branch red; a local
 permission keeps the repository check red on that machine; the leader's context keeps growing with
@@ -210,7 +212,7 @@ the day's timeline; and a missing `decisions.md` still goes unannounced.
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/fenced-quotes.mjs; .xezar/checks/leader-context.sh; .xezar/checks/documented-output.mjs; .xezar/checks/catalog-check.mjs; .xezar/docs/fenced-quotes.md; .xezar/docs/leader-context-loading.md; .xezar/docs/campaign-notes.md; .claude/settings.json =merge
+Files: .xezar/checks/fenced-quotes.mjs; .xezar/checks/leader-context.sh; .xezar/checks/documented-output.mjs; .xezar/checks/catalog-check.mjs; .xezar/docs/fenced-quotes.md; .xezar/docs/leader-context-loading.md; .xezar/docs/campaign-notes.md; .xezar/docs/documented-output.md; .xezar/docs/parallel-tasks.md; .xezar/docs/ui-operations.md; .claude/settings.json =merge
 Actions: per-machine=remove-mcp-permission:mcp__chrome-devtools__*; per-machine=remove-mcp-permission:mcp__chrome-devtools
 ```
 
@@ -391,8 +393,8 @@ cp $K/checks/local-tree.sh .xezar/checks/
 ```
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
-prompt rewrites the manifest. A hand upgrade does not: it ends with the verifier from a verified
-clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
+prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (13), with the verifier from a
+verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry
 (`unregistered-local-change`, `removed with no register entry`) and writes no manifest until you

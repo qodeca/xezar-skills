@@ -22,7 +22,7 @@ Written once per consumer repo by `xez-setup-agent-pipeline` and read by every s
 | `paths.scripts` | `.xezar/pipeline/scripts` |
 | `paths.qa` | `.local/qa` |
 
-`xez-onboard-opinionated` added thirteen keys that only its own kit reads: eleven in 1.5.0 with the `docs/` work, and two more that arrived earlier, in 1.4.0, with the portability work. All are additive; none has a loader default, on purpose — a kit role with its key unset names the key and stops, and a guarded workflow refuses. Renaming or removing one, or loosening a list's element grammar, is breaking.
+`xez-onboard-opinionated` added seventeen keys that only its own kit reads: two in 1.4.0 with the portability work, eleven in 1.5.0 with the `docs/` work, `dependencies.units` in 3.0.2, and `designSystem.modules`, `changelog.format` and `security.trustBoundaries` in 3.1.0. All are additive. The first thirteen have no loader default, on purpose — a kit role with its key unset names the key and stops, and a guarded workflow refuses; the last four have a meaning when absent, described below. Renaming or removing one, or loosening a list's element grammar, is breaking.
 
 | Key | Written for a new project as | Read by |
 |---|---|---|

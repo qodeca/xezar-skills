@@ -1,8 +1,8 @@
 # The phase record
 
-`SDLC.md` § Task phases says what each phase of a development task settles. This page says what that phase writes down and where, so the next phase — or the next agent, after a Continue, a backend switch or a replacement run — reads a fact instead of re-deriving it.
+Each phase of a development task settles one question. This page says what each phase writes down and where, so the next phase — or the next agent, after a Continue, a backend switch or a replacement run — reads a fact instead of re-deriving it.
 
-The record is operating guidance for this repository's own kit. It ships in nothing; the published package carries no part of `.xezar/`.
+The record is operating guidance for this project's kit; nothing in it is committed.
 
 ## Where it lives
 

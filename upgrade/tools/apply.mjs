@@ -22,7 +22,7 @@
 //   - the file still has the content the plan saw, or already has the result (idempotent).
 // Running apply twice changes nothing the second time.
 //
-// Output: NAME=value lines – applied=<path> op=<op>, done=<path>, staged=<path> merge=<exit>,
+// Output: NAME=value lines – applied=<path> op=<op>, done=<path>, staged=<path> op=<op> [merge=<exit>],
 // held=<path> reason=<stop,…>, refused=<path> reason=<why>, and last apply-status=ok|refused.
 // Exit: 0 ok; 3 refused (nothing written); 2 cannot run.
 
