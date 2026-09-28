@@ -34,7 +34,8 @@
 # The role is not the request's word: it must be the `verdictRole` the engine froze for THIS step
 # – the run's workflow definition in the engine's runs index (`.local/xezar/runs.json`, one JSON
 # array at the top of the engine's data directory), found by the run id (this worktree's directory
-# name) and XEZ_STEP_ID. A code-review step declares `code-review`, and security, architecture or
+# name) and XEZ_STEP_ID (a Continue's `continue-N` step answers with the step that owns its
+# session, as the engine's `takeStepVerdict` does). A code-review step declares `code-review`, and security, architecture or
 # acceptance steps declare no qa or design-review role, so they move no approval label; anything
 # unreadable is refused. A gate label is lifted only together with its approval label, in the
 # same request: `remove:["needs-qa"]` without `add:["qa-approved"]` is refused.
@@ -87,6 +88,11 @@ has_word() {
 
 # The verdictRole the engine declared for this step, or nothing. Read from the run's frozen workflow
 # definition, never from the request or from a workflow file in the tree under review.
+# A Continue runs under a synthetic step id (`continue-N`) that no definition step names, so the
+# role is resolved the way the engine's own `takeStepVerdict` resolves it: the run's record step
+# with that id, then the record step that owns the same session (its id names the definition
+# step), and when no step owns the session, the definition's last agent step (one with no
+# `command`). A run with no `workflowDef` yields nothing, and the request is refused.
 step_verdict_role() {
   resolve_task_paths >/dev/null 2>&1 || return 1
   [ -n "${TASK_ID:-}" ] && [ -z "${TASK_ID_CONFLICT:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || return 1
@@ -95,7 +101,17 @@ step_verdict_role() {
     const [index, id, stepId] = process.argv.slice(1);
     const raw = JSON.parse(fs.readFileSync(index, "utf8"));
     const runs = Array.isArray(raw) ? raw : (raw.runs ?? []);
-    const step = (runs.find((r) => r.id === id)?.workflowDef?.steps ?? []).find((s) => s.id === stepId);
+    const run = runs.find((r) => r.id === id);
+    const defSteps = run?.workflowDef?.steps;
+    if (!Array.isArray(defSteps)) process.exit(0);
+    let step = defSteps.find((s) => s.id === stepId);
+    if (step === undefined) {
+      const record = (Array.isArray(run.steps) ? run.steps : []).find((s) => s.id === stepId);
+      if (record?.kind !== "agent") process.exit(0);
+      const session = typeof record.sessionId === "string" && record.sessionId !== "" ? record.sessionId : undefined;
+      const owner = session === undefined ? undefined : run.steps.find((s) => s.sessionId === session);
+      step = defSteps.find((s) => s.id === owner?.id) ?? [...defSteps].reverse().find((s) => !s.command);
+    }
     if (typeof step?.verdictRole === "string") process.stdout.write(step.verdictRole);
   ' "$MAIN_ROOT/.local/xezar/runs.json" "$TASK_ID" "$XEZ_STEP_ID" 2>/dev/null
 }

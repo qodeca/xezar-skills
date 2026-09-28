@@ -425,7 +425,12 @@ when:
   `<target>` copy, and no register entry names it (`unregistered-local-change`): draft its
   `Confirmed: no` entry (step 5) or restore the kit's file – for an owner-shaped file such as
   `.claude/settings.json`, always the entry, since restoring it drops the owner's change. The manifest is not written until
-  then, since it would record the edit as the installed state and hide it from every drift check.
+  then, since it would record the edit as the installed state and hide it from every drift check;
+- a kit file the project had (the old manifest records it, or detection found its base) is
+  removed and no register entry names it (`unregistered-local-change`, detail `removed with no
+  register entry`): draft its `Confirmed: no` entry (step 5) or restore the kit's file. The
+  manifest is not written until then, since it would leave the file out and the next upgrade
+  would write it back as new in the kit.
 
 Any `problem=` line goes back to step 5 for the file it names. Fix the cause, never the check.
 If you cannot fix it, stop and report it.

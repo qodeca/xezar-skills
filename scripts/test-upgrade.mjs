@@ -1217,8 +1217,17 @@ if (!HAS_DRIFT) {
         if (confirmed !== null) write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, confirmed));
       },
     });
-  const bare = byPath(buildPlan(ctxFor(removedWith("removed-bare", null)))).get(p);
+  const bareCtx = ctxFor(removedWith("removed-bare", null));
+  const bare = byPath(buildPlan(bareCtx)).get(p);
   expect(bare?.class === "unexplained-local-change" && bare.stops.includes("unexplained-safety-file"), `removed: an unexplained deletion of the safety file ${p} is ${bare?.class} with stops ${bare?.stops}`);
+  // With no register entry, manifest v2 leaves the removed file out, and the next upgrade would
+  // read it as new in the kit and write it back. So verify refuses the removal until it is
+  // registered or the kit's file restored, and no manifest is written.
+  const unregRemoval = invariants(bareCtx, null).filter((x) => x.kind === "unregistered-local-change" && x.path === p);
+  expect(unregRemoval.length === 1 && /removed with no register entry/.test(unregRemoval[0].detail), `removed: verify accepts a kit file removed with no register entry: ${JSON.stringify(unregRemoval)}`);
+  // A file this project never had (no manifest record, no detected base) is new in the kit, not removed.
+  const neverHad = invariants(ctxFor(materialize(fx303, { name: "removed-never-had" })), null).filter((x) => x.kind === "unregistered-local-change" && /removed with no register entry/.test(x.detail));
+  expect(neverHad.every((x) => fx303.manifest.files[x.path] !== undefined), `removed: verify reports files new in the kit as removals: ${JSON.stringify(neverHad.map((x) => x.path))}`);
   const dir = removedWith("removed-kept", "yes");
   const ctx = ctxFor(dir);
   const f = byPath(buildPlan(ctx)).get(p);

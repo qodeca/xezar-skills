@@ -8,6 +8,7 @@ Report the upgrade's effect and remaining decision. A clean run usually needs
 {Changed descriptor or config path}: {operations/defaults changed and behavior restored}.
 Checked: {config parses, provider resolves, required operations present; disclose failed/incomplete checks}.
 {Material local conflict, custom-provider gap, or unavailable upgrade log, when present.}
+{Onboarded project only: each kit entry not applied, and the path that applies it – `upgrade/UPGRADE-PROMPT.md`, or the ordered hand path ending with `verify.mjs`.}
 **Next:** {review/commit diff, resolve conflict, implement missing operation, or no action needed}.
 ```
 
