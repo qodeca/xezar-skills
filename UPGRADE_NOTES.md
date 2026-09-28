@@ -17,8 +17,10 @@ execute against them – not against the copies shipped in this repo:
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
 symptom matches your repository – except in a project onboarded by `xez-onboard-opinionated`
 (it has `.xezar/onboarding.json`). There it handles only the `.xezar/pipeline/` descriptors and
-config keys, and lists every "upgrading an onboarded project to …" entry as not applied: those
-go through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), or by hand, top to bottom, ending
+config keys, and lists every kit entry as not applied. A kit entry is one that says it applies to
+a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block lists a path outside
+`.xezar/pipeline/` – whatever its heading says. Kit entries go through the upgrade prompt
+(`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
 ## 2026-09-27 – upgrading an onboarded project to 3.1.0
@@ -32,7 +34,9 @@ are the same changes for a hand upgrade, which ends with the verifier writing th
 order below**. Skip an entry only when your repository does not have its symptom **and** no entry
 you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
 brings. Each entry ends with an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and
-actions for the tool.
+actions for the tool. A project below 3.0.2 (its `.xezar/routing.json` has `defaults.version`
+under 3) first applies the 3.0.2 block and the 3.0.1-era entries, oldest first, or uses the
+upgrade prompt.
 
 **Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
 mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
@@ -158,7 +162,10 @@ PRs cycle through update-branch and a full CI run again and again while a merge 
 
 **What to do.** Copy `.xezar/checks/route.mjs` **first**, before the docs, loops and leader guide:
 an older `route.mjs` reads `--author` as a row id and refuses the call. Then merge
-`.xezar/routing.json` from defaults version 3 to 4, keeping your own edits. Version 4 carries this
+`.xezar/routing.json` from your file's `defaults.version` to 4, keeping your own edits: compare
+three ways – your file, the stored copy of its version (`references/routing-defaults/<n>.json` in
+`xez-onboard-opinionated`) and `routing-defaults/4.json` – or run
+`/xez-onboard-opinionated --section routing`, which does that comparison. Version 4 carries this
 entry's `vendorExclusions` key **and** entry 11's changes (the `pi/deepseek-api/deepseek-v4-pro`
 lane, its places in the rows, and the three relaxed ban texts), so merge the whole of
 `routing-defaults/4.json` in one go, with entry 11. Never set `defaults.version` to 4 on a file

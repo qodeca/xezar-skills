@@ -37,10 +37,13 @@ customization without asking.
 
    **An onboarded project is upgraded elsewhere.** When `.xezar/onboarding.json` exists (any
    `manifestVersion`), this skill handles only the `.xezar/pipeline/` descriptors and config keys.
-   Every `xez-onboard-opinionated` kit entry – an `UPGRADE_NOTES.md` heading "upgrading an
-   onboarded project to <version>" and the entries under it – is **not applied**: list each one
-   in the report as not applied and point to the collection's `upgrade/UPGRADE-PROMPT.md`, or to
-   that block's hand path applied top to bottom and ending with
+   Every `xez-onboard-opinionated` kit entry is **not applied**. A kit entry is defined by what it
+   changes, not by its heading: an entry that says it applies to a repository onboarded by
+   `xez-onboard-opinionated`, or whose `upgrade` block lists a path outside `.xezar/pipeline/`
+   (an "upgrading an onboarded project to <version>" block and every entry under it included).
+   List each one in the report as not applied and point to the collection's
+   `upgrade/UPGRADE-PROMPT.md`, or to the hand path – oldest block first, each block top to
+   bottom – ending with
    `node <verified clone>/upgrade/tools/verify.mjs --project . --target <version>`. Only the
    verifier writes the manifest the drift check reads; a kit entry copied here leaves the project
    reading as its old version, and the next upgrade takes the copied files for a partial one.
@@ -110,7 +113,8 @@ customization without asking.
 4. **Walk the notable-upgrades log.** For each entry in `UPGRADE_NOTES.md` (newest first), check whether its "symptom of a stale
    installation" can apply to this repository, and verify the corresponding artifact:
 
-   - Kit entries of an onboarded project (step 0) are listed as not applied, never walked.
+   - On an onboarded project, every kit entry (step 0 – by what it changes, whatever its heading)
+     is listed as not applied, never walked or copied.
    - Tracker- or browser-descriptor entries are already covered by steps 2–3 — cross
      the entry off when the diff handled it.
    - Config-related entries: check `.xezar/pipeline/config.json` for keys the entry introduces (new
