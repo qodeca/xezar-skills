@@ -1,5 +1,5 @@
 {
-  "commit": "a237aa666988e5fb605a588a8af20792204ff0e0",
+  "commit": "14760109fe4de42297540d0fcd77a4377d6eb382",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -152,10 +152,10 @@
       "sha256": "0661a4194b70b1cfac00a2c9bf20eadc59bc6f2d152ae081447b21ff305dc368"
     },
     ".xezar/checks/lib/common.sh": {
-      "kitBlob": "cb85efedbb255c95256bbfd75db01acf673c7701",
+      "kitBlob": "bdba6f0bba4a52bd8370770cb6d8e18c6d58f972",
       "kitSource": "checks/lib/common.sh",
       "rewrite": "copied",
-      "sha256": "357baf7b148a301f479d9b66a1f34e4cc7991ab5f128d54af03e6cd952b4d2c6"
+      "sha256": "e2cb49631ef246212c9b4b958babcd8abecf68be78f777125b74d13cb30f1c34"
     },
     ".xezar/checks/lib/config-grammar.mjs": {
       "kitBlob": "8992f027613e475a88b83d4e16199f0b8b00ff75",
@@ -242,10 +242,10 @@
       "sha256": "c49dfc9a2978e5140ef5071fbbcd453a12cbdafec727d40fa5be1229b551ee5d"
     },
     ".xezar/checks/repo-gates.sh": {
-      "kitBlob": "2a6bda9de2d64e530776b2be18c3a29db6ffe414",
+      "kitBlob": "85cfb0c2e0024d9cb0a7eb36b476d5b190d474cd",
       "kitSource": "checks/repo-gates.sh",
       "rewrite": "adapted",
-      "sha256": "25668896c28c96c1543839a192a470dc6b6e8f0d6ee6a91bfc0c1f6d0ebf56d0"
+      "sha256": "a9192bd0ff6f571b8dce0036c634c82fbffe1aee5c40c1eddd71f134b455a217"
     },
     ".xezar/checks/repository-checks.sh": {
       "kitBlob": "97051ddab349e2c7e1615681c03c9e3cb154ab7e",
@@ -410,10 +410,10 @@
       "sha256": "2fb3815a1eaadfed4d877ac1637b80623cd707aaaa04b23be3556bf5c08a9d05"
     },
     ".xezar/docs/worktrees.md": {
-      "kitBlob": "2cb6f16832ab01a53f245488402895f8e18fcc29",
+      "kitBlob": "00f54fc0e0c21e2ba5718213d6ece5aba7c4045d",
       "kitSource": "docs/worktrees.md",
       "rewrite": "copied",
-      "sha256": "2c350d63b11fc01f8bf2c6ddc3620a0a6cdadc324171659f80231109411f6d20"
+      "sha256": "36b4c146d7ea89d6596b1f211fac8d8c13f79ed07a69619913fa772273c95a32"
     },
     ".xezar/loops.json": {
       "kitBlob": "8bc4430d2ed6a4f37b291f50fc1a4a95e6e14354",
@@ -959,6 +959,6 @@
       "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+14760109fe4d"
 }
