@@ -203,7 +203,10 @@ hashed. A manifest written before 3.1.0 (no `manifestVersion`) is not enforced: 
 and passes. The tidiness check that the same gate script runs, `local-tree.sh`, now accepts the
 engine's run state (`runs.json`, `runs/`, `tmp/` and the rest) at the top of `.local/xezar/` in a
 project without `.xezar/workspace.json`, where engine 0.19.0 writes it too; it used to call those
-entries loose and fail the gate there.
+entries loose and fail the gate there. The leader launcher, `scripts/xezar-leader.sh`, now accepts
+any `*.sock` in `.local/xezar/ipc/` instead of only `<folder>.sock`: the engine names the socket
+by project id (`My_App` → `my-app.sock`), so the launcher said the engine was not running while it
+ran (upgrade note 13).
 
 **The local-patch register.** A deliberate change is recorded in `.xezar/LOCAL-PATCHES.md` – one
 `## LP-<n> – <title>` entry per patch with `Files`, `Reason`, `Upstream`, `Since` and `Confirmed` –
@@ -244,7 +247,12 @@ this repository, against one project at a time. None of them is installed into a
   merge cleanly (a kept local change, or both sides changed), and the upgrade-entry actions for
   the project's version range. A base inferred from the target's own unreleased commits, or equal
   to the target, is never trusted: the file is staged and judged. It names config and placeholder
-  keys, never values.
+  keys, never values. A tracked owner-shaped file such as `.claude/settings.json` that differs from
+  the kit on both sides gets a drafted register entry, as the verifier requires. When the manifest
+  names no version, the entry range starts at the kit version that more than half of the files
+  with a sure base match (the oldest on a tie), and `plan.md` says so. Each upgrade entry carries
+  its heading and line in `UPGRADE_NOTES.md`, and `plan.md` lists every action under the entry
+  that asks for it.
 - **A mechanical applier** (`upgrade/tools/apply.mjs`): writes clean updates and new files,
   deletes unchanged files the kit removed, and stages `git merge-file --zdiff3` results for Claude.
   It checks every path before any write (repo-relative, no symlink on the way, inside the project,
