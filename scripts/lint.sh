@@ -255,7 +255,7 @@ scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || 
 # workspace count. The generated `## Shared contract` tail of every role skill is always scanned;
 # a body is scanned unless the file is listed here, each with a reason and an expiry.
 # Bound to scripts/allowlists.json `npmLiteral` by scripts/check-allowlists.mjs.
-npm_allow=" skills/xez-onboard-opinionated/kit/skills/xezar-implementation.md skills/xez-onboard-opinionated/kit/skills/xezar-quality-gates.md skills/xez-onboard-opinionated/kit/skills/xezar-release-changelog.md skills/xez-onboard-opinionated/kit/skills/xezar-release-publish.md "
+npm_allow=" skills/xez-onboard-opinionated/kit/skills/xezar-implementation.md skills/xez-onboard-opinionated/kit/skills/xezar-quality-gates.md skills/xez-onboard-opinionated/kit/skills/xezar-release-publish.md "
 role_patterns=(
   -e '(^|[^[:alnum:]])npm($|[^[:alnum:]])'
   -e 'package-lock\.json'

@@ -139,6 +139,12 @@ customization without asking.
   a family this repository has never had (`toolchains/`, `security/`), create the directory and
   install only the providers the config names. Installing every shipped provider would hand the
   repository operations it never asked for.
+- **A descriptor an onboarding manifest records is not edited here.** When
+  `.xezar/onboarding.json` has `manifestVersion` 2 or higher, the kit's drift check tracks every
+  file listed under its `files`: a descriptor changed by this skill fails the next gate with
+  `reason=hash-mismatch`. List those descriptors in the report as skipped and point to the
+  collection's upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
+  manifest entry together.
 - Preserve local customizations: a section that differs from stock is the team's — ask before
   replacing it, and always keep local-only operations.
 - Additive by default: add missing operations and missing config keys; never delete or rewrite

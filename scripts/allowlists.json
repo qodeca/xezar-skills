@@ -80,11 +80,6 @@
         "who": "collection maintainers",
         "expires": "2027-03-31"
       },
-      "skills/xez-onboard-opinionated/kit/skills/xezar-release-changelog.md": {
-        "why": "Its body compares the release target against the npm registry of the engine's own package; release 3.1.0 fixes this file under #57 (Stream F), which removes this entry.",
-        "who": "collection maintainers",
-        "expires": "2027-03-31"
-      },
       "skills/xez-onboard-opinionated/kit/skills/xezar-release-publish.md": {
         "why": "This role publishes the engine's own npm package, so its body must name npm; it is renewed or removed when the release roles become toolchain-neutral.",
         "who": "collection maintainers",

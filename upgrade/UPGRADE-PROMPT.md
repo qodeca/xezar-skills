@@ -412,7 +412,11 @@ when:
 - a register entry names a file that does not exist and is not a kit file the project removed
   on purpose, or a file the manifest does not track, or a manifest `patch` names a missing
   entry;
-- a refusing line the `<target>` kit added to a safety file you resolved by hand is missing.
+- a refusing line the `<target>` kit added to a safety file you resolved by hand is missing;
+- a copied or adapted kit file you kept differs from the kit copy it sits on and from the
+  `<target>` copy, and no register entry names it (`unregistered-local-change`): draft its
+  `Confirmed: no` entry (step 5) or restore the kit's file. The manifest is not written until
+  then, since it would record the edit as the installed state and hide it from every drift check.
 
 Any `problem=` line goes back to step 5 for the file it names. Fix the cause, never the check.
 If you cannot fix it, stop and report it.
@@ -436,6 +440,10 @@ do item 4:
 4. **Run the project's own gate check:** `bash <project>/.xezar/checks/repository-checks.sh`.
    This is the one place you run the project's own code; the owner sees the permission prompt.
    It runs the drift check again, so the same `unconfirmed-patch` result is expected there too.
+   A drift failure does not stop it: every check after drift still runs, and the script fails at
+   the end on drift's status. So read the whole output, not only the drift lines: a failure from
+   any other check (route, changelog, fenced quotes, documented output, links, the contract test)
+   is a fault of its own and is reported, even when the only drift finding is `unconfirmed-patch`.
    `local-tree: missing expected subfolder(s)` is a per-machine item, not an upgrade fault: the
    gitignored `.local/xezar/` folders are missing on this machine. Report it with its output and
    put "create the listed folders" on the owner checklist; never create them yourself (rule 5).

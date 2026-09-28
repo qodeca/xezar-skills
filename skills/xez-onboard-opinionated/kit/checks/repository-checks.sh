@@ -26,7 +26,11 @@ bash "$SCRIPT_DIR/local-tree.sh" "$REPO_ROOT"
 node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 
 # Installed files still match `.xezar/onboarding.json`, or their change is in `.xezar/LOCAL-PATCHES.md`.
-node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT"
+# A drift failure does not stop the checks after it: an upgrade expects `unconfirmed-patch` here
+# until the owner confirms, and a real failure further down must still be printed. Its status is
+# the script's exit status at the end, once every later check has passed.
+drift_rc=0
+node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT" || drift_rc=$?
 
 # The routing file is checked as the working tree holds it, so a pull request that breaks it fails.
 if [ -f "$REPO_ROOT/.xezar/routing.json" ]; then
@@ -74,4 +78,9 @@ if [ -f "$SCRIPT_DIR/xezar-contract.test.mjs" ]; then
   node --test "$SCRIPT_DIR/xezar-contract.test.mjs"
 else
   skip xezar-contract "no contract test installed beside these checks"
+fi
+
+if [ "$drift_rc" -ne 0 ]; then
+  printf 'repository-checks: manifest-drift failed (exit %s); every other check passed\n' "$drift_rc" >&2
+  exit "$drift_rc"
 fi

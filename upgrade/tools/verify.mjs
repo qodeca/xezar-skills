@@ -19,6 +19,10 @@
 //                       document, a per-machine file, one merged into without a kit block),
 //                       which the drift check would fail as register-without-manifest
 //   safety-line-missing a refusing line the target kit added to a resolved safety file is absent
+//   unregistered-local-change a copied or adapted kit file the manifest will record differs from
+//                       the kit copy it sits on and from the target's, and no register entry
+//                       names it: the manifest would record the edit as the installed state, and
+//                       the drift check could never see it again (CONTRACT §1.2)
 // "Before" is the commit the plan was made on (plan.json startCommit).
 //
 // Then, unless --no-manifest, it writes manifest v2 (upgrade/CONTRACT.md §1.2) and runs the
@@ -169,7 +173,38 @@ export function invariants(ctx, plan) {
       if (!nowLines.has(line)) problem("safety-line-missing", item.path, line);
     }
   }
+
+  // A kept local change the register does not name. manifestV2 records sha256(mine) as the
+  // installed state, so without an entry the edit becomes invisible to every later drift check.
+  const registered = new Set(reg.entries.flatMap((e) => e.files));
+  const detection = detect(ctx);
+  const detectedByPath = new Map(detection.files.map((f) => [f.path, f]));
+  for (const [p, e] of Object.entries(ctx.theirs.files)) {
+    if (e.rewrite === "generated" || registered.has(p) || !recordable(ctx, p)) continue;
+    const mine = read(p);
+    if (mine == null) continue;
+    if (!unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) problem("unregistered-local-change", p, "kept a local change with no .xezar/LOCAL-PATCHES.md entry; draft one (Confirmed: no) or restore the kit's file");
+  }
   return problems;
+}
+
+/**
+ * True when a present kit file carries no local change: it equals the target's copy, or the kit
+ * copy it sits on (installedCopy), rendered with its own inputs for an adapted file. A kit copy
+ * whose text is not known counts as unchanged: nothing can be compared, and the drift check
+ * still starts from the digest recorded now.
+ */
+function unchangedFromKit(ctx, p, target, mine, detected) {
+  const same = (entry, text) => {
+    if (sha256(mine) === entry.sha256) return true;
+    if (text == null) return target.rewrite === "adapted";
+    return target.rewrite === "adapted" ? normalisedMatch(text, mine).match : false;
+  };
+  const theirs = ctx.theirsText(p);
+  if (same(target, theirs)) return true;
+  const installed = installedCopy(ctx, p, target, mine, detected);
+  if (installed.text == null && installed.entry === target) return true;
+  return same(installed.entry, installed.text);
 }
 
 const ORIGINS = new Set(["copied", "adapted", "generated", "owner-file-appended"]);
