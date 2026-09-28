@@ -138,7 +138,11 @@ A single npm root (no `dependencies.units`) gets the same digest:
 the metadata digest of `node_modules` with the stamp file itself left out. A package folder
 replaced or a file edited after the install makes the fast gate install again, and a stamp
 written by an older version reads as not fresh. Each `--fast` check now walks `node_modules`,
-which costs seconds on a large install.
+which costs seconds on a large install. A gate run that passes re-stamps the tree it installed or
+found fresh, so what its own gates write into `node_modules` (`prisma generate`'s `.prisma/client`,
+Vite's `.vite/deps/package.json`) no longer makes every later `--fast` run and resume reinstall;
+it does not re-stamp when a gate failed, a lockfile or manifest changed, or `node_modules` was
+replaced during the run, and it prints which of those it was.
 
 **The changelog check and fold understand Keep a Changelog, and find the base branch from
 config.** A project whose `CHANGELOG.md` uses `## [Unreleased]` and `## [1.2.3] - YYYY-MM-DD`

@@ -577,6 +577,94 @@ try {
     expect("skip: the legacy npm ci skip still seals old records", complete([skip("npm ci"), pass("test")], ".xezar/checks/deps-restore.sh") === "passed");
   }
 
+  // What the gates themselves write into node_modules. `prisma generate` writes
+  // node_modules/.prisma/client, which holds a package.json, so no build-cache exclusion can cover
+  // it, and Vite writes node_modules/.vite/deps/package.json. The stamp used to be written right
+  // after the install, before those gates ran, so every later --fast run and every resume found a
+  // changed digest and reinstalled, with no message. Now a passed run re-stamps the tree it proved
+  // current, and every refusal of the stamp stays.
+  {
+    const gatesRepo = (files = {}) => repo({
+      config: { validation: { commands: ["npm ci", "npm test"] } },
+      files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n', ...files },
+      extra: (d) => {
+        copyFileSync(join(KIT, "checks/lib/gate-parallel.mjs"), join(d, ".xezar/checks/lib/gate-parallel.mjs"));
+        for (const f of ["security-scan.sh", "repository-checks.sh"]) { write(join(d, ".xezar/checks", f), "#!/usr/bin/env bash\nexit 0\n"); chmodSync(join(d, ".xezar/checks", f), 0o755); }
+      },
+    });
+    // An npm in front of the recording stub: `npm test` plays `prisma generate` (and, on request,
+    // fails, edits the lockfile or reinstalls), `npm run build` plays Vite's optimizer.
+    const gbin = join(lab, "gates-bin");
+    write(join(gbin, "npm"), `#!/usr/bin/env bash
+if [ "\${1:-}" = test ]; then
+  mkdir -p node_modules/.prisma/client
+  printf '{"name":".prisma/client"}\\n' > node_modules/.prisma/client/package.json
+  printf 'module.exports = "%s";\\n' "$$" > node_modules/.prisma/client/index.js
+  [ -n "\${GATE_EDIT_LOCK:-}" ] && printf ' ' >> package-lock.json
+  [ -n "\${GATE_REINSTALL:-}" ] && { rm -rf node_modules; mkdir -p node_modules; }
+  [ -n "\${GATE_FAIL:-}" ] && exit 1
+fi
+if [ "\${1:-} \${2:-}" = "run build" ]; then
+  mkdir -p node_modules/.vite/deps && printf '{"type":"module"}\\n' > node_modules/.vite/deps/package.json
+fi
+exec "${join(bin, "npm")}" "$@"
+`);
+    chmodSync(join(gbin, "npm"), 0o755);
+    const gatesPath = { PATH: `${gbin}:${bin}:${process.env.PATH}` };
+    const gates = (r, args = [], env = {}) => {
+      clearCalls();
+      const o = run("bash", [".xezar/checks/repo-gates.sh", ...args], r, { ...gatesPath, XEZ_GATE_LEASE: "1", ...env });
+      return { ...o, installed: calls().some((c) => c.tool === "npm" && c.argv[0] === "ci") };
+    };
+    const freshIn = (r) => sh(r, "deps_are_fresh", gatesPath).code;
+
+    const r = gatesRepo();
+    const full = gates(r);
+    expect("gates write: a full run installs and passes", full.code === 0 && full.installed, full.out + full.err);
+    expect("gates write: the gates really wrote into node_modules (.prisma/client and .vite/deps, each with a package.json)", existsSync(join(r, "node_modules/.prisma/client/package.json")) && existsSync(join(r, "node_modules/.vite/deps/package.json")));
+    expect("gates write: a passed run says it refreshed the stamp", full.out.includes("deps stamp     refreshed after the gates"), full.out);
+    expect("gates write: what a passed run's gates wrote into node_modules does not make the tree stale", freshIn(r) === 0);
+    const fast = gates(r, ["--fast"]);
+    expect("gates write: the next --fast run skips the install", fast.code === 0 && !fast.installed && !fast.out.includes("--fast declined"), fast.out + fast.err);
+    const again = gates(r, ["--fast"]);
+    expect("gates write: and so does the one after it (a --fast run re-stamps too)", again.code === 0 && !again.installed && again.out.includes("deps stamp     refreshed"), again.out + again.err);
+
+    const failed = gates(r, ["--fast"], { GATE_FAIL: "1" });
+    expect("gates write: a failed run does not refresh the stamp", failed.code !== 0 && !failed.out.includes("deps stamp"), failed.out);
+    expect("gates write: so after a failed run the tree its gates wrote into is stale", freshIn(r) !== 0);
+    const declined = gates(r, ["--fast"]);
+    expect("gates write: the next --fast run declines and installs", declined.code === 0 && declined.installed && declined.out.includes("--fast declined"), declined.out + declined.err);
+
+    const lock = gates(r, ["--fast"], { GATE_EDIT_LOCK: "1" });
+    expect("gates write: a lockfile changed during the gates is not re-stamped", lock.code === 0 && lock.out.includes("NOT refreshed (a lockfile, manifest or tool version changed during the gates)"), lock.out);
+    expect("gates write: and the next run installs (lockfile edit)", freshIn(r) !== 0);
+    write(join(r, "package-lock.json"), '{"lockfileVersion":3}\n');
+    expect("gates write: a clean full run after it is fresh", gates(r).code === 0 && freshIn(r) === 0);
+
+    const reinstalled = gates(r, ["--fast"], { GATE_REINSTALL: "1" });
+    expect("gates write: a tree a gate replaced is never re-stamped", reinstalled.code === 0 && reinstalled.out.includes("NOT refreshed (node_modules was replaced or its stamp rewritten during the gates)"), reinstalled.out);
+    expect("gates write: and the next run installs (tree replaced)", freshIn(r) !== 0);
+
+    expect("gates write: with no verified install there is nothing to re-stamp", sh(r, 'deps_restamp_after_gates ""').out.includes("NOT refreshed (this run has no verified install to compare against)"));
+    const src = readFileSync(join(KIT, "checks/repo-gates.sh"), "utf8");
+    expect("gates write: only the passed branch of gate_finish re-stamps", /\[ "\$expected" = passed \]; then\n(?:\s*#.*\n)*\s*deps_restamp_after_gates "\$DEPS_BASELINE"\n\s*printf 'ALL GATES PASSED/.test(src) && src.split('deps_restamp_after_gates "').length === 2);
+
+    // Units: the same re-stamp, and a unit tree reinstalled after the baseline is refused.
+    const u2 = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
+    run("bash", [join(u2, RESTORE)], u2);
+    const base = sh(u2, "deps_resolve_in_task && write_deps_stamp && deps_restamp_baseline");
+    expect("units gates write: a baseline is taken after the stamp", base.code === 0 && base.out.split("\n").length === 2, JSON.stringify(base));
+    write(join(u2, "apps/web/node_modules/.prisma/client/package.json"), '{"name":".prisma/client"}\n');
+    expect("units gates write: a gate writing .prisma into a unit makes it stale without a re-stamp", sh(u2, "deps_are_fresh").code !== 0);
+    const restamped = sh(u2, `deps_restamp_after_gates '${base.out}'`);
+    expect("units gates write: re-stamped over the tree the baseline names, fresh again", restamped.out.includes("refreshed after the gates") && sh(u2, "deps_are_fresh").code === 0, restamped.out + restamped.err);
+    const base2 = sh(u2, "deps_restamp_baseline").out;
+    rmSync(join(u2, "apps/web/node_modules"), { recursive: true });
+    run("bash", [join(u2, RESTORE)], u2);
+    const swapped = sh(u2, `deps_restamp_after_gates '${base2}'`);
+    expect("units gates write: a unit tree reinstalled after the baseline is never re-stamped", swapped.out.includes("NOT refreshed (node_modules was replaced") && sh(u2, "deps_are_fresh").code !== 0, swapped.out);
+  }
+
   // Opt-in: the real tools.
   if (process.env.XEZ_DEPS_REAL === "1") {
     const realEnv = { PATH: process.env.PATH, HOME: process.env.HOME, NVM_DIR: process.env.NVM_DIR ?? "" };
