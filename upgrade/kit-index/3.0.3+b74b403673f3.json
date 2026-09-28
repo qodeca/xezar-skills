@@ -1,5 +1,5 @@
 {
-  "commit": "0c89f676f196a0289f2ebac53cc8c6ca3a807a6c",
+  "commit": "b74b403673f313eccbb3285a8e9ce1e0e9584e24",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -539,10 +539,10 @@
       "sha256": "7d48d39d137b365b7d6240c0459ea36cd86d05da810cdf018d8a500a817d0359"
     },
     ".xezar/skills/xezar-design-system.md": {
-      "kitBlob": "d2494ffabdeec7fcdd940ed115841c851261bc6b",
+      "kitBlob": "9961d5bb9522ebd171578646f584de2229600545",
       "kitSource": "skills/xezar-design-system.md",
       "rewrite": "copied",
-      "sha256": "7dd6bb5eca7aca671f331a28cffbc43ab99844449efdafd090d70a434c434f6a"
+      "sha256": "50a399626a04a2fdcc9b43738d826acceb20057f3d6a3f8dcf90403e0caf97df"
     },
     ".xezar/skills/xezar-docs-maintenance.md": {
       "kitBlob": "6c187a6c166660dcadef83d25cf7c784ee253143",
@@ -959,6 +959,6 @@
       "sha256": "deb041b022540e43cf4a488e315fba52eccbd9b6c77b85348775a9b2c81396eb"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+b74b403673f3"
 }
