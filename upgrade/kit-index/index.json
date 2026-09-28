@@ -246,7 +246,12 @@
       "version": "3.0.3+30a831f94a7c"
     },
     {
-      "commit": "bd51c1654c0b9a18b314dc2b08abd212cd6c7333",
+      "commit": "6818327612b9a4e69593980e24fe96aa8970d86e",
+      "tag": null,
+      "version": "3.0.3+6818327612b9"
+    },
+    {
+      "commit": "54b3b93428b91297203c58595ed076f95e028cbe",
       "tag": "v3.1.0",
       "version": "3.1.0"
     }

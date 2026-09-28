@@ -546,6 +546,10 @@ const unchangedChecks = Object.keys(fx303.files)
   expect(plan.registerDrafts.remove.includes("LP-1"), "pr49: the now-obsolete register entry is not proposed for removal");
 }
 
+// One register entry, LP-1, naming `files`.
+const lp1 = (files, confirmed) =>
+  `# Local patches\n\n## LP-1 – local change\n- Files: ${files}\n- Reason: r\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: ${confirmed}\n`;
+
 // 5f. A project hook in .claude/settings.json (#69) is kept.
 {
   const dir = materialize(fx303, {
@@ -563,6 +567,15 @@ const unchangedChecks = Object.keys(fx303.files)
   expect(byPath(plan).get(".claude/settings.json")?.class === "owner-shaped", "hook: .claude/settings.json is not owner-shaped");
   applyPlan(ctx, plan);
   expect(read(dir, ".claude/settings.json") === before, "hook: apply changed .claude/settings.json and could lose the project hook");
+  // The manifest tracks .claude/settings.json, so the kept hook needs a register entry (step
+  // 5.7): without one verify refuses, and its detail never tells the agent to restore the kit's
+  // file, which would drop the hook. With one, verify passes.
+  const unreg = invariants(ctxFor(dir), plan).filter((x) => x.kind === "unregistered-local-change" && x.path === ".claude/settings.json");
+  expect(unreg.length === 1, `hook: verify accepts the kept hook with no register entry: ${JSON.stringify(unreg)}`);
+  expect(unreg.every((x) => !/or restore the kit's file/.test(x.detail) && /do not restore/.test(x.detail)), `hook: verify's detail still suggests restoring the kit's settings: ${JSON.stringify(unreg)}`);
+  write(dir, ".xezar/LOCAL-PATCHES.md", lp1(".claude/settings.json", "no"));
+  const v = verify(ctxFor(dir), plan, { checks: [] });
+  expect(v.status !== "fail" && !v.problems.length, `hook: verify refuses the kept hook with its register entry: ${JSON.stringify(v.problems)}`);
 }
 
 // 5g. Unsafe paths: `../`, absolute, a symlinked kit file and a symlinked folder, all refused.
@@ -648,8 +661,6 @@ const unchangedChecks = Object.keys(fx303.files)
 }
 
 // The prompt eval findings (upgrade/evals/RESULTS.md, F1–F7): each one the planner now settles.
-const lp1 = (files, confirmed) =>
-  `# Local patches\n\n## LP-1 – local change\n- Files: ${files}\n- Reason: r\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: ${confirmed}\n`;
 
 // 5j. F1: the target's own unreleased development line is never a base. A pre-release copy of
 // a file new in the target, matched to a development commit that already has the target's
@@ -935,13 +946,15 @@ if (!HAS_DRIFT) {
   const checksDir = join(stubs, ".xezar/checks");
   mkdirSync(checksDir, { recursive: true });
   cpSync(join(KIT_SKILL, "kit/checks/repository-checks.sh"), join(checksDir, "repository-checks.sh"));
-  for (const f of ["local-tree.sh", "config-guard.sh"]) writeFileSync(join(checksDir, f), "exit 0\n");
-  for (const f of ["catalog-check.mjs", "fenced-quotes.mjs", "documented-output.mjs"]) writeFileSync(join(checksDir, f), "process.exit(0);\n");
-  const runStub = (driftCode) => {
+  writeFileSync(join(checksDir, "config-guard.sh"), "exit 0\n");
+  for (const f of ["catalog-check.mjs", "fenced-quotes.mjs"]) writeFileSync(join(checksDir, f), "process.exit(0);\n");
+  // The last check prints a marker, so a run that stopped early is visible.
+  writeFileSync(join(checksDir, "documented-output.mjs"), 'console.log("stub-documented-output-ran");\n');
+  const runStub = (driftCode, localTreeCode = 0) => {
     writeFileSync(join(checksDir, "manifest-drift.mjs"), `process.exit(${driftCode});\n`);
+    writeFileSync(join(checksDir, "local-tree.sh"), `exit ${localTreeCode}\n`);
     try {
-      execFileSync("bash", [join(checksDir, "repository-checks.sh"), stubs], { cwd: stubs, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-      return { code: 0, out: "" };
+      return { code: 0, out: execFileSync("bash", [join(checksDir, "repository-checks.sh"), stubs], { cwd: stubs, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
     } catch (e) {
       return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
     }
@@ -949,6 +962,13 @@ if (!HAS_DRIFT) {
   const driftOnly = runStub(1);
   expect(driftOnly.code === 1 && /manifest-drift failed/.test(driftOnly.out), `repository-checks: a drift failure alone does not fail the script at the end (exit ${driftOnly.code}): ${driftOnly.out.trim()}`);
   expect(runStub(0).code === 0, "repository-checks: the stubbed checks do not pass with no drift");
+  // A local-tree failure (missing per-machine folders) gets the same keep-going treatment (step
+  // 7.4): every later check still runs, and the script fails at the end.
+  const treeOnly = runStub(0, 1);
+  expect(treeOnly.code === 1 && /local-tree failed/.test(treeOnly.out), `repository-checks: a local-tree failure alone does not fail the script at the end (exit ${treeOnly.code}): ${treeOnly.out.trim()}`);
+  expect(/stub-documented-output-ran/.test(treeOnly.out), `repository-checks: a local-tree failure stops the checks after it: ${treeOnly.out.trim()}`);
+  const treeAndDrift = runStub(1, 1);
+  expect(treeAndDrift.code !== 0 && /local-tree failed/.test(treeAndDrift.out) && /manifest-drift failed/.test(treeAndDrift.out), `repository-checks: a local-tree and a drift failure are not both reported: ${treeAndDrift.out.trim()}`);
 
   for (const tool of ["detect", "plan", "apply", "verify"]) {
     let out = "";

@@ -45,7 +45,7 @@ import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
 import { isRepoRelative, resolveInside } from "./lib/paths.mjs";
-import { OWNER_CONFIG, SAFETY_LINE, isCheckLike, isNeverTouched, isNotRecorded } from "./lib/policy.mjs";
+import { OWNER_CONFIG, OWNER_SHAPED, SAFETY_LINE, isCheckLike, isNeverTouched, isNotRecorded } from "./lib/policy.mjs";
 import { detect } from "./detect.mjs";
 import { extractInputs, normalisedMatch, render } from "./lib/rewrites.mjs";
 import { lineDistance } from "./lib/diff.mjs";
@@ -183,7 +183,13 @@ export function invariants(ctx, plan) {
     if (e.rewrite === "generated" || registered.has(p) || !recordable(ctx, p)) continue;
     const mine = read(p);
     if (mine == null) continue;
-    if (!unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) problem("unregistered-local-change", p, "kept a local change with no .xezar/LOCAL-PATCHES.md entry; draft one (Confirmed: no) or restore the kit's file");
+    if (unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) continue;
+    // An owner-shaped file holds the owner's decisions (a project hook, a local permission):
+    // restoring the kit's copy would drop them, so the only fix offered is the register entry.
+    const fix = OWNER_SHAPED.has(p)
+      ? "an owner-shaped file the manifest tracks still needs one: draft it (Confirmed: no); do not restore the kit's file, which would drop the owner's change"
+      : "draft one (Confirmed: no) or restore the kit's file";
+    problem("unregistered-local-change", p, `kept a local change with no .xezar/LOCAL-PATCHES.md entry; ${fix}`);
   }
   return problems;
 }
