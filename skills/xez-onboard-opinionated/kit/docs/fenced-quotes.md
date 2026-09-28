@@ -41,7 +41,7 @@ Opening and closing fences may use three or more backticks or tildes; a closing 
 same character and at least the opening length.
 
 The check scans maintained Markdown under `docs/` and `.xezar/docs/`, root `*.md`, and —
-for a project that still keeps its designs at the repository root — `designs/**/README.md`. It explicitly excludes every `.local/xezar/`, `node_modules/`, and `changelog.d/`
+for a project that still keeps its designs at the repository root — `designs/**/README.md`. It explicitly excludes every `.local/`, `node_modules/`, and `changelog.d/`
 directory encountered inside those surfaces rather than relying on their usual repository
 locations to keep them out of the walk.
 

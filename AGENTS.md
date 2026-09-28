@@ -69,6 +69,7 @@ to an `xez-auto-*` skill.
 | The label taxonomy (`.xezar/pipeline/labels.json`) | `SDLC.md`, `scripts/check-label-taxonomy.mjs` | The taxonomy is a protected surface: renaming or removing a label is breaking. Every label needs a full-sentence description and every group a colour, and the file must agree with `config.json` — the checker binds them. |
 | Governance documents (`SECURITY.md`, `docs/coverage.md`, `docs/style.md`, `UPGRADE_NOTES.md`) | the document itself, then the **Which document wins** order above | `SECURITY.md` outranks everything, including this file. `docs/coverage.md` states what is checked and what is not, and is never a gate. `docs/style.md` records counted usage, not taste. An `UPGRADE_NOTES.md` entry is keyed by the symptom a user sees, and says plainly what is lost by skipping it. |
 | The vendored onboarding kit (`skills/xez-onboard-opinionated/kit/**`) | `scripts/test-kit-catalog.mjs` (its header lists the checks), `scripts/test-kit-facts.mjs`, `skills/xez-onboard-opinionated/kit/routing.json` and `kit/checks/route.mjs` | A workflow no routing row names is unreachable: a new workflow lands with its row in `kit/routing.json`, its role skill, and the skill's name in `catalog-check.mjs`'s `MAINTAINED_SKILLS`, in the same PR. Row and class counts written in prose are checked against the table. The `## Shared contract` tail is generated — never hand-edit it. A kit file reads a `paths.*` key, never a literal folder or an engine-repository path. A shipped descriptor moves with its digest pin. An installed kit never auto-updates: a fix that must reach existing projects needs an `UPGRADE_NOTES.md` entry. |
+| The kit upgrade tool (`upgrade/**`, `scripts/build-kit-index.mjs`) | `upgrade/README.md`, `upgrade/CONTRACT.md`, `scripts/test-upgrade.mjs` | The kit index is a protected surface (`BACKWARD_COMPATIBILITY.md`): a released `upgrade/kit-index/<version>.json` never changes except its `commit` and `tag`, refreshed once after tagging. Any kit file change makes the unreleased version's index stale and `test-upgrade.mjs` fails on it — rebuild it with `scripts/build-kit-index.mjs` on the release branch's head, just before tagging (`upgrade/README.md` → "Releasing a version the tool upgrades to"). CI never checks the merge Claude does for a file both sides changed; that runs by hand against `upgrade/evals/`. |
 | Process / pipeline configuration | `.xezar/pipeline/config.json`, `SDLC.md`, `.xezar/pipeline/trackers/github.md` | Config and `SDLC.md` describe the same process — change them together. |
 | README, DECISIONS.md, LICENSE | `DECISIONS.md` | Nothing automated keeps these or `skills/**` free of product names; neutrality where it still matters is a review call (`DECISIONS.md` → "The brand rule, removed"). Read `DECISIONS.md` before proposing structural changes — most "obvious" restructurings were already considered and decided. |
 
@@ -140,7 +141,7 @@ The full gate is the `validation.commands` list in `.xezar/pipeline/config.json`
 commands, the same list `.github/workflows/lint.yml` runs and `SDLC.md` states. The guard suite
 (`scripts/test-guards.mjs`) is not in it: it runs nightly from `.github/workflows/nightly-guards.yml`
 (`DECISIONS.md` → "The guard suite runs nightly").
-`scripts/check-gate-list.mjs` keeps the three in step, so read the config rather than a copy
+`scripts/check-gate-list.mjs` and `scripts/test-browser-providers.mjs` keep them in step, so read the config rather than a copy
 of the list kept here, which would be a fourth place to drift.
 
 **Run them individually.** A batched shell loop over `npm run` reports false failures: an
@@ -153,7 +154,7 @@ node scripts/test-merge-gate.mjs
 jq -r '.validation.commands[]' .xezar/pipeline/config.json
 ```
 
-Two are worth knowing about before you wait on them. `scripts/test-guards.mjs` — outside the
+Two scripts are worth knowing about before you run them. `scripts/test-guards.mjs` — outside the
 gate, but still yours to run by hand when you add or change a guard — breaks each guard on
 purpose to prove it still fires, so it re-runs the gates once per defect and takes about
 twenty-five minutes — and it edits tracked files in place, so it takes a lock and only one copy

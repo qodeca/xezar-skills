@@ -93,8 +93,10 @@ Release in this order:
    one change a committed version file allows (`BACKWARD_COMPATIBILITY.md`): the target's own
    file gets its `commit` and `tag` refreshed, once; its `files` entries stay as they were.
 
-Until step 3 lands, the index at the tag carries the stand-in `commit`. The tools do not read
-that field – they read file contents by `kitBlob` – and a clone at the tag works even with no
+Until step 3 lands, the index at the tag carries the stand-in `commit`. The tools never read
+the target's own `commit` – they read file contents by `kitBlob`, and read `commit` only for
+the project's installed version, to date its upgrade entries and to tell whether the
+leader-guide template changed – and a clone at the tag works even with no
 index file for its own version: the target is computed from the kit tree in the clone, and the
 target's unreleased development commits are still left out as bases. The one thing a committed
 target index adds is `renamedFrom` (a kit file moved since the last release); without it a moved
