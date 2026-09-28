@@ -20,8 +20,7 @@ export const OWNER_SHAPED = new Set([
 /**
  * The owner's configuration: written for the project at install, then changed in normal work
  * (a routing pull request, a new gate command, a label, a design module's status, a config key
- * the upgrade checklist asks for). Never recorded in manifest v2; the kit's manifest-drift.mjs
- * keeps its own copy of this list and ignores these paths when an older v2 manifest lists them.
+ * the upgrade checklist asks for). Never recorded in manifest v2 (part of NOT_RECORDED below).
  * They stay guarded by the security scan's trust boundary and by `route.mjs --check`.
  */
 export const OWNER_CONFIG = [
@@ -38,7 +37,7 @@ export const OWNER_CONFIG = [
  * tracks"). Recording them would turn every ordinary edit into drift. An owner file with an
  * appended kit block is recorded separately, as `owner-file-appended`, hashing only that block.
  */
-const NOT_RECORDED = new Set([
+export const NOT_RECORDED = Object.freeze([
   ...OWNER_CONFIG,
   "AGENTS.md",
   "SDLC.md",
@@ -50,8 +49,11 @@ const NOT_RECORDED = new Set([
   ".gitignore",
 ]);
 
+// The kit's manifest-drift.mjs keeps its own copy of NOT_RECORDED (it runs in projects, with no
+// access to this file) and ignores these paths when an older v2 manifest lists them;
+// scripts/test-upgrade.mjs binds the two lists.
 export function isNotRecorded(path) {
-  return NOT_RECORDED.has(path) || path === "CLAUDE.md" || path.endsWith("/CLAUDE.md");
+  return NOT_RECORDED.includes(path) || path === "CLAUDE.md" || path.endsWith("/CLAUDE.md");
 }
 
 /** Never touched by an upgrade, whatever the index says. */

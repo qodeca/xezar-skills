@@ -24,7 +24,22 @@ time, when they decide to.
    and check it: `gh release verify v3.1.0 --repo qodeca/xezar-skills` must print
    `Release v3.1.0 verified!`. Copy the prompt from that clone, never from a web page.
 2. **Prepare the project.** A clean working tree on the base branch, up to date with the remote.
-   Stop the leader and let running tasks finish. The engine may stay running.
+   Stop the leader and let running tasks finish. The engine may stay running. Before you start
+   `claude` there, check in your own shell, in the project folder, which commands git would run
+   by itself: Claude Code may run `git status` when the session starts, before the prompt can ask
+   about them. These reads run none of them:
+
+   ```bash
+   git config core.hooksPath
+   ls -l "$(git rev-parse --git-path hooks)"
+   git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'
+   printenv GIT_EXTERNAL_DIFF
+   ```
+
+   A hooks folder, an executable hook not ending in `.sample`, or a config line or variable that
+   names a program (`core.fsmonitor` set to `true` or `false` is git's own) is a command git
+   runs. Decide now whether you trust it; if not, unset it (or open the session in a throwaway
+   clone) before you start `claude`. Step 0 of the prompt asks again for the git commands it runs.
 3. **Run it.** In the project folder, start `claude` with normal permission prompts – never with
    `-p` and never in a mode that skips prompts – and paste the prompt.
 4. **Answer its questions.** It shows a plan before it changes anything, and it stops to ask

@@ -108,8 +108,9 @@ c) Otherwise the engine must be started in a REAL terminal window of its own, be
    If that is refused or this is not macOS, print the line for me to run myself:
      xezar --single-project --no-open
    Never start the engine as a background process of this session.
-d) Wait until .xezar/workspace.json and .local/xezar/ipc/<folder name>.sock both exist. Check
-   every few seconds for up to two minutes, then ask me what the window shows.
+d) Wait until .xezar/workspace.json and a socket in .local/xezar/ipc/ (the engine names it after
+   the project id, not always the folder name) both exist. Check every few seconds for up to two
+   minutes, then ask me what the window shows.
    Then read .xezar/agent-accounts.json and tell me how many accounts it lists. If it lists none
    and ~/.xezar/agent-accounts.json lists some, the question was answered No and will not be
    asked again: say exactly that, and tell the skill in step 5, which offers to bring them in

@@ -115,9 +115,13 @@ look for an active hook, using only these reads, which run none. A hook is activ
 `git config core.hooksPath` prints a folder, or when `$(git rev-parse --git-path hooks)` holds an
 executable file whose name does not end in `.sample`. Git also runs commands its config names,
 without asking, on `git status`, `git add`, `git switch` and `git diff`: read them with
-`git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\..*\.textconv)$'`,
-and treat every hit that names a program (anything but `core.fsmonitor` set to `true` or `false`,
-git's own) as an active hook – a `git-lfs` filter included. A hook manager's files anywhere in the
+`git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'`
+and `printenv GIT_EXTERNAL_DIFF` (which `git diff` runs like `diff.external`), and treat every hit
+that names a program (anything but `core.fsmonitor` set to `true` or `false`, git's own) as an
+active hook – a `git-lfs` filter included. This covers the git commands run from here on, not the
+`git status` Claude Code itself may run when the session starts, before this prompt: that is why
+`upgrade/README.md` has the owner run these same reads in their own shell before opening the
+session. If the owner has not, say so, and name what the reads find. A hook manager's files anywhere in the
 tree (for example `.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`, or a `husky` or
 `simple-git-hooks` entry in a `package.json`) are not active until they install themselves by
 one of those two ways: name them in the report, but do not stop for them. If a hook is active,
@@ -231,7 +235,7 @@ the summary (`plan.md`), and ends with a `plan=<path>` line. It exits 2, having 
 when it cannot run: stop and show the output. In `plan.json`, every file has a `class`, an `action`, its `base`
 (`version`, `confidence`), `safety`, `stops`, `reviews` and `notes`; the top level has `counts`,
 `stops`, `reviews`, `unexplained`, `perMachine`, `registerDrafts`, `upgradeEntries`,
-`unblockedEntries`, `actions`, `engine`, `errors` and the `startCommit` the verifier compares against. Show the owner, before you change
+`unblockedEntries`, `versionEvidence`, `actions`, `engine`, `errors` and the `startCommit` the verifier compares against. Show the owner, before you change
 anything:
 
 - the number of files in each class (`counts`; the classes are the table below);
@@ -241,7 +245,11 @@ anything:
 - every unexplained local change (`unexplained`), one line each, marked when the file's `safety`
   is true;
 - the machine-block actions (`actions`, `upgradeEntries`; `upgrade/CONTRACT.md` §5) for every
-  upgrade entry that applies to the project's version;
+  upgrade entry that applies to the project's version, each under its entry's `heading` (and
+  `line` in the clone's `UPGRADE_NOTES.md`);
+- when the manifest names no kit version: the version the entry range was chosen for
+  (`versionEvidence`: how many of the files with a sure base match it), or, when it is `null`,
+  that every entry is listed;
 - every upgrade entry in the range that has no machine block (`unblockedEntries`), one line each:
   you read it in step 6;
 - the engine-minimum result (`engine`): each `checks[].min` with its `status` and the
@@ -524,7 +532,8 @@ Stop and ask the owner, and do not write the file until they answer, when:
 6. the owner's routing and `<target>` changed the same routing field (`routing-clash`; the plan
    item's notes name each field);
 7. a git hook is active, or git config names a command git runs (`core.fsmonitor`, a
-   `filter.<name>` clean, smudge or process, a `diff.<name>.textconv`; step 0) – ask whether the
+   `filter.<name>` clean, smudge or process, `diff.external` or `GIT_EXTERNAL_DIFF`, a
+   `diff.<name>.textconv` or `.command`; step 0) – ask whether the
    upgrade's git commands may run it.
 
 Each question states: the file, what the project has, what `<target>` brings, the realistic

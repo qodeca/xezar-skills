@@ -1961,6 +1961,58 @@ breaks(
   "removed: verify accepts a kit file removed with no register entry",
 );
 
+// The drift check runs in projects and keeps its own copy of lib/policy.mjs's NOT_RECORDED.
+breaks(
+  "a drift check whose not-recorded list drifts from the upgrade tool's is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('  "AGENTS.md",\n', ""),
+  () => script("test-upgrade.mjs"),
+  "not-recorded: manifest-drift.mjs's NOT_RECORDED",
+);
+
+breaks(
+  "a drift check that ignores an owner-file-appended kit block is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('  origin !== "owner-file-appended" &&\n', ""),
+  () => script("test-upgrade.mjs"),
+  "not-recorded: an owner-file-appended CLAUDE.md whose kit block changed passes",
+);
+
+// The planner drafts the register entry the verifier will require for a tracked owner-shaped file.
+breaks(
+  "a planner that drafts no register entry for a kept change in .claude/settings.json is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("          if (!item.registerConfirmed) item.unexplained = true;\n", ""),
+  () => script("test-upgrade.mjs"),
+  "owner-hook: a tracked owner-shaped file with a kept local change is not listed as unexplained",
+);
+
+// A manifest with no version: the files' sure bases pick the entry range.
+breaks(
+  "a planner that lists every upgrade entry when the files show the project's version is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const evidence = projectVersion ? null : versionEvidence(ctx, detection);", "const evidence = null;"),
+  () => script("test-upgrade.mjs"),
+  "range: a 3.0.3 install whose manifest names no version shows",
+);
+
+breaks(
+  "a plan whose upgrade entries name no heading is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const unit = units.filter((u) => u.line <= b.line).pop() ?? null;", "const unit = null;"),
+  () => script("test-upgrade.mjs"),
+  "entries: an upgrade entry's line",
+);
+
+// Every 3.1.0 entry that copies role skills needs entry 2 (the shared-contract tail).
+breaks(
+  "a 3.1.0 entry that copies role skills without needing entry 2 is rejected",
+  "UPGRADE_NOTES.md",
+  (s) => s.replace("- Entries 1, 5, 7 and 9 need entry 2:", "- Entries 1, 5 and 7 need entry 2:"),
+  () => script("test-upgrade.mjs"),
+  "needs: 3.1.0 entry 9 copies role skills",
+);
+
 // scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent
 // one-byte edit; these cover the upgrade tool's own checks.
 // A new installed path that no fragment's upgrade block lists. Aimed at the copy table rather

@@ -58,7 +58,7 @@ import { tomlError } from "../upgrade/tools/lib/toml.mjs";
 import { lineDistance } from "../upgrade/tools/lib/diff.mjs";
 import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
-import { OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
+import { NOT_RECORDED, OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import * as planTool from "../upgrade/tools/plan.mjs";
@@ -811,6 +811,25 @@ const lp1 = (files, confirmed) =>
   }
 }
 
+// 6b. Every 3.1.0 entry that copies role skills needs entry 2, which carries the new
+// `## Shared contract` tail to all of them: catalog-check refuses a mix of old and new tails.
+{
+  const text = readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8");
+  const start = text.indexOf("## 2026-09-27 – upgrading an onboarded project to 3.1.0");
+  const section = start < 0 ? "" : text.slice(start, text.indexOf("\n## ", start + 1));
+  expect(section, "needs: UPGRADE_NOTES.md has no 3.1.0 section; re-aim this case");
+  const needsOf = new Map();
+  for (const m of section.matchAll(/^- Entr(?:y|ies) ([0-9, and]+?) needs? ([^:]+):/gm)) {
+    const needed = [...m[2].matchAll(/\d+/g)].map((x) => Number(x[0]));
+    for (const n of m[1].match(/\d+/g)) needsOf.set(Number(n), [...(needsOf.get(Number(n)) ?? []), ...needed]);
+  }
+  for (const m of section.matchAll(/^### (\d+)\. [\s\S]*?^```upgrade\n([\s\S]*?)^```$/gm)) {
+    const n = Number(m[1]);
+    if (n === 2 || !/^Files: .*\.xezar\/skills\/xezar-/m.test(m[2])) continue;
+    expect((needsOf.get(n) ?? []).includes(2), `needs: 3.1.0 entry ${n} copies role skills but its Needs line does not name entry 2 (the shared-contract tail)`);
+  }
+}
+
 // ---------------------------------------------------------------------------------------
 // 7. The drift check (stream U1): on upgraded fixtures, and its own cases
 // ---------------------------------------------------------------------------------------
@@ -1150,8 +1169,38 @@ if (!HAS_DRIFT) {
     write(c, ".xezar/onboarding.json", `${JSON.stringify(old, null, 2)}\n`);
     const rc = drift(c);
     expect(rc.code === 0 && /^drift-status=pass$/m.test(rc.out), `not-recorded: an owner edit to the project's configuration, listed by an older v2 manifest, fails the drift check: ${rc.out.trim()}`);
+    // The kit's check runs in projects and cannot import lib/policy.mjs: its own list must equal
+    // the upgrade tool's, or a manifest an earlier 3.1.0 build wrote fails on an ordinary edit.
     const driftText = readFileSync(DRIFT, "utf8");
-    for (const p of OWNER_CONFIG) expect(driftText.includes(`"${p}"`), `not-recorded: manifest-drift.mjs's OWNER_CONFIG no longer lists ${p} (keep it equal to lib/policy.mjs)`);
+    const listed = /^const NOT_RECORDED = (\[[\s\S]*?\]);$/m.exec(driftText);
+    let kitList = null;
+    try {
+      kitList = listed ? JSON.parse(listed[1].replace(/,\s*\]$/, "]")) : null;
+    } catch {
+      kitList = null;
+    }
+    expect(
+      Array.isArray(kitList) && JSON.stringify([...kitList].sort()) === JSON.stringify([...NOT_RECORDED].sort()),
+      `not-recorded: manifest-drift.mjs's NOT_RECORDED (${JSON.stringify(kitList)}) differs from lib/policy.mjs's (${JSON.stringify(NOT_RECORDED)})`,
+    );
+    // An earlier 3.1.0 onboarding recorded the project's documents as generated: an edit to one
+    // of them is ordinary work, never drift. An owner-file-appended entry is still checked.
+    const g = lab("not-recorded-docs");
+    cpSync(dir, g, { recursive: true });
+    const oldDocs = JSON.parse(read(g, ".xezar/onboarding.json"));
+    for (const p of [...NOT_RECORDED, "CLAUDE.md", "docs/CLAUDE.md"]) {
+      if (!existsSync(join(g, p))) write(g, p, "# placeholder\n");
+      write(g, p, `${read(g, p)}\nan ordinary edit\n`);
+      oldDocs.files[p] = { sha256: "0".repeat(64), origin: "generated" };
+    }
+    write(g, ".xezar/onboarding.json", `${JSON.stringify(oldDocs, null, 2)}\n`);
+    const rg = drift(g);
+    expect(rg.code === 0 && /^drift-status=pass$/m.test(rg.out), `not-recorded: an edit to a project document an earlier v2 manifest lists fails the drift check: ${rg.out.trim()}`);
+    write(g, "CLAUDE.md", "# mine\n<!-- xezar:kit:start -->\nkit text\n<!-- xezar:kit:end -->\n");
+    oldDocs.files["CLAUDE.md"] = { sha256: "0".repeat(64), origin: "owner-file-appended" };
+    write(g, ".xezar/onboarding.json", `${JSON.stringify(oldDocs, null, 2)}\n`);
+    const ra = drift(g);
+    expect(ra.code === 1 && /^drift=CLAUDE\.md origin=owner-file-appended reason=hash-mismatch$/m.test(ra.out), `not-recorded: an owner-file-appended CLAUDE.md whose kit block changed passes the drift check: ${ra.out.trim()}`);
   }
 }
 
@@ -1364,6 +1413,69 @@ if (!HAS_DRIFT) {
   expect(!listed.some((h) => h.includes("to 3.0.2")), `3.0.3: 3.0.2 entries are listed for reading (${listed.join(" | ")})`);
   const dated = planTool.unblockedEntries?.(root, "3.0.0", "2026-09-23")?.entries.map((e) => e.heading) ?? [];
   expect(dated.some((h) => h.includes("my routing still sends Codex work")) && !dated.some((h) => h.startsWith("2026-09-22")), `range: entries dated before the project's version are listed, or same-day ones dropped (${dated.join(" | ")})`);
+}
+
+// 14a. A tracked owner-shaped file (.claude/settings.json) whose kept content differs from the
+// kit's copy at its base and at the target: the verifier requires a register entry for it, so
+// the plan drafts one and lists it as unexplained and for reading (cmplus dry run).
+{
+  const p = ".claude/settings.json";
+  const dir = materialize(fx303, {
+    name: "owner-shaped-hook",
+    edit: (d) => {
+      const j = JSON.parse(read(d, p));
+      j.hooks = { ...j.hooks, PostToolUse: [{ matcher: "Edit", hooks: [{ type: "command", command: "bash scripts/format.sh" }] }] };
+      write(d, p, `${JSON.stringify(j, null, 2)}\n`);
+    },
+  });
+  const plan = buildPlan(ctxFor(dir));
+  const item = byPath(plan).get(p);
+  expect(item?.class === "owner-shaped", `owner-hook: ${p} is ${item?.class}, not owner-shaped; re-aim this case`);
+  expect(plan.unexplained.includes(p), `owner-hook: a tracked owner-shaped file with a kept local change is not listed as unexplained (${plan.unexplained.join(", ")})`);
+  expect(plan.registerDrafts.add.some((d) => d.files.includes(p)), "owner-hook: no register entry is drafted for a tracked owner-shaped file the verifier will require one for");
+  expect(plan.reviews.some((r) => r.path === p && r.reason === "safety-local-change"), "owner-hook: the kept change in a safety file is not on the reviews list");
+  // Untouched, it needs nothing; an untracked owner-shaped file (SDLC.md) never gets a draft.
+  const clean = buildPlan(ctxFor(materialize(fx303, { name: "owner-hook-clean", edit: (d) => write(d, "SDLC.md", `${read(d, "SDLC.md") ?? ""}\nOur rule.\n`) })));
+  expect(!clean.unexplained.includes(p) && !clean.registerDrafts.add.some((d) => d.files.includes(p)), "owner-hook: an untouched .claude/settings.json is drafted a register entry");
+  expect(!clean.registerDrafts.add.some((d) => d.files.includes("SDLC.md")), "owner-hook: SDLC.md, which the manifest never tracks, is drafted a register entry");
+}
+
+// 14b. A manifest that names no kit version (`version: 1`): the entry range comes from the
+// files' sure bases, not from every entry back to the first. With no such evidence it stays
+// "every entry", and plan.md says which.
+{
+  const withVersion = buildPlan(ctxFor(materialize(fx303, { name: "range-known" })));
+  const unnamed = buildPlan(
+    ctxFor(materialize(fx303, { name: "range-evidence", edit: (d) => write(d, ".xezar/onboarding.json", `${JSON.stringify({ ...fx303.manifest, version: 1 }, null, 2)}\n`) })),
+  );
+  const heads = (plan) => plan.upgradeEntries.map((e) => `${e.line}:${e.appliesTo}`).join(" | ");
+  const every = upgradeEntries(root, null).entries;
+  expect(unnamed.versionEvidence?.version === "3.0.3", `range: a 3.0.3 install whose manifest names no version shows ${JSON.stringify(unnamed.versionEvidence)}, not 3.0.3`);
+  expect(unnamed.versionEvidence && unnamed.versionEvidence.support * 2 > unnamed.versionEvidence.total, "range: the evidence is not a majority of the sure files");
+  expect(heads(unnamed) === heads(withVersion), `range: with no manifest version the entries are not those for 3.0.3 (${unnamed.upgradeEntries.length} vs ${withVersion.upgradeEntries.length})`);
+  expect(unnamed.upgradeEntries.length < every.length, `range: the evidence did not narrow the entries (${unnamed.upgradeEntries.length} of ${every.length})`);
+  expect(!(unnamed.unblockedEntries ?? []).some((e) => e.heading.includes("to 3.0.2")), "range: with the files at 3.0.3, 3.0.2 entries are still listed for reading");
+  expect(summary(unnamed).includes("Upgrade entries are chosen as for 3.0.3"), "range: plan.md does not say the range came from the files");
+  const bare = buildPlan(
+    ctxFor(materialize(fx303, { name: "range-none", edit: (d) => write(d, ".xezar/onboarding.json", `${JSON.stringify({ version: 1, date: fx303.manifest.date }, null, 2)}\n`) })),
+  );
+  expect(bare.versionEvidence === null && bare.upgradeEntries.length === every.length, `range: with no evidence at all the plan does not list every entry (${bare.upgradeEntries.length} of ${every.length})`);
+  expect(summary(bare).includes("every upgrade entry is listed"), "range: plan.md does not say every entry is listed when nothing names a version");
+}
+
+// 14c. Each upgrade entry in the plan names its UPGRADE_NOTES.md heading and line, and plan.md
+// lists each entry's actions under that heading.
+{
+  const plan = buildPlan(ctxFor(materialize(fx303, { name: "entry-headings" })));
+  const notes = readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8").split("\n");
+  for (const e of plan.upgradeEntries) {
+    const at = notes[e.line - 1] ?? "";
+    expect(typeof e.heading === "string" && /^#{2,3} /.test(at) && e.heading.endsWith(at.replace(/^#{2,3} /, "").trim()), `entries: an upgrade entry's line ${e.line} is not its heading ${JSON.stringify(e.heading)} (${JSON.stringify(at)})`);
+  }
+  const design = plan.upgradeEntries.find((e) => e.actions.includes("config-key=designSystem.modules"));
+  expect(design && design.heading.includes("1. Design-system modules"), `entries: the designSystem.modules action is not under entry 1's heading (${design?.heading})`);
+  const md = summary(plan);
+  expect(design && md.includes(`- ${design.source}:${design.line} ${design.heading}\n  - config-key=designSystem.modules`), "entries: plan.md does not list an entry's actions under its heading");
 }
 
 // detect() is exercised through buildPlan; keep one direct call so its export stays honest.
