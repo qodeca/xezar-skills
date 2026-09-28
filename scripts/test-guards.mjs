@@ -1919,9 +1919,26 @@ breaks(
 breaks(
   "a gate that no longer runs the drift check is rejected",
   "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
-  (s) => s.replace('node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT"\n', ""),
+  (s) => s.replace('node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT" || drift_rc=$?\n', ""),
   () => script("test-kit-facts.mjs"),
   "no longer runs manifest-drift.mjs",
+);
+
+breaks(
+  "a gate that records a drift failure and then exits 0 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('  exit "$drift_rc"\n', ""),
+  () => script("test-upgrade.mjs"),
+  "a drift failure alone does not fail the script at the end",
+);
+
+// A kept local change with no register entry must stop verify before the manifest records it.
+breaks(
+  "a verifier that lets a kept local change through without a register entry is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace("if (!unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) problem", "if (false) problem"),
+  () => script("test-upgrade.mjs"),
+  "unregistered: verify accepts a kept edit",
 );
 
 // scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent

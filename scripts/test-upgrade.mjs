@@ -918,6 +918,38 @@ if (!HAS_DRIFT) {
   const good = projectChecks(ctxFor(clean), ["repository"])[0];
   expect(!good.out.includes("verify-probe-loose.txt") && !/loose entries/.test(good.out), `verify: the repository check reports a loose entry in a project that has none:\n${good.out.split("\n").slice(0, 8).join("\n")}`);
 
+  // A drift failure must not hide the checks after it (step 7.4 reads every result): with a silent
+  // edit AND a broken routing file, both are reported and the check still fails.
+  const tidy = (d) => { for (const sub of ["runtime", "tasks", "worktrees", "cache", "qa"]) mkdirSync(join(d, ".local/xezar", sub), { recursive: true }); };
+  const both = lab("verify-repo-drift-and-route");
+  cpSync(base, both, { recursive: true });
+  tidy(both);
+  write(both, unchangedChecks[0], `${read(both, unchangedChecks[0])}# silent\n`);
+  write(both, ".xezar/routing.json", "{ not json\n");
+  const r2 = projectChecks(ctxFor(both), ["repository"])[0];
+  expect(r2.status === "fail" && /drift-status=fail/.test(r2.out), `verify: the repository check does not report the drift failure:\n${r2.out.split("\n").slice(0, 8).join("\n")}`);
+  expect(/routing\.json/.test(r2.out.replace(/^drift=.*$/gm, "")), `repository-checks: a drift failure stops the checks after it (the broken routing.json went unreported):\n${r2.out.split("\n").slice(0, 12).join("\n")}`);
+  // With every other check passing, a drift failure still fails the script at the end. The other
+  // checks are stubs here: the fixture cannot pass config-guard without a remote.
+  const stubs = lab("repo-checks-stubs");
+  const checksDir = join(stubs, ".xezar/checks");
+  mkdirSync(checksDir, { recursive: true });
+  cpSync(join(KIT_SKILL, "kit/checks/repository-checks.sh"), join(checksDir, "repository-checks.sh"));
+  for (const f of ["local-tree.sh", "config-guard.sh"]) writeFileSync(join(checksDir, f), "exit 0\n");
+  for (const f of ["catalog-check.mjs", "fenced-quotes.mjs", "documented-output.mjs"]) writeFileSync(join(checksDir, f), "process.exit(0);\n");
+  const runStub = (driftCode) => {
+    writeFileSync(join(checksDir, "manifest-drift.mjs"), `process.exit(${driftCode});\n`);
+    try {
+      execFileSync("bash", [join(checksDir, "repository-checks.sh"), stubs], { cwd: stubs, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return { code: 0, out: "" };
+    } catch (e) {
+      return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
+    }
+  };
+  const driftOnly = runStub(1);
+  expect(driftOnly.code === 1 && /manifest-drift failed/.test(driftOnly.out), `repository-checks: a drift failure alone does not fail the script at the end (exit ${driftOnly.code}): ${driftOnly.out.trim()}`);
+  expect(runStub(0).code === 0, "repository-checks: the stubbed checks do not pass with no drift");
+
   for (const tool of ["detect", "plan", "apply", "verify"]) {
     let out = "";
     let code = 0;
@@ -1203,6 +1235,36 @@ if (!HAS_DRIFT) {
     const kept = drift(up);
     expect(kept.code === 0 && /^drift-status=pass$/m.test(kept.out), `removed: a deletion recorded as a confirmed local patch fails the drift check: ${kept.out.trim()}`);
   }
+}
+
+// 12b2. A kept local change must be in the register before the manifest records it. An edited
+// check the kit did not change is kept by the plan (unexplained-local-change); if the register
+// draft is dropped, verify must fail unregistered-local-change and write no manifest, or the
+// edit becomes the recorded installed state and no drift check sees it again.
+{
+  const p = unchangedChecks[0];
+  const edited = (name, register) =>
+    materialize(fx303, {
+      name,
+      edit: (d) => {
+        write(d, p, `${read(d, p)}# edited locally\n`);
+        if (register) write(d, ".xezar/LOCAL-PATCHES.md", lp1(p, "no"));
+      },
+    });
+  const bare = edited("unregistered-edit", false);
+  const plan = buildPlan(ctxFor(bare));
+  expect(byPath(plan).get(p)?.action === "keep", `unregistered: the plan does not keep the local edit to ${p} (${byPath(plan).get(p)?.action})`);
+  applyPlan(ctxFor(bare), plan);
+  const manifestBefore = read(bare, ".xezar/onboarding.json");
+  const v = verify(ctxFor(bare), plan, { checks: [] });
+  expect(v.status === "fail" && v.problems.some((x) => x.kind === "unregistered-local-change" && x.path === p), `unregistered: verify accepts a kept edit to ${p} with no register entry: ${JSON.stringify(v.problems)}`);
+  expect(read(bare, ".xezar/onboarding.json") === manifestBefore, "unregistered: verify wrote the manifest although a kept edit has no register entry");
+  expect(!invariants(ctxFor(bare), plan).some((x) => x.kind === "unregistered-local-change" && x.path !== p), `unregistered: an untouched kit file is reported: ${JSON.stringify(invariants(ctxFor(bare), plan).filter((x) => x.kind === "unregistered-local-change" && x.path !== p))}`);
+  const withEntry = edited("registered-edit", true);
+  const plan2 = buildPlan(ctxFor(withEntry));
+  applyPlan(ctxFor(withEntry), plan2);
+  const inv = invariants(ctxFor(withEntry), plan2).filter((x) => x.kind === "unregistered-local-change");
+  expect(!inv.length, `unregistered: a kept edit the register names is refused: ${JSON.stringify(inv)}`);
 }
 
 // 12c. The leader guide is generated from a kit template: its plan item points at that template,

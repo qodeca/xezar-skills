@@ -1241,7 +1241,7 @@ function walk(rel, match) {
 {
   const fact = "FACT U1: the manifest drift check runs in the gate and agrees with the prose that writes the manifest";
   const checks = read(`${SKILL}/kit/checks/repository-checks.sh`);
-  if (!/^node "\$SCRIPT_DIR\/manifest-drift\.mjs" "\$REPO_ROOT"$/m.test(checks))
+  if (!/^node "\$SCRIPT_DIR\/manifest-drift\.mjs" "\$REPO_ROOT" \|\| drift_rc=\$\?$/m.test(checks))
     fail(fact, "kit/checks/repository-checks.sh", "no longer runs manifest-drift.mjs, so a silently edited kit file passes the gate");
   const script = read(`${SKILL}/kit/checks/manifest-drift.mjs`);
   for (const marker of ["<!-- xezar:kit:start -->", "<!-- xezar:kit:end -->"]) {

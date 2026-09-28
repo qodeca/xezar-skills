@@ -23,7 +23,8 @@ Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. T
 the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
-are the same changes for a hand upgrade: **one ordered block – apply them top to bottom, in the
+are the same changes for a hand upgrade, which ends with the verifier writing the new manifest
+(entry 10): **one ordered block – apply them top to bottom, in the
 order below**. Skip an entry only when your repository does not have its symptom **and** no entry
 you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
 brings. Each entry ends with an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and
@@ -55,8 +56,8 @@ older file:
 - Entry 5 needs entry 9: its `address-review-findings.yaml` pushes through `push-check.sh`. It also
   needs `.xezar/checks/deps-restore.sh`, which `review-run.sh install` runs: a project onboarded
   before 3.0.2 that skipped 3.0.2's monorepo entry lacks it, so copy it from the kit, with entry
-  12 (or entry 6, for a project with `dependencies.units`) for the `lib/common.sh` and
-  `lib/deps.mjs` it sources. It is not in entry 5's block: it has not changed since 3.0.2.
+  12 (or entry 6, for a project with `dependencies.units`) for the `lib/deps.mjs` it sources;
+  entry 5 itself brings the new `lib/common.sh`. It is not in entry 5's block: it has not changed since 3.0.2.
 - Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
   only entry 10 installs that file.
 
@@ -177,11 +178,14 @@ mcp__chrome-devtools__emulate has been denied" (or `evaluate_script`, `lighthous
 cannot start the app it should test.
 
 **What to do.** Copy the kit's workflows, `catalog-check.mjs`, `gh-write.sh`, `verdict-write.sh`,
-`lib/gate-record.sh`, the new `review-run.sh`, the seven role skills and the chrome-devtools
+`lib/gate-record.sh`, `lib/common.sh`, the new `review-run.sh`, the seven role skills and the chrome-devtools
 descriptor listed below. `review-run.sh install` runs `.xezar/checks/deps-restore.sh`: a project
 without it (a single-root project onboarded before 3.0.2 that skipped 3.0.2's monorepo entry)
 copies it from the kit too – `cp $K/checks/deps-restore.sh .xezar/checks/` – with entry 12's
-`lib/common.sh` and `lib/deps.mjs`, which it sources. The new `lib/bootstrap.mjs` copies the
+`lib/deps.mjs`, which it sources. Every project copies the new `lib/common.sh` here, units or not:
+the review runs `review-run.sh install` from the cache below, and an older `common.sh` there
+cannot find the project root, so the review installs and runs the change with whatever node is on
+`PATH` instead of the pinned one, without a word. The new `lib/bootstrap.mjs` copies the
 kit's scripts to `.local/xezar/cache/kit/checks/` on every kit step, and the review workflows run
 them only from there: checking a pull request out replaces `.xezar/checks/` with that pull
 request's own copies, which on a pull request branched before this upgrade are the old ones. A
@@ -204,7 +208,7 @@ the author's, even in a run whose gates step was frozen before the producer flag
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/bootstrap.mjs; .xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new; .xezar/checks/verdict-write.sh; .xezar/pipeline/browsers/chrome-devtools.md; .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md; .xezar/workflows/acceptance-verification.yaml; .xezar/workflows/address-review-findings.yaml; .xezar/workflows/architecture-review.yaml; .xezar/workflows/architecture.yaml; .xezar/workflows/bug-fix.yaml; .xezar/workflows/business-analysis.yaml; .xezar/workflows/code-review.yaml; .xezar/workflows/dependency-maintenance.yaml; .xezar/workflows/deploy.yaml; .xezar/workflows/deprecation-plan.yaml; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/docs-maintenance.yaml; .xezar/workflows/feature-implementation.yaml; .xezar/workflows/hotfix.yaml; .xezar/workflows/integration-tests.yaml; .xezar/workflows/integration.yaml; .xezar/workflows/issue-filing.yaml; .xezar/workflows/issue-triage.yaml; .xezar/workflows/localisation.yaml; .xezar/workflows/migration.yaml; .xezar/workflows/observability.yaml; .xezar/workflows/performance.yaml; .xezar/workflows/plan-and-spec.yaml; .xezar/workflows/qa.yaml; .xezar/workflows/refactor.yaml; .xezar/workflows/regression-suite.yaml; .xezar/workflows/release-prep.yaml; .xezar/workflows/release.yaml; .xezar/workflows/research.yaml; .xezar/workflows/root-sync.yaml; .xezar/workflows/security-review.yaml; .xezar/workflows/spike.yaml; .xezar/workflows/testing-and-verification.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/ui-tests.yaml; .xezar/workflows/visual-asset.yaml
+Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/bootstrap.mjs; .xezar/checks/lib/common.sh; .xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new; .xezar/checks/verdict-write.sh; .xezar/pipeline/browsers/chrome-devtools.md; .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md; .xezar/workflows/acceptance-verification.yaml; .xezar/workflows/address-review-findings.yaml; .xezar/workflows/architecture-review.yaml; .xezar/workflows/architecture.yaml; .xezar/workflows/bug-fix.yaml; .xezar/workflows/business-analysis.yaml; .xezar/workflows/code-review.yaml; .xezar/workflows/dependency-maintenance.yaml; .xezar/workflows/deploy.yaml; .xezar/workflows/deprecation-plan.yaml; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/docs-maintenance.yaml; .xezar/workflows/feature-implementation.yaml; .xezar/workflows/hotfix.yaml; .xezar/workflows/integration-tests.yaml; .xezar/workflows/integration.yaml; .xezar/workflows/issue-filing.yaml; .xezar/workflows/issue-triage.yaml; .xezar/workflows/localisation.yaml; .xezar/workflows/migration.yaml; .xezar/workflows/observability.yaml; .xezar/workflows/performance.yaml; .xezar/workflows/plan-and-spec.yaml; .xezar/workflows/qa.yaml; .xezar/workflows/refactor.yaml; .xezar/workflows/regression-suite.yaml; .xezar/workflows/release-prep.yaml; .xezar/workflows/release.yaml; .xezar/workflows/research.yaml; .xezar/workflows/root-sync.yaml; .xezar/workflows/security-review.yaml; .xezar/workflows/spike.yaml; .xezar/workflows/testing-and-verification.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/ui-tests.yaml; .xezar/workflows/visual-asset.yaml
 ```
 
 ### 6. Install freshness – a `node_modules` edited in place still counts as current
@@ -337,7 +341,11 @@ cp $K/checks/local-tree.sh .xezar/checks/
 ```
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
-prompt rewrites the manifest. From then on, for every `drift=` line:
+prompt rewrites the manifest. A hand upgrade does not: it ends with the verifier from a verified
+clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
+manifest version 2 and sets `version` once every kept local change has a register entry. Skip that
+and the drift check stays off (`not-applicable`) and a later upgrade still reads the project as
+its old version. From then on, for every `drift=` line:
 
 - the change is deliberate → add an entry to `.xezar/LOCAL-PATCHES.md` and `"patch": "LP-<n>"` to
   the file's manifest entry, keeping its `sha256` and `origin` (they are the upgrade's base);
@@ -1923,6 +1931,14 @@ cp <path-to-skills>/xez-setup-agent-pipeline/references/trackers/github.md .xeza
 `~/.claude/skills`, `~/.codex/skills`, or a vendored checkout inside your repo.
 Re-running `/xez-setup-agent-pipeline` also refreshes the descriptor, but plain-copies it –
 prefer the diff-and-merge route when you have customized operations.
+
+**A project onboarded by `xez-onboard-opinionated` at 3.1.0 or later** (`.xezar/onboarding.json`
+with `manifestVersion` 2 or higher) records its descriptors in that manifest, and the drift check
+fails the next gate with `reason=hash-mismatch` on a descriptor copied or merged by hand. Refresh
+them there through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
+manifest entry together, not through the steps in this section, `/xez-apply-upgrade-notes` or a
+re-run of `/xez-setup-agent-pipeline`. A deliberate local change to one goes in
+`.xezar/LOCAL-PATCHES.md` (`.xezar/docs/local-patches.md`).
 
 For the shipped `linear` or `jira` split provider, substitute its filename in the commands
 above and repeat the diff for the companion `.xezar/pipeline/trackers/github.md`. The primary descriptor owns
