@@ -1,5 +1,5 @@
 {
-  "commit": "439395d51c9a372ec27c9a26c2c0a01e725de10e",
+  "commit": "5847e75cbec568db8ed4796392534f86956243fb",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -122,10 +122,10 @@
       "sha256": "01a4162d52b0708dec2f47bc4ed8dbf2dc12f44fac24a2eda7abcff6f0a1ab9d"
     },
     ".xezar/checks/gh-write.sh": {
-      "kitBlob": "893056b9f2d2b273d392e0869f0291d249f60634",
+      "kitBlob": "bd5e7636999ce7e0b5c72feb718d7454456a735a",
       "kitSource": "checks/gh-write.sh",
       "rewrite": "copied",
-      "sha256": "b9fd78a00986a3ab59499e71be6202e04fdd3ba9c9e8315a992da5f57e25651b"
+      "sha256": "532790ef020e5fbefc8e0a81dcfff1ad83e26ab22e568375a2ce3e4a9d8581c8"
     },
     ".xezar/checks/git-read.sh": {
       "kitBlob": "f2122b93e6344dcafab617552941ed5d51ef7b05",
@@ -392,10 +392,10 @@
       "sha256": "5d00cb5c0fc9d11f983bf826a5051cb7ca5941457c9b5200758299120bd4d5d9"
     },
     ".xezar/docs/recovery.md": {
-      "kitBlob": "5957e9cde6588958b4a9223273694cce7e94a783",
+      "kitBlob": "59d2458ae4932f82277a2ba57e590319de573be6",
       "kitSource": "docs/recovery.md",
       "rewrite": "copied",
-      "sha256": "a3c7f32351fa1b892d1af96ae55293ea5a1d39e5c7c05113ece2651c84f5c96f"
+      "sha256": "a511844f55c13601f5a10c00d68a68bfabf0eba2ed97ab22daa9c4c3a2a25268"
     },
     ".xezar/docs/routing.md": {
       "kitBlob": "b050fcbc5412f585cfc44bd292ddd2016c1d23b9",
@@ -959,6 +959,6 @@
       "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+5847e75cbec5"
 }
