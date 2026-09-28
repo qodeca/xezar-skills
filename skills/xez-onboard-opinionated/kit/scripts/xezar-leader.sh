@@ -12,9 +12,18 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-socket=".local/xezar/ipc/$(basename "$PWD").sock"
-if [ ! -S "$socket" ]; then
-  echo "xezar-leader: the engine is not running here ($socket is missing)." >&2
+# The engine names its socket after the project id, not the folder: lower-cased, with other
+# characters turned into '-', sometimes a '-2' suffix, or a hash for a long path. So accept any
+# socket in the ipc folder, which in single-project mode belongs to this project alone.
+socket=""
+for candidate in .local/xezar/ipc/*.sock; do
+  if [ -S "$candidate" ]; then
+    socket="$candidate"
+    break
+  fi
+done
+if [ -z "$socket" ]; then
+  echo "xezar-leader: the engine is not running here (no socket in .local/xezar/ipc/)." >&2
   echo "  Start it in its own terminal, in this folder, and leave it open:" >&2
   echo "    xezar --single-project --no-open" >&2
   exit 1

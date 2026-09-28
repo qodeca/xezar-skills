@@ -19,10 +19,11 @@ The setup's machinery: every file installed from the kit, including the leader g
 configuration – `.xezar/config.json`, `.xezar/pipeline/config.json`,
 `.xezar/pipeline/labels.json` and `.xezar/routing.json` – which routing changes, new gate
 commands, label changes and design-module status updates edit as ordinary work; the security
-scan's trust boundary and `route.mjs --check` guard those instead. A manifest that still lists
-one of them (written by an earlier 3.1.0 build) is not failed for it. Nor does it track a file the project already had that the setup
-merged into without a kit block (`.mcp.json`, `.codex/config.toml`, the root `.gitignore`), or any
-gitignored file. `.xezar/onboarding.json` and `.xezar/LOCAL-PATCHES.md` never list themselves.
+scan's trust boundary and `route.mjs --check` guard those instead. Nor does it track a file the
+project already had that the setup merged into without a kit block (`.mcp.json`,
+`.codex/config.toml`, the root `.gitignore`), or any gitignored file. A manifest that still lists
+one of these documents, configuration files or merged files (written by an earlier 3.1.0 build)
+is not failed for it: the drift check ignores that entry. `.xezar/onboarding.json` and `.xezar/LOCAL-PATCHES.md` never list themselves.
 
 For an `owner-file-appended` file, only the block from `<!-- xezar:kit:start -->` to
 `<!-- xezar:kit:end -->`, both markers included, is the kit's and is hashed. The rest is the owner's.

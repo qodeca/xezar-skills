@@ -41,7 +41,7 @@ refused after entry 9; re-dispatch it.
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
 changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing →
-single-root freshness. Entries 3 and 11 change the same routing files: copy
+single-root freshness → leader launcher. Entries 3 and 11 change the same routing files: copy
 `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once against the defaults
 version 4, which carries both changes. Entries 5, 6 and 12 copy the same `deps.mjs`, and
 entries 6 and 12 the same `worktrees.md`: copy each once.
@@ -49,6 +49,9 @@ entries 6 and 12 the same `worktrees.md`: copy each once.
 **Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
 older file:
 
+- Entries 1, 5, 7 and 9 need entry 2: the role skills they copy carry the 3.1.0
+  `## Shared contract` tail, and `catalog-check.mjs` (old and new) refuses a mix of old and new
+  tails across the role skills.
 - Entry 1 needs entry 5: `design-review.yaml` runs the new `review-run.sh`, which only entry 5
   brings, and an older `catalog-check.mjs` refuses that allowlist entry.
 - Entry 2 needs entries 5 and 9: six of its role skills run `review-run.sh` (entry 5), and
@@ -70,6 +73,25 @@ and restart the leader with `./scripts/xezar-leader.sh`. Then check that the lea
 loops and that `node .xezar/checks/route.mjs --check` passes.
 
 Every `cp` below starts from `K=.claude/skills/xez-onboard-opinionated/kit`.
+
+**Never copy over a local change.** A 3.0.x project has no drift check, and the verifier at the
+end cannot see an edit a copy overwrote: the file then equals the 3.1.0 copy, and the new manifest
+records it as clean. So before each copy (or "copy … from the kit" step), compare the project's
+file with the kit's copy at your installed version, from the verified clone:
+
+```bash
+git -C <verified clone> show v<old>:skills/xez-onboard-opinionated/kit/<kit path> | diff - <project path>
+```
+
+`v<old>` is the version in `.xezar/onboarding.json` (for `<tag>+<commit>`, use the commit);
+`<kit path>` is the path the entry's `cp` reads under `$K` (`.xezar/checks/x.sh` comes from
+`checks/x.sh`, `.xezar/skills/y.md` from `skills/y.md`). An
+adapted file (`.github/` templates, `repo-gates.sh`, a file with a rewritten absolute path) also
+differs by its filled-in values; those are not a local change. If the file differs otherwise,
+merge by hand instead of copying: take the kit's change, keep yours, and add a
+`.xezar/LOCAL-PATCHES.md` entry for the file (format: `.xezar/docs/local-patches.md`) before you
+run the verifier. If you are not sure – or the manifest names no version – use the upgrade
+prompt, which does this for every file.
 
 ### 1. Design-system modules – design roles mix a brand book and an app's design system
 
@@ -106,10 +128,17 @@ patch once it has checked that `toolchain.providers`, `dependencies.units` (if i
 install roots) and `validation.commands` in `.xezar/pipeline/config.json` name its real
 toolchain and commands. Nothing else changes; no config key is added.
 
+Every copied role skill ends in the 3.1.0 `## Shared contract` tail, and `catalog-check.mjs`
+requires the same tail in every `xezar-*` role skill that has one. A role skill of your own in
+`.xezar/skills/` with a `## Shared contract` section takes the new tail too: replace everything
+from its `## Shared contract` heading to the end with the same part of the kit's
+`skills/xezar-docs-maintenance.md`, keeping your text above the heading.
+
 **What you lose by skipping it.** Installed role skills do not update themselves: the dependency
 and testing agents keep giving npm instructions on a non-npm project, and every author keeps being
-told to run a typecheck command the project may not have. A single-root npm project loses nothing
-in behaviour by skipping it, but its role skills drift from the kit.
+told to run a typecheck command the project may not have. You can skip it only when you apply
+none of entries 1, 5, 7 and 9: each copies role skills with the new tail, and a mix of old and new
+tails fails `catalog-check.mjs`, so the last gate goes red on every task.
 
 ```upgrade
 Applies-to: <3.1.0
@@ -444,6 +473,35 @@ reinstall on every `--fast` run in a project whose gates write into `node_module
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/checks/lib/deps.mjs; .xezar/checks/lib/common.sh; .xezar/docs/worktrees.md; .xezar/checks/repo-gates.sh
+```
+
+### 13. Leader launcher – "the engine is not running here" while the engine runs
+
+**Symptom.** `./scripts/xezar-leader.sh` prints `the engine is not running here
+(.local/xezar/ipc/<folder>.sock is missing)` and exits, although `xezar --single-project` is
+running in the same folder. It happens when the folder name has capitals, `_`, `.` or other
+characters the engine replaces with `-` (`My_App` → `my-app.sock`), when the name is one the
+engine reserves or already uses (`api` → `api-2.sock`), and on a long path, where the engine
+names the socket by a hash.
+
+**What to do.** Copy the launcher from the kit (compare first, as the preamble says, if you
+changed it):
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/scripts/xezar-leader.sh scripts/
+```
+
+It now accepts any socket in `.local/xezar/ipc/`, which in single-project mode belongs to this
+project alone, instead of rebuilding the engine's name for it.
+
+**What you lose by skipping it.** Nothing, when the leader already starts through the launcher.
+Otherwise the leader starts only by hand
+(`XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar --settings scripts/xezar-leader-settings.json`).
+
+```upgrade
+Applies-to: <3.1.0
+Files: scripts/xezar-leader.sh
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed

@@ -19,8 +19,11 @@
 //     stops: [ { path, reason } ], reviews: [ { path, reason } ], unexplained: [path],
 //     perMachine: [path],
 //     registerDrafts: { add: [ { files, reason } ], remove: [LP-n] },
-//     upgradeEntries: [ { source, appliesTo, files, actions } ], actions: [action],
+//     upgradeEntries: [ { source, line, heading, appliesTo, files, actions } ], actions: [action],
+//       (line and heading are the entry's heading in UPGRADE_NOTES.md, as for unblockedEntries)
 //     unblockedEntries: [ { source, line, heading } ],
+//     versionEvidence: null | { version, support, total }: for a manifest that names no kit
+//       version, the version the files show (see versionEvidence), which picks the entry range,
 //     engine: null | { version, source, checks: [ { min, status: met|unmet|unknown } ] },
 //     errors: [text] }
 // `engine` evaluates the range's engine-min=<v> actions (null when there are none); the version
@@ -62,6 +65,7 @@ import {
 import { registerByPath } from "./lib/register.mjs";
 import { parseBlocks, parseEntries, satisfies, parseVersion, compareVersions } from "./lib/machine-block.mjs";
 import { resolveInside } from "./lib/paths.mjs";
+import { recordable, unchangedFromKit } from "./verify.mjs";
 
 /** The planner's stop reasons, each mapped to a rule in the prompt's stop-and-ask list. */
 export const STOP_REASONS = ["unexplained-safety-file", "weakens-safety-check", "permission-change", "routing-clash"];
@@ -131,7 +135,10 @@ export function inputsFor(ctx, f, global) {
   return { ...global, ...(own ?? {}) };
 }
 
-/** The upgrade entries whose Applies-to covers the project's version. */
+/**
+ * The upgrade entries whose Applies-to covers the project's version, each with the heading and
+ * line of the UPGRADE_NOTES.md entry it ends (the nearest entry heading above its block).
+ */
 export function upgradeEntries(toolRoot, projectVersion) {
   // UPGRADE_NOTES.md only: a release folds its working notes into it, so the plan never
   // depends on which commit was tagged.
@@ -142,11 +149,14 @@ export function upgradeEntries(toolRoot, projectVersion) {
   const errors = [];
   for (const [source, text] of sources) {
     const parsed = parseBlocks(text, source);
+    const units = parseEntries(text, source);
     errors.push(...parsed.errors);
     for (const b of parsed.blocks) {
       if (!b.appliesTo) continue;
+      const unit = units.filter((u) => u.line <= b.line).pop() ?? null;
+      const entry = { source: b.source, line: unit ? unit.line : b.line, heading: unit ? unit.heading : null, appliesTo: b.appliesTo, files: b.files, actions: b.actions };
       try {
-        if (!projectVersion || satisfies(b.appliesTo, projectVersion)) entries.push(b);
+        if (!projectVersion || satisfies(b.appliesTo, projectVersion)) entries.push(entry);
       } catch (e) {
         errors.push(`${source}: ${e.message}`);
       }
@@ -182,13 +192,34 @@ export function unblockedEntries(toolRoot, projectVersion, projectDate) {
   return { entries, errors };
 }
 
-/** The day (YYYY-MM-DD) the project's kit version was committed, or null when the clone cannot tell. */
-export function versionDate(ctx) {
-  const v = ctx.history.find((x) => x.version === ctx.manifest.version);
+/** The day (YYYY-MM-DD) a kit version (the project's by default) was committed, or null when the clone cannot tell. */
+export function versionDate(ctx, version = ctx.manifest.version) {
+  const v = ctx.history.find((x) => x.version === version);
   if (!v?.commit) return null;
   const out = git(["log", "-1", "--format=%cs", v.commit], ctx.toolRoot, { allowFail: true });
   const d = (out ?? "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+}
+
+/**
+ * The project's kit version as its files show it, for a manifest that names none (a v1 manifest
+ * with `version: 1`, or none at all). Only files whose base detection is sure of (confidence
+ * high: the file and the manifest's own digest agree) count. Each earlier kit version scores the
+ * files whose kit copy it shares; the version with the most, the oldest on a tie, is the answer
+ * when more than half of those files agree with it. The oldest is the safe side: it lists an
+ * entry too many rather than one too few. Null when there is no such evidence.
+ */
+export function versionEvidence(ctx, detection) {
+  const sure = detection.files.filter((f) => f.mine === "present" && f.base?.confidence === "high" && f.base.entry?.kitBlob);
+  if (!sure.length) return null;
+  let best = null;
+  for (const v of ctx.candidates) {
+    let support = 0;
+    for (const f of sure) if (v.files[f.path]?.kitBlob === f.base.entry.kitBlob) support += 1;
+    if (support > 0 && (!best || support > best.support)) best = { version: v.version, support };
+  }
+  if (!best || best.support * 2 <= sure.length) return null;
+  return { version: best.version, support: best.support, total: sure.length };
 }
 
 /**
@@ -401,6 +432,15 @@ export function buildPlan(ctx, detection = detect(ctx)) {
             if (c.mine.length) item.notes.push(`routing: owner changed fields under ${top(c.mine)}`);
             if (c.theirs.length) item.notes.push(`routing: target changed fields under ${top(c.theirs)}`);
           }
+        }
+        // An owner-shaped file the manifest tracks (`.claude/settings.json`: a project hook, a
+        // local permission) that differs from the kit's copy on both sides keeps that change
+        // through the merge, and the verifier then requires a register entry for it: draft one
+        // now, like any other unexplained local change, so the plan and the verifier agree.
+        if (te.rewrite !== "generated" && recordable(ctx, p) && !unchangedFromKit(ctx, p, te, f.mineText, f)) {
+          item.notes.push("differs from the kit's copy at its base and at the target: a kept change needs a register entry (the manifest tracks this file)");
+          if (!item.registerConfirmed) item.unexplained = true;
+          if (item.safety) review("safety-local-change");
         }
       } else if (te?.kitSource && !exists) {
         item.notes.push("new in the kit: add it, merged with the owner's existing setup");
@@ -624,9 +664,12 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       .map((i) => ({ files: [i.path], reason: "local change found by the upgrade with no confirmed register entry" })),
     remove: [...new Set(out.filter((i) => i.class === "already-upstream" && i.register.length).flatMap((i) => i.register))].sort(),
   };
-  const { entries, errors } = upgradeEntries(ctx.toolRoot, parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null);
+  // The entry range starts at the manifest's version; with none, at the version the files show.
   const projectVersion = parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null;
-  const unblocked = unblockedEntries(ctx.toolRoot, projectVersion, projectVersion ? versionDate(ctx) : null);
+  const evidence = projectVersion ? null : versionEvidence(ctx, detection);
+  const rangeVersion = projectVersion ?? evidence?.version ?? null;
+  const { entries, errors } = upgradeEntries(ctx.toolRoot, rangeVersion);
+  const unblocked = unblockedEntries(ctx.toolRoot, rangeVersion, rangeVersion ? versionDate(ctx, rangeVersion) : null);
   errors.push(...unblocked.errors);
   errors.push(...ctx.register.errors.map((e) => `register: ${e}`));
   const actions = [...new Set(entries.flatMap((e) => e.actions))];
@@ -647,6 +690,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     registerDrafts,
     upgradeEntries: entries,
     unblockedEntries: unblocked.entries,
+    versionEvidence: evidence,
     actions,
     engine,
     errors,
@@ -655,6 +699,16 @@ export function buildPlan(ctx, detection = detect(ctx)) {
 
 export function summary(plan) {
   const lines = [`# Upgrade plan to ${plan.target}`, "", `Project version: ${plan.projectVersion ?? "unknown"} (manifest v${plan.manifestVersion})`, ""];
+  const known = parseVersion(plan.projectVersion ?? "");
+  if (!known && plan.versionEvidence) {
+    const e = plan.versionEvidence;
+    lines.push(
+      `Upgrade entries are chosen as for ${e.version}: the manifest names no kit version, and ${e.support} of the ${e.total} files with a sure base match the kit at ${e.version}.`,
+      "",
+    );
+  } else if (!known) {
+    lines.push("The manifest names no kit version and the files show none: every upgrade entry is listed.", "");
+  }
   lines.push("| Class | Files |", "|---|---|");
   for (const [c, n] of Object.entries(plan.counts)) if (n) lines.push(`| ${c} | ${n} |`);
   lines.push("", "## Stop and ask", "");
@@ -668,11 +722,22 @@ export function summary(plan) {
   for (const p of plan.unexplained) lines.push(`- ${p}`);
   lines.push("", "## Machine-block actions for this range", "");
   if (!plan.actions.length) lines.push("None.");
-  for (const a of plan.actions) {
+  const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
+  const action = (a) => {
     const c = plan.engine?.checks.find((x) => a === `engine-min=${x.min}`);
-    const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
-    lines.push(c ? `- ${a} (${c.status}: ${engine})` : `- ${a}`);
+    return c ? `${a} (${c.status}: ${engine})` : a;
+  };
+  // Each action under the entry that asks for it, so the checklist can say why.
+  const shown = new Set();
+  for (const e of plan.upgradeEntries ?? []) {
+    if (!e.actions?.length) continue;
+    lines.push(`- ${e.source}:${e.line} ${e.heading ?? "(no entry heading)"}`);
+    for (const a of e.actions) {
+      lines.push(`  - ${action(a)}`);
+      shown.add(a);
+    }
   }
+  for (const a of plan.actions) if (!shown.has(a)) lines.push(`- ${action(a)}`);
   lines.push("", "## Upgrade entries with no machine block", "");
   if (!plan.unblockedEntries?.length) lines.push("None.");
   for (const e of plan.unblockedEntries ?? []) lines.push(`- ${e.source}:${e.line} ${e.heading}`);

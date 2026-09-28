@@ -215,7 +215,7 @@ export function invariants(ctx, plan) {
  * whose text is not known counts as unchanged: nothing can be compared, and the drift check
  * still starts from the digest recorded now.
  */
-function unchangedFromKit(ctx, p, target, mine, detected) {
+export function unchangedFromKit(ctx, p, target, mine, detected) {
   const same = (entry, text) => {
     if (sha256(mine) === entry.sha256) return true;
     if (text == null) return target.rewrite === "adapted";
@@ -233,7 +233,7 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
 
 /** A kit file manifest v2 would record, were it present: in the target, tracked, shared. */
-function recordable(ctx, p) {
+export function recordable(ctx, p) {
   const e = ctx.theirs.files[p];
   if (!e || isNeverTouched(p) || isNotRecorded(p)) return false;
   if (ctx.git.isGit && ctx.git.ignored(p)) return false; // per-machine: never recorded

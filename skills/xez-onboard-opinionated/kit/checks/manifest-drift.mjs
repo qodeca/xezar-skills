@@ -20,9 +20,11 @@
 // - a file with `patch: LP-n` needs register entry LP-n listing that path, and the entry must say
 //   `Confirmed: yes` – an entry a tool drafted stays red until the owner confirms it;
 // - every path a register entry lists needs a manifest entry carrying that patch.
-// The owner's configuration (OWNER_CONFIG below) is not tracked: the project changes it in
-// normal work. A manifest written by an earlier 3.1.0 build may still list it; that entry is
-// ignored, said so on stderr, and dropped by the next upgrade or onboarding run.
+// The project's own documents, its configuration and owner files merged without a kit block
+// (NOT_RECORDED below) are not tracked: the project changes them in normal work. A manifest
+// written by an earlier 3.1.0 build may still list one; that entry is ignored, said so on stderr,
+// and dropped by the next upgrade or onboarding run. An `owner-file-appended` entry is the
+// exception: its kit block is the kit's, and it is checked.
 // A manifest without `manifestVersion` (version 1, written before 3.1.0) is not enforced: the
 // check says so and passes. No manifest at all is not applicable either.
 //
@@ -49,8 +51,26 @@ const FIELDS = ["Files", "Reason", "Upstream", "Since", "Confirmed"];
 const HEX64 = /^[0-9a-f]{64}$/;
 const PATCH_ID = /^LP-[0-9]+$/;
 const START = "<!-- xezar:kit:start -->";
-// Kept equal to OWNER_CONFIG in the upgrade tool's lib/policy.mjs (the collection's tests bind them).
-const OWNER_CONFIG = [".xezar/pipeline/config.json", ".xezar/config.json", ".xezar/pipeline/labels.json", ".xezar/routing.json"];
+// Kept equal to NOT_RECORDED in the upgrade tool's lib/policy.mjs (the collection's tests bind
+// them): the four configuration files, the project's documents, and the owner files merged
+// without a kit block. Every CLAUDE.md, at any depth, is a project document too (notRecorded).
+const NOT_RECORDED = [
+  ".xezar/pipeline/config.json",
+  ".xezar/config.json",
+  ".xezar/pipeline/labels.json",
+  ".xezar/routing.json",
+  "AGENTS.md",
+  "SDLC.md",
+  "CODE_REVIEW.md",
+  "BACKWARD_COMPATIBILITY.md",
+  "SECURITY.md",
+  ".mcp.json",
+  ".codex/config.toml",
+  ".gitignore",
+];
+const notRecorded = (path, origin) =>
+  origin !== "owner-file-appended" &&
+  (NOT_RECORDED.includes(path) || path === "CLAUDE.md" || path.endsWith("/CLAUDE.md"));
 const END = "<!-- xezar:kit:end -->";
 
 const say = (line) => process.stdout.write(`${line}\n`);
@@ -194,8 +214,8 @@ const report = (path, origin, reason, note) => {
 };
 
 for (const [path, entry] of Object.entries(files).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-  if (OWNER_CONFIG.includes(path)) {
-    explain(`${path}: owner configuration is not tracked; its manifest entry is ignored`);
+  if (notRecorded(path, entry.origin)) {
+    explain(`${path}: the project's own file is not tracked; its manifest entry is ignored`);
     continue;
   }
   const seen = digest(path, entry.origin);
@@ -220,8 +240,8 @@ for (const [path, entry] of Object.entries(files).sort(([a], [b]) => (a < b ? -1
 
 for (const [id, lp] of register) {
   for (const path of lp.files) {
-    if (OWNER_CONFIG.includes(path)) continue; // not tracked, so nothing to bind
     const entry = files[path];
+    if (notRecorded(path, entry?.origin)) continue; // not tracked, so nothing to bind
     if (!entry || entry.patch !== id)
       report(path, entry ? entry.origin : "none", "register-without-manifest", `${id} lists it, but its manifest entry does not carry patch ${id}`);
   }

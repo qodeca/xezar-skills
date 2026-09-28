@@ -55,7 +55,8 @@ export function parseBlocks(text, source = "") {
   const re = /^```upgrade\n([\s\S]*?)^```$/gm;
   let m;
   while ((m = re.exec(text))) {
-    const block = { source, appliesTo: null, files: [], actions: [] };
+    // `line`: the 1-based line of the block's opening fence.
+    const block = { source, line: text.slice(0, m.index).split("\n").length, appliesTo: null, files: [], actions: [] };
     const seen = new Set();
     for (const raw of m[1].split("\n")) {
       if (!raw.trim()) continue;

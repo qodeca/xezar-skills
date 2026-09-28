@@ -560,10 +560,15 @@ to carry — do not invent one, and do not tell the owner to run one.
     file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
     file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`, and
     any file whose absolute path was rewritten. `generated` — written for this project with no
-    kit source file, such as the tracker descriptor and `.xezar/docs/leader-guide.md` (built from
+    kit source file: the tracker descriptor and `.xezar/docs/leader-guide.md` (built from
     `kit/leader-guide.template.md`, but recorded as `generated`, as the upgrade tool records it).
-    **Never listed:** the project's configuration — both `config.json` files, `labels.json` and
-    `.xezar/routing.json` — which the project changes in normal work.
+    **Never listed** (upgrade contract §1.2, `.xezar/docs/local-patches.md`), because the project
+    changes them in normal work: its own documents — `AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`,
+    `BACKWARD_COMPATIBILITY.md`, `SECURITY.md` and the `CLAUDE.md` files, even though this step
+    generates them; its configuration — both `config.json` files, `labels.json` and
+    `.xezar/routing.json`; and an owner file merged without a kit block — `.mcp.json`,
+    `.codex/config.toml` and the root `.gitignore`. The one exception is a document that got a
+    kit block appended, recorded as `owner-file-appended` below.
     `owner-file-appended` — a file the project already had, with one block appended between
     `<!-- xezar:kit:start -->` and `<!-- xezar:kit:end -->`; its `sha256` covers only that block,
     both markers included.
