@@ -1,5 +1,5 @@
 {
-  "commit": "54b3b93428b91297203c58595ed076f95e028cbe",
+  "commit": "6818327612b9a4e69593980e24fe96aa8970d86e",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -248,10 +248,10 @@
       "sha256": "a9192bd0ff6f571b8dce0036c634c82fbffe1aee5c40c1eddd71f134b455a217"
     },
     ".xezar/checks/repository-checks.sh": {
-      "kitBlob": "97051ddab349e2c7e1615681c03c9e3cb154ab7e",
+      "kitBlob": "4cb3a312a3158559eb8e0fa7c49a01ff448a2abc",
       "kitSource": "checks/repository-checks.sh",
       "rewrite": "copied",
-      "sha256": "24b11b6f0cd83c34640bb85e1723bc3dc589ba85c5d2fde57795fbc84425576f"
+      "sha256": "690ed12ae0feb030e00b6cc64e0fbe81d7d0135411a3484bf3a44615bd126cf1"
     },
     ".xezar/checks/resume-complete.sh": {
       "kitBlob": "1b79872ab5fb5540eea1aa29119b3201d3d46ef9",
@@ -959,6 +959,6 @@
       "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+6818327612b9"
 }
