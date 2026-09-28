@@ -8,7 +8,7 @@
 // that validator: a workflow that is installed and valid and named by no routing row. The leader
 // picks work by a row's trigger sentence, so such a workflow can never be selected by anything.
 //
-// Nine checks, each one a way the kit went wrong or could:
+// Ten checks, each one a way the kit went wrong or could:
 //
 //   1. the kit's own validator passes on the kit, staged the way a project holds it;
 //   2. the validator's list of maintained skills IS the set of skill files -- a name left off
@@ -26,7 +26,9 @@
 //   8. the tidiness check's own list of engine names is the engine's published 0.19.0 list, and
 //      it takes a name a newer engine adds from `xezar state-names --json`, RUN with a stand-in;
 //   9. the documented-output check, RUN on the kit staged as a project, outside a leader session –
-//      which is how every gate runs it.
+//      which is how every gate runs it;
+//  10. the leader launcher, RUN with `claude` stubbed: it takes the socket the engine names by
+//      project id, and stops with its message when there is none.
 //
 // Run: node scripts/test-kit-catalog.mjs
 
@@ -781,6 +783,60 @@ for (const name of workflowFiles) {
       fail(`the kit's documented-output check fails on the kit, outside a leader session:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
     }
   } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// --- 10. The leader launcher finds the engine's socket, run ----------------------------------------
+// The engine names its socket after the project id (lower-cased, other characters turned into '-'),
+// not the folder. The launcher once looked only for `<folder>.sock`, so in a folder named
+// `My Proj` it said the engine was not running while the engine ran. Run it with `claude` stubbed
+// on PATH: a socket named by the engine is accepted, no socket stops it with its message.
+{
+  const { createServer } = await import("node:net");
+  const lab = mkdtempSync(join(tmpdir(), "kl-"));
+  const server = createServer();
+  try {
+    const project = join(lab, "My Proj");
+    mkdirSync(join(project, "scripts"), { recursive: true });
+    cpSync(join(KIT, "scripts/xezar-leader.sh"), join(project, "scripts/xezar-leader.sh"));
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const record = join(lab, "claude-args");
+    writeFileSync(join(bin, "claude"), `#!/usr/bin/env bash\nprintf '%s\\n' "XEZAR_LEADER=$XEZAR_LEADER" "$@" > "${record}"\nexit 0\n`);
+    chmodSync(join(bin, "claude"), 0o755);
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+    const launch = () => {
+      rmSync(record, { force: true });
+      try {
+        return { code: 0, out: execFileSync("bash", [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env, encoding: "utf8", stdio: "pipe" }) };
+      } catch (error) {
+        return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+      }
+    };
+
+    const none = launch();
+    if (none.code === 0 || !none.out.includes("the engine is not running here") || existsSync(record))
+      fail(`xezar-leader.sh with no socket in .local/xezar/ipc/ did not stop with "the engine is not running here" (exit ${none.code}):\n${none.out}`);
+
+    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
+    const ipc = join(project, ".local/xezar/ipc");
+    mkdirSync(ipc, { recursive: true });
+    const here = process.cwd();
+    process.chdir(ipc);
+    try {
+      await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
+    } finally {
+      process.chdir(here);
+    }
+    const found = launch();
+    const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
+    if (found.code !== 0 || !args.includes("XEZAR_LEADER=1") || !args.includes("--settings") || !args.includes("--extra"))
+      fail(`xezar-leader.sh does not accept the engine's socket .local/xezar/ipc/my-proj.sock in folder "My Proj" (exit ${found.code}, claude got [${args.filter(Boolean)}]):\n${found.out}`);
+  } catch (error) {
+    fail(`the leader launcher fixture could not run: ${error.message}`);
+  } finally {
+    server.close();
     rmSync(lab, { recursive: true, force: true });
   }
 }
