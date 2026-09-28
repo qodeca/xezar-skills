@@ -2063,6 +2063,24 @@ breaks(
   "needs: 3.1.0 entry 9 copies role skills",
 );
 
+// Round-10 review: a gate list changed after a version-2 manifest is read from the file, and
+// the tracker descriptor's recorded digest moves with it in xez-apply-upgrade-notes.
+breaks(
+  "an adapted file's recorded values taken over its own on the next upgrade is rejected",
+  "upgrade/tools/detect.mjs",
+  (s) => s.replace("return m?.match ? result(v, \"high\", via, { text: t, inputs: { ...(hint.renderInputs ?? {}), ...m.inputs } }) : result(v, \"high\", via);", "return result(v, \"high\", via);"),
+  () => script("test-upgrade.mjs"),
+  "own-gates next:",
+);
+
+breaks(
+  "xez-apply-upgrade-notes that no longer moves the tracker descriptor's digest is rejected",
+  "skills/xez-apply-upgrade-notes/SKILL.md",
+  (s) => s.replace("then write the SHA-256 of the updated file into that entry's", "then leave the manifest entry's"),
+  () => script("test-upgrade.mjs"),
+  "no longer moves the tracker descriptor's recorded digest",
+);
+
 // scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent
 // one-byte edit; these cover the upgrade tool's own checks.
 // A new installed path that no fragment's upgrade block lists. Aimed at the copy table rather

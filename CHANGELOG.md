@@ -8,7 +8,7 @@ behaviour of an installed project changes until you run the upgrade prompt
 **A design system can be split into modules.** A project with more than one product surface lists
 them in `designSystem.modules` in `.xezar/pipeline/config.json` (name, folder, kind `system` or
 `brand-book`, `writable`, status `planned` → `draft` → `active`, `appPaths`, and optional
-`derivedFiles` with a `node tools/design-system/<script>.mjs` build and check command). The
+`derivedFiles` with the build and check commands the project names). The
 design-system, UX, UI, UI-test, code-review and visual-asset roles resolve the module first – the
 one the task names, else the one whose `appPaths` cover the surface, none means no system yet,
 several means BLOCKED – and trust the list from the base branch only; a design run may change only
@@ -262,7 +262,8 @@ this repository, against one project at a time. None of them is installed into a
   that asks for it. A project's own gate list in `repo-gates.sh` is a filled-in value, not a
   local change: those three assignments are masked when the file is compared and put back into
   the new kit text, so a project whose gates are Yarn or .NET commands gets a clean update, no stop
-  and no register entry. The project's own role skills and workflows, which no kit version ships
+  and no register entry. That holds on the next upgrade too, from the version-2 manifest this one
+  writes: a gate list changed since is read from the file, not from the values recorded then. The project's own role skills and workflows, which no kit version ships
   but the target's catalog check still judges, are listed for reading (`own-file-kit-contract`)
   with the rule each must meet: the new `## Shared contract` tail, a step timeout, and for a
   review workflow the cache path and `review-run.sh`; a grant they need stops for the owner.
@@ -289,6 +290,14 @@ change (recording unexplained ones as `Confirmed: no` register entries), stops t
 and permission changes, works on a local branch `xezar/upgrade-<version>`, and writes a report
 with the owner checklist and rollback. It never pushes or opens a pull request.
 `upgrade/README.md` says how to run it and what it never does.
+
+**The tracker descriptor of an onboarded project can be re-synced again.** The kit has no source
+for `.xezar/pipeline/trackers/github.md`, so the upgrade prompt only lists it, and a plain copy
+failed every gate with `reason=hash-mismatch` once a version-2 manifest recorded its digest.
+`xez-apply-upgrade-notes` now updates it and moves its recorded `sha256` (and its `descriptors`
+digest) in the same change, only when the file still matched that digest before the edit; the
+kit-shipped descriptors still go through the upgrade prompt. The "Re-syncing the tracker
+descriptor" how-to in `UPGRADE_NOTES.md` gives the same step for doing it by hand.
 
 **Fixes from dry runs on a real v1 project.** A file the manifest records that no kit version
 ever shipped (`.gitignore`, `SECURITY.md`, a project script) is now `local-only` and kept, not

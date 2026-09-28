@@ -2019,6 +2019,26 @@ cp <path-to-skills>/xez-setup-agent-pipeline/references/trackers/github.md .xeza
 Re-running `/xez-setup-agent-pipeline` also refreshes the descriptor, but plain-copies it –
 prefer the diff-and-merge route when you have customized operations.
 
+**An onboarded project (`.xezar/onboarding.json` with `manifestVersion` 2 or higher) records the
+descriptor's digest**, and the drift check fails every gate with `reason=hash-mismatch` after a
+plain copy. Hash the file before you touch it: when it matches the `sha256` of its entry under
+`files` (and that entry has no `patch`), copy or merge as above, then write the new file's digest
+into that `sha256` – and into `descriptors` when the manifest has that map – and commit both files
+together:
+
+```bash
+# 3. Onboarded project only: move the recorded digest with the file
+p=.xezar/pipeline/trackers/github.md
+new=$(node -e 'const c=require("crypto"),f=require("fs");process.stdout.write(c.createHash("sha256").update(f.readFileSync(process.argv[1])).digest("hex"))' "$p")
+node -e 'const f=require("fs"),[p,h]=process.argv.slice(1),m=JSON.parse(f.readFileSync(".xezar/onboarding.json","utf8"));m.files[p].sha256=h;if(m.descriptors&&p in m.descriptors)m.descriptors[p]=h;f.writeFileSync(".xezar/onboarding.json",JSON.stringify(m,null,2)+"\n")' "$p" "$new"
+node .xezar/checks/manifest-drift.mjs .   # drift-status=pass
+```
+
+When the file did not match before you started, it already carries an unrecorded edit: leave the
+digest alone and record that edit in `.xezar/LOCAL-PATCHES.md` first. `/xez-apply-upgrade-notes`
+does all of this for you: it updates the tracker descriptor and its digest in the same change,
+and skips the digest refresh when the file did not match.
+
 **A project onboarded by `xez-onboard-opinionated` at 3.1.0 or later** (`.xezar/onboarding.json`
 with `manifestVersion` 2 or higher) records its descriptors in that manifest, and the drift check
 fails the next gate with `reason=hash-mismatch` on a descriptor copied or merged by hand. Refresh

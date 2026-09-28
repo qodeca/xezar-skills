@@ -150,12 +150,23 @@ customization without asking.
   a family this repository has never had (`toolchains/`, `security/`), create the directory and
   install only the providers the config names. Installing every shipped provider would hand the
   repository operations it never asked for.
-- **A descriptor an onboarding manifest records is not edited here.** When
-  `.xezar/onboarding.json` has `manifestVersion` 2 or higher, the kit's drift check tracks every
-  file listed under its `files`: a descriptor changed by this skill fails the next gate with
-  `reason=hash-mismatch`. List those descriptors in the report as skipped and point to the
-  collection's upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
-  manifest entry together.
+- **A descriptor an onboarding manifest records moves with its digest.** When
+  `.xezar/onboarding.json` has `manifestVersion` 2 or higher, the kit's drift check hashes every
+  file listed under its `files`, so a changed descriptor fails the next gate with
+  `reason=hash-mismatch` unless its recorded digest changes with it.
+  - **The tracker descriptor** (`$INSTALLED_DESCRIPTOR`, recorded with origin `generated`) is
+    updated here: the kit has no source for it, so the upgrade prompt only lists it. Hash it
+    **before** editing. When its entry has no `patch` and the file matches the entry's `sha256`,
+    apply the approved changes, then write the SHA-256 of the updated file into that entry's
+    `sha256` – and into `descriptors` when that map names the file – change nothing else in the
+    manifest, and deliver both files in the same change. When it does not match, or the entry
+    has a `patch`, the file already carries a local change: leave the file and the manifest
+    alone, list the descriptor as skipped and name the mismatch – refreshing the digest would
+    bless an edit nobody recorded.
+  - **A descriptor the kit ships** (`toolchains/`, `browsers/`, `security/`: its entry has a
+    `kitSource`) is not edited here. List it in the report as skipped and point to the
+    collection's upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
+    manifest entry together.
 - Preserve local customizations: a section that differs from stock is the team's — ask before
   replacing it, and always keep local-only operations.
 - Additive by default: add missing operations and missing config keys; never delete or rewrite

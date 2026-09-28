@@ -46,6 +46,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { gzipSync } from "node:zlib";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sha256 } from "../upgrade/tools/lib/hash.mjs";
@@ -890,6 +891,28 @@ if (!HAS_DRIFT) {
     write(d, ".xezar/onboarding.json", JSON.stringify(m, null, 2));
   });
   expect(gates.code === 0 && status(gates) === "pass", `drift: generated gate arrays recorded at install fail: ${gates.out.trim()}`);
+  // The tracker descriptor has no kit source (origin generated), so the upgrade prompt only lists
+  // it; xez-apply-upgrade-notes and the UPGRADE_NOTES how-to update it and move its recorded
+  // digest in the same change (round-10 review). A plain copy fails the drift check; the copy
+  // with the digest moved passes.
+  const tracker = ".xezar/pipeline/trackers/github.md";
+  const newerTracker = (d) => write(d, tracker, `${read(d, tracker)}\n#### a-later-operation\n\nShipped by a later release.\n`);
+  const trackerEntry = JSON.parse(read(fresh2, ".xezar/onboarding.json")).files?.[tracker];
+  expect(trackerEntry?.origin === "generated" && !trackerEntry.kitSource && trackerEntry.sha256 === sha256(read(fresh2, tracker)), `drift: the tracker descriptor is not recorded as a generated file matching its digest; re-aim this case: ${JSON.stringify(trackerEntry)}`);
+  const plainCopy = withEdit("drift-tracker-copy", newerTracker);
+  expect(plainCopy.code === 1 && plainCopy.out.includes(`drift=${tracker}`), `drift: a re-synced tracker descriptor with its old digest passes: ${plainCopy.out.trim()}`);
+  const resynced = withEdit("drift-tracker-resynced", (d) => {
+    newerTracker(d);
+    const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+    m.files[tracker].sha256 = sha256(read(d, tracker));
+    if (m.descriptors && tracker in m.descriptors) m.descriptors[tracker] = m.files[tracker].sha256;
+    write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+  });
+  expect(resynced.code === 0 && status(resynced) === "pass", `drift: a re-synced tracker descriptor with its digest moved fails: ${resynced.out.trim()}`);
+  const applyNotes = readFileSync(join(root, "skills/xez-apply-upgrade-notes/SKILL.md"), "utf8");
+  expect(/\*\*The tracker descriptor\*\*[\s\S]*?write the SHA-256 of the updated file into that entry's\s+`sha256`/.test(applyNotes), "drift: xez-apply-upgrade-notes no longer moves the tracker descriptor's recorded digest with the file, so an onboarded project has no path to a tracker fix");
+  const howTo = readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8").split("## Re-syncing the tracker descriptor")[1]?.split(/\n## /)[0] ?? "";
+  expect(/\.xezar\/onboarding\.json/.test(howTo) && /manifest-drift\.mjs/.test(howTo), "drift: UPGRADE_NOTES.md 'Re-syncing the tracker descriptor' does not tell an onboarded project to move the recorded digest");
   const appended = withEdit("drift-appended", (d) => {
     const block = "<!-- xezar:kit:start -->\nkit block\n<!-- xezar:kit:end -->";
     write(d, "CLAUDE.md", `# Owner text\n\n${block}\n`);
@@ -1382,6 +1405,31 @@ if (!HAS_DRIFT) {
   expect(!v.problems.some((x) => x.path === p), `own-gates: verify fails ${p}: ${JSON.stringify(v.problems.filter((x) => x.path === p))}`);
   const entry = JSON.parse(read(dir, ".xezar/onboarding.json")).files?.[p];
   expect(entry && !entry.patch && /yarn typecheck/.test(entry.renderInputs?.GATE_COMMANDS ?? ""), `own-gates: the manifest does not record the gate list as renderInputs: ${JSON.stringify(entry)}`);
+  // The next upgrade, from the version-2 manifest just written (round-10 review): the recorded
+  // copy is found by its kitBlob, and the gate list changed since must be read from the file,
+  // not from the recorded renderInputs, or the owner's own gates look like a local change to a
+  // safety file (a stop, and a register draft that ends the drift check on the gate runner).
+  {
+    git(dir, "add", "-A");
+    git(dir, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "upgrade");
+    const before = read(dir, p);
+    write(dir, p, before.replaceAll('  "yarn test"\n', '  "yarn test"\n  "yarn lint"\n'));
+    expect(read(dir, p) !== before, "own-gates next: the gate-list edit matched nothing; re-aim this case");
+    git(dir, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qam", "a new gate");
+    const treeBlobs = {};
+    for (const e of Object.values(tree.index.files)) if (e.kitSource) treeBlobs[e.kitBlob] = tree.kitFiles.get(`kit/${e.kitSource}`).toString("utf8");
+    const treePack = join(lab("tree-pack"), "blobs.json.gz");
+    writeFileSync(treePack, gzipSync(JSON.stringify(treeBlobs)));
+    const nextCtx = () =>
+      ctxFor(dir, { target: "3.1.1", indexes: [...history.filter((v) => v.version !== TARGET), { ...tree.index, version: TARGET }], blobPacks: [PACK, treePack] });
+    const next = buildPlan(nextCtx());
+    const nextItem = byPath(next).get(p);
+    expect(nextItem?.base?.via === "manifest-kitBlob", `own-gates next: ${p} did not find its base from the version-2 manifest's kitBlob (${nextItem?.base?.via}); re-aim this case`);
+    expect(["unchanged-upstream", "already-upstream"].includes(nextItem?.class) && !nextItem.stops.length && !nextItem.unexplained, `own-gates next: a gate list changed after a version-2 manifest makes ${p} ${nextItem?.class} (stops ${nextItem?.stops}, unexplained ${nextItem?.unexplained})`);
+    expect(!next.registerDrafts.add.some((d) => d.files.includes(p)), `own-gates next: a register entry is drafted for ${p}`);
+    const nextUnreg = invariants(nextCtx(), next).filter((x) => x.kind === "unregistered-local-change" && x.path === p);
+    expect(!nextUnreg.length, `own-gates next: verify reports the changed gate list as a local change: ${JSON.stringify(nextUnreg)}`);
+  }
   // A fresh-onboarding shape too: the unchanged kit file with the same list is a normalised match.
   expect(normalisedMatch(fresh(p, fx303.renderInputs), read(dir, p)).exact, "own-gates: the kit text and the project's gate runner are not an exact normalised match");
   if (HAS_DRIFT) {
