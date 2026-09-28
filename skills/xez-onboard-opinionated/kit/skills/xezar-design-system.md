@@ -20,9 +20,9 @@ A project with more than one product surface can split its system into modules. 
 | `kind` | `system` – a module with the twelve pages and a stylesheet – or `brand-book` – a reference every module builds on |
 | `writable` | `false` for a folder no design run may change (a brand book behind owner consent); read it, cite it, never edit it |
 | `status` | `planned` (no pages yet), `draft` (pages in progress) or `active` (all twelve pages, followed by every role). The run that creates a module's first pages moves it to `draft`; the run that completes the twelve moves it to `active` |
-| `appPaths` | the application paths the module governs, as globs under `apps/`; no two modules overlap, and a brand book governs none |
+| `appPaths` | the application paths the module governs, as repository-relative globs; no two modules overlap, and a brand book governs none |
 | `derivedFiles` (optional) | exact paths of files outside the folder that are generated from it – never a glob, never under `.xezar/`, `.github/`, `.claude/`, `.codex/` or a `writable: false` folder |
-| `buildCommand`, `checkCommand` (optional) | set together with `derivedFiles`, and only with it: the command that regenerates them and the one that proves they are current, each `node tools/design-system/<script>.mjs`, the check with `--check` |
+| `buildCommand`, `checkCommand` (optional) | set together with `derivedFiles`, and only with it: the command that regenerates them and the one that proves they are current, each a command the project names in its config (run as written, from the repository root) |
 
 Without `designSystem.modules`, the root is one flat system and everything below reads `<system>` as the root.
 

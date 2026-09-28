@@ -87,14 +87,23 @@ export function findBase(ctx, path, mine) {
     }
   }
 
-  // 1. the manifest's own record
+  // 1. the manifest's own record. An adapted file's values are read from the installed file
+  //    when it still matches the recorded copy: the recorded renderInputs are the values at the
+  //    last upgrade, and a project may have changed its own (a gate list) since – a filled-in
+  //    value, not a local change.
+  const recorded = (v, via) => {
+    const e = v.files[path];
+    const t = e.rewrite === "adapted" && mine?.text != null ? textOf(e) : null;
+    const m = t != null ? normalisedMatch(t, mine.text) : null;
+    return m?.match ? result(v, "high", via, { text: t, inputs: { ...(hint.renderInputs ?? {}), ...m.inputs } }) : result(v, "high", via);
+  };
   if (hint.kitBlob) {
     const v = newest((e) => e.kitBlob === hint.kitBlob);
-    if (v) return result(v, "high", "manifest-kitBlob");
+    if (v) return recorded(v, "manifest-kitBlob");
   }
   if (hint.sha256) {
     const v = newest((e) => e.sha256 === hint.sha256);
-    if (v) return result(v, "high", "manifest-sha256");
+    if (v) return recorded(v, "manifest-sha256");
     // An adapted file records the sha of the RENDERED file: re-render each candidate.
     const adapted = versions[versions.length - 1].files[path].rewrite === "adapted";
     if (adapted && mine?.text != null) {
