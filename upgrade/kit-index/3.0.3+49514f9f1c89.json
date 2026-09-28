@@ -1,5 +1,5 @@
 {
-  "commit": "1ff74a4532649adb79ae5756ecfc1e42ed7f1504",
+  "commit": "49514f9f1c89c837028742c3e5975ff55f5e8b84",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -218,10 +218,10 @@
       "sha256": "5869e2efbe3e13ae714165fcb1c6e0b240fbec5a0ac8b881cfcedf4faa6e3228"
     },
     ".xezar/checks/manifest-drift.mjs": {
-      "kitBlob": "a03e375fed93cc1b75c6d54cd3c168f98778d238",
+      "kitBlob": "530ffd008b392beec44440a5fb191274426b2fb5",
       "kitSource": "checks/manifest-drift.mjs",
       "rewrite": "copied",
-      "sha256": "265efa653a1aa52d512b4d26afbada959257ae6454b07a04efcc808aea9e88e6"
+      "sha256": "f7497e14ffb198a412a10ddaf4ef6c289a04441cf9441887c0e4b6ae1be0f725"
     },
     ".xezar/checks/merge-recovery.sh": {
       "kitBlob": "b6b3a3e081c536a3eaea41c0199d556f4fe66afb",
@@ -374,10 +374,10 @@
       "rewrite": "generated"
     },
     ".xezar/docs/local-patches.md": {
-      "kitBlob": "98b2b1958a77d4ebbe54543312a6429bba219390",
+      "kitBlob": "b465199310d7b54cf4b2a896539ef391c9b498a0",
       "kitSource": "docs/local-patches.md",
       "rewrite": "copied",
-      "sha256": "6b40ebeb721fb9a6bb05e8ec5a73549b05c946a6bfda74f38af2806543296ddf"
+      "sha256": "dc3270c3fea3cf2bb11514a52d9a2464b183675637e51946ebec777737abacb6"
     },
     ".xezar/docs/parallel-tasks.md": {
       "kitBlob": "e457464ac3fa26aee7b24e17d0866930c8bd6026",
@@ -953,12 +953,12 @@
       "sha256": "4cf7ca79f74d742a510f1a86febf5559c8595d1c7dfff87b79f653f68b2ef1a6"
     },
     "scripts/xezar-leader.sh": {
-      "kitBlob": "8f74370ded2671393b4e9c667889aea0de961fa6",
+      "kitBlob": "d7a537c6dde9aa1cd6d3ad5c4246665ad05b33ac",
       "kitSource": "scripts/xezar-leader.sh",
       "rewrite": "copied",
-      "sha256": "deb041b022540e43cf4a488e315fba52eccbd9b6c77b85348775a9b2c81396eb"
+      "sha256": "d3d0a8954e3255a8e3442e84df3d48b468c8eb6d4e76c6a6542502d471e03ab5"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+49514f9f1c89"
 }
