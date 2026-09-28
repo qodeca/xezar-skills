@@ -21,7 +21,10 @@ REPO_ROOT="$(cd "${1:-$SCRIPT_DIR/../..}" && pwd -P)"
 skip() { printf 'repository-checks: skipped %s (%s)\n' "$1" "$2"; }
 
 # The `.local/xezar/` working area keeps its six named subfolders and nothing loose at the top.
-bash "$SCRIPT_DIR/local-tree.sh" "$REPO_ROOT"
+# Like drift below, a failure here does not stop the later checks: a missing per-machine folder
+# must not hide a real failure further down. Its status is applied at the end.
+local_tree_rc=0
+bash "$SCRIPT_DIR/local-tree.sh" "$REPO_ROOT" || local_tree_rc=$?
 
 node "$SCRIPT_DIR/catalog-check.mjs" "$REPO_ROOT"
 
@@ -80,7 +83,14 @@ else
   skip xezar-contract "no contract test installed beside these checks"
 fi
 
-if [ "$drift_rc" -ne 0 ]; then
-  printf 'repository-checks: manifest-drift failed (exit %s); every other check passed\n' "$drift_rc" >&2
+if [ "$local_tree_rc" -ne 0 ] || [ "$drift_rc" -ne 0 ]; then
+  if [ "$local_tree_rc" -ne 0 ]; then
+    printf 'repository-checks: local-tree failed (exit %s)\n' "$local_tree_rc" >&2
+  fi
+  if [ "$drift_rc" -ne 0 ]; then
+    printf 'repository-checks: manifest-drift failed (exit %s)\n' "$drift_rc" >&2
+  fi
+  printf 'repository-checks: every other check passed\n' >&2
+  if [ "$local_tree_rc" -ne 0 ]; then exit "$local_tree_rc"; fi
   exit "$drift_rc"
 fi

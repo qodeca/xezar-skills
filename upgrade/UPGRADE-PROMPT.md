@@ -47,7 +47,8 @@ owner can do, and change nothing more.
 4. **Run only verified tool code.** The helper scripts run from the verified clone of the
    release (step 1), never from this project and never from a URL. You run the project's own
    scripts in exactly one place: its gate check in step 7, after the verifier reports no `problem=` line.
-   Its git hooks run only when the owner allowed them in step 0, before any git command of yours
+   Its git hooks, and the commands its git config names, run only when the owner allowed them in
+   step 0, before any git command of yours
    that can run one.
 5. **Never write a per-machine file.** A file is per-machine when git ignores it or does not
    track it – for example `.claude/settings.local.json` and `.local/**` outside
@@ -110,14 +111,18 @@ run.
 **Git hooks, first.** The project's git hooks are project code (rule 4), and git runs them on
 more than commits: `git fetch` in item 3 can run `reference-transaction`, and creating or
 switching to the upgrade branch in item 6 runs `post-checkout`. So before any other git command,
-look for an active hook, using only these two reads, which run none. A hook is active when
+look for an active hook, using only these reads, which run none. A hook is active when
 `git config core.hooksPath` prints a folder, or when `$(git rev-parse --git-path hooks)` holds an
-executable file whose name does not end in `.sample`. A hook manager's files anywhere in the
+executable file whose name does not end in `.sample`. Git also runs commands its config names,
+without asking, on `git status`, `git add`, `git switch` and `git diff`: read them with
+`git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\..*\.textconv)$'`,
+and treat every hit that names a program (anything but `core.fsmonitor` set to `true` or `false`,
+git's own) as an active hook – a `git-lfs` filter included. A hook manager's files anywhere in the
 tree (for example `.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`, or a `husky` or
 `simple-git-hooks` entry in a `package.json`) are not active until they install themselves by
 one of those two ways: name them in the report, but do not stop for them. If a hook is active,
-**stop and ask** now, before item 3: may this upgrade's git commands run these hooks (list
-them)? A no ends the run here, with nothing changed. Never bypass a hook (rule 8).
+**stop and ask** now, before item 2: may this upgrade's git commands run these hooks and
+commands (list them)? A no ends the run here, with nothing changed. Never bypass a hook (rule 8).
 
 1. **This is an onboarded project.** `.xezar/onboarding.json` exists and is valid JSON. If it is
    missing, stop: this project was not set up by the kit, so there is nothing to upgrade. If
@@ -322,11 +327,14 @@ a time, in the plan's order. For each one:
 6. Write one line for the report: the file, its class, the base confidence, what you kept, what
    you took, and why.
 7. If the file now differs from theirs on purpose, make sure the register covers it (next
-   section) – but only when the manifest tracks the file. An owner-shaped file, the leader
-   guide's owner content (its generated values and `## Owner's rules`), a per-machine file and a
-   file the manifest never records (the kit's `.xezar/docs/local-patches.md`, "What the manifest
-   tracks") get no register entry: record what you kept there under "Merge decisions" in the
-   report.
+   section) – but only when the manifest tracks the file. That includes an owner-shaped file the
+   manifest tracks, such as `.claude/settings.json`: when the kept merge differs from the kit's
+   copy (a project hook, a local permission), draft its `Confirmed: no` entry. Only an
+   owner-shaped file the manifest never records (the kit's `.xezar/docs/local-patches.md`, "What
+   the manifest tracks" – the four config files, `SDLC.md`, `CODE_REVIEW.md`, `AGENTS.md`, the
+   `CLAUDE.md` files, `.mcp.json`, `.codex/config.toml`), the leader guide's owner content (its
+   generated values and `## Owner's rules`) and a per-machine file get no register entry: record
+   what you kept there under "Merge decisions" in the report.
 
 When every file is done, commit:
 
@@ -415,7 +423,8 @@ when:
 - a refusing line the `<target>` kit added to a safety file you resolved by hand is missing;
 - a copied or adapted kit file you kept differs from the kit copy it sits on and from the
   `<target>` copy, and no register entry names it (`unregistered-local-change`): draft its
-  `Confirmed: no` entry (step 5) or restore the kit's file. The manifest is not written until
+  `Confirmed: no` entry (step 5) or restore the kit's file – for an owner-shaped file such as
+  `.claude/settings.json`, always the entry, since restoring it drops the owner's change. The manifest is not written until
   then, since it would record the edit as the installed state and hide it from every drift check.
 
 Any `problem=` line goes back to step 5 for the file it names. Fix the cause, never the check.
@@ -440,10 +449,11 @@ do item 4:
 4. **Run the project's own gate check:** `bash <project>/.xezar/checks/repository-checks.sh`.
    This is the one place you run the project's own code; the owner sees the permission prompt.
    It runs the drift check again, so the same `unconfirmed-patch` result is expected there too.
-   A drift failure does not stop it: every check after drift still runs, and the script fails at
-   the end on drift's status. So read the whole output, not only the drift lines: a failure from
-   any other check (route, changelog, fenced quotes, documented output, links, the contract test)
-   is a fault of its own and is reported, even when the only drift finding is `unconfirmed-patch`.
+   A drift or local-tree failure does not stop it: every later check still runs, and the script
+   fails at the end on their status. So read the whole output, not only the drift and local-tree
+   lines: a failure from any other check (catalog, route, config guard, changelog, fenced quotes,
+   documented output, links, the contract test) is a fault of its own and is reported, even when
+   the only drift finding is `unconfirmed-patch`.
    `local-tree: missing expected subfolder(s)` is a per-machine item, not an upgrade fault: the
    gitignored `.local/xezar/` folders are missing on this machine. Report it with its output and
    put "create the listed folders" on the owner checklist; never create them yourself (rule 5).
@@ -508,7 +518,9 @@ Stop and ask the owner, and do not write the file until they answer, when:
 5. a permission change appears (`permission-change`) – show the rule before and after;
 6. the owner's routing and `<target>` changed the same routing field (`routing-clash`; the plan
    item's notes name each field);
-7. a git hook is active (step 0) – ask whether the upgrade's git commands may run it.
+7. a git hook is active, or git config names a command git runs (`core.fsmonitor`, a
+   `filter.<name>` clean, smudge or process, a `diff.<name>.textconv`; step 0) – ask whether the
+   upgrade's git commands may run it.
 
 Each question states: the file, what the project has, what `<target>` brings, the realistic
 options, your recommendation and why, and what stays blocked until they answer. Record the
