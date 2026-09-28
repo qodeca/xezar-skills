@@ -1570,6 +1570,16 @@ breaks(
   "gh-write.sh lets a qa step claim a design-review verdict",
 );
 
+// A Continue settles under `continue-N`, which no definition step names: the role comes from the
+// step that owns its session, as the engine's takeStepVerdict resolves it.
+breaks(
+  "a gh-write.sh that reads no role for a Continue's continue-N step is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("step = defSteps.find((s) => s.id === owner?.id) ?? [...defSteps].reverse().find((s) => !s.command);", "step = undefined;"),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh refuses a qa verdict on a Continue (continue-1)",
+);
+
 breaks(
   "a gh-write.sh that lifts a gate label without its approval label is rejected",
   "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
@@ -1911,7 +1921,7 @@ breaks(
 breaks(
   "a verifier that accepts a register entry naming any absent path is rejected",
   "upgrade/tools/verify.mjs",
-  (s) => s.replace("ctx.readMine(f).text == null && !recordableRemoval(ctx, f)", "ctx.readMine(f).text == null && !ctx.readMine(f).missing"),
+  (s) => s.replace('if (!recordableRemoval(ctx, f)) problem("register-binding"', 'if (!ctx.readMine(f).missing) problem("register-binding"'),
   () => script("test-upgrade.mjs"),
   "removed: a register entry naming a path the kit never shipped is accepted",
 );
@@ -1936,9 +1946,19 @@ breaks(
 breaks(
   "a verifier that lets a kept local change through without a register entry is rejected",
   "upgrade/tools/verify.mjs",
-  (s) => s.replace("if (!unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) problem", "if (false) problem"),
+  (s) => s.replace("if (unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) continue;", "continue;"),
   () => script("test-upgrade.mjs"),
   "unregistered: verify accepts a kept edit",
+);
+
+// A kit file the project had and removed with no register entry must stop verify too: the
+// manifest leaves it out, and the next upgrade would write it back as new in the kit.
+breaks(
+  "a verifier that lets a kit file removed with no register entry through is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace("if (ctx.readMine(p).missing && had) {", "if (false) {"),
+  () => script("test-upgrade.mjs"),
+  "removed: verify accepts a kit file removed with no register entry",
 );
 
 // scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent
@@ -1962,7 +1982,7 @@ breaks(
 breaks(
   "a changed kit file dropped from its 3.1.0 upgrade block's Files: line is rejected",
   "UPGRADE_NOTES.md",
-  (s) => s.replace("Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/gate-record.sh;", "Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh;"),
+  (s) => s.replace(".xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new;", ".xezar/checks/review-run.sh =new;"),
   () => script("test-upgrade.mjs"),
   ".xezar/checks/lib/gate-record.sh changed since 3.0.3 but no 3.1.0 upgrade block lists it",
 );

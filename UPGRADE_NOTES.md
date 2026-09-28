@@ -15,7 +15,11 @@ execute against them – not against the copies shipped in this repo:
 | `.xezar/pipeline/overrides/<name>.md` repo-local overrides | you | Never touched by upgrades; review them against new skill behavior |
 
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
-symptom matches your repository.
+symptom matches your repository – except in a project onboarded by `xez-onboard-opinionated`
+(it has `.xezar/onboarding.json`). There it handles only the `.xezar/pipeline/` descriptors and
+config keys, and lists every "upgrading an onboarded project to …" entry as not applied: those
+go through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), or by hand, top to bottom, ending
+with the verifier that writes the new manifest.
 
 ## 2026-09-27 – upgrading an onboarded project to 3.1.0
 
@@ -202,7 +206,9 @@ it every `mcp__chrome-devtools__*` tool the kit's `code-review.yaml` lists, and 
 apply none; review and QA steps keep stopping on browser-tool denials, cannot start the app they
 test, and QA and design review cannot move their own labels. A copy of `gh-write.sh` or
 `review-run.sh` taken from an earlier 3.1.0 build still lets any review step claim a QA or
-design-review verdict, and still hands the operator's git and gh credentials to what a review runs.
+design-review verdict, and still hands the operator's git and gh credentials to what a review runs,
+and its `gh-write.sh` refuses a QA or design-review label given on a Continue (`continue-N`), so
+the PR stays behind the QA gate although the engine accepted the verdict.
 An older `lib/gate-record.sh` looks for the engine's runs index at `.local/xezar/runtime/runs.json`,
 where engine 0.19.0 never writes it, so it records every check-step attempt with no producer as
 the author's, even in a run whose gates step was frozen before the producer flag existed.
@@ -344,7 +350,10 @@ cp $K/checks/local-tree.sh .xezar/checks/
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
 prompt rewrites the manifest. A hand upgrade does not: it ends with the verifier from a verified
 clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
-manifest version 2 and sets `version` once every kept local change has a register entry. Skip that
+manifest version 2 and sets `version` once every kept local change has a register entry. A kit
+file you deleted is a kept local change too: the verifier reports one with no register entry
+(`unregistered-local-change`, `removed with no register entry`) and writes no manifest until you
+add the entry or restore the kit's file. Skip the verifier
 and the drift check stays off (`not-applicable`) and a later upgrade still reads the project as
 its old version. From then on, for every `drift=` line:
 

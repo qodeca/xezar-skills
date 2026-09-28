@@ -22,7 +22,10 @@
 //   unregistered-local-change a copied or adapted kit file the manifest will record differs from
 //                       the kit copy it sits on and from the target's, and no register entry
 //                       names it: the manifest would record the edit as the installed state, and
-//                       the drift check could never see it again (CONTRACT §1.2)
+//                       the drift check could never see it again (CONTRACT §1.2); or a kit
+//                       file this project had (the old manifest records it, or detection found
+//                       its base) that is removed with no register entry: the manifest would
+//                       leave it out, and the next upgrade would write it back as new in the kit
 // "Before" is the commit the plan was made on (plan.json startCommit).
 //
 // Then, unless --no-manifest, it writes manifest v2 (upgrade/CONTRACT.md §1.2) and runs the
@@ -182,7 +185,19 @@ export function invariants(ctx, plan) {
   for (const [p, e] of Object.entries(ctx.theirs.files)) {
     if (e.rewrite === "generated" || registered.has(p) || !recordable(ctx, p)) continue;
     const mine = read(p);
-    if (mine == null) continue;
+    if (mine == null) {
+      // A removal is a local change too. The manifest records a removed file only with a register
+      // entry, so without one the next upgrade finds no trace of it and writes the file back as
+      // new in the kit. Only a file this project had counts: the old manifest records it, or
+      // detection found the kit copy it sat on. An optional descriptor is the project's choice
+      // (the plan skips one it did not install), never a removal.
+      const had = ctx.manifest.hints.has(p) || Boolean(detectedByPath.get(p)?.base?.version);
+      if (ctx.theirsCopyMap.get(p)?.optional) continue;
+      if (ctx.readMine(p).missing && had) {
+        problem("unregistered-local-change", p, "removed with no register entry – draft one (Confirmed: no) or restore the kit's file");
+      }
+      continue;
+    }
     if (unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) continue;
     // An owner-shaped file holds the owner's decisions (a project hook, a local permission):
     // restoring the kit's copy would drop them, so the only fix offered is the register entry.

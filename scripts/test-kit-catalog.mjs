@@ -1227,6 +1227,42 @@ for (const name of workflowFiles) {
     declareRole("qa");
     // A gate label is lifted only with its approval label, in the same request.
     if (verdictLabel(prHead, []).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a verdict request remove needs-qa without adding qa-approved");
+    // A Continue (a leader's answer, or the engine's usage-limit auto-resume) runs under a synthetic
+    // `continue-N` step id no definition names. The engine's `takeStepVerdict` resolves its role
+    // through the record step that owns the same session, then the definition's last agent step;
+    // gh-write.sh must resolve it the same way. Record steps have the real runs index's shape: a
+    // check step carries no sessionId, and a Continue shares its owner's.
+    const continueRun = (verdictRole, { session = "sess-review", withDef = true } = {}) => {
+      const defSteps = [{ id: "kit", command: "bash .xezar/checks/bootstrap.sh" }, { id: "preflight", command: "bash .xezar/checks/preflight.sh" }, { id: "review", ...(verdictRole ? { verdictRole } : {}) }];
+      const steps = [
+        { id: "kit", kind: "check", status: "done" },
+        { id: "preflight", kind: "check", status: "done" },
+        { id: "review", kind: "agent", status: "done", sessionId: "sess-review" },
+        { id: "continue-1", kind: "agent", status: "running", ...(session ? { sessionId: session } : {}) },
+      ];
+      writeFileSync(runsIndex, JSON.stringify([{ id: "run-1", workflow: "qa", status: "running", steps, ...(withDef ? { workflowDef: { steps: defSteps } } : {}) }]));
+    };
+    env.XEZ_STEP_ID = "continue-1";
+    try {
+      continueRun("code-review");
+      if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a Continue of a code-review step grant qa-approved");
+      continueRun("qa", { withDef: false });
+      if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved on a Continue of a run with no workflowDef");
+      continueRun("qa");
+      const continued = verdictLabel(prHead);
+      if (continued.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
+        fail(`gh-write.sh refuses a qa verdict on a Continue (continue-1) whose session the qa review step owns:\n${continued.out}`);
+      rmSync(log, { force: true });
+      // A fresh session no step owns (a backend switch) extends the run's tail: the last agent step.
+      continueRun("qa", { session: "sess-fresh" });
+      const tail = verdictLabel(prHead);
+      if (tail.status !== 0 || !ghLog().includes("--add-label qa-approved"))
+        fail(`gh-write.sh refuses a qa verdict on a fresh-session Continue of a run whose last agent step declares qa:\n${tail.out}`);
+      rmSync(log, { force: true });
+    } finally {
+      env.XEZ_STEP_ID = "review";
+      declareRole("qa");
+    }
     const granted = verdictLabel(prHead);
     if (granted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
       fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
