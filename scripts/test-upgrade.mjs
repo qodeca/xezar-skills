@@ -65,6 +65,10 @@ import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from 
 import * as planTool from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
+import { bashPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = join(root, "scripts/fixtures/upgrade");
@@ -93,7 +97,7 @@ process.on("exit", () => {
   for (const d of labs) rmSync(d, { recursive: true, force: true });
 });
 const lab = (name) => {
-  const d = mkdtempSync(join(tmpdir(), `upgrade-${name}-`));
+  const d = mkdtempSync(join(tempRoot(), `upgrade-${name}-`));
   labs.push(d);
   return d;
 };
@@ -996,7 +1000,7 @@ if (!HAS_DRIFT) {
     writeFileSync(join(checksDir, "manifest-drift.mjs"), `process.exit(${driftCode});\n`);
     writeFileSync(join(checksDir, "local-tree.sh"), `exit ${localTreeCode}\n`);
     try {
-      return { code: 0, out: execFileSync("bash", [join(checksDir, "repository-checks.sh"), stubs], { cwd: stubs, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+      return { code: 0, out: execFileSync(bashPath(), [join(checksDir, "repository-checks.sh"), stubs], { cwd: stubs, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
     } catch (e) {
       return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
     }

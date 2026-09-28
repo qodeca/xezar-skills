@@ -23,6 +23,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath } from "./lib/platform.mjs";
+import { prepareTestPlatform } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -50,18 +54,18 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 let failures = 0;
 let asserts = 0;
 
-function run(command, args) {
+function run(command, args, options = {}) {
   try {
     return {
       code: 0,
-      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }),
+      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options }),
     };
   } catch (err) {
     return { code: err.status ?? -1, out: (err.stdout ?? "") + (err.stderr ?? "") };
   }
 }
 
-const lint = () => run("bash", ["scripts/lint.sh"]);
+const lint = () => run(bashPath(), ["scripts/lint.sh"]);
 const script = (name) => run("node", [`scripts/${name}`]);
 
 // Snapshot the working tree before anything is broken, so the final assertion compares
@@ -1660,7 +1664,7 @@ breaks(
 // 3.1.0-stream-E:start
 // #53 install freshness: the tree digest in deps.mjs and the fail-closed resume. Each property
 // breaks on its own; the gate runs only the #53 block of test-deps-units.mjs to keep the suite short.
-const depsOnly53 = () => run("env", ["XEZ_DEPS_TEST_ONLY=53", "node", "scripts/test-deps-units.mjs"]);
+const depsOnly53 = () => run("node", ["scripts/test-deps-units.mjs"], { env: { ...process.env, XEZ_DEPS_TEST_ONLY: "53" } });
 const DEPS_MJS = "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs";
 
 breaks(

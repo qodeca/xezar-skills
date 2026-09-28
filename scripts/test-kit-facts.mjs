@@ -29,6 +29,10 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath, posixToolDirs, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
@@ -872,8 +876,7 @@ function walk(rel, match) {
   const where = "kit/checks/leader-context.sh";
   const { execFileSync } = await import("node:child_process");
   const fs = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-  const lab = fs.mkdtempSync(join(tmpdir(), "kit-leader-context-"));
+  const lab = fs.mkdtempSync(join(tempRoot(), "kit-leader-context-"));
   try {
     // The loader names files by their physical path (`pwd -P`); macOS's temp folder is a symlink.
     const repo = join(fs.realpathSync(lab), "repo");
@@ -887,6 +890,10 @@ function walk(rel, match) {
     execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
     const timeline = join(camp, "timeline-2026-09-01.md");
     const decisions = join(camp, "decisions.md");
+    // #122 (Windows): the loader is a bash script and names files by their POSIX path there.
+    const shown = (p) => (process.platform === "win32"
+      ? execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-u", p], { encoding: "utf8" }).trim()
+      : p);
     // Multi-line entries, and a fenced block whose list-looking line belongs to the entry above it.
     const entries = (n) => "# Timeline\n\n" + Array.from({ length: n }, (_, i) =>
       `- 2026-09-01 10:${String(i).padStart(2, "0")} - event ${i + 1}\n  detail of event ${i + 1}\n` +
@@ -894,7 +901,7 @@ function walk(rel, match) {
     const load = (extra = {}) => {
       const env = { ...process.env, XEZAR_LEADER: "1", ...extra };
       for (const k of ["XEZ_HANDOFF_FILE", "XEZ_TODOS_FILE", "XEZ_TASK_ID", "XEZAR_TIMELINE_ENTRIES"]) if (!(k in extra)) delete env[k];
-      const out = execFileSync("bash", [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
+      const out = execFileSync(bashPath(), [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
       return JSON.parse(out).hookSpecificOutput.additionalContext;
     };
     const kept = (ctx) => [...ctx.matchAll(/^- 2026-09-01 \d\d:\d\d - event (\d+)$/gm)].map((m) => Number(m[1]));
@@ -908,7 +915,7 @@ function walk(rel, match) {
       fail(fact, where, `the timeline is not cut to its newest 40 entries: kept [${kept(ctx).join(", ")}]`);
     if (!ctx.includes("detail of event 45\n```text\n- not an entry\n```"))
       fail(fact, where, "a multi-line entry, or the fenced block inside it, was split by the entry cut");
-    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${timeline}: read it on demand.]`))
+    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${shown(timeline)}: read it on demand.]`))
       fail(fact, where, "no pointer line naming the full timeline file and the entries left out");
     if (/WARNING/.test(ctx)) fail(fact, where, "prints a WARNING although decisions.md is a normal file");
     if (!ctx.includes("- 2026-09-01 owner: keep going")) fail(fact, where, "decisions.md is no longer injected");
@@ -927,7 +934,7 @@ function walk(rel, match) {
     const warned = (label, reason) => {
       const text = load();
       const nonce = /--- ([0-9a-f]+): BEGIN UNTRUSTED CAMPAIGN RECORD ---/.exec(text)?.[1];
-      const line = `WARNING ${nonce}: ${decisions} ${reason},`;
+      const line = `WARNING ${nonce}: ${shown(decisions)} ${reason},`;
       const at = text.indexOf(line);
       if (!nonce || at < 0 || at > text.indexOf("=== .xezar/docs/leader-guide.md"))
         fail(fact, where, `no WARNING with the nonce, before the guide, for a ${label} decisions.md`);
@@ -992,7 +999,6 @@ function walk(rel, match) {
   const fact = "FACT G1: project trust boundaries add to the kit's, from the base branch, and fail toward review";
   const { execFileSync } = await import("node:child_process");
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
   const { pathToFileURL } = await import("node:url");
   const SCAN = join(root, SKILL, "kit/checks/lib/security-scan.mjs");
   const scan = await import(pathToFileURL(SCAN).href);
@@ -1052,7 +1058,7 @@ function walk(rel, match) {
     fail(fact, where, "TRUST_BOUNDARIES still ships the engine repository's packages/xezar/src entries");
 
   // The real scan, over a real branch.
-  const lab = mkdtempSync(join(tmpdir(), "kit-trust-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-trust-"));
   const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   const put = (dir, file, text) => { mkdirSync(join(dir, dirname(file)), { recursive: true }); writeFileSync(join(dir, file), text); };
   const runScan = (work, config, changes, baseBranch = "main") => {
@@ -1141,8 +1147,7 @@ function walk(rel, match) {
   const where = "kit/checks/push-check.sh";
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, chmodSync, realpathSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-  const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-push-check-")));
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-push-check-")));
   const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   const exe = (p, body) => { writeFileSync(p, body); chmodSync(p, 0o755); };
   try {
@@ -1198,8 +1203,8 @@ function walk(rel, match) {
     const tip = () => git(bare, "rev-parse", "refs/heads/feature/fix");
     const push = (args, env = {}) => {
       const { XEZ_TASK_ID: _drop, ...base } = process.env;
-      const r = spawnSync("bash", [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
-        env: { ...base, PATH: `${bin}:${process.env.PATH}`, PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
+      const r = spawnSync(bashPath(), [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
+        env: { ...prependPath(base, [bin]), PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
       return { code: r.status, out: `${r.stdout}${r.stderr}` };
     };
     const refused = (what, args, tag, env = {}, over = {}) => {
@@ -1298,8 +1303,7 @@ function walk(rel, match) {
   const probe = `${casesDir}/weakened-check`;
   if (has(`${probe}/expected.json`)) {
     const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const lab = mkdtempSync(join(tmpdir(), "kit-facts-evals-"));
+    const lab = mkdtempSync(join(tempRoot(), "kit-facts-evals-"));
     try {
       build(join(root, probe), lab);
       const graded = (runRecord) => {

@@ -9,6 +9,10 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { bashPath } from './lib/platform.mjs';
+import { prepareTestPlatform } from './lib/test-harness.mjs';
+
+prepareTestPlatform();
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 mkdirSync(join(root, '.local'), { recursive: true });
@@ -18,7 +22,8 @@ try {
     cpSync(join(root, name), join(fixture, name), { recursive: true });
   }
   const lint = () => {
-    const result = spawnSync('bash', ['scripts/lint.sh'], { cwd: fixture, encoding: 'utf8', timeout: 120000 });
+    // One lint run takes about three minutes on Windows (#122).
+    const result = spawnSync(bashPath(), ['scripts/lint.sh'], { cwd: fixture, encoding: 'utf8', timeout: 600000 });
     assert.ifError(result.error);
     return { status: result.status, output: result.stdout + result.stderr };
   };

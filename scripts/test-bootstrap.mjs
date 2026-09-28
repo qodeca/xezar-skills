@@ -14,9 +14,12 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, realpathSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(root, "skills", "xez-onboard-opinionated", "kit");
@@ -32,7 +35,7 @@ const git = (cwd, ...args) =>
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: "pipe" }).trim();
 const write = (file, text) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
 
-const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-bootstrap-")));
+const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-bootstrap-")));
 try {
   // origin holds the kit at v1; the primary clones it, then origin moves on to v2 without it.
   git(lab, "init", "--quiet", "--bare", "origin.git");
@@ -62,7 +65,7 @@ try {
     const env = { ...process.env };
     delete env.XEZ_TASK_ID;
     try {
-      return { code: 0, out: execFileSync("bash", [join(primary, ".xezar/checks/bootstrap.sh")], { cwd, env, encoding: "utf8", stdio: "pipe" }) };
+      return { code: 0, out: execFileSync(bashPath(), [join(primary, ".xezar/checks/bootstrap.sh")], { cwd, env, encoding: "utf8", stdio: "pipe" }) };
     } catch (err) {
       return { code: err.status ?? -1, out: (err.stdout ?? "") + (err.stderr ?? "") };
     }

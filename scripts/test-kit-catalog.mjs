@@ -34,10 +34,13 @@
 
 import { execFileSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { bashPath, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, restrict, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = "skills/xez-onboard-opinionated";
@@ -53,7 +56,7 @@ const fail = (message) => {
 // --- 1. The kit's own validator, on the kit ---------------------------------------------------
 // Staged as `<tmp>/.xezar/{workflows,skills,checks}` because that is the only layout the
 // validator reads. The config is the smallest one it accepts.
-const stage = mkdtempSync(join(tmpdir(), "kit-catalog-"));
+const stage = mkdtempSync(join(tempRoot(), "kit-catalog-"));
 try {
   mkdirSync(join(stage, ".xezar"));
   for (const dir of ["workflows", "skills", "checks"]) {
@@ -104,7 +107,7 @@ try {
     if (/printf '%s'/.test(text)) fail(`kit/${rel} teaches printf, which no reading step's allowlist holds; build the text with jq -n`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-writers-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-writers-"));
   try {
     const repo = join(lab, "repo");
     mkdirSync(join(repo, ".xezar"), { recursive: true });
@@ -116,10 +119,10 @@ try {
     const log = join(lab, "gh.log");
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\nprintf 'ARGS %s\\n' "$*" >>"${log}"\ncase " $* " in *" --body-file - "*) { printf 'BODY '; cat; echo; } >>"${log}" ;; esac\nexit 0\n`);
     chmodSync(join(bin, "gh"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
     const pipe = (script, request, extra = {}) => {
       try {
-        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
+        execFileSync(bashPath(), [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
         return 0;
       } catch (error) {
         return error.status;
@@ -236,7 +239,7 @@ for (const name of routed) {
   }
 
   // --rows is the classification view: it must carry no lane and no login.
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-"));
   try {
     const out = execFileSync("node", [ROUTE, "--file", join(KIT, "routing.json"), "--rows"], { cwd: lab, encoding: "utf8", stdio: "pipe" });
     for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
@@ -369,7 +372,7 @@ for (const name of routed) {
 // A script that asks "am I the main module" by comparing an unresolved path does nothing at all,
 // and exits 0, when `.xezar/checks` is a link -- which reads as a pass.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-main-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-main-"));
   try {
     const real = join(lab, "with space", "checks");
     mkdirSync(join(lab, "with space"), { recursive: true });
@@ -531,7 +534,7 @@ for (const name of workflowFiles) {
 // Every case names the distinctive words of the refusal, not just its exit status: a guard that
 // fails for another reason is not the guard working.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-guards-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-guards-"));
   const work = join(lab, "work");
   const TASK = "fixture-task-1";
   const evidence = join(work, ".local/xezar/tasks", TASK);
@@ -548,7 +551,7 @@ for (const name of workflowFiles) {
   };
   const guard = (name, ...args) => {
     try {
-      const out = execFileSync("bash", [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
+      const out = execFileSync(bashPath(), [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
       return { code: 0, out };
     } catch (error) {
       return { code: error.status ?? -1, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -717,7 +720,7 @@ for (const name of workflowFiles) {
     if (!known) fail(`local-tree.sh does not know the engine's ${entry.kind} "${entry.name}" (xezar state-names at 0.19.0) -- every project's gate would fail on it`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-local-tree-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-local-tree-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar/checks"), { recursive: true });
@@ -731,7 +734,7 @@ for (const name of workflowFiles) {
     const standIn = (body) => { writeFileSync(join(bin, "xezar"), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, "xezar"), 0o755); };
     const run = () => {
       try {
-        return { code: 0, out: execFileSync("bash", [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }) };
+        return { code: 0, out: execFileSync(bashPath(), [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: prependPath(process.env, [bin]) }) };
       } catch (error) { return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") }; }
     };
     const newer = structuredClone(published);
@@ -766,7 +769,7 @@ for (const name of workflowFiles) {
 // Its fixture once ran the loader without the flag, so it failed in every onboarded project's gate
 // and in no test here, because nothing here ran it.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-documented-output-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-documented-output-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
@@ -794,7 +797,7 @@ for (const name of workflowFiles) {
 // on PATH: a socket named by the engine is accepted, no socket stops it with its message.
 {
   const { createServer } = await import("node:net");
-  const lab = mkdtempSync(join(tmpdir(), "kl-"));
+  const lab = mkdtempSync(join(tempRoot(), "kl-"));
   const server = createServer();
   try {
     const project = join(lab, "My Proj");
@@ -805,11 +808,11 @@ for (const name of workflowFiles) {
     const record = join(lab, "claude-args");
     writeFileSync(join(bin, "claude"), `#!/usr/bin/env bash\nprintf '%s\\n' "XEZAR_LEADER=$XEZAR_LEADER" "$@" > "${record}"\nexit 0\n`);
     chmodSync(join(bin, "claude"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+    const env = prependPath(process.env, [bin]);
     const launch = () => {
       rmSync(record, { force: true });
       try {
-        return { code: 0, out: execFileSync("bash", [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env, encoding: "utf8", stdio: "pipe" }) };
+        return { code: 0, out: execFileSync(bashPath(), [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env, encoding: "utf8", stdio: "pipe" }) };
       } catch (error) {
         return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
       }
@@ -862,7 +865,7 @@ for (const name of workflowFiles) {
   const b = Object.keys(schema.properties.vendorExclusions?.items?.properties ?? {}).sort().join(",");
   if (!a || a !== b) fail(`route.mjs KNOWN.vendorExclusion is [${a}] and routing.schema.json says [${b}] -- the script and the schema must name the same keys`);
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-chain-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-chain-"));
   const printed = [];
   try {
     const project = join(lab, "project");
@@ -980,7 +983,7 @@ for (const name of workflowFiles) {
 // still fails the quote check. C2: a widening Bash rule in the untracked settings.local.json warns
 // and a committed one fails; a browser grant outside the kit's tool list fails in either file.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-claude-settings-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-claude-settings-"));
   const out = (error) => (error.stdout ?? "") + (error.stderr ?? "");
   try {
     const project = join(lab, "project");
@@ -1026,7 +1029,7 @@ for (const name of workflowFiles) {
     rmSync(lab, { recursive: true, force: true });
   }
 
-  const stage = mkdtempSync(join(tmpdir(), "kit-catalog-settings-"));
+  const stage = mkdtempSync(join(tempRoot(), "kit-catalog-settings-"));
   try {
     mkdirSync(join(stage, ".xezar"));
     for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(stage, ".xezar", dir), { recursive: true });
@@ -1078,7 +1081,7 @@ for (const name of workflowFiles) {
 // review-run.sh and holds every chrome-devtools tool; the review-only browser tools stay out of
 // every other workflow; review preflights run strict; a verdict needs an unchanged tree.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-stream-d-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-stream-d-"));
   try {
     mkdirSync(join(lab, ".xezar"));
     for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(lab, ".xezar", dir), { recursive: true });
@@ -1143,7 +1146,7 @@ for (const name of workflowFiles) {
 
   // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
   // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
-  const run = mkdtempSync(join(tmpdir(), "kit-review-run-"));
+  const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1197,13 +1200,13 @@ for (const name of workflowFiles) {
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
     chmodSync(join(bin, "gh"), 0o755);
     const handoff = join(run, "handoff");
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
     // A review step runs every kit script from the kit step's copy (its allowlist names nothing else);
     // `tracked` is the copy in the tracked tree, for a checkout that has no kit-step copy.
     const TRUSTED = ".local/xezar/cache/kit/checks";
     const sh = (cwd, script, args = [], input = "", dir = TRUSTED) => {
       try {
-        const out = execFileSync("bash", [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
+        const out = execFileSync(bashPath(), [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
         return { status: 0, out };
       } catch (error) {
         return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -1216,7 +1219,7 @@ for (const name of workflowFiles) {
     const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
 
     // The kit step: bootstrap copies the primary's checks/ outside the tracked tree.
-    const kit = execFileSync("bash", [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
+    const kit = execFileSync(bashPath(), [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
     const kitCopy = join(wt, TRUSTED);
     const same = (rel) => existsSync(join(kitCopy, rel)) && readFileSync(join(kitCopy, rel), "utf8") === readFileSync(join(KIT, "checks", rel), "utf8");
     if (!kit.includes("REVIEW TOOLS:") || !same("verdict-write.sh") || !same("lib/common.sh"))
@@ -1244,9 +1247,9 @@ for (const name of workflowFiles) {
     if (process.getuid?.() !== 0) {
       const privateGitDir = git(wt, "rev-parse", "--absolute-git-dir");
       for (const [what, dir] of [["the worktree's own git directory", privateGitDir], ["the shared git directory", join(repo, ".git")]]) {
-        chmodSync(dir, 0o555);
+        const restore = restrict(dir, "no-write");
         let confined;
-        try { confined = rr("checkout", "5"); } finally { chmodSync(dir, 0o755); }
+        try { confined = rr("checkout", "5"); } finally { restore(); }
         if (confined.status !== 3 || !confined.out.includes("review-run=confined") || !confined.out.includes("report every check that needed running as not run")
           || git(wt, "rev-parse", "HEAD") === prHead || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
           fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
@@ -1392,7 +1395,7 @@ for (const name of workflowFiles) {
     const producer = () => {
       const probeEnv = { ...process.env, MAIN_ROOT: repo, TASK_ID: implRun.id, TASK_CWD: producerCwd };
       delete probeEnv.XEZ_TASK_ID;
-      return execFileSync("bash", ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
+      return execFileSync(bashPath(), ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
     };
     writeFileSync(runsIndex, JSON.stringify([implRun]));
     if (producer() !== "gates") fail("gate-record.sh does not find a pre-flag run's frozen gates step in the engine's runs index");
@@ -1416,7 +1419,7 @@ for (const name of workflowFiles) {
 // older than it: a check that still falls back to `main` sees the base's own commits as this
 // branch's edits, and refuses a branch that only wrote a fragment.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-changelog-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-changelog-"));
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
     GIT_CONFIG_GLOBAL: "/dev/null",
@@ -1462,7 +1465,7 @@ for (const name of workflowFiles) {
     k.put("CHANGELOG.md", KAC.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Changed\n\n- Legacy bullet on develop.\n"));
     k.git("commit", "--quiet", "-am", "legacy unreleased bullet");
     const developSha = k.git("rev-parse", "--short=12", "HEAD");
-    const check = (...args) => exec(k.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+    const check = (...args) => exec(k.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
 
     expect("the format is detected from a Keep a Changelog file", exec(k.dir, "node", [FRAG, "--format-of"]), 0, "format=keep-a-changelog");
 
@@ -1523,7 +1526,7 @@ for (const name of workflowFiles) {
     h.put("changelog.d/7.md", "## 🐛 Fixes\n\n- Fragment. (#7)\n");
     h.git("add", "-A");
     h.git("commit", "--quiet", "-m", "fragment");
-    const hcheck = (...args) => exec(h.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+    const hcheck = (...args) => exec(h.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
     expect("house: a fragment-only branch is accepted against the configured base", hcheck("--diff-base", "auto", "--fragments", "changelog.d"), 0, "no direct edit of CHANGELOG.md");
     h.git("checkout", "--quiet", "-b", "feature-direct", "develop");
     h.put("CHANGELOG.md", h.read("CHANGELOG.md").replace("- Old.\n", "- Old.\n- Direct.\n"));
@@ -1592,7 +1595,7 @@ for (const name of workflowFiles) {
   const { createHash } = await import("node:crypto");
   const sha = (text) => createHash("sha256").update(text).digest("hex");
   const DRIFT = join(KIT, "checks/manifest-drift.mjs");
-  const lab = mkdtempSync(join(tmpdir(), "kit-drift-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-drift-"));
   const drift = (dir) => {
     try {
       return { code: 0, out: execFileSync("node", [DRIFT, dir], { encoding: "utf8", stdio: "pipe" }) };
@@ -1747,7 +1750,7 @@ for (const name of workflowFiles) {
   refused((f) => { f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
   function byIdOf(f) { return Object.fromEntries(f.rows.map((r) => [r.id, r])); }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-r-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-r-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
