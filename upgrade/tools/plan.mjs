@@ -42,10 +42,13 @@
 //   safety-local-change   a local change kept in a safety file (the line test is a floor)
 //   safety-both-changed   a safety file both sides changed: a clean text merge can still undo
 //                         what the target change enforces
+//   own-file-kit-contract a role skill or workflow of the project's own, which no kit version
+//                         ships and the target's catalog check still judges (ownFiles): bring
+//                         it to the target's contract; a grant it needs is a permission change
 //
 // Exit: 0 written; 2 cannot run.
 
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -56,6 +59,7 @@ import { detect } from "./detect.mjs";
 import { render, placeholdersIn } from "./lib/rewrites.mjs";
 import {
   OWNER_SHAPED,
+  isNeverTouched,
   isSafetyFile,
   isCheckLike,
   permissionGrants,
@@ -70,7 +74,7 @@ import { recordable, unchangedFromKit } from "./verify.mjs";
 /** The planner's stop reasons, each mapped to a rule in the prompt's stop-and-ask list. */
 export const STOP_REASONS = ["unexplained-safety-file", "weakens-safety-check", "permission-change", "routing-clash"];
 /** What the prompt must read and judge even when nothing stops (see the header). */
-export const REVIEW_REASONS = ["safety-local-change", "safety-both-changed"];
+export const REVIEW_REASONS = ["safety-local-change", "safety-both-changed", "own-file-kit-contract"];
 
 export const CLASSES = [
   "unchanged-upstream",
@@ -267,6 +271,63 @@ export function engineChecks(actions, engine) {
       status: e.version == null ? "unknown" : compareVersions(e.version, min) >= 0 ? "met" : "unmet",
     })),
   };
+}
+
+/** The role skill whose `## Shared contract` tail is canonical (catalog-check requires one tail). */
+const CANONICAL_TAIL_SKILL = ".xezar/skills/xezar-docs-maintenance.md";
+const TAIL = "## Shared contract\n";
+
+/**
+ * The project's own role skills and workflows: a `.xezar/skills/xezar-*.md` with a
+ * `## Shared contract` section, or a `.xezar/workflows/*.yaml`, that the target kit does not
+ * ship. No kit version has them and the manifest does not record them, so detection never sees
+ * them – yet the target's catalog check judges them with the kit's own: one tail for every role
+ * skill that has one, a timeout on every agent step, and the review rules. Each becomes a
+ * `local-only` item with the `own-file-kit-contract` review, which prompt step 5 resolves.
+ * Returns [{ path, kind: "skill"|"workflow", text }].
+ */
+export function ownFiles(ctx) {
+  const found = [];
+  const dirs = [
+    [".xezar/skills", "skill", (n, text) => /^xezar-[^/]+\.md$/.test(n) && text.includes(TAIL)],
+    [".xezar/workflows", "workflow", (n) => /\.ya?ml$/.test(n)],
+  ];
+  for (const [dir, kind, wanted] of dirs) {
+    let names = [];
+    try {
+      const abs = resolveInside(ctx.project, dir);
+      if (existsSync(abs)) names = readdirSync(abs).sort();
+    } catch {
+      continue;
+    }
+    for (const n of names) {
+      const p = `${dir}/${n}`;
+      if (ctx.theirs.files[p] || isNeverTouched(p)) continue;
+      if (ctx.git.isGit && ctx.git.ignored(p)) continue;
+      const mine = ctx.readMine(p);
+      if (mine.text == null || !wanted(n, mine.text)) continue;
+      found.push({ path: p, kind, text: mine.text });
+    }
+  }
+  return found;
+}
+
+/** What an own file must change for the target's catalog check, quoted from the upgrade entries. */
+function ownFileNotes(ctx, own) {
+  if (own.kind === "skill") {
+    const canonical = ctx.theirsText(CANONICAL_TAIL_SKILL)?.split(TAIL)[1];
+    const tail = own.text.split(TAIL)[1];
+    return [
+      canonical !== undefined && tail === canonical
+        ? "a role skill of the project's own: its `## Shared contract` tail already equals the target's"
+        : "a role skill of the project's own: replace everything from its `## Shared contract` heading to the end with the same part of the target kit's `skills/xezar-docs-maintenance.md`, keeping the text above the heading (the catalog check requires one tail in every role skill that has one)",
+    ];
+  }
+  return [
+    "a workflow of the project's own: give every agent step (prompt or skill) a `timeout` – `15m` for a handoff, `2h` for a main step – the catalog check refuses one without",
+    "if it is a review or QA workflow: its review step runs kit scripts only from `.local/xezar/cache/kit/checks/` – never `bash .xezar/checks/`, in its bashAllowlist or its prompt – holds `bash .local/xezar/cache/kit/checks/review-run.sh`, and its preflight drops `--allow-root`",
+    "a tool or allowlist grant this adds (the chrome-devtools tools the kit's `code-review.yaml` lists, `review-run.sh`) is a permission change: stop and ask before writing it",
+  ];
 }
 
 /** Arrays whose items all carry an `id` are compared item by item; anything else as a whole. */
@@ -649,6 +710,33 @@ export function buildPlan(ctx, detection = detect(ctx)) {
       }
     }
     push();
+  }
+
+  // The project's own role skills and workflows: kept as they are, and read against the target's
+  // contract (ownFiles). One the manifest or register already named is in `out` as local-only.
+  const outByPath = new Map(out.map((i) => [i.path, i]));
+  for (const own of ownFiles(ctx)) {
+    let item = outByPath.get(own.path);
+    if (!item) {
+      const reg = byPath.get(own.path) ?? [];
+      item = {
+        path: own.path,
+        class: "local-only",
+        action: "keep",
+        base: { version: null, confidence: "unknown", via: null },
+        mineSha256: sha256(own.text),
+        theirs: null,
+        register: reg.map((r) => r.id),
+        registerConfirmed: reg.length > 0 && reg.every((r) => r.confirmed),
+        safety: isSafetyFile(own.path),
+        stops: [],
+        reviews: [],
+        notes: ["no kit version ever shipped this file: the project's own, kept as it is"],
+      };
+      out.push(item);
+    }
+    if (!item.reviews.includes("own-file-kit-contract")) item.reviews.push("own-file-kit-contract");
+    item.notes.push(...ownFileNotes(ctx, own));
   }
 
   const counts = Object.fromEntries(CLASSES.map((c) => [c, 0]));

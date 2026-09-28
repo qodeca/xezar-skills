@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { sha256 } from "./lib/hash.mjs";
 import { loadContext, parseArgs, printHelp } from "./lib/context.mjs";
-import { normalisedMatch, placeholdersIn } from "./lib/rewrites.mjs";
+import { normalisedMatch, placeholdersIn, regionsIn } from "./lib/rewrites.mjs";
 import { lineDistance } from "./lib/diff.mjs";
 import { isNeverTouched } from "./lib/policy.mjs";
 import { isRepoRelative } from "./lib/paths.mjs";
@@ -116,7 +116,7 @@ export function findBase(ctx, path, mine) {
     if (m.match) {
       // Newest version sharing this blob.
       const nv = newest((x) => x.kitBlob === e.kitBlob);
-      return result(nv, "medium", placeholdersIn(t).length ? "normalised-placeholders" : "normalised-paths", { text: t, inputs: m.inputs });
+      return result(nv, "medium", placeholdersIn(t).length || regionsIn(t).length ? "normalised-placeholders" : "normalised-paths", { text: t, inputs: m.inputs });
     }
   }
 

@@ -394,6 +394,11 @@ function checkReaderStep(at, workflow, step) {
     }
   }
   if (review) {
+    // The prompt is an instruction too: a review prompt that names the tracked path sends the
+    // reviewer to the script the checkout just replaced with the pull request's own.
+    if (typeof step.prompt === "string" && step.prompt.includes(".xezar/checks/")) {
+      err(at, `its prompt names ".xezar/checks/", the copy a checkout replaces with the pull request's own; a review prompt names ${TRUSTED_CHECKS}/ or leaves the path to the role skill (D13)`);
+    }
     if (!list.includes(REVIEW_RUN_PREFIX)) {
       err(at, `is a review or QA step without "${REVIEW_RUN_PREFIX}", so it cannot run the change it judges (D13)`);
     }

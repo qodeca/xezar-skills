@@ -12,7 +12,10 @@
 // (format: `.xezar/docs/local-patches.md`).
 //
 // Rules, from the upgrade contract (manifest version 2):
-// - a file with no `patch` must hash-match its recorded `sha256`;
+// - a file with no `patch` must hash-match its recorded `sha256`; for the gate runner
+//   `.xezar/checks/repo-gates.sh` (origin `adapted`), a gate list the project changed since is
+//   a filled-in value, not drift: its three gate assignments are swapped back for the values its
+//   `renderInputs` records before the file is hashed a second time (GATE_REGIONS below);
 // - a file with a `patch` may differ or be absent: a kit file removed on purpose keeps its entry,
 //   and the register entry is the record of the removal;
 // - for `owner-file-appended`, only the block from `<!-- xezar:kit:start -->` to
@@ -172,6 +175,34 @@ if (existsSync(registerPath)) {
 }
 
 // --- comparing ---------------------------------------------------------------------------------
+// The gate runner's own gate list: the three assignments onboarding writes for the project (its
+// references/write.md §2). Kept equal to RENDERED_REGIONS in the upgrade tool's
+// lib/rewrites.mjs (the collection's tests bind them), which records each value in
+// `renderInputs` under its key: the text between the array's `(` and `)`, or the rest of the
+// lanes line after `=`. A changed gate list is still a trust-boundary change that needs a
+// security review; it is the project's value, like the commands in `validation.commands`.
+const GATE_RUNNER = ".xezar/checks/repo-gates.sh";
+const GATE_REGIONS = [
+  { key: "GATE_NAMES", re: /^(GATE_NAMES=\()([\s\S]*?)(\)[ \t]*$)/m },
+  { key: "GATE_COMMANDS", re: /^(GATE_COMMANDS=\()([\s\S]*?)(\)[ \t]*$)/m },
+  { key: "GATE_APPLICATION_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m },
+];
+// The gate runner with its recorded gate list put back, or null when that cannot be done: not
+// the gate runner, no recorded value for a region, or the region is missing from the file.
+function recordedGateList(path, entry, bytes) {
+  const inputs = entry.renderInputs;
+  if (path !== GATE_RUNNER || entry.origin !== "adapted" || inputs === null || typeof inputs !== "object") return null;
+  let text = bytes.toString("utf8");
+  let restored = 0;
+  for (const { key, re } of GATE_REGIONS) {
+    if (typeof inputs[key] !== "string") continue;
+    if (!re.test(text)) return null;
+    text = text.replace(re, (_, head, _value, tail) => `${head}${inputs[key]}${tail}`);
+    restored += 1;
+  }
+  return restored ? createHash("sha256").update(text, "utf8").digest("hex") : null;
+}
+
 const within = (candidate) => {
   const rel = relative(root, candidate);
   return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
@@ -204,7 +235,7 @@ function digest(path, origin) {
       return { reason: "hash-mismatch", note: "does not hold exactly one kit block" };
     bytes = Buffer.from(text.slice(start, end + END.length), "utf8");
   }
-  return { sha256: createHash("sha256").update(bytes).digest("hex") };
+  return { sha256: createHash("sha256").update(bytes).digest("hex"), bytes };
 }
 
 const drift = [];
@@ -234,6 +265,8 @@ for (const [path, entry] of Object.entries(files).sort(([a], [b]) => (a < b ? -1
     continue;
   }
   if (seen.reason) report(path, entry.origin, seen.reason, seen.note);
+  else if (seen.sha256 !== entry.sha256 && recordedGateList(path, entry, seen.bytes) === entry.sha256)
+    explain(`${path}: its gate list differs from the one recorded; that is the project's own value, not drift`);
   else if (seen.sha256 !== entry.sha256)
     report(path, entry.origin, "hash-mismatch", `changed since it was recorded; record the change in ${REGISTER} or restore the file`);
 }

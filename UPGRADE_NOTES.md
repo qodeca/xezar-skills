@@ -87,7 +87,10 @@ git -C <verified clone> show v<old>:skills/xez-onboard-opinionated/kit/<kit path
 `<kit path>` is the path the entry's `cp` reads under `$K` (`.xezar/checks/x.sh` comes from
 `checks/x.sh`, `.xezar/skills/y.md` from `skills/y.md`). An
 adapted file (`.github/` templates, `repo-gates.sh`, a file with a rewritten absolute path) also
-differs by its filled-in values; those are not a local change. If the file differs otherwise,
+differs by its filled-in values; those are not a local change. In `repo-gates.sh` the filled-in
+values are exactly its three gate assignments – `GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and
+`GATE_APPLICATION_LANES=` – which the verifier and the drift check read as the project's gate
+list, not as a local change. If the file differs otherwise,
 merge by hand instead of copying: take the kit's change, keep yours, and add a
 `.xezar/LOCAL-PATCHES.md` entry for the file (format: `.xezar/docs/local-patches.md`) before you
 run the verifier. If you are not sure – or the manifest names no version – use the upgrade
@@ -132,7 +135,8 @@ Every copied role skill ends in the 3.1.0 `## Shared contract` tail, and `catalo
 requires the same tail in every `xezar-*` role skill that has one. A role skill of your own in
 `.xezar/skills/` with a `## Shared contract` section takes the new tail too: replace everything
 from its `## Shared contract` heading to the end with the same part of the kit's
-`skills/xezar-docs-maintenance.md`, keeping your text above the heading.
+`skills/xezar-docs-maintenance.md`, keeping your text above the heading. The upgrade prompt lists
+each such file for you (`own-file-kit-contract`).
 
 **What you lose by skipping it.** Installed role skills do not update themselves: the dependency
 and testing agents keep giving npm instructions on a non-npm project, and every author keeps being
@@ -227,9 +231,11 @@ project with **its own** workflows gives each agent step a `timeout` (`15m` for 
 for a main step) – the new check refuses one without. A project that kept its own review
 workflows adds `"bash .local/xezar/cache/kit/checks/review-run.sh"` to each review step's
 `bashAllowlist` and changes every other `bash .xezar/checks/` entry there to
-`bash .local/xezar/cache/kit/checks/` (the new check refuses the old form in a review step), grants
+`bash .local/xezar/cache/kit/checks/` (the new check refuses the old form in a review step, in
+its allowlist and in its prompt text alike), grants
 it every `mcp__chrome-devtools__*` tool the kit's `code-review.yaml` lists, and drops
-`--allow-root` from its preflight.
+`--allow-root` from its preflight. The upgrade prompt lists each workflow of your own for you
+(`own-file-kit-contract`) and asks before it adds a grant.
 
 **What you lose by skipping it.** Handoff and review steps keep no time limit on runners that
 apply none; review and QA steps keep stopping on browser-tool denials, cannot start the app they
@@ -365,13 +371,14 @@ Files: .xezar/checks/push-check.sh =new; .xezar/checks/worktree-preflight.sh; .x
 records its original digest and origin. Nothing tells an upgrade that the file carries a local
 change, so replacing it as "copied" loses the change.
 
-**What to do.** Copy the check, its format document and the gate script, then handle each drifted
-file instead of refreshing its digest:
+**What to do.** Copy the check, its format document, the docs index that lists it and the gate
+script, then handle each drifted file instead of refreshing its digest:
 
 ```bash
 K=.claude/skills/xez-onboard-opinionated/kit
 cp $K/checks/manifest-drift.mjs .xezar/checks/
 cp $K/docs/local-patches.md .xezar/docs/
+cp $K/docs/README.md .xezar/docs/
 cp $K/checks/repository-checks.sh .xezar/checks/
 cp $K/checks/local-tree.sh .xezar/checks/
 ```
@@ -408,7 +415,7 @@ cannot tell a patched file from an untouched one and may overwrite a local patch
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/manifest-drift.mjs =new; .xezar/docs/local-patches.md =new; .xezar/checks/repository-checks.sh; .xezar/checks/local-tree.sh
+Files: .xezar/checks/manifest-drift.mjs =new; .xezar/docs/local-patches.md =new; .xezar/docs/README.md; .xezar/checks/repository-checks.sh; .xezar/checks/local-tree.sh
 ```
 
 ### 11. DeepSeek routing – Claude runs out of budget while DeepSeek sits idle
@@ -456,8 +463,12 @@ cp $K/docs/worktrees.md .xezar/docs/
 
 `.xezar/checks/repo-gates.sh` holds your gate list: save it, copy the kit's, put your
 `GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and `GATE_APPLICATION_LANES=` lines back, and check that
-`git diff` shows only the kit's re-stamp after a passed run. It calls functions only this
-`common.sh` has, so copy both or neither.
+`git diff` shows only the kit's re-stamp after a passed run. Those three assignments are your
+filled-in values, not a local change: no `.xezar/LOCAL-PATCHES.md` entry, and the verifier
+records them in the file's `renderInputs`, so neither it nor the drift check reports them. Any
+other line of yours in the file is a local change and needs one. The upgrade prompt carries the
+three over for you. The new `repo-gates.sh` calls functions only this `common.sh` has, so copy
+both or neither.
 
 Every task's first run after the merge installs once: a stamp written before this change has no
 digest, so it reads as not fresh. On a very large install, check that one `--fast` gate run's

@@ -14,10 +14,47 @@ export function placeholdersIn(text) {
   return [...new Set([...text.matchAll(PLACEHOLDER)].map((m) => m[1]))].sort();
 }
 
-/** Fill placeholders. Unknown keys stay as they are and are returned in `missing`. */
+// Rendered regions: kit text that onboarding fills in with no `{{placeholder}}`. The gate runner
+// `.xezar/checks/repo-gates.sh` ships the kit's sample gate list, and onboarding writes the
+// project's own into three assignments (references/write.md §2). Those assignments are filled-in
+// values, not a local change: comparison treats each as a placeholder named by `key`, and its
+// value – the text between the array's `(` and `)`, or the rest of the lanes line after `=` – is
+// recovered and re-rendered like one. They apply only to a text that has both gate arrays at the
+// start of a line, so no other kit file has a region. The kit's drift check
+// (kit/checks/manifest-drift.mjs, REGIONS) reads the same three keys from `renderInputs`;
+// scripts/test-upgrade.mjs binds the two.
+export const RENDERED_REGIONS = [
+  { key: "GATE_NAMES", re: /^(GATE_NAMES=\()([\s\S]*?)(\)[ \t]*$)/m },
+  { key: "GATE_COMMANDS", re: /^(GATE_COMMANDS=\()([\s\S]*?)(\)[ \t]*$)/m },
+  { key: "GATE_APPLICATION_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m },
+];
+const hasRegions = (text) => /^GATE_NAMES=\(/m.test(text) && /^GATE_COMMANDS=\(/m.test(text);
+
+/** The rendered-region keys a kit text carries (empty for every file but the gate runner). */
+export function regionsIn(text) {
+  if (!hasRegions(text)) return [];
+  return RENDERED_REGIONS.filter(({ re }) => re.test(text)).map(({ key }) => key);
+}
+
+/** The text with each rendered region's value swapped for `{{KEY}}`, or for inputs[KEY] when given. */
+function fillRegions(text, inputs = null) {
+  if (!hasRegions(text)) return text;
+  let out = text;
+  for (const { key, re } of RENDERED_REGIONS) {
+    if (inputs && !Object.prototype.hasOwnProperty.call(inputs, key)) continue;
+    // A replacer function: a gate value holds `$` (`${GATE_APPLICATION_LANES-…}`).
+    out = out.replace(re, (_, head, _value, tail) => `${head}${inputs ? inputs[key] : `{{${key}}}`}${tail}`);
+  }
+  return out;
+}
+
+/**
+ * Fill placeholders, and the rendered regions `inputs` names. Unknown keys stay as they are and
+ * are returned in `missing`; a region with no input keeps the kit's text.
+ */
 export function render(text, inputs = {}) {
   const missing = new Set();
-  const out = text.replace(PLACEHOLDER, (whole, key) => {
+  const out = fillRegions(text, inputs).replace(PLACEHOLDER, (whole, key) => {
     if (Object.prototype.hasOwnProperty.call(inputs, key)) return inputs[key];
     missing.add(key);
     return whole;
@@ -41,7 +78,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * literal text between them cannot be told apart, so that shape never matches.
  */
 export function extractInputs(template, installed) {
-  const t = maskAbsolutePaths(template);
+  const t = maskAbsolutePaths(fillRegions(template));
   const inst = maskAbsolutePaths(installed);
   const keys = [];
   const parts = t.split(/\{\{([A-Z][A-Z0-9_]*)\}\}/);

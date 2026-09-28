@@ -577,6 +577,10 @@ to carry — do not invent one, and do not tell the owner to run one.
     as plain text under the placeholder's name (a generated array as its lines). Never a secret,
     a token or an account name — those belong in the gitignored half. Leave `renderInputs` out
     when the edits are not named values, as the routing screens' edits are not.
+    `.xezar/checks/repo-gates.sh` records its gate list here, byte for byte as written:
+    `GATE_NAMES` and `GATE_COMMANDS`, the text between each array's `(` and `)`, and
+    `GATE_APPLICATION_LANES`, the rest of that line after `=`. The drift check puts these back
+    before a second hash, so a later change to the gate list is the project's value, not drift.
   - No `patch` key: a fresh setup has no local patches, and no `.xezar/LOCAL-PATCHES.md`.
 - **The drift check passes before the commit.** `node .xezar/checks/manifest-drift.mjs` prints
   `drift-status=pass` on the tree about to be committed; `repository-checks.sh` runs it at every
