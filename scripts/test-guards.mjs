@@ -1539,6 +1539,14 @@ breaks(
 );
 
 breaks(
+  "a catalog check that no longer reads a review step's prompt for the tracked checks path is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('if (typeof step.prompt === "string" && step.prompt.includes(".xezar/checks/")) {', "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a security-review prompt that names the tracked .xezar/checks/git-read.sh",
+);
+
+breaks(
   "a review workflow without the full browser tool set is rejected",
   "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml",
   (s) => s.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
@@ -1898,6 +1906,48 @@ breaks(
   (s) => s.replace("else if (seen.sha256 !== entry.sha256)", "else if (false)"),
   () => script("test-kit-catalog.mjs"),
   "manifest-drift: a silent edit exits 0, not 1",
+);
+
+// A project's own gate list is a filled-in value (lib/rewrites.mjs RENDERED_REGIONS); nothing else is.
+breaks(
+  "a drift check whose gate-list allowance accepts any edit to the gate runner is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('return restored ? createHash("sha256").update(text, "utf8").digest("hex") : null;', "return entry.sha256;"),
+  () => script("test-upgrade.mjs"),
+  "own-gates: the drift check accepts an edit outside the gate list",
+);
+
+breaks(
+  "a drift check whose gate regions drift from the upgrade tool's is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('{ key: "GATE_APPLICATION_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m }', '{ key: "GATE_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m }'),
+  () => script("test-upgrade.mjs"),
+  "RENDERED_REGIONS disagree on GATE_APPLICATION_LANES",
+);
+
+breaks(
+  "an upgrade tool that reads a project's own gate list as a local change is rejected",
+  "upgrade/tools/lib/rewrites.mjs",
+  (s) => s.replace("const hasRegions = (text) => /^GATE_NAMES=\\(/m.test(text)", "const hasRegions = (text) => false && /^GATE_NAMES=\\(/m.test(text)"),
+  () => script("test-upgrade.mjs"),
+  "own-gates: a project's own gate list makes .xezar/checks/repo-gates.sh",
+);
+
+// The project's own role skills and workflows reach the plan as own-file-kit-contract reviews.
+breaks(
+  "a planner that no longer lists the project's own role skills and workflows is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("for (const own of ownFiles(ctx)) {", "for (const own of []) {"),
+  () => script("test-upgrade.mjs"),
+  "own-files: .xezar/skills/xezar-mobile-release.md is",
+);
+
+breaks(
+  "an upgrade prompt that does not say what to do with an own-file-kit-contract review is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("   - `own-file-kit-contract` – a role skill", "   - own-file review – a role skill"),
+  () => script("test-kit-facts.mjs"),
+  "review reason `own-file-kit-contract`",
 );
 
 breaks(

@@ -101,7 +101,9 @@ or a tracked file changed. QA and design review may now move their own labels (`
 only for the PR's current head, after checking it out, on an unchanged tree. Review preflights
 run strict, without `--allow-root`. `catalog-check.mjs` refuses a review step without
 `review-run.sh` or without the full browser set, an Edit or Write tool in one, and a review-only
-browser tool anywhere else. The accepted cost – running PR code runs it with the operator's user
+browser tool anywhere else. It also refuses a review prompt that names the tracked
+`.xezar/checks/`: the security review's prompt still sent the reviewer to `.xezar/checks/git-read.sh`,
+the copy a checkout replaces with the PR's own, and now names the cache copy. The accepted cost – running PR code runs it with the operator's user
 rights – is in `SECURITY.md` and `DECISIONS.md`. Found in Erfana (qodeca/erfana#177, #202).
 A Codex review lane cannot run the change yet: engine 0.19.0 confines a Codex step with no Edit
 and no Write to its worktree and the run's own folders, and a checkout must write git outside
@@ -215,7 +217,12 @@ entry with no matching manifest patch, and on an entry marked `Confirmed: no` un
 confirms it. A kit file deleted on purpose is recorded the same way, and the upgrade keeps it
 deleted. The project's own configuration (both `config.json` files, `labels.json`,
 `.xezar/routing.json`) is not tracked, so routing, gate, label and config-key changes never trip
-the check. The format and the list of tracked files are in `.xezar/docs/local-patches.md`.
+the check. The project's gate list in `.xezar/checks/repo-gates.sh` – its `GATE_NAMES`,
+`GATE_COMMANDS` and `GATE_APPLICATION_LANES` assignments – is a filled-in value too: the manifest
+records it in `renderInputs`, and the check puts it back before a second hash, so a later change to
+the gate list is not drift, while any other edit to the file still is. The format and the list of
+tracked files are in `.xezar/docs/local-patches.md`, which the `.xezar/docs/README.md` index now
+lists.
 
 **Onboarding writes manifest version 2** (`manifestVersion`, `version`, `files` with `sha256`,
 `origin`, `kitSource`, `kitBlob` and `renderInputs`) and checks it passes before the setup commit;
@@ -252,7 +259,13 @@ this repository, against one project at a time. None of them is installed into a
   names no version, the entry range starts at the kit version that more than half of the files
   with a sure base match (the oldest on a tie), and `plan.md` says so. Each upgrade entry carries
   its heading and line in `UPGRADE_NOTES.md`, and `plan.md` lists every action under the entry
-  that asks for it.
+  that asks for it. A project's own gate list in `repo-gates.sh` is a filled-in value, not a
+  local change: those three assignments are masked when the file is compared and put back into
+  the new kit text, so a project whose gates are Yarn or .NET commands gets a clean update, no stop
+  and no register entry. The project's own role skills and workflows, which no kit version ships
+  but the target's catalog check still judges, are listed for reading (`own-file-kit-contract`)
+  with the rule each must meet: the new `## Shared contract` tail, a step timeout, and for a
+  review workflow the cache path and `review-run.sh`; a grant they need stops for the owner.
 - **A mechanical applier** (`upgrade/tools/apply.mjs`): writes clean updates and new files,
   deletes unchanged files the kit removed, and stages `git merge-file --zdiff3` results for Claude.
   It checks every path before any write (repo-relative, no symlink on the way, inside the project,

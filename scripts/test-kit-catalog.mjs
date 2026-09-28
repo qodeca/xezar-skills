@@ -1115,6 +1115,9 @@ for (const name of workflowFiles) {
       refusal(name, (t) => t.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
         "runs worktree-preflight.sh with --allow-root", `a ${name} preflight back on --allow-root`);
     }
+    // The prompt is an instruction too: naming the tracked path sends the reviewer to the PR's script.
+    refusal("security-review.yaml", (t) => t.replace("Read git only through bash .local/xezar/cache/kit/checks/git-read.sh", "Read git only through .xezar/checks/git-read.sh"),
+      "its prompt names \".xezar/checks/\"", "a security-review prompt that names the tracked .xezar/checks/git-read.sh");
     refusal("qa.yaml", (t) => t.replace(/\n    bashAllowlist: \[[^\n]*\]/, ""),
       "it has no bashAllowlist", "a qa.yaml review step with no bashAllowlist");
   } finally {
@@ -1125,6 +1128,7 @@ for (const name of workflowFiles) {
   for (const name of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) {
     const text = readFileSync(join(KIT, "workflows", `${name}.yaml`), "utf8");
     if (!text.includes('"bash .local/xezar/cache/kit/checks/review-run.sh"')) fail(`kit/workflows/${name}.yaml: the review step cannot run the change (no review-run.sh)`);
+    if (/^\s+prompt: .*\.xezar\/checks\//m.test(text)) fail(`kit/workflows/${name}.yaml: the review prompt names the tracked .xezar/checks/, which the checkout replaces`);
     if (/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\//m.test(text)) fail(`kit/workflows/${name}.yaml: the review step runs a kit script from the tracked .xezar/checks/, which the checkout replaces`);
     if (!text.includes("mcp__chrome-devtools__evaluate_script")) fail(`kit/workflows/${name}.yaml: the review step lacks the full browser tool set`);
     if (text.includes("worktree-preflight.sh --allow-root")) fail(`kit/workflows/${name}.yaml: the preflight step is not the strict worktree-preflight.sh`);

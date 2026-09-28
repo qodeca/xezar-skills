@@ -119,6 +119,14 @@ Rules:
   with an appended kit block is the exception: it is listed as `owner-file-appended`.
 - **`renderInputs`** holds plain text only. A secret, token or account name never goes here; those
   live in the gitignored `.local/xezar/runtime/onboarding-identity.json`.
+- **The gate runner's gate list is a filled-in value.** `.xezar/checks/repo-gates.sh` has no
+  placeholder: onboarding writes the project's gates into three assignments, which are rendered
+  regions (`upgrade/tools/lib/rewrites.mjs`, `RENDERED_REGIONS`). Its `renderInputs` records them
+  under `GATE_NAMES` and `GATE_COMMANDS` (the text between the array's `(` and `)`) and
+  `GATE_APPLICATION_LANES` (the rest of that line after `=`). The upgrade compares the file with
+  those regions masked and writes the new kit text with them put back, and the drift check puts
+  the recorded values back before a second hash, so a later change to the gate list alone is not
+  drift. Any other difference in the file is a local change.
 - **`descriptors`** stays, with the same meaning as in version 1.
 - **`owner-file-appended`**: `sha256` covers only the appended block, from its start marker to its
   end marker, both included. The markers are

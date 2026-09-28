@@ -1,5 +1,5 @@
 {
-  "commit": "06454456751b2f9965533e33baea98bc3d7777d0",
+  "commit": "ceb226c6049270f9273ccb91dc43130e084f0cae",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -62,10 +62,10 @@
       "sha256": "e72b5b8b0f4e5cab7c3863ab0fa4bf129e2da80e69c7a5da3613c15a1e4aa3a6"
     },
     ".xezar/checks/catalog-check.mjs": {
-      "kitBlob": "50e4dfa7bcb4ce76319269ca595629c505102a4b",
+      "kitBlob": "52ebfce90d8a6cad2019a8ea2f74b88f3ce8fa62",
       "kitSource": "checks/catalog-check.mjs",
       "rewrite": "copied",
-      "sha256": "9180e1303dae5fc2796e2dbe722f67277bbd7bed68acafe87bf99dbc354645c9"
+      "sha256": "acfcf0f0590d3a6a38f51a0addafbefe4151f653502721d4e0b22c7d76b7c659"
     },
     ".xezar/checks/changelog-check.sh": {
       "kitBlob": "3443fc337faa6b8232c518751b68029ef434dd67",
@@ -218,10 +218,10 @@
       "sha256": "5869e2efbe3e13ae714165fcb1c6e0b240fbec5a0ac8b881cfcedf4faa6e3228"
     },
     ".xezar/checks/manifest-drift.mjs": {
-      "kitBlob": "6190e8baf8b9c746944ed81096f43eef64a6b19b",
+      "kitBlob": "a03e375fed93cc1b75c6d54cd3c168f98778d238",
       "kitSource": "checks/manifest-drift.mjs",
       "rewrite": "copied",
-      "sha256": "89c8f7507204c698e089844822dd8b8347e98e367e686122942a7fcfb3b1484f"
+      "sha256": "265efa653a1aa52d512b4d26afbada959257ae6454b07a04efcc808aea9e88e6"
     },
     ".xezar/checks/merge-recovery.sh": {
       "kitBlob": "b6b3a3e081c536a3eaea41c0199d556f4fe66afb",
@@ -317,10 +317,10 @@
       "rewrite": "generated"
     },
     ".xezar/docs/README.md": {
-      "kitBlob": "c81cda3dd41f571c7d7b2d71a46fed0d98d47b8d",
+      "kitBlob": "ebca97816922d809007337a0a92c313429f7b19a",
       "kitSource": "docs/README.md",
       "rewrite": "copied",
-      "sha256": "c62ca449553fad0c86ea0e4a744b46403c546e9763a378502288f1aaceecb14f"
+      "sha256": "0e2f9d05abf290a49d623a05c28545b02bdeed8a1dc5d46db3dd1ce757bec8c6"
     },
     ".xezar/docs/account-limits.md": {
       "kitBlob": "23ffacb697aa1132ea4988e16ec1a4772d231b3d",
@@ -905,10 +905,10 @@
       "sha256": "b907d810f49fcbc7c33968dcb766326cbc23688276dc1885ef20763d49fc592f"
     },
     ".xezar/workflows/security-review.yaml": {
-      "kitBlob": "067722d36a13a09aa47405bf0d75489c7f46aeac",
+      "kitBlob": "0660f0562b7668b86e7446c7dbc27d5e68bdc653",
       "kitSource": "workflows/security-review.yaml",
       "rewrite": "copied",
-      "sha256": "091387aae8d24b98faef1a306f0a3864ff93802fbcb9db22be8b20b658900be9"
+      "sha256": "0374089f944bd22b183669717eb5703e3126c911a48cd82908aece6538899023"
     },
     ".xezar/workflows/spike.yaml": {
       "kitBlob": "810c1db206a55a33d1b3b1252714e5a9e72c3fbc",
@@ -959,6 +959,6 @@
       "sha256": "deb041b022540e43cf4a488e315fba52eccbd9b6c77b85348775a9b2c81396eb"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+ceb226c60492"
 }

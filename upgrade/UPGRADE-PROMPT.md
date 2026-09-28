@@ -328,6 +328,18 @@ a time, in the plan's order. For each one:
      entries say the `<target>` change enforces, then ask whether the local change now undoes,
      skips or feeds it – a local shortcut that was harmless before can become a way around a
      check that `<target>` made depend on it.
+   - `own-file-kit-contract` – a role skill (`.xezar/skills/xezar-*.md` with a
+     `## Shared contract` section) or a workflow (`.xezar/workflows/*.yaml`) of the project's own.
+     No kit version ships it, so nothing is staged and the plan keeps it, but the `<target>`
+     catalog check in step 7 judges it with the kit's files. Read it from the project and follow
+     the item's notes: a role skill takes the `<target>` tail (everything from its
+     `## Shared contract` heading to the end, from the clone's kit
+     `skills/xezar-docs-maintenance.md`), keeping the text above; a workflow gives every agent
+     step a `timeout`, and a review or QA workflow runs kit scripts only from
+     `.local/xezar/cache/kit/checks/` and adds `review-run.sh`. A tool or allowlist grant you
+     would add is a `permission-change`: stop and ask before writing it. The manifest does not
+     track the file, so it gets no register entry; record what you changed under "Merge
+     decisions".
    Owner additions to a role skill (`.xezar/skills/xezar-*.md`) go above its generated
    `## Shared contract` tail, never after it: the catalog check refuses text after the tail.
 4. Check the stop-and-ask list below. If one applies, stop and ask before writing the file.

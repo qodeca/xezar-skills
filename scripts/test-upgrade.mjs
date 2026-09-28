@@ -50,7 +50,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sha256 } from "../upgrade/tools/lib/hash.mjs";
 import { readPack } from "../upgrade/tools/lib/blobs.mjs";
-import { render, extractInputs, placeholdersIn } from "../upgrade/tools/lib/rewrites.mjs";
+import { render, extractInputs, normalisedMatch, placeholdersIn, RENDERED_REGIONS } from "../upgrade/tools/lib/rewrites.mjs";
 import { assertRepoRelative, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
 import { parseRegister } from "../upgrade/tools/lib/register.mjs";
 import { parseBlocks, satisfies } from "../upgrade/tools/lib/machine-block.mjs";
@@ -1343,6 +1343,107 @@ if (!HAS_DRIFT) {
   applyPlan(ctxFor(withEntry), plan2);
   const inv = invariants(ctxFor(withEntry), plan2).filter((x) => x.kind === "unregistered-local-change");
   expect(!inv.length, `unregistered: a kept edit the register names is refused: ${JSON.stringify(inv)}`);
+}
+
+// 12b3. A project's own gate list is a filled-in value, not a local change. Onboarding writes the
+// project's gates into repo-gates.sh's GATE_NAMES, GATE_COMMANDS and GATE_APPLICATION_LANES with no
+// placeholder, so they are rendered regions (lib/rewrites.mjs, RENDERED_REGIONS): masked for
+// comparison, recovered as renderInputs, and put back into the new kit text. The kit's drift check
+// reads the same regions from renderInputs, so a later change to the gate list is not drift either.
+{
+  const p = ".xezar/checks/repo-gates.sh";
+  const list = '(\n  "yarn install --immutable"\n  ".xezar/checks/security-scan.sh"\n  "yarn typecheck"\n  "yarn test"\n  ".xezar/checks/repository-checks.sh"\n)';
+  const ownGates = (text) =>
+    text
+      .replace(/^GATE_NAMES=\([\s\S]*?^\)$/m, () => `GATE_NAMES=${list}`)
+      .replace(/^GATE_COMMANDS=\([\s\S]*?^\)$/m, () => `GATE_COMMANDS=${list}`)
+      .replace(/^GATE_APPLICATION_LANES=.*$/m, () => 'GATE_APPLICATION_LANES="${GATE_APPLICATION_LANES-3;4}"');
+  expect(ownGates(fresh(p, fx303.renderInputs)) !== fresh(p, fx303.renderInputs), "own-gates: the gate list rewrite matched nothing in the kit's repo-gates.sh; re-aim this case");
+  const dir = materialize(fx303, {
+    name: "own-gates",
+    edit: (d) => {
+      write(d, p, ownGates(read(d, p)));
+      const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+      m.files[p].sha256 = sha256(read(d, p)); // onboarding recorded the file it wrote
+      write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+    },
+  });
+  const plan = buildPlan(ctxFor(dir));
+  const item = byPath(plan).get(p);
+  expect(item?.class === "clean-update" && item.action === "write-theirs", `own-gates: a project's own gate list makes ${p} ${item?.class}/${item?.action}, not a clean update`);
+  expect(item && !item.stops.length && !item.unexplained, `own-gates: ${p} stops (${item?.stops}) or is unexplained (${item?.unexplained})`);
+  expect(!plan.registerDrafts.add.some((d) => d.files.includes(p)), `own-gates: a register entry is drafted for ${p}`);
+  const r = applyPlan(ctxFor(dir), plan);
+  expect(r.status === "ok", `own-gates: apply refused: ${JSON.stringify(r.refused)}`);
+  expect(read(dir, p) === ownGates(fresh(p, fx303.renderInputs)), `own-gates: after apply ${p} is not the ${TARGET} kit text with the project's gate list`);
+  const unreg = invariants(ctxFor(dir), plan).filter((x) => x.kind === "unregistered-local-change" && x.path === p);
+  expect(!unreg.length, `own-gates: verify reports the project's gate list as a local change: ${JSON.stringify(unreg)}`);
+  const v = verify(ctxFor(dir), plan, { checks: [] });
+  expect(!v.problems.some((x) => x.path === p), `own-gates: verify fails ${p}: ${JSON.stringify(v.problems.filter((x) => x.path === p))}`);
+  const entry = JSON.parse(read(dir, ".xezar/onboarding.json")).files?.[p];
+  expect(entry && !entry.patch && /yarn typecheck/.test(entry.renderInputs?.GATE_COMMANDS ?? ""), `own-gates: the manifest does not record the gate list as renderInputs: ${JSON.stringify(entry)}`);
+  // A fresh-onboarding shape too: the unchanged kit file with the same list is a normalised match.
+  expect(normalisedMatch(fresh(p, fx303.renderInputs), read(dir, p)).exact, "own-gates: the kit text and the project's gate runner are not an exact normalised match");
+  if (HAS_DRIFT) {
+    const st = (x) => /^drift-status=(\S+)$/m.exec(x.out)?.[1];
+    const passed = drift(dir);
+    expect(passed.code === 0 && st(passed) === "pass", `own-gates: the drift check fails the upgraded gate runner: ${passed.out.trim()}`);
+    const edited = lab("own-gates-edited");
+    cpSync(dir, edited, { recursive: true });
+    const before = read(edited, p);
+    write(edited, p, before.replaceAll('  "yarn test"\n', '  "yarn test"\n  "yarn lint"\n'));
+    expect(read(edited, p) !== before, "own-gates: the later gate-list edit matched nothing; re-aim this case");
+    const later = drift(edited);
+    expect(later.code === 0 && st(later) === "pass", `own-gates: the drift check fails a later change to the gate list: ${later.out.trim()}`);
+    write(edited, p, `${read(edited, p)}# silent\n`);
+    const silent = drift(edited);
+    expect(silent.code === 1 && silent.out.includes(`drift=${p}`), `own-gates: the drift check accepts an edit outside the gate list: ${silent.out.trim()}`);
+    // The two copies of the region rules agree: the tool's and the drift check's.
+    const driftText = readFileSync(DRIFT, "utf8");
+    for (const { key, re } of RENDERED_REGIONS) {
+      expect(driftText.includes(`{ key: "${key}", re: ${re} }`), `own-gates: manifest-drift.mjs GATE_REGIONS and lib/rewrites.mjs RENDERED_REGIONS disagree on ${key}`);
+    }
+    expect((driftText.match(/\{ key: "GATE_[A-Z_]+", re: /g) ?? []).length === RENDERED_REGIONS.length, "own-gates: manifest-drift.mjs GATE_REGIONS and lib/rewrites.mjs RENDERED_REGIONS disagree on the number of regions");
+  }
+}
+
+// 12b4. The project's own role skills and workflows reach the plan (round-9 review). No kit
+// version ships them, so detection never saw them, yet the target's catalog check judges them:
+// each is a local-only item with the own-file-kit-contract review, and apply leaves it alone.
+{
+  const skill = ".xezar/skills/xezar-mobile-release.md";
+  const current = ".xezar/skills/xezar-mobile-current.md";
+  const plain = ".xezar/skills/xezar-mobile-notes.md";
+  const wf = ".xezar/workflows/nightly-audit.yaml";
+  const tailOf = (text) => `## Shared contract\n${text.split("## Shared contract\n")[1]}`;
+  const dir = materialize(fx303, {
+    name: "own-files",
+    edit: (d) => {
+      const oldTail = tailOf(read(d, ".xezar/skills/xezar-docs-maintenance.md"));
+      const newTail = tailOf(fresh(".xezar/skills/xezar-docs-maintenance.md", fx303.renderInputs));
+      write(d, skill, `---\nname: xezar-mobile-release\ndescription: Ship the mobile app.\n---\n\n# Mobile release\n\nOwner text.\n\n${oldTail}`);
+      write(d, current, `---\nname: xezar-mobile-current\ndescription: Already current.\n---\n\n# Current\n\n${newTail}`);
+      write(d, plain, "---\nname: xezar-mobile-notes\ndescription: No shared contract.\n---\n\n# Notes\n");
+      write(d, wf, "name: nightly-audit\ndescription: \"A nightly audit.\"\nsteps:\n  - id: audit\n    name: Audit\n    prompt: \"Audit: {{task}}\"\n");
+    },
+  });
+  const before = Object.fromEntries([skill, current, plain, wf].map((p) => [p, read(dir, p)]));
+  const plan = buildPlan(ctxFor(dir));
+  const files = byPath(plan);
+  for (const p of [skill, current, wf]) {
+    const f = files.get(p);
+    expect(f?.class === "local-only" && f.action === "keep" && f.reviews.includes("own-file-kit-contract"), `own-files: ${p} is ${f?.class}/${f?.action} with reviews ${f?.reviews}, not a local-only own-file-kit-contract review`);
+    expect(plan.reviews.some((r) => r.path === p && r.reason === "own-file-kit-contract"), `own-files: ${p} is not on the plan's reviews list`);
+    expect(!f?.stops.length && !f?.unexplained, `own-files: ${p} stops (${f?.stops}) or is unexplained`);
+  }
+  expect(/replace everything from its `## Shared contract` heading/.test(files.get(skill)?.notes.join("\n") ?? ""), `own-files: the old-tail role skill's notes do not say to take the target's tail: ${files.get(skill)?.notes}`);
+  expect(/already equals the target's/.test(files.get(current)?.notes.join("\n") ?? ""), `own-files: a role skill with the target's tail is not said to be current: ${files.get(current)?.notes}`);
+  expect(/timeout/.test(files.get(wf)?.notes.join("\n") ?? "") && /permission change/.test(files.get(wf)?.notes.join("\n") ?? ""), `own-files: the workflow's notes do not quote the timeout and grant rules: ${files.get(wf)?.notes}`);
+  expect(!files.has(plain), `own-files: a role skill with no shared contract is in the plan (${files.get(plain)?.class})`);
+  expect(!plan.files.some((f) => f.path.startsWith(".xezar/skills/xezar-docs-maintenance") && f.reviews.includes("own-file-kit-contract")), "own-files: a kit role skill is flagged as the project's own");
+  expect(!plan.registerDrafts.add.some((d) => d.files.some((p) => [skill, current, wf].includes(p))), "own-files: a register entry is drafted for a file the manifest does not track");
+  applyPlan(ctxFor(dir), plan);
+  for (const [p, text] of Object.entries(before)) expect(read(dir, p) === text, `own-files: apply changed the project's own ${p}`);
 }
 
 // 12c. The leader guide is generated from a kit template: its plan item points at that template,
