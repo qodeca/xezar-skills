@@ -703,6 +703,84 @@ write_deps_stamp() {
   printf '%s\ncontents=%s\n' "$fp" "$digest" > "$(deps_stamp_path)"
 }
 
+# Which installed tree this is, without its contents: each node_modules folder's device and inode,
+# the identity file inside it (a unit's nonce, the single root's stamp) and the unit stamps. A tree
+# deleted and reinstalled, or swapped for another, gets a different answer; a file a gate writes
+# INSIDE the same tree does not. One line on stdout; exit 1 when it cannot be read.
+deps_tree_identity() {
+  local dirs
+  deps_units_mode 2>/dev/null
+  case $? in
+    0) dirs="$(node "$DEPS_MJS" units --root "$TASK_CWD" 2>/dev/null | node -e '
+         let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+           for (const u of JSON.parse(s)) if (u.provider !== "dotnet") console.log(u.dir);
+         });')" || return 1 ;;
+    2) return 1 ;;
+    *) dirs="." ;;
+  esac
+  node -e '
+    const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
+    const [root, list] = process.argv.slice(1);
+    const read = (p) => { try { return fs.readFileSync(p, "utf8"); } catch { return "-"; } };
+    const parts = [];
+    for (const dir of list.split("\n").filter(Boolean)) {
+      const nm = path.join(root, dir, "node_modules");
+      let st;
+      try { st = fs.lstatSync(nm); } catch { process.exit(1); }
+      if (!st.isDirectory()) process.exit(1);
+      parts.push(`${dir}\0${st.dev}:${st.ino}\0${read(path.join(nm, ".xezar-deps-tree"))}\0${read(path.join(nm, ".xezar-deps-stamp"))}`);
+    }
+    const stamps = path.join(root, ".local/xezar/cache/deps");
+    let names = [];
+    try { names = fs.readdirSync(stamps).sort(); } catch {}
+    for (const n of names) parts.push(`stamp\0${n}\0${read(path.join(stamps, n))}`);
+    process.stdout.write(crypto.createHash("sha256").update(parts.join("\n")).digest("hex"));
+  ' "$TASK_CWD" "$dirs"
+}
+
+# The baseline a gate run takes once its install is known good: right after the install gate
+# stamped it, or after --fast found it fresh. Two lines: the input fingerprint, the tree identity.
+deps_restamp_baseline() {
+  local fp id
+  fp="$(deps_fingerprint 2>/dev/null)" || return 1
+  id="$(deps_tree_identity)" || return 1
+  [ -n "$fp" ] && [ -n "$id" ] || return 1
+  printf '%s\n%s' "$fp" "$id"
+}
+
+# Re-stamp after every gate passed, so what the gates themselves wrote into node_modules (`prisma
+# generate` writing node_modules/.prisma, Vite writing node_modules/.vite/deps/package.json) does
+# not turn every later --fast run and every resume into a silent reinstall. It re-stamps only the
+# tree this run already proved current, and only when nothing an install reads has changed since:
+#   - a baseline exists (the install gate passed and stamped, or --fast found the tree fresh);
+#   - the input fingerprint (lockfiles, manifests, .npmrc, patches, tool versions) is unchanged;
+#   - the tree identity is unchanged (same folders, nonce and stamps: not reinstalled or swapped);
+#   - every dependency still resolves inside this task (#286).
+# Anything else leaves the stamp as it was, so the next --fast run installs again, and says why.
+# Never fails the run: the verdict is already recorded, and a stamp not refreshed costs one install.
+deps_restamp_after_gates() {
+  local baseline="$1" now="" why=""
+  if [ -z "$baseline" ]; then
+    why="this run has no verified install to compare against"
+  elif ! now="$(deps_restamp_baseline)"; then
+    why="the installed tree could not be read"
+  elif [ "$(printf '%s\n' "$now" | sed -n 1p)" != "$(printf '%s\n' "$baseline" | sed -n 1p)" ]; then
+    why="a lockfile, manifest or tool version changed during the gates"
+  elif [ "$(printf '%s\n' "$now" | sed -n 2p)" != "$(printf '%s\n' "$baseline" | sed -n 2p)" ]; then
+    why="node_modules was replaced or its stamp rewritten during the gates"
+  elif ! deps_resolve_in_task >/dev/null 2>&1; then
+    why="the dependencies no longer resolve inside this task"
+  elif ! write_deps_stamp; then
+    why="the stamp could not be written"
+  fi
+  if [ -n "$why" ]; then
+    printf 'deps stamp     NOT refreshed (%s); the next --fast run installs again\n' "$why"
+  else
+    printf 'deps stamp     refreshed after the gates; what they wrote into node_modules is part of the stamped tree\n'
+  fi
+  return 0
+}
+
 # --- Gate evidence --------------------------------------------------------------------
 #
 # A fingerprint of everything the gates just judged. It must cover file CONTENT, not just

@@ -401,10 +401,12 @@ Actions: per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro
 ### 12. Single-root freshness – a root `node_modules` edited in place still counts as current
 
 Applies to every project onboarded by `xez-onboard-opinionated` that has a single npm root (no
-`dependencies.units`).
+`dependencies.units`). The `repo-gates.sh` part applies to every onboarded project.
 
 **Symptom.** The fast gate records `deps-verified-current` although a package inside the root
-`node_modules` was replaced or edited after the install.
+`node_modules` was replaced or edited after the install. Or, once 3.1.0's digest is in: every
+`--fast` gate run and every resume reinstalls, without saying why, in a project whose gates write
+into `node_modules` (`prisma generate`, Vite's dependency optimizer).
 
 **What to do.** One PR:
 
@@ -414,19 +416,25 @@ cp $K/checks/lib/deps.mjs $K/checks/lib/common.sh .xezar/checks/lib/
 cp $K/docs/worktrees.md .xezar/docs/
 ```
 
+`.xezar/checks/repo-gates.sh` holds your gate list: save it, copy the kit's, put your
+`GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and `GATE_APPLICATION_LANES=` lines back, and check that
+`git diff` shows only the kit's re-stamp after a passed run. It calls functions only this
+`common.sh` has, so copy both or neither.
+
 Every task's first run after the merge installs once: a stamp written before this change has no
 digest, so it reads as not fresh. On a very large install, check that one `--fast` gate run's
 freshness check finishes well inside 60 s; if not, set `XEZ_DEPS_DIGEST_TIMEOUT_MS` on that
 machine (a slower digest counts as not fresh, so the gates install every time: safe but slow).
 
 **What you lose by skipping it.** A single-root project's fast gate keeps certifying a
-`node_modules` changed in place after the install.
+`node_modules` changed in place after the install. Skipping only the `repo-gates.sh` part costs a
+reinstall on every `--fast` run in a project whose gates write into `node_modules`.
 
 **Rollback.** Revert the PR.
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/lib/deps.mjs; .xezar/checks/lib/common.sh; .xezar/docs/worktrees.md
+Files: .xezar/checks/lib/deps.mjs; .xezar/checks/lib/common.sh; .xezar/docs/worktrees.md; .xezar/checks/repo-gates.sh
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed

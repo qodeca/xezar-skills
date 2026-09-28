@@ -480,6 +480,9 @@ gate_finish() {
   printf 'recorded       %s\n' "$result"
 
   if [ "$complete_rc" -eq 0 ] && [ "$expected" = passed ]; then
+    # Only a run the record calls passed refreshes the dependency stamp; a failed or stopped run
+    # never does. See deps_restamp_after_gates in lib/common.sh for every other refusal.
+    deps_restamp_after_gates "$DEPS_BASELINE"
     printf 'ALL GATES PASSED\n'
     exit 0
   fi
@@ -489,10 +492,14 @@ gate_finish() {
   exit 1
 }
 
+# The install this run proved current, taken before any other gate can write into node_modules.
+# Empty until then, so a run whose install did not pass never re-stamps.
+DEPS_BASELINE=""
 if [ "$FAST" -eq 1 ]; then
   # Recorded under the install gate's own name: the seal looks each required gate up by name, and
   # gate-results.mjs is told that name by its caller, never by the record it judges.
   gate_note_skip "${GATE_NAMES[0]}" "deps-verified-current" || exit 1
+  DEPS_BASELINE="$(deps_restamp_baseline)" || DEPS_BASELINE=""
 else
   gate_phase serial 1 || exit 1
   if node -e 'process.exit(JSON.parse(require("node:fs").readFileSync(process.argv[1])).status === "passed" ? 0 : 1)' "$GATE_ATTEMPT_DIR/workers/1.json"; then
@@ -509,6 +516,7 @@ else
       exit 1
     fi
     write_deps_stamp || exit 1
+    DEPS_BASELINE="$(deps_restamp_baseline)" || DEPS_BASELINE=""
   fi
 fi
 # Security first, alone, and before any quality gate. A failing security stage stops the run
