@@ -852,16 +852,16 @@ for (const name of workflowFiles) {
     // #122 (Windows): the engine on native Windows listens on a named pipe and names it in
     // `.local/xezar/ipc/<id>.pipe` (a draft contract, DECISIONS.md). On win32 these are real named
     // pipes; elsewhere Node binds the same name as a socket file in the project folder (a `\` is a
-    // filename byte there) and a `uname` shell function says MINGW, so the Windows rule runs on
-    // every OS. The function comes through BASH_ENV, not a stub on PATH: Git's bash.exe puts its
-    // own usr\bin first on PATH, ahead of any stub folder.
-    const unameAs = (system) => {
-      const file = join(lab, `uname-${system}.sh`);
-      writeFileSync(file, `uname() { printf '%s\\n' '${system}'; }\n`);
-      return { ...env, BASH_ENV: file };
+    // filename byte there) and OSTYPE says msys, so the Windows rule runs on every OS. bash keeps an
+    // OSTYPE it finds in its environment, and the launcher tells Windows by OSTYPE alone, as the
+    // kit's other scripts do.
+    const ostypeAs = (ostype) => {
+      const next = { ...env };
+      for (const key of Object.keys(next)) if (key.toUpperCase() === "OSTYPE") delete next[key];
+      return { ...next, OSTYPE: ostype };
     };
-    const windowsEnv = process.platform === "win32" ? env : unameAs("MINGW64_NT-10.0-26200");
-    const linuxEnv = unameAs("Linux");
+    const windowsEnv = process.platform === "win32" ? env : ostypeAs("msys");
+    const linuxEnv = ostypeAs("linux-gnu");
     const pipeName = (prefix) => `\\\\.\\pipe\\${prefix}-${randomBytes(16).toString("hex")}`;
     const listenPipe = async (name) => {
       const pipe = createServer();
@@ -1337,6 +1337,13 @@ for (const name of workflowFiles) {
       ["git.CMD", "status"], ["env.com", "ls"], ["sh.bat"], ["GIT-BA~1.EXE"], ["C:\\tools\\"],
     ]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    // #122: the Windows shells and launchers, each of which runs another program unseen.
+    for (const argv of [
+      ["cmd", "/c", "echo"], ["CMD.EXE", "/c", "echo"], ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-c", "1"],
+      ["pwsh", "-c", "1"], ["wsl.exe", "ls"], ["winpty", "bash"], ["C:/Program Files/Git/git-bash.exe"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
     }
     if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
     // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,

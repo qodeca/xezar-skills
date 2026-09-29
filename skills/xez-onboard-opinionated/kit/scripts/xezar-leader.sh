@@ -62,8 +62,9 @@ Promise.all(process.argv.slice(1).map(marker).filter(Boolean).map(answers)).then
 });
 '
 if [ -z "$socket" ]; then
-  case "$(uname -s)" in
-    MINGW* | MSYS*)
+  # Git Bash (MSYS) or Cygwin: the same test as the kit's checks/lib/common.sh and repo-gates.sh.
+  case "${OSTYPE:-}" in
+    msys* | cygwin*)
       for candidate in .local/xezar/ipc/*.pipe; do
         [ -f "$candidate" ] || continue
         if ! command -v node >/dev/null 2>&1; then

@@ -42,7 +42,7 @@
 XEZAR_WORKTREES_RELDIR=".local/xezar/worktrees"
 
 # Git Bash rewrites an argument that looks like a list of POSIX paths before git.exe sees it:
-# `origin/main:.xezar/x.json` arrived as `origin\main;.xezar\x.json` (#122). An argument that
+# `origin/<base>:.xezar/x.json` arrived as `origin\<base>;.xezar\x.json` (#122). An argument that
 # starts with `origin/` or `refs/` is a git ref in every kit script, never a file path.
 case "${OSTYPE:-}" in
   msys* | cygwin*)
