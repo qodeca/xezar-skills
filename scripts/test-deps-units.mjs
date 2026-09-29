@@ -562,11 +562,13 @@ try {
     const want = join(nvm, "versions/node", `v${major + 1}.10.0`, "bin");
     expect("node pin: the numerically newest v<major>.* is chosen (10 beats 9)", pin.out === `${want}\n`, JSON.stringify(pin));
     const onPath = sh(pinned, "command -v node", { NVM_DIR: nvm });
-    // #122 (Windows): bash prints a POSIX path; cygpath turns it back into the Windows form.
-    const fromBashPath = (text) => (process.platform === "win32" && text.trim()
-      ? `${execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-w", text.trim()], { encoding: "utf8" }).trim()}\n`
-      : text);
-    expect("node pin: lib/common.sh puts it first on PATH", fromBashPath(onPath.out) === `${join(want, "node")}\n`, JSON.stringify(onPath));
+    // #122 (Windows): bash prints a POSIX path (/c/…), so the expected path is compared in that
+    // form. A Windows path on bash's PATH splits at the drive colon and leaves a drive-relative
+    // entry (\Users\…), which finds node only while the current drive is the one it names.
+    const inBashForm = (file) => (process.platform === "win32"
+      ? execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-u", file], { encoding: "utf8" }).trim()
+      : file);
+    expect("node pin: lib/common.sh puts it first on PATH", onPath.out === `${inBashForm(join(want, "node"))}\n`, JSON.stringify(onPath));
     const missing = deps(pinned, "tools");
     expect("node pin: with the pinned major not installed, setup names the Node found and the major wanted", missing.code === 1 && missing.err.includes(`node ${process.version} is on PATH, but this repository pins Node ${major + 1}`), missing.err);
     const same = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: { ...unitFiles, ".nvmrc": `${major}\n` } });

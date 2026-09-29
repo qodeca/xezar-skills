@@ -537,6 +537,11 @@ deps_use_pinned_node() {
   command -v node >/dev/null 2>&1 || return 0
   bin="$(node "$DEPS_MJS" node-pin --root "$root" 2>/dev/null)" || return 0
   [ -n "$bin" ] || return 0
+  # Under Git Bash node prints a Windows path (C:\…). On bash's PATH it would split at the drive
+  # colon and leave a drive-relative `\…` entry, which finds node only from that drive (#122).
+  case "${OSTYPE:-}" in
+    msys* | cygwin*) bin="$(cygpath -u "$bin" 2>/dev/null)" && [ -n "$bin" ] || return 0 ;;
+  esac
   PATH="$bin:$PATH"
   export PATH
 }
