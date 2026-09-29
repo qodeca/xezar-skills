@@ -215,9 +215,12 @@ check("Git Bash starts and, on Windows, sets up its own tools", () => {
   assert.equal(ok.error, undefined);
   assert.equal(ok.stdout, "ok");
   if (!win32) return;
-  // A PATH without Git's usr\bin, like a PowerShell session's: the wrapper must add it.
+  // A PATH without Git's usr\bin, like a PowerShell session's: the wrapper must add it. Nor does
+  // such a session carry MSYS=noglob, which a harnessed parent (run-gate, test-guards) passes
+  // down and under which the MSYS runtime no longer reads libuv's \" quoting (D-2c).
   const env = prependPath(process.env, [], "win32");
   env.PATH = win.join(process.env.SystemRoot ?? "C:\\Windows", "System32");
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS") delete env[key];
   const probe = spawnSync(bashPath(), ["-c", 'uname -o; cygpath -w "$(command -v sed)"'], { encoding: "utf8", env });
   const [system, sed] = probe.stdout.trim().split(/\r?\n/);
   assert.equal(system, "Msys", probe.stdout + probe.stderr);

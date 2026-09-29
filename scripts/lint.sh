@@ -27,6 +27,13 @@ PREFIX="${SKILL_PREFIX:-xez}"
 
 err() { printf 'LINT FAIL: %s\n' "$*" >&2; fail=1; }
 
+command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required (it counts description characters)" >&2; exit 1; }
+
+# Characters, not bytes: `${#var}` counts bytes when no UTF-8 locale is set (Git Bash on Windows
+# with LANG unset, a C-locale CI shell), so a 500-character description in a multibyte script
+# read as 1000. Node counts code points, which is what `${#var}` counts in a UTF-8 locale (#122).
+desc_chars() { printf '%s' "$1" | node -e 'process.stdout.write(String([...require("fs").readFileSync(0, "utf8")].length))'; }
+
 for dir in skills/*/; do
   name=$(basename "$dir")
   file="${dir}SKILL.md"
@@ -46,8 +53,17 @@ for dir in skills/*/; do
   fi
   if [ -z "$fm_desc" ]; then
     err "$file frontmatter is missing a description"
-  elif [ "${#fm_desc}" -gt 500 ]; then
-    err "$file description is ${#fm_desc} chars (max 500; aim for ≤350) — descriptions load into every session's context"
+  else
+    # The shell's count is never below the character count (bytes are never fewer than
+    # characters), so node is started only for a description that might be over the limit.
+    desc_len=${#fm_desc}
+    [ "$desc_len" -gt 500 ] && desc_len=$(desc_chars "$fm_desc")
+    case "$desc_len" in
+      '' | *[!0-9]*) err "$file: description characters could not be counted" ;;
+      *) if [ "$desc_len" -gt 500 ]; then
+           err "$file description is ${desc_len} chars (max 500; aim for ≤350) — descriptions load into every session's context"
+         fi ;;
+    esac
   fi
   # Unquoted ": " inside a plain YAML scalar is invalid YAML and the most common
   # cross-client parse failure (agentskills.io client guide). Quote it or rephrase.

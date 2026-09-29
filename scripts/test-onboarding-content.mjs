@@ -21,9 +21,9 @@ try {
   for (const name of ['skills', 'scripts', 'docs', 'package.json', 'README.md', 'AGENTS.md', 'SDLC.md', 'CODE_REVIEW.md', 'BACKWARD_COMPATIBILITY.md', 'DECISIONS.md']) {
     cpSync(join(root, name), join(fixture, name), { recursive: true });
   }
-  const lint = () => {
+  const lint = (env = process.env) => {
     // One lint run takes about three minutes on Windows (#122).
-    const result = spawnSync(bashPath(), ['scripts/lint.sh'], { cwd: fixture, encoding: 'utf8', timeout: 600000 });
+    const result = spawnSync(bashPath(), ['scripts/lint.sh'], { cwd: fixture, encoding: 'utf8', timeout: 600000, env });
     assert.ifError(result.error);
     return { status: result.status, output: result.stdout + result.stderr };
   };
@@ -47,6 +47,25 @@ try {
     assert.match(rejected.output, expected);
     assert.ok(rejected.output.includes(path), rejected.output);
     writeFileSync(target, original);
+  }
+  // #122: the description limit counts characters in every locale. In the C locale (Git Bash on
+  // Windows with LANG unset) the shell's own length counts bytes, and "é" is two of them.
+  const cLocale = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !['LANG', 'LC_CTYPE', 'LC_ALL'].includes(key.toUpperCase())),
+  );
+  cLocale.LC_ALL = 'C';
+  const onboard = join(fixture, 'skills/xez-onboard/SKILL.md');
+  const onboardText = readFileSync(onboard, 'utf8');
+  for (const [length, status] of [[500, 0], [501, 1]]) {
+    writeFileSync(onboard, onboardText.replace(/^description: .*$/m, `description: ${'é'.repeat(length)}`));
+    const result = lint(cLocale);
+    writeFileSync(onboard, onboardText);
+    if (status === 0) {
+      assert.equal(result.status, 0, `a 500-character description in a multibyte script is rejected in the C locale:\n${result.output}`);
+    } else {
+      assert.equal(result.status, 1, `a 501-character description in a multibyte script passes in the C locale:\n${result.output}`);
+      assert.match(result.output, /max 500/);
+    }
   }
   const templates = join(root, 'skills/xez-onboard/templates');
   for (const name of ['claude-mcp.json', 'pi-mcp.json']) {
