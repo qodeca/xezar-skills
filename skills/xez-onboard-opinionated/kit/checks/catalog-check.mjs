@@ -20,6 +20,9 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
 
+// Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) parses the same (#122).
+const readText = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
 const root = process.argv[2] ?? process.cwd();
 const workflowsDir = join(root, ".xezar/workflows");
 const skillsDir = join(root, ".xezar/skills");
@@ -558,7 +561,7 @@ if (!existsSync(workflowsDir)) {
     .sort();
   if (files.length === 0) err(".xezar/workflows", "no workflow files found");
   for (const file of files) {
-    const doc = parseWorkflow(readFileSync(join(workflowsDir, file), "utf8"), file);
+    const doc = parseWorkflow(readText(join(workflowsDir, file)), file);
     checkWorkflow(file, doc);
   }
   notes.push(`${files.length} workflow file(s) checked`);
@@ -627,7 +630,7 @@ for (const name of ["settings.json", "settings.local.json"]) {
 const codexRules = join(root, ".codex", "rules");
 if (existsSync(codexRules)) {
   for (const name of readdirSync(codexRules).filter((f) => f.endsWith(".rules")).sort()) {
-    const text = readFileSync(join(codexRules, name), "utf8").replace(/#.*$/gm, "");
+    const text = readText(join(codexRules, name)).replace(/#.*$/gm, "");
     const calls = text.split(/\bprefix_rule\s*\(/).slice(1);
     if (calls.length === 0 && text.trim() !== "") err(`.codex/rules/${name}`, "has no prefix_rule this check can read; write each rule as a plain prefix_rule(...) call");
     for (const call of calls) {
@@ -649,7 +652,7 @@ if (existsSync(skillsDir)) {
   const skillFiles = readdirSync(skillsDir).filter((f) => f.endsWith(".md")).sort();
   let sharedContract;
   for (const file of skillFiles) {
-    const text = readFileSync(join(skillsDir, file), "utf8");
+    const text = readText(join(skillsDir, file));
     const fm = /^---\n([\s\S]*?)\n---\n/.exec(text);
     if (!fm) {
       err(`skills/${file}`, "has no YAML frontmatter block");

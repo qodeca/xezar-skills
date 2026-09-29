@@ -29,13 +29,17 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { bashPath, posixToolDirs, prependPath } from "./lib/platform.mjs";
+import { bashPath, posixToolDirs, prependPath, toLF } from "./lib/platform.mjs";
 import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
 
 prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+// Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) states
+// the same facts and hashes to the same pins (#122).
+const norm = (raw) => toLF(raw);
+const read = (p) => norm(readFileSync(join(root, p), "utf8"));
+const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const has = (p) => existsSync(join(root, p));
 
 const SKILL = "skills/xez-onboard-opinionated";
@@ -308,7 +312,8 @@ const fail = (fact, where, detail) =>
     const src = `skills/xez-setup-agent-pipeline/references/${name}`;
     if (!has(src)) { fail(fact, kit, `has no canonical sibling at ${src} -- a kit descriptor is a copy of the collection's, never an original`); continue; }
     if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
-    const digest = createHash("sha256").update(readFileSync(join(root, kit))).digest("hex");
+    // The digest of the file as LF text: on an LF checkout, its bytes (#122).
+    const digest = createHash("sha256").update(read(kit)).digest("hex");
     if (pinned[`kit/pipeline/${name}`] !== digest)
       fail(fact, lockPath, `pins ${pinned[`kit/pipeline/${name}`] ?? "nothing"} for kit/pipeline/${name}, and the file is ${digest} -- review the change, then update the pin`);
     if (!/^[0-9a-f]{64}$/.test(pinned[`kit/pipeline/${name}`] ?? ""))
@@ -316,6 +321,14 @@ const fail = (fact, where, detail) =>
   }
   for (const key of Object.keys(pinned)) {
     if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, and the kit ships no such descriptor`);
+  }
+  // #122 (Windows): a CRLF copy of a pinned descriptor, read through `norm`, still matches its pin.
+  if (descriptors.length > 0) {
+    const name = descriptors[0];
+    const kit = `${SKILL}/kit/pipeline/${name}`;
+    const crlfDigest = createHash("sha256").update(norm(crlf(read(kit)))).digest("hex");
+    if (pinned[`kit/pipeline/${name}`] !== crlfDigest)
+      fail(fact, lockPath, `a CRLF copy of kit/pipeline/${name} hashes to ${crlfDigest}, not its pin -- the digest must be taken over LF text`);
   }
   if (!/descriptor-digests\.json/.test(read(`${SKILL}/references/write.md`)))
     fail(fact, `${SKILL}/references/write.md`, "never tells the write step to record the installed descriptor digests");
@@ -475,10 +488,18 @@ function walk(rel, match) {
 {
   const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
   const LIMIT = 200;
-  const tpl = read(`${SKILL}/kit/leader-guide.template.md`)
-    .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
-    .replace(/^---\n+/m, "");                       // and the rule above the generated half
-  const fixed = tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  const fixedLines = (text) => {
+    const tpl = text
+      .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
+      .replace(/^---\n+/m, "");                       // and the rule above the generated half
+    return tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  };
+  const template = read(`${SKILL}/kit/leader-guide.template.md`);
+  const fixed = fixedLines(template);
+  // #122 (Windows): a CRLF copy of the template, read through `norm`, counts the same fixed lines.
+  const crlfFixed = fixedLines(norm(crlf(template)));
+  if (crlfFixed !== fixed)
+    fail(fact, "kit/leader-guide.template.md", `a CRLF copy counts ${crlfFixed} fixed lines, the LF file ${fixed}`);
   const write = read(`${SKILL}/references/write.md`);
   const budgets = [...write.matchAll(/^\s*\| `\{\{[A-Z_]+\}\}` \|.*\| ≤ (\d+) \|\s*$/gm)].map((m) => Number(m[1]));
   if (budgets.length !== 4)

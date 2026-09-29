@@ -16,9 +16,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toLF } from "./lib/platform.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const read = (path) => readFileSync(join(root, path), "utf8");
+// Read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) parses the same (#122).
+const read = (path) => toLF(readFileSync(join(root, path), "utf8"));
 
 const setup = read("skills/xez-setup-agent-pipeline/SKILL.md");
 const skill = read("skills/xez-close-fixed-issues/SKILL.md");
@@ -42,6 +44,17 @@ assert.deepEqual(
   [],
   "xez-setup-agent-pipeline: closeKeywords must default to empty — English repos keep today's behavior",
 );
+// #122 (Windows): a CRLF copy of the skill yields the same schema through the same read.
+{
+  const crlfSetup = setup.replace(/\n/g, "\r\n");
+  const crlfBlock = toLF(crlfSetup).match(/```json\n([\s\S]*?)```/);
+  assert.ok(crlfBlock, "xez-setup-agent-pipeline: a CRLF copy hides the config schema JSON block");
+  assert.deepEqual(
+    JSON.parse(crlfBlock[1]),
+    schema,
+    "xez-setup-agent-pipeline: a CRLF copy must parse to the same config schema",
+  );
+}
 // The field reference lives in references/config-fields.md: the body is a router, and a
 // bullet per config key is exactly the kind of detail that belongs one layer down.
 assert.match(

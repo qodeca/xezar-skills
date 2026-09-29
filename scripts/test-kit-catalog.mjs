@@ -89,6 +89,22 @@ try {
     }
     if (!/runs a reading step's command outside its sandbox/.test(out)) fail(`catalog-check accepts a Codex prefix_rule with ${label}, which runs a reading step's command outside its sandbox`);
   }
+  // #122 (Windows): the same kit checked out with CRLF line endings (core.autocrlf) passes too.
+  // Every text file the validator parses is rewritten with CRLF in the stage, never in the kit.
+  writeFileSync(codexRule, '# reading only\nprefix_rule(pattern=["git", "push"], decision="forbidden")\n');
+  const toCrlf = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) toCrlf(path);
+      else if (entry.isFile() && /\.(md|yaml|rules)$/.test(entry.name)) writeFileSync(path, readFileSync(path, "utf8").replace(/\r?\n/g, "\r\n"));
+    }
+  };
+  toCrlf(stage);
+  try {
+    execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    fail(`the kit's catalog-check refuses the kit checked out with CRLF line endings:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+  }
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }

@@ -17,9 +17,13 @@
 import { readFileSync, existsSync, globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { toLF, toPosixPath } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+// Descriptors are read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) parses
+// the same (#122); glob results are written with "/", the form the parity matrix names them in.
+const norm = (raw) => toLF(raw);
+const read = (p) => norm(readFileSync(join(root, p), "utf8"));
 const refs = "skills/xez-setup-agent-pipeline/references";
 
 let failures = 0;
@@ -61,9 +65,11 @@ expect(
 );
 
 const toolchains = globSync(`${refs}/toolchains/*.md`, { cwd: root })
+  .map((f) => toPosixPath(f))
   .filter((f) => !f.endsWith("TEMPLATE.md"))
   .sort();
 const security = globSync(`${refs}/security/*.md`, { cwd: root })
+  .map((f) => toPosixPath(f))
   .filter((f) => !f.endsWith("TEMPLATE.md"))
   .sort();
 
@@ -470,6 +476,23 @@ for (const file of toolchains) {
     unknown.units[0].blocker === "pnpm" && !unknown.units[0].restore, JSON.stringify(unknown.units));
   expect("xezar-dependency-maintenance says a missing descriptor is a blocker to name",
     /no installed descriptor is a blocker to name/.test(depsBody));
+}
+
+// #122 (Windows): a CRLF copy parses exactly as the LF file does, through the same `norm`.
+{
+  const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
+  const kitRole = "skills/xez-onboard-opinionated/kit/skills/xezar-dependency-maintenance.md";
+  const lf = read(kitRole);
+  expect(
+    "a CRLF copy of a kit role skill splits at its Shared contract heading exactly as the LF file does",
+    JSON.stringify(norm(crlf(lf)).split(/^## Shared contract$/m)) === JSON.stringify(lf.split(/^## Shared contract$/m)),
+  );
+  const lockCell = MATRIX.find((c) => c.capability === "reports how far an update spread");
+  expect(
+    "a CRLF copy of the dotnet descriptor still satisfies its multi-line parity cell",
+    lockCell.expect.test(norm(crlf(read(lockCell.provider)))),
+    `looked for ${lockCell.expect}`,
+  );
 }
 
 if (failures) {

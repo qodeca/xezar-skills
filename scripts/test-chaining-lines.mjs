@@ -21,8 +21,13 @@
 import { readFileSync, globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
+import { toLF, toPosixPath } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) yields
+// the same lines (#122); paths are written with "/" so the trackers exclusion below matches there too.
+const norm = (raw) => toLF(raw);
+const readText = (rel) => norm(readFileSync(join(root, rel), "utf8"));
 
 // --- the canonical grammar, in one place -------------------------------------
 // These are the patterns a consumer is allowed to use. Every producer template must
@@ -62,11 +67,11 @@ function fill(line, label) {
 }
 
 // --- 1: every documented template parses -------------------------------------
-const files = globSync("skills/**/*.md", { cwd: root }).sort();
+const files = globSync("skills/**/*.md", { cwd: root }).map((f) => toPosixPath(f)).sort();
 let templates = 0;
 
 for (const rel of files) {
-  const text = readFileSync(join(root, rel), "utf8");
+  const text = readText(rel);
   text.split("\n").forEach((raw, i) => {
     // An editorial annotation after the line ("   <- only on ramp 6") explains when the
     // line is emitted; it is not part of what gets printed. Anything else trailing is.
@@ -91,7 +96,7 @@ expect("templates were actually found", templates >= 5, `found ${templates}`);
 // break this file exists to prevent. Inside a fenced block that already holds at least
 // one valid chaining line, any line opening with a chaining label must be the exact form.
 for (const rel of files) {
-  const text = readFileSync(join(root, rel), "utf8");
+  const text = readText(rel);
   const lines = text.split("\n");
   let start = null;
   lines.forEach((line, i) => {
@@ -144,7 +149,7 @@ for (const [line, label, why] of MALFORMED) {
 
 // --- 3: a producer never emits the legacy form -------------------------------
 for (const rel of files) {
-  const text = readFileSync(join(root, rel), "utf8");
+  const text = readText(rel);
   for (const [i, line] of text.split("\n").entries()) {
     if (!LEGACY.test(line)) continue;
     // A shell assignment inside a tracker descriptor is a local variable that happens to
@@ -164,8 +169,8 @@ for (const rel of files) {
 // The contract has two halves: what to emit, and what to still accept from an older
 // installed skill. A copy carrying only the first half reads as complete and is not.
 let contracts = 0;
-for (const rel of globSync("skills/*/references/rules.md", { cwd: root }).sort()) {
-  const text = readFileSync(join(root, rel), "utf8");
+for (const rel of globSync("skills/*/references/rules.md", { cwd: root }).map((f) => toPosixPath(f)).sort()) {
+  const text = readText(rel);
   if (!/\*\*Marker contract\.\*\* Chaining/.test(text)) continue;
   contracts += 1;
   expect(
@@ -180,6 +185,17 @@ for (const rel of globSync("skills/*/references/rules.md", { cwd: root }).sort()
   );
 }
 expect("marker contracts were found", contracts >= 30, `found ${contracts}`);
+
+// #122 (Windows): a CRLF copy of a scanned file yields exactly the LF file's lines through `norm`.
+{
+  const rel = "skills/xez-auto-create-pr/references/rules.md";
+  const lf = readText(rel);
+  const crlf = lf.replace(/\n/g, "\r\n");
+  expect(
+    "a CRLF copy of a scanned file yields the same line list as the LF file",
+    JSON.stringify(norm(crlf).split("\n")) === JSON.stringify(lf.split("\n")),
+  );
+}
 
 if (failures) {
   console.error(`\nchaining lines: ${failures} of ${asserts} assertions failed`);
