@@ -190,7 +190,7 @@ const byKey = (rows, key) => {
 };
 
 /** The worker's MSYS processes: its process group, and everything reached from it through PPID. None without its MSYS pid. */
-export function msysMembers(msysRows, msysPid) {
+function msysMembers(msysRows, msysPid) {
   if (!Number.isSafeInteger(msysPid) || msysPid <= 0) return [];
   const members = new Map();
   for (const row of msysRows) if (row.pgid === msysPid) members.set(row.pid, row);
