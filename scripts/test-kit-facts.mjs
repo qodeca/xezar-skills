@@ -1252,7 +1252,8 @@ function walk(rel, match) {
     pr();
     const ok = push(OK);
     if (ok.code !== 0 || tip() !== fixed) fail(fact, where, `does not push the sealed fast-forward to the PR head (exit ${ok.code}):\n    ${ok.out.trim().split("\n").slice(-3).join("\n    ")}`);
-    if (!readFileSync(ghLog, "utf8").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
+    // No log means the stub never ran: a failure to report, not a reason to crash before the rest (#122).
+    if (!(existsSync(ghLog) ? readFileSync(ghLog, "utf8") : "").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
     checked.push(fact);
   } finally {
     rmSync(lab, { recursive: true, force: true });
@@ -1462,6 +1463,51 @@ function walk(rel, match) {
   checked.push(fact);
 }
 // 3.1.0-stream-OC:end
+
+// ---------------------------------------------------------------------------
+// #122 (Windows): FACT W – the kit under Git Bash.
+//
+// The kit's scripts run in Git Bash on Windows, where git prints `C:/…` paths and the MSYS
+// runtime rewrites an argument that looks like a POSIX path list before git.exe sees it. Each
+// rule is asserted on every OS: the Windows branch is taken by setting OSTYPE, so the Linux
+// nightly proves it too, and the non-Windows branch must stay exactly as it was.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT W: the kit's shell helpers read Git for Windows paths and refs";
+  const { spawnSync } = await import("node:child_process");
+  const where = "kit/checks/lib/common.sh";
+  const common = join(root, SKILL, where);
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS2_ARG_CONV_EXCL") delete env[key];
+  const paths = ["C:/x", "c:/x", "/x", "C:\\x", "C:x", "x"];
+  const script = [
+    'lib="$1"; shift',
+    'for os in msys linux-gnu; do ( OSTYPE=$os; . "$lib" || exit 99',
+    '  for p in "$@"; do if is_absolute_path "$p"; then printf "%s %s=0\\n" "$os" "$p"; else printf "%s %s=1\\n" "$os" "$p"; fi; done ); done',
+    '( OSTYPE=msys; . "$lib"; printf "unset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; MSYS2_ARG_CONV_EXCL=x/; . "$lib"; printf "preset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; . "$lib"; . "$lib"; printf "twice=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=linux-gnu; . "$lib"; printf "linux=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+  ].join("\n");
+  const run = spawnSync(bashPath(), ["-c", script, "fact-w", common, ...paths], { encoding: "utf8", env });
+  const seen = new Map(run.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const at = line.lastIndexOf("="); return [line.slice(0, at), line.slice(at + 1)]; }));
+  if (run.status !== 0) fail(fact, where, `could not be sourced in bash (exit ${run.status}): ${run.stderr.trim()}`);
+  else {
+    if (seen.get("msys C:/x") !== "0" || seen.get("msys c:/x") !== "0")
+      fail(fact, where, "`is_absolute_path` reads a Git for Windows path (C:/…) as relative under Git Bash, so a linked worktree cannot resolve its own checkout");
+    for (const [p, want] of [["/x", "0"], ["C:\\x", "1"], ["C:x", "1"], ["x", "1"]]) {
+      if (seen.get(`msys ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` under Git Bash says ${seen.get(`msys ${p}`)}, not ${want}`);
+      if (seen.get(`linux-gnu ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` outside Git Bash says ${seen.get(`linux-gnu ${p}`)}, not ${want}`);
+    }
+    if (seen.get("linux-gnu C:/x") !== "1" || seen.get("linux-gnu c:/x") !== "1")
+      fail(fact, where, "`is_absolute_path` reads C:/… as absolute outside Git Bash, where it is a relative path (and fixture_scratch_remove deletes by it)");
+    const excl = { unset: "origin/;refs/", preset: "origin/;refs/;x/", twice: "origin/;refs/", linux: "<unset>" };
+    const wrong = Object.entries(excl).filter(([k, v]) => seen.get(k) !== v);
+    if (wrong.length)
+      fail(fact, where, `lets Git Bash rewrite origin/<base>:<file> arguments: MSYS2_ARG_CONV_EXCL is ${wrong.map(([k]) => `${k}=${JSON.stringify(seen.get(k))} (want ${JSON.stringify(excl[k])})`).join(", ")}`);
+  }
+  checked.push(fact);
+}
 
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
