@@ -20,6 +20,8 @@ const win = path.win32;
 // below the root; <root>\<toolchain>\bin is two. Any other folder that holds a git.exe (a
 // scoop or npm shim) is not Git's layout and says nothing about where Git Bash is.
 const TOOLCHAINS = ["mingw64", "clangarm64", "mingw32"];
+// Git's Perl script folders under usr\bin, in the order Git Bash's login profile appends them.
+const PERL_SCRIPT_DIRS = ["site_perl", "vendor_perl", "core_perl"];
 const DRIVE_PATH = /^[A-Za-z]:\\/;
 const ABSOLUTE_ENTRY = /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/])/;
 
@@ -178,14 +180,20 @@ export function prependPath(env, dirs, platform = process.platform) {
  * A NEW env for a child that runs bash or POSIX tools. win32: Git's tool folders first on PATH;
  * NoDefaultCurrentDirectoryInExePath=1, so a bare name never resolves from the working folder;
  * and "noglob" added to MSYS, because the MSYS runtime otherwise expands an unquoted `*` or
- * `{a,b}` argument that a native process passes to an MSYS program. POSIX: a shallow copy.
- * `options` ({ platform, exists }) is for tests only.
+ * `{a,b}` argument that a native process passes to an MSYS program. Git's Perl script folders
+ * (usr\bin\site_perl, vendor_perl, core_perl – those that exist) go LAST on PATH, as Git Bash's
+ * login profile puts them (/etc/profile.d/perlbin.sh): Git for Windows keeps `shasum` in core_perl,
+ * and a bash started without a login (GitHub Actions' `shell: bash`, a run from PowerShell) does
+ * not find it otherwise. POSIX: a shallow copy. `options` ({ platform, exists }) is for tests only.
  */
 export function withGitTools(env = process.env, options) {
   const platform = options?.platform ?? process.platform;
   if (platform !== "win32") return { ...env };
-  const dirs = posixToolDirs(options ? { platform, env, exists: options.exists } : undefined);
+  const exists = options?.exists ?? existsSync;
+  const dirs = posixToolDirs(options ? { platform, env, exists } : undefined);
+  const perlDirs = PERL_SCRIPT_DIRS.map((name) => win.join(dirs.at(-1), name)).filter((dir) => exists(dir));
   let next = prependPath(env, dirs, platform);
+  if (perlDirs.length) next = envSet(next, "PATH", [envGet(next, "PATH", platform), ...perlDirs].join(";"), platform);
   next = envSet(next, "NoDefaultCurrentDirectoryInExePath", "1", platform);
   const msys = envGet(next, "MSYS", platform) ?? "";
   if (!/(^|\s)noglob(\s|$)/.test(msys)) next = envSet(next, "MSYS", msys ? `${msys} noglob` : "noglob", platform);

@@ -1482,6 +1482,10 @@ tool, run natively on Windows rather than under the tests, still does the wrong 
   silently, and the login reads as empty.
 - `kit/checks/gh-write.sh:141-156` – `$(jq -r …)` from a Windows jq ends in `\r`; the tests use an
   LF jq shim.
+- `kit/checks/lib/common.sh:568-595`, `:818-838` and `kit/checks/repo-gates.sh:96` – `shasum` lives
+  in Git for Windows' `usr\bin\core_perl`, which only a login Git Bash puts on `PATH`; a bash started
+  without a login (GitHub Actions' `shell: bash`, a program running `bash -c`) does not find it. The
+  tests append Git's Perl script folders to `PATH`.
 - `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
   first on `PATH`.
 - `kit/checks/review-run.sh:96` `REFUSED_PROGRAMS` – no Windows launchers (`git-bash`, `winpty`,

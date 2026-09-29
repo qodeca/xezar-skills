@@ -2608,6 +2608,14 @@ breaks(
   () => script("test-browser-providers.mjs"),
   "the `lint` job must run on ubuntu-latest",
 );
+
+breaks(
+  "a Git tools env that leaves Git's Perl script folders (shasum) off PATH is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace('  if (perlDirs.length) next = envSet(next, "PATH", [envGet(next, "PATH", platform), ...perlDirs].join(";"), platform);\n', ""),
+  () => script("test-platform.mjs"),
+  "withGitTools leaves Git's Perl script folders (shasum) off PATH",
+);
 // 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------

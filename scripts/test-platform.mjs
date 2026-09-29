@@ -189,6 +189,21 @@ check("withGitTools puts Git's tools first and adds noglob to MSYS once", () => 
   assert.equal("MSYS" in withGitTools({ PATH: "/x" }, { platform: "linux" }), false);
 });
 
+// #122: Git for Windows keeps `shasum` (which the kit hashes with) in usr\bin\core_perl, which only
+// Git Bash's login profile puts on PATH; GitHub Actions' `shell: bash` and a run from PowerShell
+// start bash without a login.
+check("withGitTools appends Git's Perl script folders, as a Git Bash login does", () => {
+  const perl = [`${GIT}\\usr\\bin\\vendor_perl`, `${GIT}\\usr\\bin\\core_perl`];
+  const next = withGitTools({ PATH: `${GIT}\\cmd` }, { platform: "win32", exists: fakeFs(...GIT_FILES, ...perl) });
+  assert.equal(next.PATH, `${GIT}\\mingw64\\bin;${GIT}\\usr\\bin;${GIT}\\cmd;${perl.join(";")}`, "withGitTools leaves Git's Perl script folders (shasum) off PATH");
+  if (win32) {
+    const env = prependPath(process.env, [], "win32");
+    env.PATH = win.join(process.env.SystemRoot ?? "C:\\Windows", "System32");
+    const probe = spawnSync(bashPath(), ["-c", "command -v shasum"], { encoding: "utf8", env: withGitTools(env) });
+    assert.equal(probe.status, 0, `withGitTools leaves Git's Perl script folders (shasum) off PATH: ${probe.stdout}${probe.stderr}`);
+  }
+});
+
 check("pinTestGitConfig appends after existing GIT_CONFIG entries on win32 only", () => {
   const env = { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "user.name", GIT_CONFIG_VALUE_0: "x" };
   const next = pinTestGitConfig(env, "win32");
