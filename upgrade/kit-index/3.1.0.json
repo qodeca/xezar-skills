@@ -1,5 +1,5 @@
 {
-  "commit": "0e916b0b0cc19223d89b090b63eb527c96b53adc",
+  "commit": "4e33b601a161a9598e018276034f8bc4195168ab",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -266,10 +266,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "9cf38415308c12c4f4e4e90f540e01ea97f6cdab",
+      "kitBlob": "2af795757236657051896ff4b79fcde9058f663e",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "ad8559c78239680d6574d86576a7b75b60c1e1c62a00a4d2e251f088ecd235d7"
+      "sha256": "496b9306ad70f4d9ae3edbd760829badd326fa38e77f6e84acd29d2d51a51790"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
