@@ -1464,6 +1464,18 @@ proves the kit's logic on Windows, not that the whole kit runs natively there. T
 macOS CI jobs are informational until their runs prove stable; the `lint` job on ubuntu stays the
 required check. How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
 
+The stubs need one patch to Node itself, and its reach is kept narrow. On Windows only,
+`prepareTestPlatform()` (`scripts/lib/test-harness.mjs`) wraps `spawn`, `spawnSync`, `execFile` and
+`execFileSync` of `node:child_process` in the test's own process; a test hands the same wrapper to
+one child at a time through `NODE_OPTIONS` (`stubSpawnEnv()`). It changes two kinds of call and
+passes every other through untouched: an extensionless stub in a folder the test marked
+(`.stub-spawn`) is started through Git Bash, and a start of Git Bash or Git's `sh` gets its command
+line quoted for the MSYS runtime. A call that sets `shell` or `windowsVerbatimArguments` is never
+changed. No kit file, no `upgrade/tools` file and no maintainer entry point loads it: `run-gate.mjs`
+and `run-bash.mjs` quote their own Git Bash start through `spawnGitBash()` in
+`scripts/lib/platform.mjs`. Changing every test's spawn calls instead would have touched far more
+lines, and left each new test to remember the rule.
+
 Three parts of the kit runtime were made to work natively in the same change: the kit's shell
 library reads Git for Windows paths and keeps Git Bash from rewriting `origin/<base>:<file>`
 arguments; the gate scheduler runs its workers in Git Bash and stops them on Windows the way the
@@ -1488,8 +1500,6 @@ tool, run natively on Windows rather than under the tests, still does the wrong 
   tests append Git's Perl script folders to `PATH`.
 - `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
   first on `PATH`.
-- `kit/checks/review-run.sh:96` `REFUSED_PROGRAMS` – no Windows launchers (`git-bash`, `winpty`,
-  `cmd`, `powershell`, `pwsh`, `wsl`).
 
 The issue stays open for them: the pull request references #122 without a closing keyword.
 
@@ -1502,11 +1512,12 @@ On native Windows the engine cannot give the launcher the socket file it looks f
 contract the launcher follows is a **draft** from the engine's Windows work (xezar #963, phase 3),
 not yet final or built there: the pipe is `\\.\pipe\xezar-mcp-<32 hex digits>`, random for each
 start; the engine names it, alone on one line, in `.local/xezar/ipc/<id>.pipe` and removes that
-marker when it stops cleanly. Under Git Bash (`uname -s` starts with MINGW or MSYS) and with no
-socket there, `scripts/xezar-leader.sh` reads the markers as data – only a name of that exact shape
-counts, and nothing in a marker is run – and counts a pipe as live when node connects to it within
-a second (bash cannot open a pipe). A stale marker is skipped and never deleted, since the engine
-replaces its own; with two live pipes the newest marker wins and the launcher warns.
+marker when it stops cleanly. Under Git Bash or Cygwin (`OSTYPE` starts with `msys` or `cygwin`,
+the one Windows test every kit script uses) and with no socket there, `scripts/xezar-leader.sh`
+reads the markers as data – only a name of that exact shape counts, and nothing in a marker is
+run – and counts a pipe as live when node connects to it within a second (bash cannot open a
+pipe). A stale marker is skipped and never deleted, since the engine replaces its own; with two
+live pipes the newest marker wins and the launcher warns.
 
 The owner chose to build this in 3.1.0 against the draft rather than wait: a consumer on Windows
 gets a launcher that is ready when the engine is, and Linux and macOS keep the socket path
