@@ -2592,6 +2592,22 @@ breaks(
   () => script("test-kit-catalog.mjs"),
   "accepts a stale pipe marker",
 );
+
+breaks(
+  "a cross-platform CI job that no longer runs the whole gate is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("        run: node scripts/run-gate.mjs\n", "        run: node scripts/test-kit-catalog.mjs\n"),
+  () => script("test-browser-providers.mjs"),
+  "the cross-platform job must run the whole gate",
+);
+
+breaks(
+  "a required lint job moved off ubuntu is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("  lint:\n    runs-on: ubuntu-latest\n", "  lint:\n    runs-on: windows-latest\n"),
+  () => script("test-browser-providers.mjs"),
+  "the `lint` job must run on ubuntu-latest",
+);
 // 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------

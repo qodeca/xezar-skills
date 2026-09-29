@@ -12,6 +12,7 @@
     "install-skills": "node scripts/install-skills.mjs",
     "uninstall-skills": "node scripts/install-skills.mjs --uninstall",
     "lint": "node scripts/run-bash.mjs scripts/lint.sh",
+    "gate": "node scripts/run-gate.mjs",
     "test:browser-providers": "node scripts/test-browser-providers.mjs",
     "test:tracker-providers": "node scripts/test-tracker-providers.mjs",
     "test:toolchain-providers": "node scripts/test-toolchain-providers.mjs",
