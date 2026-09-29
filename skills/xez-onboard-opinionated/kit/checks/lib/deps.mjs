@@ -555,7 +555,7 @@ function resolveNode(root, u, problems) {
 // --no-restore, so a borrowed one would judge another checkout).
 function resolveDotnet(root, u, problems) {
   for (const file of dotnetProjects(root, u)) {
-    const proj = relative(root, file);
+    const proj = relative(root, file).split(sep).join("/"); // "/" for safeParents and messages on Windows (#122)
     if (!file.startsWith(root + sep)) { problems.push(`  ${u.dir}/${u.entry} lists ${file}, outside this task`); continue; }
     try { safeParents(root, proj); } catch (e) { problems.push(`  ${proj}: ${e.message}`); continue; }
     if (!isFile(file)) { problems.push(`  ${proj}: listed in ${u.dir}/${u.entry} but not found`); continue; }

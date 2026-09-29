@@ -1245,6 +1245,15 @@ for (const name of workflowFiles) {
     for (const argv of [["git", "status"], ["/usr/bin/env", "ls"], ["bash", "-c", "true"], ["gh", "pr", "merge", "5"]]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
     }
+    // #122: the same programs under another spelling – a Windows path, another case, a Windows
+    // program extension, an 8.3 short name – and a path that names no program at all.
+    for (const argv of [
+      ["/usr/bin/bash", "-c", "true"], ["bash.exe", "-c", "true"], ["BASH", "-c", "true"],
+      ["C:\\Program Files\\Git\\bin\\BASH.EXE", "-c", "true"], ["C:/Windows/System32/bash.exe"],
+      ["git.CMD", "status"], ["env.com", "ls"], ["sh.bat"], ["GIT-BA~1.EXE"], ["C:\\tools\\"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
     if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
     // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,
     // so it must not inherit the operator's credentials.

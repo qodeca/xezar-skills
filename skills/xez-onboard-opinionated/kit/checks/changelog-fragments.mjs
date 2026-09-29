@@ -33,7 +33,7 @@
 
 import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** CHANGELOG.md's own group headings, in the order a release section emits them. */
@@ -541,9 +541,10 @@ export function verifyAgainst({ file, dir, version, ref, format = '' }) {
   } catch {
     return { errors: [`--verify needs ${file} to sit inside a git repository`] };
   }
+  // A repository-relative path with "/" on every OS: `git show <ref>:<path>` reads nothing else (#122).
   const rel = (path) => {
-    const abs = existsSync(path) ? realpathSync(path) : join(realpathSync(dirname(path)), path.split('/').pop());
-    return abs === top ? '' : abs.slice(top.length + 1);
+    const abs = existsSync(path) ? realpathSync(path) : join(realpathSync(dirname(path)), basename(path));
+    return abs === top ? '' : abs.slice(top.length + 1).split(sep).join('/');
   };
   let before;
   try {
