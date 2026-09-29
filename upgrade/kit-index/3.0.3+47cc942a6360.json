@@ -1,5 +1,5 @@
 {
-  "commit": "16425cc95c4b18b56a02f50250161018294c0629",
+  "commit": "47cc942a6360a0c25b9c47414b3a4b083d0cc7ae",
   "files": {
     ".claude/settings.json": {
       "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
@@ -212,10 +212,10 @@
       "sha256": "033d4c0e739f4d1fd8f30d5fc1e58d79473eb7f96907e3548ab6ff3db177491c"
     },
     ".xezar/checks/lib/windows-process.mjs": {
-      "kitBlob": "557b7fbde04369ac2aafedb30bf8d20ddc488dc7",
+      "kitBlob": "f2c1946724224b87dcb32b54154453be0c3d0fb0",
       "kitSource": "checks/lib/windows-process.mjs",
       "rewrite": "copied",
-      "sha256": "126f1fa48ca534d9bfd3e572bba817a2e1c7c72879df17cb3e339535c248be7c"
+      "sha256": "15aab1978409d1f0dda793682592f732cf2ad066a1be156ca02f6e1cf32ca070"
     },
     ".xezar/checks/local-tree.sh": {
       "kitBlob": "41dcac97ecd75277936a35e1b3e35b6f3f111ca6",
@@ -959,12 +959,12 @@
       "sha256": "4cf7ca79f74d742a510f1a86febf5559c8595d1c7dfff87b79f653f68b2ef1a6"
     },
     "scripts/xezar-leader.sh": {
-      "kitBlob": "b7933e46883fb98e1b0f489eb9ee7c6e51f88e2c",
+      "kitBlob": "8f74370ded2671393b4e9c667889aea0de961fa6",
       "kitSource": "scripts/xezar-leader.sh",
       "rewrite": "copied",
-      "sha256": "3e580b6c66d7323a64494d2681becf49f7ea7698d58cf00644f528d3c6723ab4"
+      "sha256": "deb041b022540e43cf4a488e315fba52eccbd9b6c77b85348775a9b2c81396eb"
     }
   },
-  "tag": "v3.1.0",
-  "version": "3.1.0"
+  "tag": null,
+  "version": "3.0.3+47cc942a6360"
 }
