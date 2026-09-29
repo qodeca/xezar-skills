@@ -841,12 +841,19 @@ for (const name of workflowFiles) {
     // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
     const ipc = join(project, ".local/xezar/ipc");
     mkdirSync(ipc, { recursive: true });
-    const here = process.cwd();
-    process.chdir(ipc);
-    try {
-      await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
-    } finally {
-      process.chdir(here);
+    if (process.platform === "win32") {
+      // #122: on Windows Node binds named pipes only. Git's perl makes the MSYS socket file that the
+      // launcher's `[ -S ]` sees (spike S-5); the file outlives perl. This proves the launcher's rule
+      // on Windows, not that the engine creates such a socket there (DECISIONS gap list).
+      execFileSync(bashPath(), ["-c", 'cd "$1" && perl -MIO::Socket::UNIX -e \'IO::Socket::UNIX->new(Local => shift, Listen => 1) or die qq{bind: $!\\n}\' my-proj.sock', "sock", ipc], { env, stdio: "pipe" });
+    } else {
+      const here = process.cwd();
+      process.chdir(ipc);
+      try {
+        await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
+      } finally {
+        process.chdir(here);
+      }
     }
     const found = launch();
     const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];

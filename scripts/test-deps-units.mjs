@@ -603,6 +603,7 @@ try {
       files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n', ...files },
       extra: (d) => {
         copyFileSync(join(KIT, "checks/lib/gate-parallel.mjs"), join(d, ".xezar/checks/lib/gate-parallel.mjs"));
+        copyFileSync(join(KIT, "checks/lib/windows-process.mjs"), join(d, ".xezar/checks/lib/windows-process.mjs"));
         for (const f of ["security-scan.sh", "repository-checks.sh"]) { write(join(d, ".xezar/checks", f), "#!/usr/bin/env bash\nexit 0\n"); chmodSync(join(d, ".xezar/checks", f), 0o755); }
       },
     });

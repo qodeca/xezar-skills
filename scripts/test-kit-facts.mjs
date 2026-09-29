@@ -1509,6 +1509,187 @@ function walk(rel, match) {
   checked.push(fact);
 }
 
+// FACT W, the Windows process layer's rules (kit/checks/lib/windows-process.mjs), as pure functions
+// on recorded tables: they run on every OS, so a rule broken on Linux is caught on Linux.
+{
+  const fact = "FACT W: the Windows gate stop picks a gate's processes by identity, never a stranger";
+  const where = "kit/checks/lib/windows-process.mjs";
+  const { pathToFileURL } = await import("node:url");
+  const wp = await import(pathToFileURL(join(root, SKILL, where)).href);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Git's ps, as this machine printed it (spike S-4), plus a status letter and a torn row.
+  const psSample = [
+    "      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND",
+    "   230432       1  230432       4844  ?         197609 09:04:07 /usr/bin/bash",
+    "   230436  230432  230432      20500  ?         197609 09:04:07 /usr/bin/sleep",
+    "S  230440  230432  230432      20600  ?         197609 09:04:08 /usr/bin/cat",
+    "   230435  230432  230432      19464  ?         197609 09:04:07 /c/Users/u/AppData/Local/Author Software/nvm/.nodejs/node",
+    "   2304",
+  ].join("\r\n");
+  const msysRows = wp.parseMsysTable(psSample);
+  if (!same(msysRows, [
+    { pid: 230432, ppid: 1, pgid: 230432, winpid: 4844 }, { pid: 230436, ppid: 230432, pgid: 230432, winpid: 20500 },
+    { pid: 230440, ppid: 230432, pgid: 230432, winpid: 20600 }, { pid: 230435, ppid: 230432, pgid: 230432, winpid: 19464 },
+  ])) fail(fact, where, `parseMsysTable reads Git's ps output wrong: ${JSON.stringify(msysRows)}`);
+  const winSample = "queried 134351390480000000\n4844 2776 5120 0 134351390478236880\n19464 5428 40000 0 134351390479200810\n5428 2184 3000 0 -\n12 34\n";
+  const winRows = wp.parseWindowsTable(winSample);
+  if (!same(winRows, [{ pid: 4844, ppid: 2776, startedAt: 1790665447823 }, { pid: 19464, ppid: 5428, startedAt: 1790665447920 }, { pid: 5428, ppid: 2184 }]))
+    fail(fact, where, `parseWindowsTable reads the process table wrong: ${JSON.stringify(winRows)}`);
+  const script = wp.killScript([
+    { pid: 100, startedAt: 1790665447823 }, { pid: 3, startedAt: 5 }, { pid: 7.5, startedAt: 5 }, { pid: 101, startedAt: -1 },
+    { pid: 100, startedAt: 1 }, { pid: "102; Remove-Item C:\\", startedAt: 5 }, { pid: process.pid, startedAt: 5 },
+  ]);
+  if (script.split("\n")[1] !== "$t = @(100,1790665447823)" || /Remove-Item/.test(script))
+    fail(fact, where, `killScript embeds something other than validated integers: ${script.split("\n")[1]}`);
+  const outcomes = wp.parseKillOutcomes("100 killed\r\n101 denied\n999 killed\nnoise\n", new Set([100, 101]));
+  if (!same([...outcomes], [[100, "killed"], [101, "denied"]])) fail(fact, where, `parseKillOutcomes reads the kill script's answer wrong: ${JSON.stringify([...outcomes])}`);
+
+  // The start-time window. The worker is Windows pid 5000; it was spawned at T and stopped at T+10 s.
+  const T = 1_790_000_000_000;
+  const targetsOf = (args) => wp.treeTargets({ selfPid: 1, ...args }).map((t) => t.pid).sort((a, b) => a - b);
+  const windowed = targetsOf({
+    root: { winpid: 5000, msysPid: null, spawnedAt: T, stoppedAt: T + 10_000 },
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 6000, ppid: 5000, startedAt: T + 20_000 }, // a stranger whose parent pid is the worker's, reused
+      { pid: 6100, ppid: 5000, startedAt: T + 100 },
+      { pid: 6200, ppid: 6100, startedAt: T + 50 }, // older than its parent: not its child
+      { pid: 6300, ppid: 6100, startedAt: T + 200 },
+    ],
+  });
+  if (windowed.includes(6000)) fail(fact, where, "a process that reused the pid of a gate's child was chosen for a kill (created after the stop, its parent pid names the worker)");
+  if (windowed.includes(6200)) fail(fact, where, "a process created before its parent was chosen for a kill");
+  if (!windowed.includes(6100) || !windowed.includes(6300)) fail(fact, where, `the worker's own child and grandchild were not both chosen: ${JSON.stringify(windowed)}`);
+  // The MSYS layer (spike S-1): after an exec the gate's process has no living Windows parent, and
+  // its MSYS parent may be gone too; only the worker's MSYS process group still names it.
+  const grouped = targetsOf({
+    root: { winpid: 5000, msysPid: 700, spawnedAt: T, stoppedAt: T + 10_000 },
+    msysRows: [{ pid: 700, ppid: 1, pgid: 700, winpid: 5000 }, { pid: 710, ppid: 1, pgid: 700, winpid: 7100 }, { pid: 800, ppid: 1, pgid: 800, winpid: 8000 }],
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 7100, ppid: 9999, startedAt: T + 300 },
+      { pid: 7200, ppid: 7100, startedAt: T + 400 },
+      { pid: 8000, ppid: 1, startedAt: T + 100 },
+    ],
+  });
+  if (!grouped.includes(7100) || !grouped.includes(7200))
+    fail(fact, where, `a gate process whose parent already exited (MSYS exec) was not chosen, nor its native child: ${JSON.stringify(grouped)}`);
+  if (grouped.includes(5000) || grouped.includes(8000)) fail(fact, where, `the worker itself or another MSYS group was chosen: ${JSON.stringify(grouped)}`);
+
+  // One stop round, with the three programs answered from here (no process is touched).
+  const tools = { ps: "ps.exe", powershell: "powershell.exe" };
+  const psLive = "      PID    PPID    PGID     WINPID\n   700       1     700    5000\n   710       1     700    7100\n";
+  const table = `queried 1\n5000 1 1 0 ${(BigInt(T) * 10000n + 116444736000000000n)}\n7100 9999 1 0 ${(BigInt(T + 300) * 10000n + 116444736000000000n)}\n`;
+  const round = async (ps, killAnswer, options) => {
+    const calls = [];
+    const run = async (file, args) => {
+      calls.push(file);
+      if (file === "ps.exe") return ps;
+      const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
+      return decoded.includes("Get-CimInstance") ? table : killAnswer(decoded);
+    };
+    const result = await wp.stopTree({ winpid: 5000, msysPid: 700, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
+    return { result, calls };
+  };
+  const nothingLeft = await round("      PID    PPID    PGID     WINPID\n", () => "", { killRoot: false });
+  if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
+  const killed = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false });
+  if (!killed.result.ok || killed.result.killed !== 1) fail(fact, where, `a stop round did not kill the worker's process by identity: ${JSON.stringify(killed.result)}`);
+  const denied = await round(psLive, () => "7100 denied\n", { killRoot: true });
+  if (denied.result.ok) fail(fact, where, "a stop round that could not kill a process reported success");
+  const noPs = await round(null, () => "7100 killed\n", { killRoot: true });
+  if (noPs.result.ok) fail(fact, where, "a stop round that could not read Git's ps reported success");
+  checked.push(fact);
+}
+
+// FACT W, the scheduler itself (kit/checks/lib/gate-parallel.mjs), with real processes on every OS:
+// a gate leaves a node behind that has a native child of its own; a gate is stopped mid-run; and a
+// process the gate never started survives both.
+{
+  const fact = "FACT W: the gate scheduler stops and reaps exactly the processes its gates started";
+  const where = "kit/checks/lib/gate-parallel.mjs";
+  const { spawn } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const scheduler = join(root, SKILL, where);
+  const lab = mkdtempSync(join(tempRoot(), "kit-gates-"));
+  const recorded = [];
+  const children = [];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
+  const until = async (condition, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) if (condition()) return true;
+    return condition();
+  };
+  // The library the scheduler sources: gate_run runs the command and records its result.
+  const library = join(lab, "gate-lib.sh");
+  writeFileSync(library, 'gate_run() { shift; "$@"; local rc=$?; printf \'{"status":"%s","exitCode":%d}\' "$([ "$rc" -eq 0 ] && echo passed || echo failed)" "$rc" > "$GATE_WORKER_RESULT"; return "$rc"; }\n');
+  const holder = join(lab, "holder.cjs");
+  writeFileSync(holder, [
+    'const { spawn } = require("child_process"); const fs = require("fs"); const path = require("path");',
+    "const [dir, role] = process.argv.slice(2);",
+    'if (role === "parent") spawn(process.execPath, [__filename, dir, "child"], { stdio: "ignore" });',
+    "fs.writeFileSync(path.join(dir, `${role}.pid`), String(process.pid));",
+    "setInterval(() => {}, 1e9);",
+  ].join("\n"));
+  const start = (name, command) => {
+    const dir = join(lab, name);
+    mkdirSync(dir);
+    const attempt = join(dir, "attempt");
+    const child = spawn(process.execPath, [scheduler, library, "serial", JSON.stringify([{ index: 1, name, command }])], {
+      env: { ...process.env, GATE_ATTEMPT_DIR: attempt, G_DIR: dir, G_HOLDER: holder, G_NODE: process.execPath },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    children.push(child);
+    let err = "";
+    child.stderr.on("data", (chunk) => { err += chunk; });
+    const closed = new Promise((resolve) => child.on("close", (code) => resolve(code)));
+    return { child, dir, attempt, closed, err: () => err.trim() };
+  };
+  const pidsIn = (dir) => ["parent", "child"].map((role) => {
+    const file = join(dir, `${role}.pid`);
+    return existsSync(file) ? Number(readFileSync(file, "utf8")) : null;
+  });
+  const holderRuns = '"$G_NODE" "$G_HOLDER" "$G_DIR" parent';
+  const bothStarted = 'i=0; while [ ! -s "$G_DIR/parent.pid" ] || [ ! -s "$G_DIR/child.pid" ]; do i=$((i+1)); [ "$i" -gt 300 ] && exit 3; sleep 0.1; done';
+  const stranger = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
+  let strangerExited = false; // this test's own child: once killed, a zombie would still answer kill(pid, 0)
+  stranger.on("exit", () => { strangerExited = true; });
+  recorded.push(stranger.pid);
+  try {
+    // G1: the gate starts node in the background, waits for it and its child, and exits 0.
+    const reaped = start("reap", `${holderRuns} & ${bothStarted}; exit 0`);
+    const reapCode = await Promise.race([reaped.closed, sleep(60_000).then(() => "no exit within 60 s")]);
+    const left = pidsIn(reaped.dir);
+    recorded.push(...left.filter(Boolean));
+    if (reapCode !== 0 || left.includes(null)) fail(fact, where, `the reap case did not run (scheduler: ${reapCode}; pids ${JSON.stringify(left)}): ${reaped.err()}`);
+    else if (!(await until(() => !left.some(alive), 10_000))) fail(fact, where, `the gate scheduler left a finished gate's processes running (${left.filter(alive).join(", ")})`);
+    // G2: the gate runs node in the foreground; the run is interrupted once node and its child run.
+    const stoppedRun = start("stop", holderRuns);
+    const running = await until(() => !pidsIn(stoppedRun.dir).includes(null), 30_000);
+    const stopping = pidsIn(stoppedRun.dir);
+    recorded.push(...stopping.filter(Boolean));
+    if (!running) fail(fact, where, `the stop case's gate did not start its processes: ${stoppedRun.err()}`);
+    else {
+      // POSIX: a TERM, as repo-gates.sh sends it. Windows: the stop file repo-gates.sh writes there.
+      if (process.platform === "win32") writeFileSync(join(stoppedRun.attempt, "workers", "stop"), "");
+      else stoppedRun.child.kill("SIGTERM");
+      const stopCode = await Promise.race([stoppedRun.closed, sleep(20_000).then(() => "no exit within 20 s")]);
+      const gone = await until(() => !stopping.some(alive), 10_000);
+      if (stopCode !== 130 || !gone)
+        fail(fact, where, `the gate scheduler did not stop its gates on an interrupt (scheduler: ${stopCode}; still running: ${stopping.filter(alive).join(", ") || "none"})`);
+    }
+    // G4: a process the gates never started is still running after both.
+    await sleep(200);
+    if (strangerExited || !alive(stranger.pid)) fail(fact, where, "the gate scheduler stopped a process the gate did not start");
+  } finally {
+    for (const pid of recorded) { try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ } }
+    for (const child of children) { try { child.kill("SIGKILL"); } catch { /* already gone */ } }
+    await sleep(500);
+    rmSync(lab, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

@@ -61,7 +61,18 @@ const GIT_BASH = `${GIT}\\bin\\bash.exe`;
 const GIT_FILES = [`${GIT}\\cmd\\git.exe`, `${GIT}\\mingw64\\bin`, `${GIT}\\mingw64\\bin\\git.exe`, GIT_BASH, `${GIT}\\usr\\bin\\bash.exe`];
 const SYSTEM32 = "C:\\Windows\\System32";
 const WINDOWS_APPS = "C:\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps";
-const resolve = (env, ...paths) => resolveGitBash({ platform: "win32", env, exists: fakeFs(...paths) });
+// The kit's gate scheduler finds Git Bash with its own copy of the rule (a kit file never imports
+// scripts/lib). Every resolver case below runs through both, and they must agree (#122).
+const kitProcess = await import(new URL("../skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs", import.meta.url).href);
+const parity = [];
+const resolve = (env, ...paths) => {
+  const exists = fakeFs(...paths);
+  const got = resolveGitBash({ platform: "win32", env, exists });
+  const kitRoot = kitProcess.gitRoot({ env, exists });
+  const kit = kitRoot === null ? null : win.join(kitRoot, "bin", "bash.exe");
+  if (kit !== got) parity.push(`${JSON.stringify(env)}: kit ${kit}, scripts/lib ${got}`);
+  return got;
+};
 
 // --- Git Bash resolver --------------------------------------------------------------------
 
@@ -134,6 +145,10 @@ check("only WSL's bash and no Git anywhere gives null and a one-line message nam
   assert.equal(got, null, `picked WSL's bash.exe (or another bash.exe from PATH): got ${got}`);
   assert.equal(GIT_BASH_MISSING.includes("\n"), false);
   assert.match(GIT_BASH_MISSING, /Git Bash/);
+});
+
+check("the kit's Git Bash resolver agrees with scripts/lib/platform.mjs on every case above", () => {
+  assert.equal(parity.length, 0, `the kit's Git Bash resolver disagrees with scripts/lib/platform.mjs:\n${parity.join("\n")}`);
 });
 
 check("off Windows the resolver answers plain bash", () => {

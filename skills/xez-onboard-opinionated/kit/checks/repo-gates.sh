@@ -424,7 +424,12 @@ GATE_SCHEDULER_PID=""
 gate_cancel() {
   trap '' INT TERM
   if [ -n "$GATE_SCHEDULER_PID" ]; then
-    kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true
+    # Under Git Bash a TERM never reaches node's handler: it ends the MSYS stub and leaves node and
+    # its gates running (#122). The scheduler polls this file there and stops its gates itself.
+    case "${OSTYPE:-}" in
+      msys* | cygwin*) : > "$GATE_ATTEMPT_DIR/workers/stop" 2>/dev/null || kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true ;;
+      *) kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true ;;
+    esac
     wait "$GATE_SCHEDULER_PID" 2>/dev/null || true
   fi
   if [ -f "$GATE_ATTEMPT_DIR/result.json" ]; then
