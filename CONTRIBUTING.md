@@ -38,8 +38,8 @@ repository on Windows itself, you need:
   `git status` is clean, then re-check everything out with
   `git rm -r --cached -q . && git reset --hard -q`.
 
-Expect `lint` to take four to five minutes on Windows. `test-onboarding-content` runs lint only in
-its targeted mode (`--only`, `--files`), so it takes seconds.
+Expect a full `lint` run to take about 250 seconds on Windows. `test-onboarding-content` runs
+lint only in its targeted mode (`--only`, `--files`), so it takes seconds.
 
 The Windows and macOS CI jobs are informational: they report without blocking a merge. A green
 gate on Windows proves the kit's logic there – the tests adapt the environment, for example with

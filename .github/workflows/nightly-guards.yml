@@ -48,7 +48,7 @@ jobs:
 
   # The same suite on native Windows (#122), informational: it never fails the run and never
   # opens the failure issue (`report` needs only `guards`). 240 minutes is a first estimate – lint
-  # alone takes about three minutes a run there – replace it with a measured value.
+  # alone takes about 250 seconds a run there – replace it with a measured value.
   guards-windows:
     runs-on: windows-latest
     timeout-minutes: 240
