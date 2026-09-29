@@ -1330,10 +1330,12 @@ for (const name of workflowFiles) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
     }
     // #122: the same programs under another spelling – a Windows path, another case, a Windows
-    // program extension, an 8.3 short name – and a path that names no program at all.
+    // program extension, an 8.3 short name – and a path that names no program at all. A Windows
+    // path names no real folder, so a refusal that went missing starts nothing (WSL's bash.exe
+    // lives in System32).
     for (const argv of [
       ["/usr/bin/bash", "-c", "true"], ["bash.exe", "-c", "true"], ["BASH", "-c", "true"],
-      ["C:\\Program Files\\Git\\bin\\BASH.EXE", "-c", "true"], ["C:/Windows/System32/bash.exe"],
+      ["C:\\no-such-dir\\Git\\bin\\BASH.EXE", "-c", "true"], ["C:/no-such-dir/bash.exe"],
       ["git.CMD", "status"], ["env.com", "ls"], ["sh.bat"], ["GIT-BA~1.EXE"], ["C:\\tools\\"],
     ]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
@@ -1341,12 +1343,14 @@ for (const name of workflowFiles) {
     // #122: the Windows shells and launchers, each of which runs another program unseen. A full path
     // names no real folder and a bare name carries arguments that end it at once, so a refusal that
     // went missing fails here fast: a real git-bash.exe opens a terminal window, and wsl.exe can wait
-    // for a distribution that is not installed.
+    // for a distribution that is not installed. start, mintty and git-cmd each open a window, so
+    // they appear only as full paths.
     for (const argv of [
       ["cmd", "/c", "exit"], ["C:\\no-such-dir\\CMD.EXE", "/c", "exit"],
       ["powershell", "-NoProfile", "-Command", "exit"], ["C:\\no-such-dir\\WindowsPowerShell\\v1.0\\powershell.exe"],
       ["pwsh.EXE", "-NoProfile", "-Command", "exit"], ["C:/no-such-dir/wsl.exe", "--version"],
       ["winpty", "--version"], ["C:/no-such-dir/git-bash.exe"],
+      ["C:/no-such-dir/START"], ["C:\\no-such-dir\\usr\\bin\\MinTTY.exe"], ["C:/no-such-dir/git-cmd.EXE"],
     ]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
     }

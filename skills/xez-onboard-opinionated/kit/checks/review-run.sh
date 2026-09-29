@@ -39,8 +39,9 @@
 # Refused as <program>: git and gh (their writing subcommands are exactly what a reviewer may not
 # run – read through git-read.sh and gh pr view/diff instead), sudo/su, and every shell or wrapper
 # that would run another program unseen (bash, sh, zsh, dash, env, eval, exec, xargs, nohup,
-# command, timeout, nice, and on Windows cmd, powershell, pwsh, wsl, winpty, git-bash) – any case,
-# either path separator, with or without .exe/.cmd/.bat/.com; a short 8.3 name is refused. Never
+# command, timeout, nice, and the Windows shells and launchers cmd, powershell, pwsh, wsl, winpty,
+# git-bash, start, mintty, git-cmd, refused on every OS) – any case, either path separator, with or
+# without .exe/.cmd/.bat/.com; a short 8.3 name is refused. Never
 # the project's main checkout: this script refuses to run there.
 #
 # The name list is a courtesy, not the boundary: `node -e`, `python3 -c`, `make`, a test suite or
@@ -94,7 +95,7 @@ state="$evidence/review"
 mkdir -p "$state" || refuse "cannot create $state"
 cd "$TASK_CWD" || exit 1
 
-REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice cmd powershell pwsh wsl winpty git-bash"
+REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice cmd powershell pwsh wsl winpty git-bash start mintty git-cmd"
 
 check_program() {
   local program="${1:-}" base

@@ -2665,9 +2665,17 @@ breaks(
 breaks(
   "a review-run.sh that runs a Windows shell or launcher is rejected",
   "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
-  (s) => s.replace(' nice cmd powershell pwsh wsl winpty git-bash"\n', ' nice"\n'),
+  (s) => s.replace(' nice cmd powershell pwsh wsl winpty git-bash ', ' nice '),
   () => script("test-kit-catalog.mjs"),
   'review-run.sh runs the Windows launcher "',
+);
+
+breaks(
+  "a review-run.sh that runs start, mintty or git-cmd is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' git-bash start mintty git-cmd"\n', ' git-bash"\n'),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "C:/no-such-dir/START"',
 );
 
 breaks(
