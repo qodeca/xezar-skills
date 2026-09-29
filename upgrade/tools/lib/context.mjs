@@ -12,7 +12,7 @@ import { indexFromTree, loadIndexes, diffIndexes, SKILL_DIR } from "./kit-index.
 import { readManifest } from "./manifest.mjs";
 import { parseRegister } from "./register.mjs";
 import { gitState, resolveInside, PathRefused } from "./paths.mjs";
-import { git } from "./hash.mjs";
+import { git, lfText } from "./hash.mjs";
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const SCRATCH = ".local/xezar/scratch/upgrade";
@@ -128,7 +128,7 @@ export function loadContext(o) {
   const manifest = readManifest(readFileSync(manifestPath, "utf8"));
   const candidates = baseCandidates(history, target, manifest.version);
   const registerPath = join(project, ".xezar/LOCAL-PATCHES.md");
-  const registerText = existsSync(registerPath) ? readFileSync(registerPath, "utf8") : null;
+  const registerText = existsSync(registerPath) ? lfText(readFileSync(registerPath)).toString("utf8") : null;
   const register = parseRegister(registerText);
 
   const blobs = createBlobSource({
@@ -167,7 +167,8 @@ export function loadContext(o) {
     if (!existsSync(full)) return { missing: true };
     const st = lstatSync(full);
     if (!st.isFile()) return { refused: true, reason: "not a regular file" };
-    return { text: readFileSync(full, "utf8"), mode: st.mode & 0o777 };
+    // Read as LF text (contract §1 → Digests), so a CRLF checkout compares like the LF file (#122).
+    return { text: lfText(readFileSync(full)).toString("utf8"), mode: st.mode & 0o777 };
   };
 
   return {

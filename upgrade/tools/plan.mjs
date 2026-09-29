@@ -52,7 +52,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { git, gitBlobSha, sha256 } from "./lib/hash.mjs";
+import { git, gitBlobSha, lfText, sha256 } from "./lib/hash.mjs";
 import { SKILL_DIR } from "./lib/kit-index.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
@@ -107,7 +107,7 @@ export function templateChanged(ctx, template) {
   const v = ctx.history.find((x) => x.version === ctx.manifest.version);
   let target;
   try {
-    target = gitBlobSha(readFileSync(join(ctx.kitSkillDir, "kit", template)));
+    target = gitBlobSha(lfText(readFileSync(join(ctx.kitSkillDir, "kit", template))));
   } catch {
     return null;
   }

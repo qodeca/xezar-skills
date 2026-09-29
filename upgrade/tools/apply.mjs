@@ -30,7 +30,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync }
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { sha256 } from "./lib/hash.mjs";
+import { lfText, sha256 } from "./lib/hash.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
 import { inputsFor } from "./plan.mjs";
@@ -84,7 +84,7 @@ export function applyPlan(ctx, plan) {
       // exactly what this plan writes (a file an earlier, interrupted run added).
       const untracked = ctx.git.isGit && exists && !ctx.git.tracked(p);
       const f = det.get(p) ?? { path: p, base: {} };
-      const current = exists ? sha256(readFileSync(full)) : null;
+      const current = exists ? sha256(lfText(readFileSync(full))) : null;
       const theirsRaw = ctx.theirsText(p);
 
       if (held === null && item.action === "write-theirs") {
@@ -109,7 +109,7 @@ export function applyPlan(ctx, plan) {
       } else {
         const source = item.renamedFrom ?? p;
         const mineFull = resolveInside(ctx.project, source);
-        const mineText = existsSync(mineFull) ? readFileSync(mineFull, "utf8") : null;
+        const mineText = existsSync(mineFull) ? lfText(readFileSync(mineFull)).toString("utf8") : null;
         if (mineText === null && held === null) {
           done.push(p);
           continue;

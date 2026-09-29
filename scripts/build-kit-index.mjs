@@ -23,6 +23,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { toLF } from "./lib/platform.mjs";
 import { git, stableJson } from "../upgrade/tools/lib/hash.mjs";
 import { buildVersionIndex, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 
@@ -169,7 +170,8 @@ if (check) {
   }
   for (const [name, text] of outputs) {
     const path = join(outDir, name);
-    if (!existsSync(path) || readFileSync(path, "utf8") !== text) {
+    // A CRLF checkout of the committed index is not stale (#122); blobs read from git stay raw.
+    if (!existsSync(path) || toLF(readFileSync(path, "utf8")) !== text) {
       console.error(`kit index is stale: ${name}`);
       bad += 1;
     }

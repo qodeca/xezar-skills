@@ -49,7 +49,7 @@ import { tmpdir } from "node:os";
 import { gzipSync } from "node:zlib";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256 } from "../upgrade/tools/lib/hash.mjs";
+import { lfText, sha256 } from "../upgrade/tools/lib/hash.mjs";
 import { readPack } from "../upgrade/tools/lib/blobs.mjs";
 import { render, extractInputs, normalisedMatch, placeholdersIn, RENDERED_REGIONS } from "../upgrade/tools/lib/rewrites.mjs";
 import { assertRepoRelative, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
@@ -203,6 +203,12 @@ function fresh(p, inputs) {
   expect(extractInputs(t, "Repo acme/w ships Widget; again Gadget.\n") === null, "a placeholder filled two ways is accepted");
   expect(extractInputs("{{A}}{{B}}", "xy") === null, "adjacent placeholders (ambiguous) are accepted");
   expect(lineDistance("a\nb\nc", "a\nx\nc") === 2 && lineDistance("a", "a") === 0, "line distance is wrong");
+
+  // #122 (Windows): the digest rule, upgrade contract §1 → Digests.
+  expect(lfText(Buffer.from("a\r\nb\r\n")).toString("utf8") === "a\nb\n", "lfText does not read CRLF text as LF");
+  const binary = Buffer.from([0x61, 0x00, 0x0d, 0x0a]);
+  expect(lfText(binary).equals(binary), "lfText rewrites a binary file (a NUL byte in its first 8000 bytes)");
+  expect(lfText(Buffer.from("a\rb\n")).toString("utf8") === "a\rb\n", "lfText drops a lone CR");
 }
 
 // ---------------------------------------------------------------------------------------
@@ -233,6 +239,20 @@ function fresh(p, inputs) {
     const stale = [...d.added, ...d.removed, ...d.changed];
     expect(stale.length === 0, `kit index for ${pkg} is stale: re-run scripts/build-kit-index.mjs (differs in ${stale.slice(0, 5).join(", ")}${stale.length > 5 ? ", …" : ""})`);
   }
+
+  // #122 (Windows): a kit checked out with CRLF indexes like the LF tree; a real edit still shows.
+  const crlfSkill = lab("crlf-kit");
+  cpSync(KIT_SKILL, crlfSkill, { recursive: true });
+  const [crlfPath, crlfEntry] = Object.entries(tree.index.files).find(([, e]) => e.rewrite === "copied" && e.kitSource?.endsWith(".md"));
+  const kitFile = join(crlfSkill, "kit", crlfEntry.kitSource);
+  writeFileSync(kitFile, readFileSync(kitFile, "utf8").replace(/\r?\n/g, "\r\n"));
+  const crlfDiff = diffIndexes(tree.index, indexFromTree(crlfSkill, { version: TARGET }).index);
+  const crlfStale = [...crlfDiff.added, ...crlfDiff.removed, ...crlfDiff.changed];
+  expect(crlfStale.length === 0, `a CRLF copy of an unchanged kit file changes the kit index (${crlfStale.join(", ")})`);
+  writeFileSync(kitFile, `${readFileSync(kitFile, "utf8")}x`);
+  const editDiff = diffIndexes(tree.index, indexFromTree(crlfSkill, { version: TARGET }).index);
+  const fromEdited = (p) => tree.index.files[p]?.kitSource === crlfEntry.kitSource;
+  expect(editDiff.changed.includes(crlfPath) && editDiff.changed.every(fromEdited) && !editDiff.added.length && !editDiff.removed.length, `a one-byte edit of kit/${crlfEntry.kitSource} does not change exactly its installed paths: ${JSON.stringify(editDiff)}`);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -447,6 +467,41 @@ for (const version of SYNTHETIC) {
   expect(v.status === "pass", `customised: verify fails: ${JSON.stringify(v.problems)} ${v.checks.filter((c) => c.status === "fail").map((c) => c.out).join("\n")}`);
   const m = JSON.parse(read(dir, ".xezar/onboarding.json"));
   expect(m.files[untouchedCheck]?.patch === "LP-1", "customised: the v2 manifest does not link the patched check to its register entry");
+}
+
+// ---------------------------------------------------------------------------------------
+// 4b. #122 (Windows): a project checked out with CRLF plans, applies and records like LF
+// ---------------------------------------------------------------------------------------
+{
+  const fx = loadFixture("3.0.3");
+  const lfDir = materialize(fx, { name: "crlf-lf-run" });
+  const lfPlan = buildPlan(ctxFor(lfDir));
+  const pick = lfPlan.files.find((f) => f.class === "unchanged-upstream" && tree.index.files[f.path]?.rewrite === "copied" && /\.(md|sh|mjs|yaml)$/.test(f.path));
+  if (!pick) fail("CRLF project: the 3.0.3 fixture has no unchanged copied text file to check out with CRLF");
+  else {
+    const toCrlf = (dir) => write(dir, pick.path, read(dir, pick.path).replace(/\r?\n/g, "\r\n"));
+    const crlfDir = materialize(fx, { name: "crlf-run", edit: toCrlf });
+    const crlfPlan = buildPlan(ctxFor(crlfDir));
+    const got = byPath(crlfPlan).get(pick.path);
+    expect(got?.class === pick.class && got?.action === pick.action, `a CRLF checkout of an unchanged installed file plans ${got?.class}/${got?.action}, not ${pick.class}/${pick.action} (${pick.path})`);
+    const editedDir = materialize(fx, { name: "crlf-edit-run", edit: (d) => { toCrlf(d); write(d, pick.path, `${read(d, pick.path)}x\r\n`); } });
+    const edited = byPath(buildPlan(ctxFor(editedDir))).get(pick.path);
+    expect(edited?.class !== pick.class || edited?.action !== pick.action, `a one-byte edit of a CRLF file plans like the unchanged file (${pick.path}: ${edited?.class}/${edited?.action})`);
+    // The manifest the upgrade writes records the LF digest, and the drift check passes on CRLF.
+    const run = (dir, plan) => {
+      expect(applyPlan(ctxFor(dir), plan).status === "ok", `CRLF project: apply refused in ${dir}`);
+      answerTrivially(dir, plan, fx);
+      return verify(ctxFor(dir), plan, { checks: ["drift"] });
+    };
+    const lfV = run(lfDir, lfPlan);
+    const crlfV = run(crlfDir, crlfPlan);
+    expect(read(crlfDir, pick.path).includes("\r\n"), `CRLF project: ${pick.path} is no longer CRLF after the upgrade, so the case proves nothing`);
+    expect(crlfV.problems.length === 0, `CRLF project: verify invariants fail: ${JSON.stringify(crlfV.problems)}`);
+    const lfSha = lfV.manifest?.files[pick.path]?.sha256;
+    expect(lfSha !== undefined && crlfV.manifest?.files[pick.path]?.sha256 === lfSha, `CRLF project: the manifest records ${crlfV.manifest?.files[pick.path]?.sha256} for ${pick.path}, the LF run ${lfSha}`);
+    const drift = crlfV.checks.find((c) => c.name === "drift");
+    expect(drift?.status === "pass" || drift?.status === "skipped", `CRLF project: the drift check fails on a CRLF checkout of an unchanged file:\n${drift?.out}`);
+  }
 }
 
 // ---------------------------------------------------------------------------------------

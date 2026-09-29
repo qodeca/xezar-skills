@@ -1679,6 +1679,27 @@ for (const name of workflowFiles) {
     expect("an unknown origin", project("origin", { manifest: v2({ ".xezar/y": entry("x", "patched") }), tree: { ".xezar/y": "x" } }), 2, []);
     expect("a register id used twice", project("twice", { manifest: patched, register: lp("yes") + lp("yes").replace("# Local patches\n", "") }), 2, []);
     expect("a register entry missing a field", project("field", { manifest: patched, register: lp("yes").replace("- Since: 2026-09-27\n", "") }), 2, []);
+    // #122 (Windows): text is compared with LF line endings (upgrade contract §1 → Digests), and a
+    // digest an earlier install recorded over the raw bytes of a CRLF file still passes.
+    const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
+    const crlfTree = { ".xezar/checks/x.sh": crlf(COPIED), "AGENTS.md": crlf(OWNER) };
+    expect("a CRLF checkout of an unchanged file", project("crlf", { manifest: v2(), tree: crlfTree }), 0, ["drift-status=pass"]);
+    const rawRecorded = v2();
+    rawRecorded.files[".xezar/checks/x.sh"].sha256 = sha(crlf(COPIED));
+    rawRecorded.files["AGENTS.md"].sha256 = sha(crlf(BLOCK));
+    expect("a CRLF file an earlier install recorded over its raw bytes", project("crlf-raw", { manifest: rawRecorded, tree: crlfTree }), 0, ["drift-status=pass"]);
+    expect("a CRLF edit", project("crlf-edit", { manifest: v2(), tree: { ".xezar/checks/x.sh": "copied check!\r\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    const BINARY = Buffer.from([0x89, 0x50, 0x0d, 0x0a, 0x00, 0x0a]);
+    expect("a binary file recorded over its raw bytes", project("binary", { manifest: v2({ ".xezar/logo.png": entry(BINARY, "copied") }), tree: { ".xezar/logo.png": BINARY } }), 0, ["drift-status=pass"]);
+    // The drift check's inline rule and the upgrade tool's lfText() hash the same bytes.
+    const { lfText } = await import(pathToFileURL(join(root, "upgrade/tools/lib/hash.mjs")).href);
+    const PARITY = [
+      ["binary with CRLF bytes", Buffer.concat([BINARY, Buffer.from("x\r\n")])],
+      ["a NUL byte past the first 8000 bytes", Buffer.concat([Buffer.alloc(9000, 0x61), Buffer.from([0x00]), Buffer.from("\r\n")])],
+      ["a lone CR beside a CRLF", Buffer.from("a\rb\r\n")],
+    ];
+    for (const [i, [label, bytes]] of PARITY.entries())
+      expect(`a file recorded as the upgrade tool's lfText digest (${label})`, project(`parity-${i}`, { manifest: v2({ ".xezar/p.bin": entry(lfText(bytes), "copied") }), tree: { ".xezar/p.bin": bytes } }), 0, ["drift-status=pass"]);
     // The kit's own format document: its example entry must be one this check accepts.
     const doc = readFileSync(join(KIT, "docs/local-patches.md"), "utf8");
     const example = /```markdown\n([\s\S]*?)```/.exec(doc);
