@@ -28,6 +28,7 @@ import {
   withNoglob,
 } from "./lib/platform.mjs";
 import {
+  dropPrivileges,
   pinTestGitConfig,
   prepareTestPlatform,
   resolveStub,
@@ -355,6 +356,22 @@ try {
     const result = spawnSync(bashPath(), ["-c", 'for arg in "$@"; do printf \'%s\\n\' "$arg"; done', "_", ...args], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.stdout.split("\n").slice(0, -1), args);
+  });
+
+  // An administrator's backup and restore privileges read and write through any deny entry, so
+  // restrict() drops them from the test process. The mechanism is proven here on a privilege every
+  // Windows account holds, in a child, so this test keeps it: the child's own check (a whoami it
+  // starts after the removal) fails when the removal did not reach the programs it starts.
+  check("dropPrivileges() removes a held privilege for the process and what it starts", () => {
+    const harness = new URL("./lib/test-harness.mjs", import.meta.url).href;
+    const child = [
+      `import { dropPrivileges } from ${JSON.stringify(harness)};`,
+      'process.stdout.write(JSON.stringify(dropPrivileges(["SeTimeZonePrivilege"])));',
+    ].join("\n");
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", child], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), win32 ? ["SeTimeZonePrivilege"] : []);
+    assert.throws(() => dropPrivileges(["Se'Privilege"]), /is not a privilege name/);
   });
 
   check("restrict(no-write) denies a write until restore()", () => {

@@ -2,7 +2,8 @@
 //
 // The tests adapt the ENVIRONMENT on win32, never the kit runtime: Git's tools first on PATH,
 // core.autocrlf off in the temp repos they build, a jq that writes LF, extensionless stubs
-// started through Git Bash, real symbolic links, and ACL-based permission denial. A green
+// started through Git Bash, real symbolic links, and ACL-based permission denial (the test process
+// gives up its backup and restore privileges for it, see restrict()). A green
 // Windows gate therefore proves the kit's logic on Windows, not that the kit runs there
 // natively (DECISIONS.md). Every helper is a no-op off win32 unless its comment says otherwise.
 //
@@ -187,18 +188,92 @@ export function tempRoot() {
 }
 
 function insideTempRoot(real) {
-  const root = tempRoot();
+  // Both sides resolved: on macOS os.tmpdir() is /var/folders/…, whose real path is /private/var/folders/….
+  const root = realpathSync.native(tempRoot());
   const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
   const rel = path.relative(fold(root), fold(real));
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
-function icacls() {
+/** <SystemRoot>\System32\<parts…>. SystemRoot must be a drive path, as in xezar's regExePath. */
+function system32(...parts) {
   const systemRoot = envGet(process.env, "SystemRoot");
   if (typeof systemRoot !== "string" || !/^[A-Za-z]:\\/.test(systemRoot)) {
-    throw new Error("restrict(): SystemRoot is not a drive path, so icacls.exe cannot be located");
+    throw new Error(`SystemRoot is not a drive path, so ${parts.at(-1)} cannot be located`);
   }
-  return win.join(systemRoot, "System32", "icacls.exe");
+  return win.join(systemRoot, "System32", ...parts);
+}
+
+// Administrators hold these two. An MSYS program (Git Bash and its tools) enables both when it
+// starts and opens files with backup intent, and a child inherits them enabled – so in an elevated
+// process (GitHub's Windows runners run as an administrator) no deny entry holds: Node's own fs
+// calls and every MSYS tool read and write straight through it, while git.exe is refused.
+const DENY_BYPASS_PRIVILEGES = ["SeBackupPrivilege", "SeRestorePrivilege"];
+let denyBypassDropped = false;
+
+const TOKEN_PRIVILEGES_CS = String.raw`
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public static class XezarTestTokenPrivileges {
+  [StructLayout(LayoutKind.Sequential, Pack = 4)]
+  struct TokenPrivileges { public int Count; public long Luid; public int Attributes; }
+  [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(int access, bool inherit, int pid);
+  [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr handle);
+  [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, int access, out IntPtr token);
+  [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern bool LookupPrivilegeValue(string system, string name, out long luid);
+  [DllImport("advapi32.dll", SetLastError = true)] static extern bool AdjustTokenPrivileges(IntPtr token, bool disableAll, ref TokenPrivileges state, int length, IntPtr previous, IntPtr returned);
+  public static void Remove(int pid, string name) {
+    IntPtr process = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
+    if (process == IntPtr.Zero) throw new Win32Exception();
+    IntPtr token;
+    bool opened = OpenProcessToken(process, 0x20 | 0x8, out token); // TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY
+    int openError = Marshal.GetLastWin32Error();
+    CloseHandle(process);
+    if (!opened) throw new Win32Exception(openError);
+    try {
+      TokenPrivileges state = new TokenPrivileges();
+      state.Count = 1;
+      state.Attributes = 0x4; // SE_PRIVILEGE_REMOVED
+      if (!LookupPrivilegeValue(null, name, out state.Luid)) throw new Win32Exception();
+      if (!AdjustTokenPrivileges(token, false, ref state, 0, IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
+      int error = Marshal.GetLastWin32Error();
+      if (error != 0) throw new Win32Exception(error); // 1300: the token did not hold it
+    } finally {
+      CloseHandle(token);
+    }
+  }
+}
+`;
+
+/** The names from `names` that `whoami /priv` lists for this process's token, enabled or not. */
+function listedPrivileges(names) {
+  const listing = execFileSync(system32("whoami.exe"), ["/priv"], { encoding: "utf8" });
+  return names.filter((name) => new RegExp(`^${name}\\s`, "m").test(listing));
+}
+
+/**
+ * win32: removes each named privilege this process holds from its own token, for the rest of its
+ * life, and returns the names it removed; every program it starts from then on lacks them too.
+ * Throws when a name is not a privilege name, or when one is still listed afterwards. POSIX: [].
+ */
+export function dropPrivileges(names) {
+  for (const name of names) if (!/^Se[A-Za-z]+Privilege$/.test(name)) throw new Error(`dropPrivileges(): "${name}" is not a privilege name`);
+  if (process.platform !== "win32") return [];
+  const held = listedPrivileges(names);
+  if (held.length === 0) return [];
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `Add-Type -TypeDefinition @'${TOKEN_PRIVILEGES_CS}'@`,
+    ...held.map((name) => `[XezarTestTokenPrivileges]::Remove(${process.pid}, '${name}')`),
+  ].join("\n");
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  execFileSync(system32("WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  const left = listedPrivileges(held);
+  if (left.length > 0) throw new Error(`dropPrivileges(): ${left.join(", ")} still held after removing it`);
+  return held;
 }
 
 /**
@@ -207,7 +282,9 @@ function icacls() {
  * symbolic link or junction. restore() is idempotent and also runs on process "exit" until it has
  * run once, so a crash between the two cannot leave the restriction behind.
  * POSIX: chmod 0o000 / 0o555, restored to the mode read before. win32: an Everyone deny entry via
- * icacls (Windows ignores the read-only attribute on folders, so chmod cannot build these cases).
+ * icacls (Windows ignores the read-only attribute on folders, so chmod cannot build these cases),
+ * after the first call has dropped the backup and restore privileges from this process, so the
+ * entry holds for an administrator too (DENY_BYPASS_PRIVILEGES).
  */
 export function restrict(target, access) {
   if (access !== "no-read" && access !== "no-write") throw new Error(`restrict(): unknown access "${access}"`);
@@ -216,7 +293,11 @@ export function restrict(target, access) {
   if (lstatSync(target).isSymbolicLink()) throw new Error(`restrict(): ${target} is a symbolic link or junction`);
   let undo;
   if (process.platform === "win32") {
-    const tool = icacls();
+    if (!denyBypassDropped) {
+      dropPrivileges(DENY_BYPASS_PRIVILEGES);
+      denyBypassDropped = true;
+    }
+    const tool = system32("icacls.exe");
     const rights = access === "no-read" ? "(RD)" : "(WD,AD)";
     execFileSync(tool, [real, "/deny", `*S-1-1-0:${rights}`], { stdio: "ignore" });
     undo = () => execFileSync(tool, [real, "/remove:d", "*S-1-1-0"], { stdio: "ignore" });
