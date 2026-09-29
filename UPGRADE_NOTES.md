@@ -395,7 +395,7 @@ cp $K/checks/local-tree.sh .xezar/checks/
 ```
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
-prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (13), with the verifier from a
+prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (14), with the verifier from a
 verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry

@@ -1500,6 +1500,9 @@ tool, run natively on Windows rather than under the tests, still does the wrong 
   tests append Git's Perl script folders to `PATH`.
 - `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
   first on `PATH`.
+- `kit/mcp.json:4`, `:8`, `kit/codex/config.toml:5` and `xez-onboard`'s `templates/claude-mcp.json`,
+  `codex-mcp.toml`, `pi-mcp.json` – each MCP server starts with a bare `npx`, which on native
+  Windows is `npx.cmd` and does not start without a `cmd /c` wrapper.
 
 The issue stays open for them: the pull request references #122 without a closing keyword.
 
