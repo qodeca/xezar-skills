@@ -11,17 +11,21 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   GIT_BASH_MISSING,
   bashPath,
+  msysQuote,
+  msysSpawnArgs,
   prependPath,
   resolveGitBash,
+  spawnGitBash,
   toLF,
   toPosixPath,
   withGitTools,
+  withNoglob,
 } from "./lib/platform.mjs";
 import {
   pinTestGitConfig,
@@ -155,6 +159,28 @@ check("off Windows the resolver answers plain bash", () => {
   assert.equal(resolveGitBash({ platform: "linux", env: {}, exists: fakeFs() }), "bash");
 });
 
+// The kit also keeps its own copy of the MSYS quoting, the noglob env and the missing-Git-Bash
+// message (a kit file installs standalone); each must say what scripts/lib/platform.mjs says.
+check("the kit's MSYS quoting, noglob env and Git Bash message agree with scripts/lib/platform.mjs", () => {
+  for (const arg of ["", "a b", 'a"b', '""', "it's", "*", "{a,b}", "C:\\dir\\", 'x"\'"y'])
+    assert.equal(kitProcess.msysQuote(arg), msysQuote(arg), `msysQuote disagrees on ${JSON.stringify(arg)}`);
+  for (const env of [{}, { MSYS: "winsymlinks:lnk" }, { Msys: "noglob" }, { msys: "a", MSYS: "b noglob" }, { MSYS: "noglobx" }])
+    assert.deepEqual(kitProcess.withNoglob(env), withNoglob(env, "win32"), `withNoglob disagrees on ${JSON.stringify(env)}`);
+  assert.equal(kitProcess.GIT_BASH_MISSING, GIT_BASH_MISSING);
+});
+
+check("msysSpawnArgs quotes every argument for MSYS on win32 and changes nothing elsewhere", () => {
+  const [file, args, options] = msysSpawnArgs(GIT_BASH, ["-c", 'printf "%s" "$1"', "_", 'a"b'], { cwd: "C:\\x", env: { MSYS: "winsymlinks:lnk" } }, "win32");
+  assert.equal(file, GIT_BASH);
+  assert.deepEqual(args, ['"-c"', `"printf "'"'"%s"'"'" "'"'"$1"'"'""`, '"_"', `"a"'"'"b"`]);
+  assert.equal(options.windowsVerbatimArguments, true);
+  assert.equal(options.argv0, `"${GIT_BASH}"`);
+  assert.equal(options.cwd, "C:\\x");
+  assert.equal(options.env.MSYS, "winsymlinks:lnk noglob");
+  const posix = { env: { A: "1" } };
+  assert.deepEqual(msysSpawnArgs("bash", ["-c", 'a"b'], posix, "linux"), ["bash", ["-c", 'a"b'], posix]);
+});
+
 // --- text, paths and environment ----------------------------------------------------------
 
 check("toLF rewrites CRLF only", () => {
@@ -285,6 +311,42 @@ try {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.stdout.split("\n").slice(0, -1), args);
+  });
+
+  // Before prepareTestPlatform(): run-gate.mjs and run-bash.mjs start Git Bash from a process that
+  // never installs the tests' child_process wrapper, so spawnGitBash must quote on its own.
+  check("spawnGitBash keeps a quote in the command and in each argument", () => {
+    const args = ['a"b', "*", "", "it's", "C:\\dir\\"];
+    const command = 'for arg in "$@"; do printf \'%s\\n\' "$arg"; done; printf \'%s\\n\' "q\\"uote"';
+    const result = spawnGitBash(["-c", command, "_", ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.stdout.split("\n").slice(0, -1), [...args, 'q"uote']);
+  });
+
+  // The two entry points that start Git Bash for npm: their exit code is bash's, their arguments
+  // arrive as given, and run-gate runs every command even after one fails.
+  check("run-bash.mjs passes a script's arguments and exit code through", () => {
+    const script = join(lab, "exit-seven.sh");
+    writeFileSync(script, 'printf \'%s\\n\' "$@"\nexit 7\n');
+    const result = spawnSync(process.execPath, [join(root, "scripts/run-bash.mjs"), script, 'a"b', "c d"], { encoding: "utf8" });
+    assert.equal(result.status, 7, result.stdout + result.stderr);
+    assert.deepEqual(result.stdout.split("\n").slice(0, -1), ['a"b', "c d"]);
+  });
+
+  check("run-gate.mjs runs every command, reports each exit code and fails when one fails", () => {
+    const gate = join(lab, "gate");
+    mkdirSync(join(gate, "scripts", "lib"), { recursive: true });
+    mkdirSync(join(gate, ".xezar", "pipeline"), { recursive: true });
+    for (const file of ["run-gate.mjs", "lib/platform.mjs"]) writeFileSync(join(gate, "scripts", file), readFileSync(join(root, "scripts", file)));
+    const commands = ["exit 0", "exit 3", `test "$(printf '%s' 'a"b')" = 'a"b'`];
+    writeFileSync(join(gate, ".xezar/pipeline/config.json"), JSON.stringify({ validation: { commands } }));
+    const env = { ...process.env };
+    delete env.GITHUB_ACTIONS;
+    const result = spawnSync(process.execPath, [join(gate, "scripts/run-gate.mjs")], { encoding: "utf8", env });
+    const exits = [...result.stdout.matchAll(/^\| (\d+) \| .* \| (\S+) \| \d+ \|$/gm)].map((m) => [Number(m[1]), m[2]]);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.deepEqual(exits, [[1, "0"], [2, "3"], [3, "0"]], result.stdout + result.stderr);
+    assert.match(result.stdout, /^2 of 3 gate commands passed in \d+ s\.$/m);
   });
 
   check("after prepareTestPlatform() a direct Git Bash spawn keeps quotes and globs as they are", () => {

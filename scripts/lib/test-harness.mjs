@@ -24,7 +24,7 @@ import {
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { bashPath, envGet, prependPath, requireGitBash, shPath, withGitTools } from "./platform.mjs";
+import { bashPath, envGet, msysSpawnArgs, prependPath, requireGitBash, shPath, withGitTools } from "./platform.mjs";
 
 export const DEVELOPER_MODE_NEEDED =
   "Cannot create a symbolic link (EPERM). Turn on Developer Mode (Settings > System > For developers), then run this again.";
@@ -121,23 +121,6 @@ export function resolveStub(file, env, { platform = process.platform, exists = e
   return null;
 }
 
-/** env with "noglob" in MSYS (see withGitTools in platform.mjs); a new object. */
-function withNoglob(env) {
-  const msys = envGet(env, "MSYS") ?? "";
-  if (/(^|\s)noglob(\s|$)/.test(msys)) return { ...env };
-  const next = { ...env };
-  for (const key of Object.keys(next)) if (key.toUpperCase() === "MSYS") delete next[key];
-  next.MSYS = msys ? `${msys} noglob` : "noglob";
-  return next;
-}
-
-// The MSYS runtime parses its own command line, and not the way libuv quotes it: a backslash
-// never escapes a quote there, so libuv's `"a\"b"` arrives as `a\b` and swallows the arguments
-// after it. Inside "…" everything is literal except `"`, which closes the string, is written
-// single-quoted and reopens it. With MSYS=noglob this round-trips spaces, `*`, `{a,b}`,
-// backslashes, empty strings and quotes (checked by scripts/test-platform.mjs).
-const msysQuote = (arg) => `"${String(arg).replaceAll('"', `"'"'"`)}"`;
-
 const WRAPPED = Symbol.for("xezar-skills.stub-spawn");
 
 /** True when `file` is Git Bash or Git's sh, the MSYS shells the tests start by absolute path. */
@@ -167,8 +150,7 @@ function msysCall(file, rest) {
   const program = stub === null ? file : bashPath();
   const argv = stub === null ? args : [stub, ...args];
   const tail = options ? after.slice(1) : after;
-  const verbatim = { ...options, env: withNoglob(env), windowsVerbatimArguments: true, argv0: msysQuote(program) };
-  return [program, argv.map(msysQuote), verbatim, ...tail];
+  return [...msysSpawnArgs(program, argv, { ...options, env }, "win32"), ...tail];
 }
 
 /**

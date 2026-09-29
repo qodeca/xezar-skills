@@ -8,6 +8,7 @@
 // node:* imports only. Never imported by upgrade/tools or by a kit file: both install and run
 // standalone, without this folder beside them. Test fixtures live in ./test-harness.mjs.
 
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -195,7 +196,47 @@ export function withGitTools(env = process.env, options) {
   let next = prependPath(env, dirs, platform);
   if (perlDirs.length) next = envSet(next, "PATH", [envGet(next, "PATH", platform), ...perlDirs].join(";"), platform);
   next = envSet(next, "NoDefaultCurrentDirectoryInExePath", "1", platform);
-  const msys = envGet(next, "MSYS", platform) ?? "";
-  if (!/(^|\s)noglob(\s|$)/.test(msys)) next = envSet(next, "MSYS", msys ? `${msys} noglob` : "noglob", platform);
-  return next;
+  return withNoglob(next, platform);
+}
+
+/**
+ * A NEW env with "noglob" in MSYS, the value kept and written once as MSYS (on win32 every other
+ * spelling is removed). The MSYS runtime otherwise expands an unquoted `*` or `{a,b}` argument.
+ * The kit's windows-process.mjs holds its own copy (a parity test holds them equal).
+ */
+export function withNoglob(env, platform = process.platform) {
+  const msys = envGet(env, "MSYS", platform) ?? "";
+  return envSet(env, "MSYS", /(^|\s)noglob(\s|$)/.test(msys) ? msys : msys ? `${msys} noglob` : "noglob", platform);
+}
+
+/**
+ * One argument on an MSYS program's command line. The MSYS runtime parses its own command line,
+ * and not the way libuv quotes it: a backslash never escapes a quote there, so libuv's `"a\"b"`
+ * arrives as `a\b` and swallows the arguments after it. Inside "…" everything is literal except
+ * `"`, which closes the string, is written single-quoted and reopens it. With MSYS=noglob this
+ * round-trips spaces, `*`, `{a,b}`, backslashes, empty strings and quotes. The kit's
+ * windows-process.mjs holds its own copy (a parity test holds them equal).
+ */
+export function msysQuote(arg) {
+  return `"${String(arg).replaceAll('"', `"'"'"`)}"`;
+}
+
+/**
+ * The (file, args, options) that start the MSYS program `file` – Git Bash, Git's sh – so that
+ * `args` arrive exactly as given. win32: every argument and argv0 through msysQuote,
+ * windowsVerbatimArguments, and "noglob" in the env's MSYS. POSIX: unchanged. Pure.
+ */
+export function msysSpawnArgs(file, args, options = {}, platform = process.platform) {
+  if (platform !== "win32") return [file, args, options];
+  const env = withNoglob(options.env ?? process.env, platform);
+  return [file, args.map(msysQuote), { ...options, env, windowsVerbatimArguments: true, argv0: msysQuote(file) }];
+}
+
+/**
+ * spawnSync of Git Bash (bashPath(); POSIX: bash) with `args` kept exactly, a `"` included, on
+ * every platform. For entry points: a missing Git Bash is GIT_BASH_MISSING as one stderr line and
+ * exit 1 (requireGitBash).
+ */
+export function spawnGitBash(args, options = {}) {
+  return spawnSync(...msysSpawnArgs(requireGitBash(), args, options));
 }

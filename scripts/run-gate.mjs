@@ -10,11 +10,10 @@
 //
 // Run: node scripts/run-gate.mjs
 
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { requireGitBash, withGitTools } from "./lib/platform.mjs";
+import { requireGitBash, spawnGitBash, withGitTools } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const config = JSON.parse(readFileSync(join(root, ".xezar/pipeline/config.json"), "utf8"));
@@ -24,7 +23,7 @@ if (!Array.isArray(commands) || commands.length === 0) {
   process.exit(1);
 }
 
-const bash = requireGitBash();
+requireGitBash(); // a missing Git Bash: one stderr line and exit 1, before withGitTools needs it
 const env = withGitTools(process.env);
 const grouped = process.env.GITHUB_ACTIONS === "true";
 const rows = [];
@@ -32,7 +31,7 @@ const rows = [];
 for (const [index, command] of commands.entries()) {
   if (grouped) console.log(`::group::${command}`);
   const started = Date.now();
-  const result = spawnSync(bash, ["-c", command], { cwd: root, stdio: "inherit", env });
+  const result = spawnGitBash(["-c", command], { cwd: root, stdio: "inherit", env });
   const seconds = Math.round((Date.now() - started) / 1000);
   if (result.error) console.error(`run-gate: ${command}: ${result.error.message}`);
   const exit = result.status ?? (result.signal ? result.signal : 1);

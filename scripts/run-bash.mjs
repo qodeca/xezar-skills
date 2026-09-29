@@ -5,8 +5,7 @@
 //
 // Run: node scripts/run-bash.mjs <script> [args...]
 
-import { spawnSync } from "node:child_process";
-import { requireGitBash, withGitTools } from "./lib/platform.mjs";
+import { spawnGitBash, withGitTools } from "./lib/platform.mjs";
 
 const argv = process.argv.slice(2);
 if (argv.length === 0) {
@@ -14,7 +13,7 @@ if (argv.length === 0) {
   process.exit(2);
 }
 
-const result = spawnSync(requireGitBash(), argv, { stdio: "inherit", env: withGitTools(process.env) });
+const result = spawnGitBash(argv, { stdio: "inherit", env: withGitTools(process.env) });
 if (result.error) {
   console.error(`run-bash: ${result.error.message}`);
   process.exit(1);
