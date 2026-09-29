@@ -1431,8 +1431,9 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
   The onboarding manifest version 2 is additive, and a manifest without `manifestVersion` is read as
   version 1 and never enforced. The kit index, the upgrade plan and the `upgrade` machine block are
   new formats.
-- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains one script,
-  `test:upgrade`, and loses none.
+- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains three
+  scripts – `test:upgrade`, `test:platform` and `gate` – and loses none, and `lint` keeps its name
+  while it now starts bash through `scripts/run-bash.mjs`, so it also works from PowerShell.
 - **The fifteen ledger rows.** Fourteen are new refusals in kit checks and relaxed routing bans.
   Kit content is fresh-install scope: an installed check never updates itself, so each refusal
   reaches a project only when its owner copies the new file or runs the upgrade prompt, and each
@@ -1445,6 +1446,48 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 
 So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
 not 4.0.0.
+
+## The gate runs on native Windows
+
+**Owner: Marcin. Decided 2026-09-28.**
+
+All the validation commands pass on native Windows from Git Bash, or through npm from PowerShell
+or cmd (#122). Git Bash and jq are the only extra tools; Developer Mode is required, because the
+tests create real symbolic links and never skip them. Text is checked out with LF by
+`.gitattributes`, and the parsers and hashes also read a CRLF copy the same way. The tests find
+Git Bash from `git.exe` on `PATH` and never start WSL's `bash.exe`, which a stock Windows puts
+first. On Windows the tests adapt the environment rather than the kit: Git's tools first on
+`PATH`, `core.autocrlf=false` in the repositories they build, an LF-writing jq, and stubs started
+through Git Bash. That choice means no Windows test runs on an autocrlf checkout of its own
+fixtures; the explicit CRLF cases are what prove the CRLF tolerance. So a green Windows gate
+proves the kit's logic on Windows, not that the whole kit runs natively there. The Windows and
+macOS CI jobs are informational until their runs prove stable; the `lint` job on ubuntu stays the
+required check. How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
+
+Three parts of the kit runtime were made to work natively in the same change: the kit's shell
+library reads Git for Windows paths and keeps Git Bash from rewriting `origin/<base>:<file>`
+arguments; the gate scheduler runs its workers in Git Bash and stops them on Windows the way the
+engine does (the whole process tree, each process checked by its start time before it is killed,
+never `taskkill /T`), plus the processes an MSYS `exec` leaves under a parent that has already
+exited; and the leader launcher finds an engine that listens on a named pipe (next entry).
+
+**Known native-runtime gaps (#122, second run).** Each is a place where the kit or the upgrade
+tool, run natively on Windows rather than under the tests, still does the wrong thing:
+
+- `kit/checks/lib/deps.mjs:79`, `:605` – `spawnSync(tool)` cannot start `npm.cmd` or `yarn.cmd`
+  (Node 20.12 and later refuse a `.cmd` without a shell).
+- `kit/checks/documented-output.mjs:32` (called with `bash` at `:246`) – a bare `bash` reaches
+  WSL's `bash.exe` on a stock Windows.
+- `kit/checks/route.mjs:648` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd` shim fails
+  silently, and the login reads as empty.
+- `kit/checks/gh-write.sh:141-156` – `$(jq -r …)` from a Windows jq ends in `\r`; the tests use an
+  LF jq shim.
+- `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
+  first on `PATH`.
+- `kit/checks/review-run.sh:96` `REFUSED_PROGRAMS` – no Windows launchers (`git-bash`, `winpty`,
+  `cmd`, `powershell`, `pwsh`, `wsl`).
+
+The issue stays open for them: the pull request references #122 without a closing keyword.
 
 ## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
 
