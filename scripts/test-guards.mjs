@@ -2475,6 +2475,51 @@ breaks(
   "a 500-character description in a multibyte script is rejected in the C locale",
 );
 
+// lint.sh's targeted mode (`--only`, `--files`) is what test-onboarding-content runs on. Each break
+// puts a defect in a listed file and asks for the check that owns it, so a targeted run that skips
+// the check, drops the file, or reads a typo as "run nothing" passes the defect and fails here.
+const lintTargeted = (...args) => () => run(bashPath(), ["scripts/lint.sh", ...args]);
+
+breaks(
+  "a targeted lint that skips the per-file check it was asked for is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKILL.md"),
+  "forbidden pattern",
+);
+
+breaks(
+  "a targeted lint that leaves out the skill owning a listed file is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => s.replace(/^name: xez-fix$/m, "name: xez-repair"),
+  lintTargeted("--only", "frontmatter", "--files", "skills/xez-fix/references/rules.md"),
+  "does not match directory",
+);
+
+breaks(
+  "a targeted lint that greps none of the listed files is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nWhen the change is large, hand it to the xez-mega-refactor skill.\n`,
+  lintTargeted("--only", "names", "--files", "skills/xez-fix/SKILL.md"),
+  "which is not a skill in this collection",
+);
+
+breaks(
+  "a targeted lint that reads an unknown check as nothing to run is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portabilty", "--files", "skills/xez-fix/SKILL.md"),
+  "unknown check 'portabilty'",
+);
+
+breaks(
+  "a targeted lint that skips a listed file it cannot find is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKIL.md"),
+  "not a file in this repository",
+);
+
 breaks(
   "a catalog check that reads CRLF files as they are is rejected",
   "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",

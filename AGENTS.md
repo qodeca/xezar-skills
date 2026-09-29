@@ -154,6 +154,10 @@ node scripts/test-merge-gate.mjs
 jq -r '.validation.commands[]' .xezar/pipeline/config.json
 ```
 
+For quick feedback, `bash scripts/lint.sh --only <check> --files <path>...` runs only the named
+checks on only those files (a wrong check name lists them all); its green is never a gate result –
+the gate runs lint with no options.
+
 Two scripts are worth knowing about before you run them. `scripts/test-guards.mjs` — outside the
 gate, but still yours to run by hand when you add or change a guard — breaks each guard on
 purpose to prove it still fires, so it re-runs the gates once per defect and takes about

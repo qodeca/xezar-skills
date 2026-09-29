@@ -11,6 +11,14 @@
 #    reappear anywhere in the maintained sources (LICENSE and UPGRADE_NOTES.md excepted).
 # Scope of 3: skills/** including a vendored `skills/<name>/kit/` payload. The kit exclusion
 #    applies only to the tracker-abstraction and process-kill gates, not to this one.
+#
+# Targeted runs (#122), for tests and quick feedback – never a gate result:
+#   --only <check>     run only this check; repeat the option for several (the names are in CHECKS).
+#   --files <path>...  repository-relative files: a per-file check scans only these, a per-skill
+#                      check covers only the skills that own them, and a whole-tree check
+#                      (roster, config, discovery, platform) runs as usual.
+# With no option this is the full gate and its output is unchanged. A bad option, an unknown
+# check or a path that is not a file in the repository stops the run with exit 2.
 set -uo pipefail
 
 # Per-run load ceiling (body + always-loaded references). Ratchet: lower only.
@@ -27,6 +35,101 @@ PREFIX="${SKILL_PREFIX:-xez}"
 
 err() { printf 'LINT FAIL: %s\n' "$*" >&2; fail=1; }
 
+CHECKS="frontmatter packaging references roster names portability role-skills old-brand tracker-cli process-kill config secrets discovery platform"
+only_checks=""   # " <check> <check> " when --only was given
+target_files=""  # newline-separated, repository-relative, when --files was given
+usage_error() { printf 'lint.sh: %s\n' "$*" >&2; exit 2; }
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --only)
+      [ "$#" -ge 2 ] || usage_error "--only needs a check name; the checks are: $CHECKS"
+      case " $CHECKS " in
+        *" $2 "*) only_checks="${only_checks:- }$2 " ;;
+        *) usage_error "unknown check '$2'; the checks are: $CHECKS" ;;
+      esac
+      shift 2
+      ;;
+    --files)
+      shift
+      [ "$#" -gt 0 ] && [ "${1#--}" = "$1" ] || usage_error "--files needs at least one path"
+      while [ "$#" -gt 0 ] && [ "${1#--}" = "$1" ]; do
+        f=${1//\\//}
+        f=${f#./}
+        case "$f" in
+          '' | /* | [A-Za-z]:* | .. | ../* | */.. | */../*) usage_error "--files takes paths relative to the repository root: '$1'" ;;
+        esac
+        [ -f "$f" ] || usage_error "--files: not a file in this repository: '$1'"
+        target_files="$target_files$f
+"
+        shift
+      done
+      ;;
+    *) usage_error "unknown option '$1'; the options are --only <check> and --files <path>..." ;;
+  esac
+done
+[ -z "$target_files" ] || target_files=$(printf '%s' "$target_files" | sort -u)
+
+# want <check>: is the check part of this run? Every check is, unless --only names others.
+want() {
+  [ -z "$only_checks" ] && return 0
+  case "$only_checks" in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# covers_skill <skills/name/>: does the run cover this skill? Every skill, unless --files lists
+# no file inside it.
+covers_skill() {
+  [ -z "$target_files" ] && return 0
+  case "
+$target_files" in *"
+$1"*) return 0 ;; esac
+  return 1
+}
+
+# listed <path>...: the --files that sit under one of the paths ("dir/") or are one of them.
+listed() {
+  local f p
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    for p in "$@"; do
+      case "$p" in
+        */) case "$f" in "$p"*) printf '%s\n' "$f"; break ;; esac ;;
+        *) if [ "$f" = "$p" ]; then printf '%s\n' "$f"; break; fi ;;
+      esac
+    done
+  done <<EOF
+$target_files
+EOF
+}
+
+# grep_listed <files> <grep options> <pattern>: grep a newline-separated list of files, naming
+# the file on every hit as grep -r does. An empty list scans nothing (no output, status 1).
+grep_listed() {
+  local list="$1" opts="$2" pattern="$3" f
+  set --
+  while IFS= read -r f; do
+    [ -n "$f" ] && set -- "$@" "$f"
+  done <<EOF
+$list
+EOF
+  [ "$#" -gt 0 ] || return 1
+  # shellcheck disable=SC2086 # the options are separate words on purpose
+  grep -H $opts -e "$pattern" -- "$@"
+}
+
+# grep_scope <grep options> <pattern> <path>...: a full run greps the paths recursively, exactly
+# as written; with --files only the listed files under those paths are read.
+grep_scope() {
+  local opts="$1" pattern="$2"
+  shift 2
+  if [ -z "$target_files" ]; then
+    # shellcheck disable=SC2086 # the options are separate words on purpose
+    grep -r $opts "$pattern" "$@"
+  else
+    grep_listed "$(listed "$@")" "$opts" "$pattern"
+  fi
+}
+
 command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required (it counts description characters)" >&2; exit 1; }
 
 # Characters, not bytes: `${#var}` counts bytes when no UTF-8 locale is set (Git Bash on Windows
@@ -35,6 +138,7 @@ command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required 
 desc_chars() { printf '%s' "$1" | node -e 'process.stdout.write(String([...require("fs").readFileSync(0, "utf8")].length))'; }
 
 for dir in skills/*/; do
+  if ! want frontmatter || ! covers_skill "$dir"; then continue; fi
   name=$(basename "$dir")
   file="${dir}SKILL.md"
   if [ ! -f "$file" ]; then
@@ -116,6 +220,7 @@ done
 #   2. OS metadata files (.DS_Store, Thumbs.db) get published into every
 #      installed copy of the skill.
 for dir in skills/*/; do
+  if ! want packaging || ! covers_skill "$dir"; then continue; fi
   name=$(basename "$dir")
   for meta in "$dir"agents/*.yaml; do
     [ -e "$meta" ] || continue
@@ -128,7 +233,13 @@ for dir in skills/*/; do
   done
 done
 
-junk=$(find skills -name '.DS_Store' -o -name 'Thumbs.db' 2>/dev/null)
+junk_dirs=skills
+[ -z "$target_files" ] || junk_dirs=$(listed skills/ | sed -n 's#^\(skills/[^/]*\)/.*#\1#p' | sort -u)
+junk=""
+if want packaging && [ -n "$junk_dirs" ]; then
+  # shellcheck disable=SC2086 # skill directory names hold no spaces (lint checks each name)
+  junk=$(find $junk_dirs -name '.DS_Store' -o -name 'Thumbs.db' 2>/dev/null)
+fi
 if [ -n "$junk" ]; then
   err "OS metadata files must not ship inside skills: $(printf '%s' "$junk" | tr '\n' ' ')"
 fi
@@ -136,7 +247,15 @@ fi
 # Reference-resolution gate: every `references/...` pointer in a skill's markdown
 # must resolve — same-skill pointers relative to the skill dir, cross-skill
 # pointers written as explicit xez-<skill>/references/<file> paths.
-ref_hits=$(grep -roE --include='*.md' "(${PREFIX}-[a-z-]+/)?references/[A-Za-z0-9._/-]+\.(md|py|sh|png)" skills 2>/dev/null | sort -u || true)
+ref_pattern="(${PREFIX}-[a-z-]+/)?references/[A-Za-z0-9._/-]+\.(md|py|sh|png)"
+ref_hits=""
+if ! want references; then
+  :
+elif [ -z "$target_files" ]; then
+  ref_hits=$(grep -roE --include='*.md' "$ref_pattern" skills 2>/dev/null | sort -u || true)
+else
+  ref_hits=$(grep_listed "$(listed skills/ | grep '\.md$')" -oE "$ref_pattern" 2>/dev/null | sort -u || true)
+fi
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   src=${line%%:*}
@@ -155,7 +274,9 @@ EOF
 # xez-setup-agent-pipeline must list exactly the skills in skills/ — installed
 # setups use it to tell a missing collection skill from an unrelated xez- token.
 roster_file=skills/${PREFIX}-setup-agent-pipeline/references/skill-coverage.md
-if [ ! -f "$roster_file" ]; then
+if ! want roster; then
+  :
+elif [ ! -f "$roster_file" ]; then
   err "missing $roster_file (cross-skill coverage roster)"
 else
   roster=$(sed -n 's/^ROSTER="\(.*\)"$/\1/p' "$roster_file" | tr ' ' '\n' | sed '/^$/d' | sort)
@@ -182,7 +303,8 @@ fi
 # Everything else must be a shipped skill or listed here with a reason.
 name_allow=" ${PREFIX}-skill ${PREFIX}-skills "   # prose: "new xez-skill", "the xez-skills collection"
 shipped_names=" $(ls skills | tr '\n' ' ')"
-name_hits=$(grep -rnoE "(^|[^A-Za-z0-9_-])${PREFIX}-[a-z0-9]+(-[a-z0-9]+)*(-?\*|/|\.[a-z0-9]+)?" skills/ 2>/dev/null | sort -u || true)
+name_hits=""
+want names && name_hits=$(grep_scope -noE "(^|[^A-Za-z0-9_-])${PREFIX}-[a-z0-9]+(-[a-z0-9]+)*(-?\*|/|\.[a-z0-9]+)?" skills/ 2>/dev/null | sort -u || true)
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   src=${line%%:*}
@@ -229,7 +351,11 @@ kit_patterns=(
   'docs/design-system'
 )
 
-skill_files=$(find skills -type f | sort)
+if [ -z "$target_files" ]; then
+  skill_files=$(find skills -type f | sort)
+else
+  skill_files=$(listed skills/)
+fi
 scan_patterns() {
   # $1: newline-separated file list; the rest: the patterns to refuse in those files.
   local files="$1" pattern hits f file_hits
@@ -250,7 +376,6 @@ EOF
     fi
   done
 }
-scan_patterns "$skill_files" "${patterns[@]}"
 yarn_scope() {
   local f
   while IFS= read -r f; do
@@ -262,8 +387,11 @@ yarn_scope() {
 $skill_files
 EOF
 }
-scan_patterns "$(yarn_scope)" "${yarn_patterns[@]}"
-scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || true)" "${kit_patterns[@]}"
+if want portability; then
+  scan_patterns "$skill_files" "${patterns[@]}"
+  scan_patterns "$(yarn_scope)" "${yarn_patterns[@]}"
+  scan_patterns "$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/' || true)" "${kit_patterns[@]}"
+fi
 
 # Kit role skills name no package manager (#59). They run in projects on Yarn, .NET or several
 # install roots, so a role reads its commands from the installed toolchain descriptors,
@@ -281,7 +409,9 @@ role_part() {
   # $1: file; $2: body|tail. Prints "<line>:<text>" for that part only.
   awk -v part="$2" '/^## Shared contract$/ { tail = 1 } (part == "tail") == (tail == 1) { print NR ":" $0 }' "$1"
 }
-for f in $(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/skills/xezar-[^/]*\.md$' || true); do
+role_files=""
+want role-skills && role_files=$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/skills/xezar-[^/]*\.md$' || true)
+for f in $role_files; do
   parts="tail body"
   case "$npm_allow" in *" $f "*) parts="tail" ;; esac
   for part in $parts; do
@@ -307,8 +437,15 @@ old_brand_patterns=(
   '\.ai/'
   'cezar'
 )
+old_brand_files=""
+[ -z "$target_files" ] || old_brand_files=$(listed "${old_brand_scope[@]}" | grep -vE '(^|/)lint\.sh$')
 for pattern in "${old_brand_patterns[@]}"; do
-  hits=$(grep -rEn --exclude=lint.sh "$pattern" "${old_brand_scope[@]}" 2>/dev/null || true)
+  want old-brand || break
+  if [ -z "$target_files" ]; then
+    hits=$(grep -rEn --exclude=lint.sh "$pattern" "${old_brand_scope[@]}" 2>/dev/null || true)
+  else
+    hits=$(grep_listed "$old_brand_files" -En "$pattern" 2>/dev/null || true)
+  fi
   if [ -n "$hits" ]; then
     err "old-brand pattern '$pattern' found (permanently banned outside LICENSE and UPGRADE_NOTES.md):"
     printf '%s\n' "$hits" >&2
@@ -325,7 +462,8 @@ done
 # call this collection's tracker operations. Rewriting them would fork the payload
 # from its source, which is the thing a vendored copy must not do. The rule is
 # unchanged for everything a skill actually instructs an agent to do.
-gh_hits=$(grep -rEn '(^|[`"[:space:]])gh (api|pr|issue|label|repo|search|auth|run) ' skills/ 2>/dev/null | grep -v 'references/trackers/' | grep -vE '^skills/[^/]+/kit/' || true)
+gh_hits=""
+want tracker-cli && gh_hits=$(grep_scope -En '(^|[`"[:space:]])gh (api|pr|issue|label|repo|search|auth|run) ' skills/ 2>/dev/null | grep -v 'references/trackers/' | grep -vE '^skills/[^/]+/kit/' || true)
 if [ -n "$gh_hits" ]; then
   err "direct gh CLI usage found outside references/trackers/ (use a tracker operation instead):"
   printf '%s\n' "$gh_hits" >&2
@@ -341,7 +479,8 @@ fi
 # hits it was catching there make the point: every one was a comment explaining why
 # the payload does NOT pattern-kill. A text grep cannot tell a rule from its own
 # explanation, and the payload carries its own check for this.
-kill_hits=$(grep -rEn '(^|[`"'"'"'[:space:]])(pkill|killall)([[:space:]]|$)|kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*\$\((pgrep|ps |lsof)' skills/ 2>/dev/null | grep -vE '^skills/[^/]+/kit/' || true)
+kill_hits=""
+want process-kill && kill_hits=$(grep_scope -En '(^|[`"'"'"'[:space:]])(pkill|killall)([[:space:]]|$)|kill[[:space:]]+(-[A-Za-z0-9]+[[:space:]]+)*\$\((pgrep|ps |lsof)' skills/ 2>/dev/null | grep -vE '^skills/[^/]+/kit/' || true)
 if [ -n "$kill_hits" ]; then
   err "process killed by pattern match (use a saved PID; a pattern also matches the user's editor):"
   printf '%s\n' "$kill_hits" >&2
@@ -351,7 +490,7 @@ fi
 # clones the repo, so it must not carry anything true of one machine only.
 # Memory limits, worker counts and absolute paths belong in the environment, not
 # in a file a teammate inherits and then silently runs with the wrong value.
-if [ -f .xezar/pipeline/config.json ] && command -v node >/dev/null 2>&1; then
+if want config && [ -f .xezar/pipeline/config.json ] && command -v node >/dev/null 2>&1; then
   cfg_hits=$(node -e '
     const cfg = require("./.xezar/pipeline/config.json");
     const banned = /^(memory|maxMemory|heap|parallel|parallelism|jobs|threads|maxWorkers|concurrency|cpus|nodePath|homeDir)$/i;
@@ -376,7 +515,8 @@ fi
 # Secrets gate: the rule "never commit a credential" is worth exactly as much as
 # the check behind it. Values only -- a key NAME like "passwordEnv" is how the
 # collection refers to a secret without holding one.
-secret_hits=$(grep -rEn \
+secret_hits=""
+want secrets && secret_hits=$(grep_scope -En \
   '(gh[pousr]_[A-Za-z0-9]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(secret|token|password|api[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9/+_-]{16,}["'"'"'])' \
   skills/ scripts/ docs/ .xezar/ 2>/dev/null | grep -vE '<[^>]*>|\$\{|\$[A-Za-z_]|example|placeholder|REDACTED|xxxx' || true)
 if [ -n "$secret_hits" ]; then
@@ -389,7 +529,14 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-node scripts/test-discovery-contracts.mjs || exit 1
-node scripts/test-platform.mjs || exit 1
+if want discovery; then node scripts/test-discovery-contracts.mjs || exit 1; fi
+if want platform; then node scripts/test-platform.mjs || exit 1; fi
 
-echo "Lint OK."
+if [ -z "$only_checks$target_files" ]; then
+  echo "Lint OK."
+else
+  run_checks=${only_checks:- all }
+  run_scope="all files"
+  [ -z "$target_files" ] || run_scope="the listed files"
+  echo "Lint OK for a targeted run (checks:${run_checks% }; $run_scope) – only the full run is a gate result."
+fi
