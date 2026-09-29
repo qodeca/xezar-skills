@@ -87,8 +87,8 @@ jobs:
   # check above by name, so it is not renamed or folded in. Windows and macOS on Node 22 (the
   # floor) and lts/*, informational (continue-on-error, fail-fast off) until the Windows runs are
   # proven stable. One step runs every command in .xezar/pipeline/config.json, so this job cannot
-  # drift from the gate. 60 (Windows) and 30 (macOS) minutes are first estimates – replace them
-  # with measured values after the first runs.
+  # drift from the gate. 90 (Windows) and 30 (macOS) minutes are set before any hosted run, with
+  # room for a slow hosted Windows runner – replace them with measured values after the first runs.
   cross-platform:
     name: Cross-platform gate (${{ matrix.os }}, Node ${{ matrix.node }})
     if: github.event_name != 'merge_group'
@@ -99,8 +99,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, node: '22', timeout: 60 }
-          - { os: windows-latest, node: 'lts/*', timeout: 60 }
+          - { os: windows-latest, node: '22', timeout: 90 }
+          - { os: windows-latest, node: 'lts/*', timeout: 90 }
           - { os: macos-latest, node: '22', timeout: 30 }
           - { os: macos-latest, node: 'lts/*', timeout: 30 }
     defaults:
