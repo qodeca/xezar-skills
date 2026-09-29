@@ -1338,10 +1338,15 @@ for (const name of workflowFiles) {
     ]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
     }
-    // #122: the Windows shells and launchers, each of which runs another program unseen.
+    // #122: the Windows shells and launchers, each of which runs another program unseen. A full path
+    // names no real folder and a bare name carries arguments that end it at once, so a refusal that
+    // went missing fails here fast: a real git-bash.exe opens a terminal window, and wsl.exe can wait
+    // for a distribution that is not installed.
     for (const argv of [
-      ["cmd", "/c", "echo"], ["CMD.EXE", "/c", "echo"], ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-c", "1"],
-      ["pwsh", "-c", "1"], ["wsl.exe", "ls"], ["winpty", "bash"], ["C:/Program Files/Git/git-bash.exe"],
+      ["cmd", "/c", "exit"], ["C:\\no-such-dir\\CMD.EXE", "/c", "exit"],
+      ["powershell", "-NoProfile", "-Command", "exit"], ["C:\\no-such-dir\\WindowsPowerShell\\v1.0\\powershell.exe"],
+      ["pwsh.EXE", "-NoProfile", "-Command", "exit"], ["C:/no-such-dir/wsl.exe", "--version"],
+      ["winpty", "--version"], ["C:/no-such-dir/git-bash.exe"],
     ]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
     }
