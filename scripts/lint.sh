@@ -130,7 +130,7 @@ grep_scope() {
   fi
 }
 
-command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required (it counts description characters)" >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required (it counts description characters and reads the pipeline config)" >&2; exit 1; }
 
 # Characters, not bytes: `${#var}` counts bytes when no UTF-8 locale is set (Git Bash on Windows
 # with LANG unset, a C-locale CI shell), so a 500-character description in a multibyte script
@@ -490,7 +490,7 @@ fi
 # clones the repo, so it must not carry anything true of one machine only.
 # Memory limits, worker counts and absolute paths belong in the environment, not
 # in a file a teammate inherits and then silently runs with the wrong value.
-if want config && [ -f .xezar/pipeline/config.json ] && command -v node >/dev/null 2>&1; then
+if want config && [ -f .xezar/pipeline/config.json ]; then
   cfg_hits=$(node -e '
     const cfg = require("./.xezar/pipeline/config.json");
     const banned = /^(memory|maxMemory|heap|parallel|parallelism|jobs|threads|maxWorkers|concurrency|cpus|nodePath|homeDir)$/i;
