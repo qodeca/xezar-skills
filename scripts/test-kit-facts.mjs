@@ -25,7 +25,7 @@
 //
 // Run: node scripts/test-kit-facts.mjs
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -38,9 +38,20 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) states
 // the same facts and hashes to the same pins (#122).
 const norm = (raw) => toLF(raw);
-const read = (p) => norm(readFileSync(join(root, p), "utf8"));
+const read = (p, from = root) => norm(readFileSync(join(from, p), "utf8"));
 const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const has = (p) => existsSync(join(root, p));
+/** A CRLF copy of `p`, written to a temp root and read back by `read` – the reader every fact uses. */
+function readCrlfCopy(p) {
+  const dir = mkdtempSync(join(tempRoot(), "kit-facts-crlf-"));
+  try {
+    mkdirSync(dirname(join(dir, p)), { recursive: true });
+    writeFileSync(join(dir, p), crlf(readFileSync(join(root, p), "utf8")));
+    return read(p, dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const SKILL = "skills/xez-onboard-opinionated";
 const problems = [];
@@ -322,11 +333,11 @@ const fail = (fact, where, detail) =>
   for (const key of Object.keys(pinned)) {
     if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, and the kit ships no such descriptor`);
   }
-  // #122 (Windows): a CRLF copy of a pinned descriptor, read through `norm`, still matches its pin.
+  // #122 (Windows): a CRLF copy of a pinned descriptor, read by `read`, still matches its pin.
   if (descriptors.length > 0) {
     const name = descriptors[0];
     const kit = `${SKILL}/kit/pipeline/${name}`;
-    const crlfDigest = createHash("sha256").update(norm(crlf(read(kit)))).digest("hex");
+    const crlfDigest = createHash("sha256").update(readCrlfCopy(kit)).digest("hex");
     if (pinned[`kit/pipeline/${name}`] !== crlfDigest)
       fail(fact, lockPath, `a CRLF copy of kit/pipeline/${name} hashes to ${crlfDigest}, not its pin -- the digest must be taken over LF text`);
   }
@@ -496,8 +507,8 @@ function walk(rel, match) {
   };
   const template = read(`${SKILL}/kit/leader-guide.template.md`);
   const fixed = fixedLines(template);
-  // #122 (Windows): a CRLF copy of the template, read through `norm`, counts the same fixed lines.
-  const crlfFixed = fixedLines(norm(crlf(template)));
+  // #122 (Windows): a CRLF copy of the template, read by `read`, counts the same fixed lines.
+  const crlfFixed = fixedLines(readCrlfCopy(`${SKILL}/kit/leader-guide.template.md`));
   if (crlfFixed !== fixed)
     fail(fact, "kit/leader-guide.template.md", `a CRLF copy counts ${crlfFixed} fixed lines, the LF file ${fixed}`);
   const write = read(`${SKILL}/references/write.md`);

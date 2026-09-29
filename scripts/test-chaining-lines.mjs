@@ -18,7 +18,8 @@
 //
 // Run: node scripts/test-chaining-lines.mjs
 
-import { readFileSync, globSync } from "node:fs";
+import { globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { toLF, toPosixPath } from "./lib/platform.mjs";
@@ -26,8 +27,9 @@ import { toLF, toPosixPath } from "./lib/platform.mjs";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) yields
 // the same lines (#122); paths are written with "/" so the trackers exclusion below matches there too.
+// `from` is for the CRLF case at the end, which reads a CRLF copy through this same reader.
 const norm = (raw) => toLF(raw);
-const readText = (rel) => norm(readFileSync(join(root, rel), "utf8"));
+const readText = (rel, from = root) => norm(readFileSync(join(from, rel), "utf8"));
 
 // --- the canonical grammar, in one place -------------------------------------
 // These are the patterns a consumer is allowed to use. Every producer template must
@@ -186,15 +188,22 @@ for (const rel of globSync("skills/*/references/rules.md", { cwd: root }).map((f
 }
 expect("marker contracts were found", contracts >= 30, `found ${contracts}`);
 
-// #122 (Windows): a CRLF copy of a scanned file yields exactly the LF file's lines through `norm`.
+// #122 (Windows): a CRLF copy of a scanned file, written to disk and read by `readText`, yields
+// exactly the LF file's lines.
 {
   const rel = "skills/xez-auto-create-pr/references/rules.md";
   const lf = readText(rel);
-  const crlf = lf.replace(/\n/g, "\r\n");
-  expect(
-    "a CRLF copy of a scanned file yields the same line list as the LF file",
-    JSON.stringify(norm(crlf).split("\n")) === JSON.stringify(lf.split("\n")),
-  );
+  const dir = mkdtempSync(join(tmpdir(), "chaining-lines-crlf-"));
+  try {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), lf.replace(/\n/g, "\r\n"));
+    expect(
+      "a CRLF copy of a scanned file yields the same line list as the LF file",
+      JSON.stringify(readText(rel, dir).split("\n")) === JSON.stringify(lf.split("\n")),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 if (failures) {
