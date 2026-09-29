@@ -1445,3 +1445,26 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 
 So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
 not 4.0.0.
+
+## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
+
+**Owner: Marcin. Decided 2026-09-29.**
+
+On native Windows the engine cannot give the launcher the socket file it looks for in
+`.local/xezar/ipc/`: it will listen on a named pipe, and a pipe is not a file in that folder. The
+contract the launcher follows is a **draft** from the engine's Windows work (xezar #963, phase 3),
+not yet final or built there: the pipe is `\\.\pipe\xezar-mcp-<32 hex digits>`, random for each
+start; the engine names it, alone on one line, in `.local/xezar/ipc/<id>.pipe` and removes that
+marker when it stops cleanly. Under Git Bash (`uname -s` starts with MINGW or MSYS) and with no
+socket there, `scripts/xezar-leader.sh` reads the markers as data – only a name of that exact shape
+counts, and nothing in a marker is run – and counts a pipe as live when node connects to it within
+a second (bash cannot open a pipe). A stale marker is skipped and never deleted, since the engine
+replaces its own; with two live pipes the newest marker wins and the launcher warns.
+
+The owner chose to build this in 3.1.0 against the draft rather than wait: a consumer on Windows
+gets a launcher that is ready when the engine is, and Linux and macOS keep the socket path
+untouched. The cost is that a different final contract means a new launcher, which every project
+copies again by hand – UPGRADE_NOTES entry 14 says so. `scripts/test-kit-catalog.mjs` §10 runs the
+launcher against real named pipes on Windows and against the same names bound as socket files
+elsewhere, so the rule is checked on every OS; `scripts/test-guards.mjs` breaks the name check and
+the stale-marker skip.

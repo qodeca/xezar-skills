@@ -28,12 +28,13 @@
 //   9. the documented-output check, RUN on the kit staged as a project, outside a leader session –
 //      which is how every gate runs it;
 //  10. the leader launcher, RUN with `claude` stubbed: it takes the socket the engine names by
-//      project id, and stops with its message when there is none.
+//      project id, and stops with its message when there is none; on native Windows it takes a
+//      live pipe an engine marker names, and skips a stale marker or one naming another pipe.
 //
 // Run: node scripts/test-kit-catalog.mjs
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -813,8 +814,11 @@ for (const name of workflowFiles) {
 // on PATH: a socket named by the engine is accepted, no socket stops it with its message.
 {
   const { createServer } = await import("node:net");
+  const { randomBytes } = await import("node:crypto");
+  const { spawnSync } = await import("node:child_process");
   const lab = mkdtempSync(join(tempRoot(), "kl-"));
   const server = createServer();
+  const pipeServers = [];
   try {
     const project = join(lab, "My Proj");
     mkdirSync(join(project, "scripts"), { recursive: true });
@@ -825,26 +829,98 @@ for (const name of workflowFiles) {
     writeFileSync(join(bin, "claude"), `#!/usr/bin/env bash\nprintf '%s\\n' "XEZAR_LEADER=$XEZAR_LEADER" "$@" > "${record}"\nexit 0\n`);
     chmodSync(join(bin, "claude"), 0o755);
     const env = prependPath(process.env, [bin]);
-    const launch = () => {
+    // Output is stdout and stderr on success too: the launcher warns on stderr and still starts.
+    const launch = (launchEnv = env) => {
       rmSync(record, { force: true });
-      try {
-        return { code: 0, out: execFileSync(bashPath(), [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env, encoding: "utf8", stdio: "pipe" }) };
-      } catch (error) {
-        return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
-      }
+      const result = spawnSync(bashPath(), [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env: launchEnv, encoding: "utf8" });
+      if (result.error) throw result.error;
+      return { code: result.status, out: `${result.stdout}${result.stderr}` };
     };
+    const started = () => {
+      const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
+      return args.includes("XEZAR_LEADER=1") && args.includes("--settings") && args.includes("--extra");
+    };
+    const stopped = (result) => result.code !== 0 && result.out.includes("the engine is not running here") && !existsSync(record);
 
     const none = launch();
-    if (none.code === 0 || !none.out.includes("the engine is not running here") || existsSync(record))
+    if (!stopped(none))
       fail(`xezar-leader.sh with no socket in .local/xezar/ipc/ did not stop with "the engine is not running here" (exit ${none.code}):\n${none.out}`);
 
-    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
     const ipc = join(project, ".local/xezar/ipc");
     mkdirSync(ipc, { recursive: true });
+
+    // #122 (Windows): the engine on native Windows listens on a named pipe and names it in
+    // `.local/xezar/ipc/<id>.pipe` (a draft contract, DECISIONS.md). On win32 these are real named
+    // pipes; elsewhere Node binds the same name as a socket file in the project folder (a `\` is a
+    // filename byte there) and a `uname` shell function says MINGW, so the Windows rule runs on
+    // every OS. The function comes through BASH_ENV, not a stub on PATH: Git's bash.exe puts its
+    // own usr\bin first on PATH, ahead of any stub folder.
+    const unameAs = (system) => {
+      const file = join(lab, `uname-${system}.sh`);
+      writeFileSync(file, `uname() { printf '%s\\n' '${system}'; }\n`);
+      return { ...env, BASH_ENV: file };
+    };
+    const windowsEnv = process.platform === "win32" ? env : unameAs("MINGW64_NT-10.0-26200");
+    const linuxEnv = unameAs("Linux");
+    const pipeName = (prefix) => `\\\\.\\pipe\\${prefix}-${randomBytes(16).toString("hex")}`;
+    const listenPipe = async (name) => {
+      const pipe = createServer();
+      pipeServers.push(pipe);
+      const here = process.cwd();
+      process.chdir(project); // off Windows the name is relative: bind it where the launcher runs
+      try {
+        await new Promise((resolve, reject) => { pipe.once("error", reject); pipe.listen(name, resolve); });
+      } finally {
+        process.chdir(here);
+      }
+    };
+    const markers = ["stale", "foreign", "command", "live", "second"].map((m) => join(ipc, `${m}.pipe`));
+    const [staleMarker, foreignMarker, commandMarker, liveMarker, secondMarker] = markers;
+
+    writeFileSync(staleMarker, `${pipeName("xezar-mcp")}\n`);
+    const stale = launch(windowsEnv);
+    if (!stopped(stale))
+      fail(`xezar-leader.sh accepts a stale pipe marker (a pipe nothing listens on) as a running engine (exit ${stale.code}):\n${stale.out}`);
+
+    const foreign = pipeName("other");
+    await listenPipe(foreign);
+    writeFileSync(foreignMarker, `${foreign}\n`);
+    writeFileSync(commandMarker, "$(touch owned)\n");
+    const wrongName = launch(windowsEnv);
+    if (!stopped(wrongName))
+      fail(`xezar-leader.sh accepts a marker that names another program's pipe, not one of the engine's shape (exit ${wrongName.code}):\n${wrongName.out}`);
+    if (existsSync(join(project, "owned")) || existsSync(join(lab, "owned")))
+      fail("xezar-leader.sh ran the text of a pipe marker; a marker is data");
+
+    const live = pipeName("xezar-mcp");
+    await listenPipe(live);
+    writeFileSync(liveMarker, live);
+    const offWindows = launch(linuxEnv);
+    if (!stopped(offWindows))
+      fail(`xezar-leader.sh reads a pipe marker outside Windows, where the engine opens a socket (exit ${offWindows.code}):\n${offWindows.out}`);
+    const piped = launch(windowsEnv);
+    if (piped.code !== 0 || !started() || piped.out.includes("warning"))
+      fail(`xezar-leader.sh on Windows does not accept the engine's live pipe beside a stale and a foreign marker (exit ${piped.code}):\n${piped.out}`);
+
+    const second = pipeName("xezar-mcp");
+    await listenPipe(second);
+    writeFileSync(secondMarker, `${second}\n`);
+    const older = new Date(Date.now() - 60_000);
+    utimesSync(liveMarker, older, older);
+    const two = launch(windowsEnv);
+    if (two.code !== 0 || !started() || !two.out.includes("xezar-leader: warning: 2 engine pipes answer") || !two.out.includes("the newest, .local/xezar/ipc/second.pipe"))
+      fail(`xezar-leader.sh with two live engine pipes does not take the newest marker with a warning (exit ${two.code}):\n${two.out}`);
+    for (const marker of markers) if (!existsSync(marker)) fail(`xezar-leader.sh deleted the pipe marker ${marker}; the engine replaces its own markers`);
+
+    // The socket case below must not pass on a pipe: close them and drop their markers.
+    await Promise.all(pipeServers.splice(0).map((pipe) => new Promise((resolve) => pipe.close(() => resolve()))));
+    for (const marker of markers) rmSync(marker, { force: true });
+
+    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
     if (process.platform === "win32") {
       // #122: on Windows Node binds named pipes only. Git's perl makes the MSYS socket file that the
-      // launcher's `[ -S ]` sees (spike S-5); the file outlives perl. This proves the launcher's rule
-      // on Windows, not that the engine creates such a socket there (DECISIONS gap list).
+      // launcher's `[ -S ]` sees (spike S-5); the file outlives perl. This keeps the socket rule
+      // proven on Windows too; the engine's own Windows endpoint is the pipe above.
       execFileSync(bashPath(), ["-c", 'cd "$1" && perl -MIO::Socket::UNIX -e \'IO::Socket::UNIX->new(Local => shift, Listen => 1) or die qq{bind: $!\\n}\' my-proj.sock', "sock", ipc], { env, stdio: "pipe" });
     } else {
       const here = process.cwd();
@@ -863,6 +939,7 @@ for (const name of workflowFiles) {
     fail(`the leader launcher fixture could not run: ${error.message}`);
   } finally {
     server.close();
+    for (const pipe of pipeServers) pipe.close();
     rmSync(lab, { recursive: true, force: true });
   }
 }

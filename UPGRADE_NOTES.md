@@ -48,7 +48,8 @@ changelog formats → trust boundaries → repair pushes → drift check → Dee
 single-root freshness → leader launcher → native Windows. Entries 3 and 11 change the same
 routing files: copy `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once
 against the defaults version 4, which carries both changes. Entries 5, 6 and 12 copy the same
-`deps.mjs`, and entries 6 and 12 the same `worktrees.md`: copy each once.
+`deps.mjs`, entries 6 and 12 the same `worktrees.md`, and entries 13 and 14 the same
+`scripts/xezar-leader.sh`: copy each once.
 
 **Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
 older file:
@@ -525,33 +526,39 @@ Applies-to: <3.1.0
 Files: scripts/xezar-leader.sh
 ```
 
-### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", or a worktree check "cannot resolve this checkout"
+### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", a worktree check "cannot resolve this checkout", or the leader launcher finds no engine
 
-Applies to a repository onboarded by `xez-onboard-opinionated` whose gates or kit checks run in Git
-Bash on Windows. Linux and macOS behave exactly as before.
+Applies to a repository onboarded by `xez-onboard-opinionated` whose gates, kit checks or leader
+launcher run in Git Bash on Windows. Linux and macOS behave exactly as before.
 
 **Symptom.** `gate process-group supervision requires a POSIX host`; `cannot resolve this
-checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`.
+checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`;
+`./scripts/xezar-leader.sh` says `the engine is not running here` while an engine runs on
+native Windows, where it listens on a named pipe instead of a socket.
 
 **What to do.** One PR:
 
 ```bash
 K=.claude/skills/xez-onboard-opinionated/kit
 cp $K/checks/lib/gate-parallel.mjs $K/checks/lib/windows-process.mjs $K/checks/lib/common.sh .xezar/checks/lib/
+cp $K/scripts/xezar-leader.sh scripts/
 ```
 
 Then copy `.xezar/checks/repo-gates.sh` the way entry 12 says: keep your three gate assignments.
 Under Git Bash a stop now reaches the gates through a file the scheduler watches, because a TERM
 from bash never reaches it there. The gate scheduler on Windows needs the full Git for Windows
-install (its `ps.exe`), not MinGit.
+install (its `ps.exe`), not MinGit. The launcher now also takes a live pipe the engine names in
+`.local/xezar/ipc/<id>.pipe`; that marker is the engine's draft Windows contract, so a later
+engine may need a later launcher. On Linux and macOS it finds the socket exactly as before.
 
-**What you lose by skipping it.** Nothing on Linux or macOS; on native Windows the gates cannot run.
+**What you lose by skipping it.** Nothing on Linux or macOS; on native Windows the gates cannot run,
+and the launcher does not find an engine that listens on a pipe.
 
 **Rollback.** Revert the PR.
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh
+Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh; scripts/xezar-leader.sh
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed
