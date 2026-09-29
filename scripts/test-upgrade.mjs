@@ -487,6 +487,22 @@ for (const version of SYNTHETIC) {
     const editedDir = materialize(fx, { name: "crlf-edit-run", edit: (d) => { toCrlf(d); write(d, pick.path, `${read(d, pick.path)}x\r\n`); } });
     const edited = byPath(buildPlan(ctxFor(editedDir))).get(pick.path);
     expect(edited?.class !== pick.class || edited?.action !== pick.action, `a one-byte edit of a CRLF file plans like the unchanged file (${pick.path}: ${edited?.class}/${edited?.action})`);
+    // An install on a CRLF checkout before 3.1.0 recorded the digest of the file's raw CRLF bytes.
+    // The planner reads that record as the file's own, as the drift check does (contract §1 → Digests).
+    const rawRecordDir = materialize(fx, {
+      name: "crlf-raw-record-run",
+      edit: (d) => {
+        toCrlf(d);
+        const m = JSON.parse(read(d, ".xezar/onboarding.json"));
+        m.files[pick.path].sha256 = sha256(readFileSync(join(d, pick.path)));
+        write(d, ".xezar/onboarding.json", `${JSON.stringify(m, null, 2)}\n`);
+      },
+    });
+    const rawRecord = byPath(buildPlan(ctxFor(rawRecordDir))).get(pick.path);
+    expect(
+      rawRecord?.class === pick.class && rawRecord?.action === pick.action && rawRecord?.base?.confidence === pick.base?.confidence,
+      `a manifest that recorded the raw CRLF bytes of an unchanged file plans ${rawRecord?.class}/${rawRecord?.action} (base ${rawRecord?.base?.confidence}), the LF run ${pick.class}/${pick.action} (base ${pick.base?.confidence}) (${pick.path})`,
+    );
     // The manifest the upgrade writes records the LF digest, and the drift check passes on CRLF.
     const run = (dir, plan) => {
       expect(applyPlan(ctxFor(dir), plan).status === "ok", `CRLF project: apply refused in ${dir}`);
@@ -500,7 +516,7 @@ for (const version of SYNTHETIC) {
     const lfSha = lfV.manifest?.files[pick.path]?.sha256;
     expect(lfSha !== undefined && crlfV.manifest?.files[pick.path]?.sha256 === lfSha, `CRLF project: the manifest records ${crlfV.manifest?.files[pick.path]?.sha256} for ${pick.path}, the LF run ${lfSha}`);
     const drift = crlfV.checks.find((c) => c.name === "drift");
-    expect(drift?.status === "pass" || drift?.status === "skipped", `CRLF project: the drift check fails on a CRLF checkout of an unchanged file:\n${drift?.out}`);
+    expect(drift?.status === "pass", `CRLF project: the drift check does not pass on a CRLF checkout of an unchanged file (${drift?.status}):\n${drift?.out}`);
   }
 }
 
@@ -1208,6 +1224,17 @@ if (!HAS_DRIFT) {
   write(fake, "docs/plans/3.1.0/notes/X.md", `# X\n\n${block}`);
   const { entries } = upgradeEntries(fake, "3.0.3");
   expect(entries.length === 1 && entries[0].source === "UPGRADE_NOTES.md", `notes: upgrade entries are read from outside UPGRADE_NOTES.md (${entries.map((e) => e.source).join(", ")})`);
+}
+
+// 10f. #122: a clone checked out with CRLF finds the same entries in UPGRADE_NOTES.md as an LF one.
+{
+  const crlfRoot = lab("notes-crlf");
+  write(crlfRoot, "UPGRADE_NOTES.md", read(root, "UPGRADE_NOTES.md").replace(/\r?\n/g, "\r\n"));
+  const lf = upgradeEntries(root, "3.0.3");
+  const crlf = upgradeEntries(crlfRoot, "3.0.3");
+  expect(lf.entries.length > 0 && JSON.stringify(crlf) === JSON.stringify(lf), `notes: a CRLF UPGRADE_NOTES.md gives ${crlf.entries.length} upgrade entries (errors ${JSON.stringify(crlf.errors)}), the LF file ${lf.entries.length}`);
+  const unblocked = (dir) => JSON.stringify(planTool.unblockedEntries(dir, "3.0.3", null));
+  expect(unblocked(crlfRoot) === unblocked(root), "notes: a CRLF UPGRADE_NOTES.md lists other entries without a machine block than the LF file");
 }
 
 // ---------------------------------------------------------------------------------------

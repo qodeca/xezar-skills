@@ -100,8 +100,8 @@ Rules:
   The list is closed: adding a value is a breaking change.
 - **Digests.** `sha256` values are of the file as text with `\r\n` read as `\n`; a file with a NUL
   byte in its first 8000 bytes is binary and hashed as it is. On an LF checkout this is the file's
-  bytes. A digest an earlier install recorded over the raw bytes of a CRLF file is still accepted
-  by the drift check (§4).
+  bytes. A digest an earlier install recorded over the raw bytes of a CRLF file is still accepted,
+  by the drift check (§4) and by the planner, which reads it as the file's own record.
 - **`patch` present = locally patched.** It names a register entry (§2). A file with no `patch`
   must hash-match `sha256` (Digests, above). A patched file may also be absent: a kit file the
   project removed on purpose keeps its entry – what was installed – with the `patch`, so the next
