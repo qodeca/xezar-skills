@@ -1531,7 +1531,7 @@ function walk(rel, match) {
     { pid: 230432, ppid: 1, pgid: 230432, winpid: 4844 }, { pid: 230436, ppid: 230432, pgid: 230432, winpid: 20500 },
     { pid: 230440, ppid: 230432, pgid: 230432, winpid: 20600 }, { pid: 230435, ppid: 230432, pgid: 230432, winpid: 19464 },
   ])) fail(fact, where, `parseMsysTable reads Git's ps output wrong: ${JSON.stringify(msysRows)}`);
-  const winSample = "queried 134351390480000000\n4844 2776 5120 0 134351390478236880\n19464 5428 40000 0 134351390479200810\n5428 2184 3000 0 -\n12 34\n";
+  const winSample = "4844 2776 134351390478236880\r\n19464 5428 134351390479200810\n5428 2184 -\n12 34\n7 8 9 10\n";
   const winRows = wp.parseWindowsTable(winSample);
   if (!same(winRows, [{ pid: 4844, ppid: 2776, startedAt: 1790665447823 }, { pid: 19464, ppid: 5428, startedAt: 1790665447920 }, { pid: 5428, ppid: 2184 }]))
     fail(fact, where, `parseWindowsTable reads the process table wrong: ${JSON.stringify(winRows)}`);
@@ -1543,6 +1543,14 @@ function walk(rel, match) {
     fail(fact, where, `killScript embeds something other than validated integers: ${script.split("\n")[1]}`);
   const outcomes = wp.parseKillOutcomes("100 killed\r\n101 denied\n999 killed\nnoise\n", new Set([100, 101]));
   if (!same([...outcomes], [[100, "killed"], [101, "denied"]])) fail(fact, where, `parseKillOutcomes reads the kill script's answer wrong: ${JSON.stringify([...outcomes])}`);
+  // The workers' env: noglob for the MSYS runtime, and no program name taken from the working folder.
+  const gitDir = "C:\\Program Files\\Git";
+  const known = new Set([`${gitDir}\\cmd\\git.exe`, `${gitDir}\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\ps.exe`,
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"].map((p) => p.toLowerCase()));
+  const prepared = wp.prepare({ PATH: `${gitDir}\\cmd`, SystemRoot: "C:\\Windows", nodefaultcurrentdirectoryinexepath: "0", MSYS: "winsymlinks:lnk" }, { exists: (p) => known.has(p.toLowerCase()) });
+  const exeKeys = Object.keys(prepared.env ?? {}).filter((k) => k.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH");
+  if (!prepared.ok || prepared.env.MSYS !== "winsymlinks:lnk noglob" || exeKeys.length !== 1 || prepared.env[exeKeys[0]] !== "1")
+    fail(fact, where, `the gate workers' env lets a bare program name resolve from the working folder, or lacks MSYS noglob: ${JSON.stringify(prepared)}`);
 
   // The start-time window. The worker is Windows pid 5000; it was spawned at T and stopped at T+10 s.
   const T = 1_790_000_000_000;
@@ -1579,26 +1587,41 @@ function walk(rel, match) {
   // One stop round, with the three programs answered from here (no process is touched).
   const tools = { ps: "ps.exe", powershell: "powershell.exe" };
   const psLive = "      PID    PPID    PGID     WINPID\n   700       1     700    5000\n   710       1     700    7100\n";
-  const table = `queried 1\n5000 1 1 0 ${(BigInt(T) * 10000n + 116444736000000000n)}\n7100 9999 1 0 ${(BigInt(T + 300) * 10000n + 116444736000000000n)}\n`;
-  const round = async (ps, killAnswer, options) => {
+  const fileTime = (ms) => BigInt(ms) * 10000n + 116444736000000000n;
+  const table = `5000 1 ${fileTime(T)}\n7100 9999 ${fileTime(T + 300)}\n`;
+  const noMembers = "      PID    PPID    PGID     WINPID\n";
+  // `tableAnswer` stands in for the Windows table (null: PowerShell could not read it).
+  const round = async (ps, killAnswer, { msysPid = 700, tableAnswer = table, ...options } = {}) => {
     const calls = [];
     const run = async (file, args) => {
       calls.push(file);
       if (file === "ps.exe") return ps;
       const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
-      return decoded.includes("Get-CimInstance") ? table : killAnswer(decoded);
+      return decoded.includes("Get-CimInstance") ? tableAnswer : killAnswer(decoded);
     };
-    const result = await wp.stopTree({ winpid: 5000, msysPid: 700, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
+    const result = await wp.stopTree({ winpid: 5000, msysPid, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
     return { result, calls };
   };
-  const nothingLeft = await round("      PID    PPID    PGID     WINPID\n", () => "", { killRoot: false });
+  const nothingLeft = await round(noMembers, () => "", { killRoot: false });
   if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
+  // Without the worker's MSYS pid no member can be found in ps, so an empty group proves nothing:
+  // the Windows table must still be read, and the worker's native child killed.
+  const childTable = `5000 1 ${fileTime(T)}\n7100 5000 ${fileTime(T + 300)}\n`;
+  const noMsysPid = await round(noMembers, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false, msysPid: null, tableAnswer: childTable });
+  if (!noMsysPid.result.ok || noMsysPid.result.killed !== 1 || noMsysPid.calls.length !== 3)
+    fail(fact, where, `a reap whose worker left no MSYS pid took an empty ps for "nothing left" and never read the Windows table: ${JSON.stringify(noMsysPid)}`);
   const killed = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false });
   if (!killed.result.ok || killed.result.killed !== 1) fail(fact, where, `a stop round did not kill the worker's process by identity: ${JSON.stringify(killed.result)}`);
   const denied = await round(psLive, () => "7100 denied\n", { killRoot: true });
   if (denied.result.ok) fail(fact, where, "a stop round that could not kill a process reported success");
   const noPs = await round(null, () => "7100 killed\n", { killRoot: true });
   if (noPs.result.ok) fail(fact, where, "a stop round that could not read Git's ps reported success");
+  const noTable = await round(psLive, () => "7100 killed\n", { killRoot: true, tableAnswer: null });
+  if (noTable.result.ok || noTable.result.reason !== "the Windows process table could not be read" || noTable.calls.length !== 2)
+    fail(fact, where, `a stop round that could not read the Windows process table reported ${JSON.stringify(noTable)}`);
+  const noKill = await round(psLive, () => null, { killRoot: true });
+  if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
+    fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
   checked.push(fact);
 }
 
@@ -1612,10 +1635,18 @@ function walk(rel, match) {
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
   const scheduler = join(root, SKILL, where);
   const lab = mkdtempSync(join(tempRoot(), "kit-gates-"));
-  const recorded = [];
+  const recorded = []; // the gates' processes, by the pids they wrote
   const children = [];
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
+  // What the last check of each pid found. A pid once seen gone is never signalled again: by the
+  // cleanup it may name an unrelated process (Windows reuses pids quickly).
+  const lastSeen = new Map();
+  const alive = (pid) => {
+    let running;
+    try { process.kill(pid, 0); running = true; } catch (error) { running = error.code === "EPERM"; }
+    lastSeen.set(pid, running);
+    return running;
+  };
   const until = async (condition, ms) => {
     for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) if (condition()) return true;
     return condition();
@@ -1654,7 +1685,6 @@ function walk(rel, match) {
   const stranger = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
   let strangerExited = false; // this test's own child: once killed, a zombie would still answer kill(pid, 0)
   stranger.on("exit", () => { strangerExited = true; });
-  recorded.push(stranger.pid);
   try {
     // G1: the gate starts node in the background, waits for it and its child, and exits 0.
     const reaped = start("reap", `${holderRuns} & ${bothStarted}; exit 0`);
@@ -1682,8 +1712,13 @@ function walk(rel, match) {
     await sleep(200);
     if (strangerExited || !alive(stranger.pid)) fail(fact, where, "the gate scheduler stopped a process the gate did not start");
   } finally {
-    for (const pid of recorded) { try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ } }
-    for (const child of children) { try { child.kill("SIGKILL"); } catch { /* already gone */ } }
+    // A gate process only while its last check, this one included, finds it running; the test's own
+    // children through their handles, which know when their process has exited.
+    for (const pid of recorded) {
+      if (lastSeen.get(pid) === false || !alive(pid)) continue;
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+    for (const child of [stranger, ...children]) { try { child.kill("SIGKILL"); } catch { /* already gone */ } }
     await sleep(500);
     rmSync(lab, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }

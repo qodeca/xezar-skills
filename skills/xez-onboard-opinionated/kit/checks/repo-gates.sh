@@ -452,6 +452,9 @@ gate_phase() {
     for (let i = 0; i < args.length; i += 3) entries.push({index: Number(args[i]), name: args[i+1], command: args[i+2]});
     process.stdout.write(JSON.stringify(entries));
   ' "${args[@]}")" || return 1
+  # The folder gate_cancel writes its stop file to under Git Bash: made before node starts, so an
+  # interrupt that lands before the scheduler made it still reaches the scheduler.
+  mkdir -p "$GATE_ATTEMPT_DIR/workers" || return 1
   node "$SCRIPT_DIR/lib/gate-parallel.mjs" "$SCRIPT_DIR/lib/gate-record.sh" "$mode" "$entries" &
   GATE_SCHEDULER_PID=$!
   wait "$GATE_SCHEDULER_PID"

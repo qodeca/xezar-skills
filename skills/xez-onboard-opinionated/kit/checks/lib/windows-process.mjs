@@ -45,7 +45,7 @@ const SYSTEM_PID_MAX = 4;
 const FILETIME_UNIX_EPOCH = 116444736000000000n;
 const FILETIME_TICKS_PER_MS = 10000n;
 
-// --- Git Bash, found the way scripts/lib/platform.mjs finds it (a parity test holds them equal) --
+// --- Git Bash, found the way this repository's scripts find it (a parity test holds them equal) --
 
 const TOOLCHAINS = ['mingw64', 'clangarm64', 'mingw32'];
 const DRIVE_PATH = /^[A-Za-z]:\\/;
@@ -102,7 +102,7 @@ export function gitRoot({ env = process.env, exists = existsSync } = {}) {
 }
 
 /** A copy of env with "noglob" in MSYS (value kept, one key): otherwise the MSYS runtime globs an unquoted `*`. */
-function withNoglob(env) {
+export function withNoglob(env) {
   const msys = envGet(env, 'MSYS') ?? '';
   const next = { ...env };
   for (const key of Object.keys(next)) if (key.toUpperCase() === 'MSYS') delete next[key];
@@ -113,7 +113,8 @@ function withNoglob(env) {
 /**
  * What the scheduler needs on Windows: { ok: true, bash, ps, powershell, env }, or
  * { ok: false, reason } with one plain sentence. bash is Git's usr\bin\bash.exe (no wrapper, so
- * the worker's pid is bash's own); env carries MSYS=noglob.
+ * the worker's pid is bash's own); env carries MSYS=noglob, and NoDefaultCurrentDirectoryInExePath=1
+ * so a bare program name in a gate is never taken from the working folder.
  */
 export function prepare(env = process.env, { exists = existsSync } = {}) {
   const root = gitRoot({ env, exists });
@@ -127,7 +128,10 @@ export function prepare(env = process.env, { exists = existsSync } = {}) {
   }
   const powershell = win.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   if (!exists(powershell)) return { ok: false, reason: `PowerShell was not found at ${powershell}` };
-  return { ok: true, bash: win.join(usrBin, 'bash.exe'), ps, powershell, env: withNoglob(env) };
+  const next = withNoglob(env);
+  for (const key of Object.keys(next)) if (key.toUpperCase() === 'NODEFAULTCURRENTDIRECTORYINEXEPATH') delete next[key];
+  next.NoDefaultCurrentDirectoryInExePath = '1';
+  return { ok: true, bash: win.join(usrBin, 'bash.exe'), ps, powershell, env: next };
 }
 
 /**
@@ -164,16 +168,16 @@ function fileTimeToMs(text) {
   return Number((ticks - FILETIME_UNIX_EPOCH) / FILETIME_TICKS_PER_MS);
 }
 
-/** The table script's output: `queried <FILETIME>`, then `pid ppid rss 0 <FILETIME|->` rows; torn rows are skipped. */
+/** The table script's output: one `pid ppid <FILETIME|->` row per process; torn rows are skipped. */
 export function parseWindowsTable(text) {
   const rows = [];
   for (const line of String(text ?? '').split(/\r?\n/)) {
     const parts = line.trim().split(/\s+/);
-    if (parts.length < 4) continue;
+    if (parts.length !== 3) continue;
     const pid = Number(parts[0]);
     const ppid = Number(parts[1]);
     if (!Number.isSafeInteger(pid) || !Number.isSafeInteger(ppid)) continue;
-    const startedAt = fileTimeToMs(parts[4]);
+    const startedAt = fileTimeToMs(parts[2]);
     rows.push({ pid, ppid, ...(startedAt !== undefined ? { startedAt } : {}) });
   }
   return rows;
@@ -239,14 +243,13 @@ export function treeTargets({ msysRows = [], winRows = [], root, selfPid = proce
 
 // --- PowerShell ------------------------------------------------------------------------------------
 
-/** The start line first, then one row per process: pid ppid rssKiB 0 creation-FILETIME. */
+/** One row per process: pid ppid creation-FILETIME (`-` when Windows gives none). */
 const TABLE_SCRIPT = [
   "$ProgressPreference = 'SilentlyContinue'",
-  '"queried $([DateTime]::UtcNow.ToFileTimeUtc())"',
   'Get-CimInstance Win32_Process | ForEach-Object {',
   "  $start = '-'",
   '  if ($_.CreationDate) { $start = $_.CreationDate.ToFileTimeUtc() }',
-  '  "$($_.ProcessId) $($_.ParentProcessId) $([math]::Round($_.WorkingSetSize/1024)) 0 $start"',
+  '  "$($_.ProcessId) $($_.ParentProcessId) $start"',
   '}',
 ].join('\n');
 
@@ -324,7 +327,10 @@ export async function stopTree(root, tools, { killRoot = false, run = defaultRun
     const msysRows = psText === null ? [] : parseMsysTable(psText);
     // After the worker exited by itself, a readable ps with no member left is the whole answer: a
     // process whose every ancestor exited and that left the group is out of reach on both layers.
-    if (!killRoot && psText !== null && msysMembers(msysRows, root.msysPid).length === 0) return { ok: true, killed: 0 };
+    // Only when the worker's MSYS pid is known: without it no member can be found, and the
+    // Windows table is the one place the worker's processes still show.
+    const knowsGroup = Number.isSafeInteger(root.msysPid) && root.msysPid > 0;
+    if (!killRoot && knowsGroup && psText !== null && msysMembers(msysRows, root.msysPid).length === 0) return { ok: true, killed: 0 };
     const tableText = await run(tools.powershell, powershellArgs(TABLE_SCRIPT), { maxBuffer: TABLE_MAX_BUFFER, timeoutMs: TOOL_TIMEOUT_MS });
     if (tableText === null) return { ok: false, killed: 0, reason: 'the Windows process table could not be read' };
     const targets = validTargets(treeTargets({ msysRows, winRows: parseWindowsTable(tableText), root }));

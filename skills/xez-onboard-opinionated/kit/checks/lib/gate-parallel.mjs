@@ -53,7 +53,7 @@ const pending = [];
 
 function signal(pid, kind) {
   if (!posix) return stopWindows(pid);
-  try { process.kill(posix ? -pid : pid, kind); }
+  try { process.kill(-pid, kind); }
   catch (error) { if (error.code !== 'ESRCH') infrastructureFailed = true; }
 }
 function interrupt() {
@@ -118,7 +118,7 @@ async function run(entry) {
     const child = posix
       ? spawn('bash', ['-c', worker, 'gate-worker', library,
         String(entry.index), entry.name, entry.command], {
-        detached: posix, stdio: ['ignore', 'ignore', 'ignore'], env: process.env,
+        detached: true, stdio: ['ignore', 'ignore', 'ignore'], env: process.env,
       })
       // Git's own usr\bin\bash.exe, so the worker's pid is bash's; not detached, so it keeps the
       // console. The command line is quoted for the MSYS runtime (windows-process.mjs, msysQuote).
