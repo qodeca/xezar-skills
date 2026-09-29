@@ -2661,6 +2661,86 @@ breaks(
   () => script("test-platform.mjs"),
   "withGitTools leaves Git's Perl script folders (shasum) off PATH",
 );
+
+breaks(
+  "a review-run.sh that runs a Windows shell or launcher is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' nice cmd powershell pwsh wsl winpty git-bash"\n', ' nice"\n'),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "',
+);
+
+breaks(
+  "a Windows reap that reads an empty ps as the end of a worker whose MSYS pid is unknown is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("if (!killRoot && knowsGroup && psText !== null", "if (!killRoot && psText !== null"),
+  () => script("test-kit-facts.mjs"),
+  "a reap whose worker left no MSYS pid",
+);
+
+breaks(
+  "a gate worker env that takes a bare program name from the working folder is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("  next.NoDefaultCurrentDirectoryInExePath = '1';\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "the gate workers' env lets a bare program name resolve from the working folder",
+);
+
+breaks(
+  "a kit noglob env that drifts from scripts/lib/platform.mjs is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("? `${msys} noglob` :", "? msys :"),
+  () => script("test-platform.mjs"),
+  "the kit's MSYS quoting, noglob env and Git Bash message agree",
+);
+
+breaks(
+  "a leader launcher that reads pipe markers outside Git Bash is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("    msys* | cygwin*)\n", "    *)\n"),
+  () => script("test-kit-catalog.mjs"),
+  "reads a pipe marker outside Windows",
+);
+
+breaks(
+  "a Git Bash start that leaves its command line to libuv's quoting is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace("  return [file, args.map(msysQuote), { ...options, env, windowsVerbatimArguments: true, argv0: msysQuote(file) }];\n", "  return [file, args, { ...options, env }];\n"),
+  () => script("test-platform.mjs"),
+  "msysSpawnArgs quotes every argument for MSYS on win32",
+);
+
+breaks(
+  "a run-bash.mjs that loses the script's exit code is rejected",
+  "scripts/run-bash.mjs",
+  (s) => s.replace("process.exit(result.status ?? 1);", "process.exit(result.status === 0 ? 0 : 1);"),
+  () => script("test-platform.mjs"),
+  "run-bash.mjs passes a script's arguments and exit code through",
+);
+
+breaks(
+  "a run-gate.mjs that stops at the first failing command is rejected",
+  "scripts/run-gate.mjs",
+  (s) => s.replace("  rows.push({ number: index + 1, command, exit, seconds });\n", "  rows.push({ number: index + 1, command, exit, seconds });\n  if (exit !== 0) break;\n"),
+  () => script("test-platform.mjs"),
+  "run-gate.mjs runs every command, reports each exit code",
+);
+
+breaks(
+  "an upgrade planner that reads UPGRADE_NOTES.md with CRLF line endings as it is is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('sources.push(["UPGRADE_NOTES.md", lfText(readFileSync(notes)).toString("utf8")]);', 'sources.push(["UPGRADE_NOTES.md", readFileSync(notes, "utf8")]);'),
+  () => script("test-upgrade.mjs"),
+  "a CRLF UPGRADE_NOTES.md gives",
+);
+
+breaks(
+  "an upgrade planner that ignores a manifest digest of raw CRLF bytes is rejected",
+  "upgrade/tools/detect.mjs",
+  (s) => s.replace("  return recorded === sha256(mine.text) || recorded === mine.rawSha256;\n", "  return recorded === sha256(mine.text);\n"),
+  () => script("test-upgrade.mjs"),
+  "a manifest that recorded the raw CRLF bytes of an unchanged file plans",
+);
 // 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------
