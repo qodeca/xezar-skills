@@ -1476,6 +1476,14 @@ and `run-bash.mjs` quote their own Git Bash start through `spawnGitBash()` in
 `scripts/lib/platform.mjs`. Changing every test's spawn calls instead would have touched far more
 lines, and left each new test to remember the rule.
 
+The permission cases deny access with an ACL entry, and an administrator's backup and restore
+privileges read and write through any such entry: an MSYS program enables both when it starts and
+its children inherit them, so on GitHub's Windows runners, which run as an administrator, Node and
+Git Bash went straight through while `git.exe` was refused. `restrict()` therefore removes those two
+privileges from the test process before its first deny entry, for the rest of that process. An
+account that holds neither is unchanged, and no case is skipped or asserts something else when
+elevated.
+
 Three parts of the kit runtime were made to work natively in the same change: the kit's shell
 library reads Git for Windows paths and keeps Git Bash from rewriting `origin/<base>:<file>`
 arguments; the gate scheduler runs its workers in Git Bash and stops them on Windows the way the
@@ -1493,8 +1501,10 @@ tool, run natively on Windows rather than under the tests, still does the wrong 
 - `kit/checks/route.mjs:648` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd` shim fails
   silently, and the login reads as empty.
 - `kit/checks/gh-write.sh:141-156` – `$(jq -r …)` from a Windows jq ends in `\r`; the tests use an
-  LF jq shim.
-- `kit/checks/lib/common.sh:568-595`, `:818-838` and `kit/checks/repo-gates.sh:96` – `shasum` lives
+  LF jq shim. The same holds for every other `$(jq …)` run without `-b`: `kit/checks/verdict-write.sh`,
+  `xez-approve-merge-pr`'s `gate-status.sh` and `merge-gate.sh`, the config reads in most skills'
+  `references/agentic-setup.md` and a few other step files, and the GitHub tracker descriptors.
+- `kit/checks/lib/common.sh:573-600`, `:823-843` and `kit/checks/repo-gates.sh:96` – `shasum` lives
   in Git for Windows' `usr\bin\core_perl`, which only a login Git Bash puts on `PATH`; a bash started
   without a login (GitHub Actions' `shell: bash`, a program running `bash -c`) does not find it. The
   tests append Git's Perl script folders to `PATH`.

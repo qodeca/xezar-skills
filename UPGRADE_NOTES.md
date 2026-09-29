@@ -529,7 +529,8 @@ Files: scripts/xezar-leader.sh
 ### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", a worktree check "cannot resolve this checkout", or the leader launcher finds no engine
 
 Applies to a repository onboarded by `xez-onboard-opinionated` whose gates, kit checks or leader
-launcher run in Git Bash on Windows. Linux and macOS behave exactly as before.
+launcher run in Git Bash on Windows. Linux and macOS behave exactly as before. The upgrade tool
+applies it everywhere; on Linux and macOS it changes nothing you'll notice.
 
 **Symptom.** `gate process-group supervision requires a POSIX host`; `cannot resolve this
 checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`;
@@ -549,7 +550,9 @@ Under Git Bash a stop now reaches the gates through a file the scheduler watches
 from bash never reaches it there. The gate scheduler on Windows needs the full Git for Windows
 install (its `ps.exe`), not MinGit. The launcher now also takes a live pipe the engine names in
 `.local/xezar/ipc/<id>.pipe`; that marker is the engine's draft Windows contract, so a later
-engine may need a later launcher. On Linux and macOS it finds the socket exactly as before.
+engine may need a later launcher. On Linux and macOS it finds the socket exactly as before. A Node
+pinned by `.nvmrc` now goes on Git Bash's `PATH` in bash's own path form, so it is found from any
+drive.
 
 **What you lose by skipping it.** Nothing on Linux or macOS; on native Windows the gates cannot run,
 and the launcher does not find an engine that listens on a pipe.
