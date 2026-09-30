@@ -1431,8 +1431,9 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
   The onboarding manifest version 2 is additive, and a manifest without `manifestVersion` is read as
   version 1 and never enforced. The kit index, the upgrade plan and the `upgrade` machine block are
   new formats.
-- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains one script,
-  `test:upgrade`, and loses none.
+- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains three
+  scripts – `test:upgrade`, `test:platform` and `gate` – and loses none, and `lint` keeps its name
+  while it now starts bash through `scripts/run-bash.mjs`, so it also works from PowerShell.
 - **The fifteen ledger rows.** Fourteen are new refusals in kit checks and relaxed routing bans.
   Kit content is fresh-install scope: an installed check never updates itself, so each refusal
   reaches a project only when its owner copies the new file or runs the upgrade prompt, and each
@@ -1445,3 +1446,96 @@ Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather tha
 
 So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
 not 4.0.0.
+
+## The gate runs on native Windows
+
+**Owner: Marcin. Decided 2026-09-28.**
+
+All the validation commands pass on native Windows from Git Bash, or through npm from PowerShell
+or cmd (#122). Git Bash and jq are the only extra tools; Developer Mode is required, because the
+tests create real symbolic links and never skip them. Text is checked out with LF by
+`.gitattributes`, and the parsers and hashes also read a CRLF copy the same way. The tests find
+Git Bash from `git.exe` on `PATH` and never start WSL's `bash.exe`, which a stock Windows puts
+first. On Windows the tests adapt the environment rather than the kit: Git's tools first on
+`PATH`, `core.autocrlf=false` in the repositories they build, an LF-writing jq, and stubs started
+through Git Bash. That choice means no Windows test runs on an autocrlf checkout of its own
+fixtures; the explicit CRLF cases are what prove the CRLF tolerance. So a green Windows gate
+proves the kit's logic on Windows, not that the whole kit runs natively there. The Windows and
+macOS CI jobs are informational until their runs prove stable; the `lint` job on ubuntu stays the
+required check. How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
+
+The stubs need one patch to Node itself, and its reach is kept narrow. On Windows only,
+`prepareTestPlatform()` (`scripts/lib/test-harness.mjs`) wraps `spawn`, `spawnSync`, `execFile` and
+`execFileSync` of `node:child_process` in the test's own process; a test hands the same wrapper to
+one child at a time through `NODE_OPTIONS` (`stubSpawnEnv()`). It changes two kinds of call and
+passes every other through untouched: an extensionless stub in a folder the test marked
+(`.stub-spawn`) is started through Git Bash, and a start of Git Bash or Git's `sh` gets its command
+line quoted for the MSYS runtime. A call that sets `shell` or `windowsVerbatimArguments` is never
+changed. No kit file, no `upgrade/tools` file and no maintainer entry point loads it: `run-gate.mjs`
+and `run-bash.mjs` quote their own Git Bash start through `spawnGitBash()` in
+`scripts/lib/platform.mjs`. Changing every test's spawn calls instead would have touched far more
+lines, and left each new test to remember the rule.
+
+The permission cases deny access with an ACL entry, and an administrator's backup and restore
+privileges read and write through any such entry: an MSYS program enables both when it starts and
+its children inherit them, so on GitHub's Windows runners, which run as an administrator, Node and
+Git Bash went straight through while `git.exe` was refused. `restrict()` therefore removes those two
+privileges from the test process before its first deny entry, for the rest of that process. An
+account that holds neither is unchanged, and no case is skipped or asserts something else when
+elevated.
+
+Three parts of the kit runtime were made to work natively in the same change: the kit's shell
+library reads Git for Windows paths and keeps Git Bash from rewriting `origin/<base>:<file>`
+arguments; the gate scheduler runs its workers in Git Bash and stops them on Windows the way the
+engine does (the whole process tree, each process checked by its start time before it is killed,
+never `taskkill /T`), plus the processes an MSYS `exec` leaves under a parent that has already
+exited; and the leader launcher finds an engine that listens on a named pipe (next entry).
+
+**Known native-runtime gaps (#122, second run).** Each is a place where the kit or the upgrade
+tool, run natively on Windows rather than under the tests, still does the wrong thing:
+
+- `kit/checks/lib/deps.mjs:79`, `:605` – `spawnSync(tool)` cannot start `npm.cmd` or `yarn.cmd`
+  (Node 20.12 and later refuse a `.cmd` without a shell).
+- `kit/checks/documented-output.mjs:32` (called with `bash` at `:246`) – a bare `bash` reaches
+  WSL's `bash.exe` on a stock Windows.
+- `kit/checks/route.mjs:648` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd` shim fails
+  silently, and the login reads as empty.
+- `kit/checks/gh-write.sh:141-156` – `$(jq -r …)` from a Windows jq ends in `\r`; the tests use an
+  LF jq shim. The same holds for every other `$(jq …)` run without `-b`: `kit/checks/verdict-write.sh`,
+  `xez-approve-merge-pr`'s `gate-status.sh` and `merge-gate.sh`, the config reads in most skills'
+  `references/agentic-setup.md` and a few other step files, and the GitHub tracker descriptors.
+- `kit/checks/lib/common.sh:573-600`, `:823-843` and `kit/checks/repo-gates.sh:96` – `shasum` lives
+  in Git for Windows' `usr\bin\core_perl`, which only a login Git Bash puts on `PATH`; a bash started
+  without a login (GitHub Actions' `shell: bash`, a program running `bash -c`) does not find it. The
+  tests append Git's Perl script folders to `PATH`.
+- `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
+  first on `PATH`.
+- `kit/mcp.json:4`, `:8`, `kit/codex/config.toml:5` and `xez-onboard`'s `templates/claude-mcp.json`,
+  `codex-mcp.toml`, `pi-mcp.json` – each MCP server starts with a bare `npx`, which on native
+  Windows is `npx.cmd` and does not start without a `cmd /c` wrapper.
+
+The issue stays open for them: the pull request references #122 without a closing keyword.
+
+## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
+
+**Owner: Marcin. Decided 2026-09-29.**
+
+On native Windows the engine cannot give the launcher the socket file it looks for in
+`.local/xezar/ipc/`: it will listen on a named pipe, and a pipe is not a file in that folder. The
+contract the launcher follows is a **draft** from the engine's Windows work (xezar #963, phase 3),
+not yet final or built there: the pipe is `\\.\pipe\xezar-mcp-<32 hex digits>`, random for each
+start; the engine names it, alone on one line, in `.local/xezar/ipc/<id>.pipe` and removes that
+marker when it stops cleanly. Under Git Bash or Cygwin (`OSTYPE` starts with `msys` or `cygwin`,
+the one Windows test every kit script uses) and with no socket there, `scripts/xezar-leader.sh`
+reads the markers as data – only a name of that exact shape counts, and nothing in a marker is
+run – and counts a pipe as live when node connects to it within a second (bash cannot open a
+pipe). A stale marker is skipped and never deleted, since the engine replaces its own; with two
+live pipes the newest marker wins and the launcher warns.
+
+The owner chose to build this in 3.1.0 against the draft rather than wait: a consumer on Windows
+gets a launcher that is ready when the engine is, and Linux and macOS keep the socket path
+untouched. The cost is that a different final contract means a new launcher, which every project
+copies again by hand – UPGRADE_NOTES entry 14 says so. `scripts/test-kit-catalog.mjs` §10 runs the
+launcher against real named pipes on Windows and against the same names bound as socket files
+elsewhere, so the rule is checked on every OS; `scripts/test-guards.mjs` breaks the name check and
+the stale-marker skip.

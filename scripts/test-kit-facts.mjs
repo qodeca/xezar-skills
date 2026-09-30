@@ -25,14 +25,33 @@
 //
 // Run: node scripts/test-kit-facts.mjs
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath, posixToolDirs, prependPath, toLF } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+// Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) states
+// the same facts and hashes to the same pins (#122).
+const norm = (raw) => toLF(raw);
+const read = (p, from = root) => norm(readFileSync(join(from, p), "utf8"));
+const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const has = (p) => existsSync(join(root, p));
+/** A CRLF copy of `p`, written to a temp root and read back by `read` – the reader every fact uses. */
+function readCrlfCopy(p) {
+  const dir = mkdtempSync(join(tempRoot(), "kit-facts-crlf-"));
+  try {
+    mkdirSync(dirname(join(dir, p)), { recursive: true });
+    writeFileSync(join(dir, p), crlf(readFileSync(join(root, p), "utf8")));
+    return read(p, dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const SKILL = "skills/xez-onboard-opinionated";
 const problems = [];
@@ -304,7 +323,8 @@ const fail = (fact, where, detail) =>
     const src = `skills/xez-setup-agent-pipeline/references/${name}`;
     if (!has(src)) { fail(fact, kit, `has no canonical sibling at ${src} -- a kit descriptor is a copy of the collection's, never an original`); continue; }
     if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
-    const digest = createHash("sha256").update(readFileSync(join(root, kit))).digest("hex");
+    // The digest of the file as LF text: on an LF checkout, its bytes (#122).
+    const digest = createHash("sha256").update(read(kit)).digest("hex");
     if (pinned[`kit/pipeline/${name}`] !== digest)
       fail(fact, lockPath, `pins ${pinned[`kit/pipeline/${name}`] ?? "nothing"} for kit/pipeline/${name}, and the file is ${digest} -- review the change, then update the pin`);
     if (!/^[0-9a-f]{64}$/.test(pinned[`kit/pipeline/${name}`] ?? ""))
@@ -312,6 +332,14 @@ const fail = (fact, where, detail) =>
   }
   for (const key of Object.keys(pinned)) {
     if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, and the kit ships no such descriptor`);
+  }
+  // #122 (Windows): a CRLF copy of a pinned descriptor, read by `read`, still matches its pin.
+  if (descriptors.length > 0) {
+    const name = descriptors[0];
+    const kit = `${SKILL}/kit/pipeline/${name}`;
+    const crlfDigest = createHash("sha256").update(readCrlfCopy(kit)).digest("hex");
+    if (pinned[`kit/pipeline/${name}`] !== crlfDigest)
+      fail(fact, lockPath, `a CRLF copy of kit/pipeline/${name} hashes to ${crlfDigest}, not its pin -- the digest must be taken over LF text`);
   }
   if (!/descriptor-digests\.json/.test(read(`${SKILL}/references/write.md`)))
     fail(fact, `${SKILL}/references/write.md`, "never tells the write step to record the installed descriptor digests");
@@ -471,10 +499,18 @@ function walk(rel, match) {
 {
   const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
   const LIMIT = 200;
-  const tpl = read(`${SKILL}/kit/leader-guide.template.md`)
-    .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
-    .replace(/^---\n+/m, "");                       // and the rule above the generated half
-  const fixed = tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  const fixedLines = (text) => {
+    const tpl = text
+      .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
+      .replace(/^---\n+/m, "");                       // and the rule above the generated half
+    return tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  };
+  const template = read(`${SKILL}/kit/leader-guide.template.md`);
+  const fixed = fixedLines(template);
+  // #122 (Windows): a CRLF copy of the template, read by `read`, counts the same fixed lines.
+  const crlfFixed = fixedLines(readCrlfCopy(`${SKILL}/kit/leader-guide.template.md`));
+  if (crlfFixed !== fixed)
+    fail(fact, "kit/leader-guide.template.md", `a CRLF copy counts ${crlfFixed} fixed lines, the LF file ${fixed}`);
   const write = read(`${SKILL}/references/write.md`);
   const budgets = [...write.matchAll(/^\s*\| `\{\{[A-Z_]+\}\}` \|.*\| ≤ (\d+) \|\s*$/gm)].map((m) => Number(m[1]));
   if (budgets.length !== 4)
@@ -872,8 +908,7 @@ function walk(rel, match) {
   const where = "kit/checks/leader-context.sh";
   const { execFileSync } = await import("node:child_process");
   const fs = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-  const lab = fs.mkdtempSync(join(tmpdir(), "kit-leader-context-"));
+  const lab = fs.mkdtempSync(join(tempRoot(), "kit-leader-context-"));
   try {
     // The loader names files by their physical path (`pwd -P`); macOS's temp folder is a symlink.
     const repo = join(fs.realpathSync(lab), "repo");
@@ -887,6 +922,10 @@ function walk(rel, match) {
     execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
     const timeline = join(camp, "timeline-2026-09-01.md");
     const decisions = join(camp, "decisions.md");
+    // #122 (Windows): the loader is a bash script and names files by their POSIX path there.
+    const shown = (p) => (process.platform === "win32"
+      ? execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-u", p], { encoding: "utf8" }).trim()
+      : p);
     // Multi-line entries, and a fenced block whose list-looking line belongs to the entry above it.
     const entries = (n) => "# Timeline\n\n" + Array.from({ length: n }, (_, i) =>
       `- 2026-09-01 10:${String(i).padStart(2, "0")} - event ${i + 1}\n  detail of event ${i + 1}\n` +
@@ -894,7 +933,7 @@ function walk(rel, match) {
     const load = (extra = {}) => {
       const env = { ...process.env, XEZAR_LEADER: "1", ...extra };
       for (const k of ["XEZ_HANDOFF_FILE", "XEZ_TODOS_FILE", "XEZ_TASK_ID", "XEZAR_TIMELINE_ENTRIES"]) if (!(k in extra)) delete env[k];
-      const out = execFileSync("bash", [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
+      const out = execFileSync(bashPath(), [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
       return JSON.parse(out).hookSpecificOutput.additionalContext;
     };
     const kept = (ctx) => [...ctx.matchAll(/^- 2026-09-01 \d\d:\d\d - event (\d+)$/gm)].map((m) => Number(m[1]));
@@ -908,7 +947,7 @@ function walk(rel, match) {
       fail(fact, where, `the timeline is not cut to its newest 40 entries: kept [${kept(ctx).join(", ")}]`);
     if (!ctx.includes("detail of event 45\n```text\n- not an entry\n```"))
       fail(fact, where, "a multi-line entry, or the fenced block inside it, was split by the entry cut");
-    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${timeline}: read it on demand.]`))
+    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${shown(timeline)}: read it on demand.]`))
       fail(fact, where, "no pointer line naming the full timeline file and the entries left out");
     if (/WARNING/.test(ctx)) fail(fact, where, "prints a WARNING although decisions.md is a normal file");
     if (!ctx.includes("- 2026-09-01 owner: keep going")) fail(fact, where, "decisions.md is no longer injected");
@@ -927,7 +966,7 @@ function walk(rel, match) {
     const warned = (label, reason) => {
       const text = load();
       const nonce = /--- ([0-9a-f]+): BEGIN UNTRUSTED CAMPAIGN RECORD ---/.exec(text)?.[1];
-      const line = `WARNING ${nonce}: ${decisions} ${reason},`;
+      const line = `WARNING ${nonce}: ${shown(decisions)} ${reason},`;
       const at = text.indexOf(line);
       if (!nonce || at < 0 || at > text.indexOf("=== .xezar/docs/leader-guide.md"))
         fail(fact, where, `no WARNING with the nonce, before the guide, for a ${label} decisions.md`);
@@ -992,7 +1031,6 @@ function walk(rel, match) {
   const fact = "FACT G1: project trust boundaries add to the kit's, from the base branch, and fail toward review";
   const { execFileSync } = await import("node:child_process");
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
   const { pathToFileURL } = await import("node:url");
   const SCAN = join(root, SKILL, "kit/checks/lib/security-scan.mjs");
   const scan = await import(pathToFileURL(SCAN).href);
@@ -1052,7 +1090,7 @@ function walk(rel, match) {
     fail(fact, where, "TRUST_BOUNDARIES still ships the engine repository's packages/xezar/src entries");
 
   // The real scan, over a real branch.
-  const lab = mkdtempSync(join(tmpdir(), "kit-trust-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-trust-"));
   const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   const put = (dir, file, text) => { mkdirSync(join(dir, dirname(file)), { recursive: true }); writeFileSync(join(dir, file), text); };
   const runScan = (work, config, changes, baseBranch = "main") => {
@@ -1141,8 +1179,7 @@ function walk(rel, match) {
   const where = "kit/checks/push-check.sh";
   const { execFileSync, spawnSync } = await import("node:child_process");
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, chmodSync, realpathSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-  const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-push-check-")));
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-push-check-")));
   const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   const exe = (p, body) => { writeFileSync(p, body); chmodSync(p, 0o755); };
   try {
@@ -1198,8 +1235,8 @@ function walk(rel, match) {
     const tip = () => git(bare, "rev-parse", "refs/heads/feature/fix");
     const push = (args, env = {}) => {
       const { XEZ_TASK_ID: _drop, ...base } = process.env;
-      const r = spawnSync("bash", [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
-        env: { ...base, PATH: `${bin}:${process.env.PATH}`, PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
+      const r = spawnSync(bashPath(), [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
+        env: { ...prependPath(base, [bin]), PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
       return { code: r.status, out: `${r.stdout}${r.stderr}` };
     };
     const refused = (what, args, tag, env = {}, over = {}) => {
@@ -1226,7 +1263,8 @@ function walk(rel, match) {
     pr();
     const ok = push(OK);
     if (ok.code !== 0 || tip() !== fixed) fail(fact, where, `does not push the sealed fast-forward to the PR head (exit ${ok.code}):\n    ${ok.out.trim().split("\n").slice(-3).join("\n    ")}`);
-    if (!readFileSync(ghLog, "utf8").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
+    // No log means the stub never ran: a failure to report, not a reason to crash before the rest (#122).
+    if (!(existsSync(ghLog) ? readFileSync(ghLog, "utf8") : "").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
     checked.push(fact);
   } finally {
     rmSync(lab, { recursive: true, force: true });
@@ -1298,8 +1336,7 @@ function walk(rel, match) {
   const probe = `${casesDir}/weakened-check`;
   if (has(`${probe}/expected.json`)) {
     const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const lab = mkdtempSync(join(tmpdir(), "kit-facts-evals-"));
+    const lab = mkdtempSync(join(tempRoot(), "kit-facts-evals-"));
     try {
       build(join(root, probe), lab);
       const graded = (runRecord) => {
@@ -1437,6 +1474,267 @@ function walk(rel, match) {
   checked.push(fact);
 }
 // 3.1.0-stream-OC:end
+
+// ---------------------------------------------------------------------------
+// #122 (Windows): FACT W – the kit under Git Bash.
+//
+// The kit's scripts run in Git Bash on Windows, where git prints `C:/…` paths and the MSYS
+// runtime rewrites an argument that looks like a POSIX path list before git.exe sees it. Each
+// rule is asserted on every OS: the Windows branch is taken by setting OSTYPE, so the Linux
+// nightly proves it too, and the non-Windows branch must stay exactly as it was.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT W: the kit's shell helpers read Git for Windows paths and refs";
+  const { spawnSync } = await import("node:child_process");
+  const where = "kit/checks/lib/common.sh";
+  const common = join(root, SKILL, where);
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS2_ARG_CONV_EXCL") delete env[key];
+  const paths = ["C:/x", "c:/x", "/x", "C:\\x", "C:x", "x"];
+  const script = [
+    'lib="$1"; shift',
+    'for os in msys linux-gnu; do ( OSTYPE=$os; . "$lib" || exit 99',
+    '  for p in "$@"; do if is_absolute_path "$p"; then printf "%s %s=0\\n" "$os" "$p"; else printf "%s %s=1\\n" "$os" "$p"; fi; done ); done',
+    '( OSTYPE=msys; . "$lib"; printf "unset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; MSYS2_ARG_CONV_EXCL=x/; . "$lib"; printf "preset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; . "$lib"; . "$lib"; printf "twice=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=linux-gnu; . "$lib"; printf "linux=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+  ].join("\n");
+  const run = spawnSync(bashPath(), ["-c", script, "fact-w", common, ...paths], { encoding: "utf8", env });
+  const seen = new Map(run.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const at = line.lastIndexOf("="); return [line.slice(0, at), line.slice(at + 1)]; }));
+  if (run.status !== 0) fail(fact, where, `could not be sourced in bash (exit ${run.status}): ${run.stderr.trim()}`);
+  else {
+    if (seen.get("msys C:/x") !== "0" || seen.get("msys c:/x") !== "0")
+      fail(fact, where, "`is_absolute_path` reads a Git for Windows path (C:/…) as relative under Git Bash, so a linked worktree cannot resolve its own checkout");
+    for (const [p, want] of [["/x", "0"], ["C:\\x", "1"], ["C:x", "1"], ["x", "1"]]) {
+      if (seen.get(`msys ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` under Git Bash says ${seen.get(`msys ${p}`)}, not ${want}`);
+      if (seen.get(`linux-gnu ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` outside Git Bash says ${seen.get(`linux-gnu ${p}`)}, not ${want}`);
+    }
+    if (seen.get("linux-gnu C:/x") !== "1" || seen.get("linux-gnu c:/x") !== "1")
+      fail(fact, where, "`is_absolute_path` reads C:/… as absolute outside Git Bash, where it is a relative path (and fixture_scratch_remove deletes by it)");
+    const excl = { unset: "origin/;refs/", preset: "origin/;refs/;x/", twice: "origin/;refs/", linux: "<unset>" };
+    const wrong = Object.entries(excl).filter(([k, v]) => seen.get(k) !== v);
+    if (wrong.length)
+      fail(fact, where, `lets Git Bash rewrite origin/<base>:<file> arguments: MSYS2_ARG_CONV_EXCL is ${wrong.map(([k]) => `${k}=${JSON.stringify(seen.get(k))} (want ${JSON.stringify(excl[k])})`).join(", ")}`);
+  }
+  checked.push(fact);
+}
+
+// FACT W, the Windows process layer's rules (kit/checks/lib/windows-process.mjs), as pure functions
+// on recorded tables: they run on every OS, so a rule broken on Linux is caught on Linux.
+{
+  const fact = "FACT W: the Windows gate stop picks a gate's processes by identity, never a stranger";
+  const where = "kit/checks/lib/windows-process.mjs";
+  const { pathToFileURL } = await import("node:url");
+  const wp = await import(pathToFileURL(join(root, SKILL, where)).href);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Git's ps, as this machine printed it (spike S-4), plus a status letter and a torn row.
+  const psSample = [
+    "      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND",
+    "   230432       1  230432       4844  ?         197609 09:04:07 /usr/bin/bash",
+    "   230436  230432  230432      20500  ?         197609 09:04:07 /usr/bin/sleep",
+    "S  230440  230432  230432      20600  ?         197609 09:04:08 /usr/bin/cat",
+    "   230435  230432  230432      19464  ?         197609 09:04:07 /c/Users/u/AppData/Local/Author Software/nvm/.nodejs/node",
+    "   2304",
+  ].join("\r\n");
+  const msysRows = wp.parseMsysTable(psSample);
+  if (!same(msysRows, [
+    { pid: 230432, ppid: 1, pgid: 230432, winpid: 4844 }, { pid: 230436, ppid: 230432, pgid: 230432, winpid: 20500 },
+    { pid: 230440, ppid: 230432, pgid: 230432, winpid: 20600 }, { pid: 230435, ppid: 230432, pgid: 230432, winpid: 19464 },
+  ])) fail(fact, where, `parseMsysTable reads Git's ps output wrong: ${JSON.stringify(msysRows)}`);
+  const winSample = "4844 2776 134351390478236880\r\n19464 5428 134351390479200810\n5428 2184 -\n12 34\n7 8 9 10\n";
+  const winRows = wp.parseWindowsTable(winSample);
+  if (!same(winRows, [{ pid: 4844, ppid: 2776, startedAt: 1790665447823 }, { pid: 19464, ppid: 5428, startedAt: 1790665447920 }, { pid: 5428, ppid: 2184 }]))
+    fail(fact, where, `parseWindowsTable reads the process table wrong: ${JSON.stringify(winRows)}`);
+  const script = wp.killScript([
+    { pid: 100, startedAt: 1790665447823 }, { pid: 3, startedAt: 5 }, { pid: 7.5, startedAt: 5 }, { pid: 101, startedAt: -1 },
+    { pid: 100, startedAt: 1 }, { pid: "102; Remove-Item C:\\", startedAt: 5 }, { pid: process.pid, startedAt: 5 },
+  ]);
+  if (script.split("\n")[1] !== "$t = @(100,1790665447823)" || /Remove-Item/.test(script))
+    fail(fact, where, `killScript embeds something other than validated integers: ${script.split("\n")[1]}`);
+  const outcomes = wp.parseKillOutcomes("100 killed\r\n101 denied\n999 killed\nnoise\n", new Set([100, 101]));
+  if (!same([...outcomes], [[100, "killed"], [101, "denied"]])) fail(fact, where, `parseKillOutcomes reads the kill script's answer wrong: ${JSON.stringify([...outcomes])}`);
+  // The workers' env: noglob for the MSYS runtime, and no program name taken from the working folder.
+  const gitDir = "C:\\Program Files\\Git";
+  const known = new Set([`${gitDir}\\cmd\\git.exe`, `${gitDir}\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\ps.exe`,
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"].map((p) => p.toLowerCase()));
+  const prepared = wp.prepare({ PATH: `${gitDir}\\cmd`, SystemRoot: "C:\\Windows", nodefaultcurrentdirectoryinexepath: "0", MSYS: "winsymlinks:lnk" }, { exists: (p) => known.has(p.toLowerCase()) });
+  const exeKeys = Object.keys(prepared.env ?? {}).filter((k) => k.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH");
+  if (!prepared.ok || prepared.env.MSYS !== "winsymlinks:lnk noglob" || exeKeys.length !== 1 || prepared.env[exeKeys[0]] !== "1")
+    fail(fact, where, `the gate workers' env lets a bare program name resolve from the working folder, or lacks MSYS noglob: ${JSON.stringify(prepared)}`);
+
+  // The start-time window. The worker is Windows pid 5000; it was spawned at T and stopped at T+10 s.
+  const T = 1_790_000_000_000;
+  const targetsOf = (args) => wp.treeTargets({ selfPid: 1, ...args }).map((t) => t.pid).sort((a, b) => a - b);
+  const windowed = targetsOf({
+    root: { winpid: 5000, msysPid: null, spawnedAt: T, stoppedAt: T + 10_000 },
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 6000, ppid: 5000, startedAt: T + 20_000 }, // a stranger whose parent pid is the worker's, reused
+      { pid: 6100, ppid: 5000, startedAt: T + 100 },
+      { pid: 6200, ppid: 6100, startedAt: T + 50 }, // older than its parent: not its child
+      { pid: 6300, ppid: 6100, startedAt: T + 200 },
+    ],
+  });
+  if (windowed.includes(6000)) fail(fact, where, "a process that reused the pid of a gate's child was chosen for a kill (created after the stop, its parent pid names the worker)");
+  if (windowed.includes(6200)) fail(fact, where, "a process created before its parent was chosen for a kill");
+  if (!windowed.includes(6100) || !windowed.includes(6300)) fail(fact, where, `the worker's own child and grandchild were not both chosen: ${JSON.stringify(windowed)}`);
+  // The MSYS layer (spike S-1): after an exec the gate's process has no living Windows parent, and
+  // its MSYS parent may be gone too; only the worker's MSYS process group still names it.
+  const grouped = targetsOf({
+    root: { winpid: 5000, msysPid: 700, spawnedAt: T, stoppedAt: T + 10_000 },
+    msysRows: [{ pid: 700, ppid: 1, pgid: 700, winpid: 5000 }, { pid: 710, ppid: 1, pgid: 700, winpid: 7100 }, { pid: 800, ppid: 1, pgid: 800, winpid: 8000 }],
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 7100, ppid: 9999, startedAt: T + 300 },
+      { pid: 7200, ppid: 7100, startedAt: T + 400 },
+      { pid: 8000, ppid: 1, startedAt: T + 100 },
+    ],
+  });
+  if (!grouped.includes(7100) || !grouped.includes(7200))
+    fail(fact, where, `a gate process whose parent already exited (MSYS exec) was not chosen, nor its native child: ${JSON.stringify(grouped)}`);
+  if (grouped.includes(5000) || grouped.includes(8000)) fail(fact, where, `the worker itself or another MSYS group was chosen: ${JSON.stringify(grouped)}`);
+
+  // One stop round, with the three programs answered from here (no process is touched).
+  const tools = { ps: "ps.exe", powershell: "powershell.exe" };
+  const psLive = "      PID    PPID    PGID     WINPID\n   700       1     700    5000\n   710       1     700    7100\n";
+  const fileTime = (ms) => BigInt(ms) * 10000n + 116444736000000000n;
+  const table = `5000 1 ${fileTime(T)}\n7100 9999 ${fileTime(T + 300)}\n`;
+  const noMembers = "      PID    PPID    PGID     WINPID\n";
+  // `tableAnswer` stands in for the Windows table (null: PowerShell could not read it).
+  const round = async (ps, killAnswer, { msysPid = 700, tableAnswer = table, ...options } = {}) => {
+    const calls = [];
+    const run = async (file, args) => {
+      calls.push(file);
+      if (file === "ps.exe") return ps;
+      const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
+      return decoded.includes("Get-CimInstance") ? tableAnswer : killAnswer(decoded);
+    };
+    const result = await wp.stopTree({ winpid: 5000, msysPid, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
+    return { result, calls };
+  };
+  const nothingLeft = await round(noMembers, () => "", { killRoot: false });
+  if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
+  // Without the worker's MSYS pid no member can be found in ps, so an empty group proves nothing:
+  // the Windows table must still be read, and the worker's native child killed.
+  const childTable = `5000 1 ${fileTime(T)}\n7100 5000 ${fileTime(T + 300)}\n`;
+  const noMsysPid = await round(noMembers, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false, msysPid: null, tableAnswer: childTable });
+  if (!noMsysPid.result.ok || noMsysPid.result.killed !== 1 || noMsysPid.calls.length !== 3)
+    fail(fact, where, `a reap whose worker left no MSYS pid took an empty ps for "nothing left" and never read the Windows table: ${JSON.stringify(noMsysPid)}`);
+  const killed = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false });
+  if (!killed.result.ok || killed.result.killed !== 1) fail(fact, where, `a stop round did not kill the worker's process by identity: ${JSON.stringify(killed.result)}`);
+  const denied = await round(psLive, () => "7100 denied\n", { killRoot: true });
+  if (denied.result.ok) fail(fact, where, "a stop round that could not kill a process reported success");
+  const noPs = await round(null, () => "7100 killed\n", { killRoot: true });
+  if (noPs.result.ok) fail(fact, where, "a stop round that could not read Git's ps reported success");
+  const noTable = await round(psLive, () => "7100 killed\n", { killRoot: true, tableAnswer: null });
+  if (noTable.result.ok || noTable.result.reason !== "the Windows process table could not be read" || noTable.calls.length !== 2)
+    fail(fact, where, `a stop round that could not read the Windows process table reported ${JSON.stringify(noTable)}`);
+  const noKill = await round(psLive, () => null, { killRoot: true });
+  if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
+    fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
+  checked.push(fact);
+}
+
+// FACT W, the scheduler itself (kit/checks/lib/gate-parallel.mjs), with real processes on every OS:
+// a gate leaves a node behind that has a native child of its own; a gate is stopped mid-run; and a
+// process the gate never started survives both.
+{
+  const fact = "FACT W: the gate scheduler stops and reaps exactly the processes its gates started";
+  const where = "kit/checks/lib/gate-parallel.mjs";
+  const { spawn } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const scheduler = join(root, SKILL, where);
+  const lab = mkdtempSync(join(tempRoot(), "kit-gates-"));
+  const recorded = []; // the gates' processes, by the pids they wrote
+  const children = [];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // What the last check of each pid found. A pid once seen gone is never signalled again: by the
+  // cleanup it may name an unrelated process (Windows reuses pids quickly).
+  const lastSeen = new Map();
+  const alive = (pid) => {
+    let running;
+    try { process.kill(pid, 0); running = true; } catch (error) { running = error.code === "EPERM"; }
+    lastSeen.set(pid, running);
+    return running;
+  };
+  const until = async (condition, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) if (condition()) return true;
+    return condition();
+  };
+  // The library the scheduler sources: gate_run runs the command and records its result.
+  const library = join(lab, "gate-lib.sh");
+  writeFileSync(library, 'gate_run() { shift; "$@"; local rc=$?; printf \'{"status":"%s","exitCode":%d}\' "$([ "$rc" -eq 0 ] && echo passed || echo failed)" "$rc" > "$GATE_WORKER_RESULT"; return "$rc"; }\n');
+  const holder = join(lab, "holder.cjs");
+  writeFileSync(holder, [
+    'const { spawn } = require("child_process"); const fs = require("fs"); const path = require("path");',
+    "const [dir, role] = process.argv.slice(2);",
+    'if (role === "parent") spawn(process.execPath, [__filename, dir, "child"], { stdio: "ignore" });',
+    "fs.writeFileSync(path.join(dir, `${role}.pid`), String(process.pid));",
+    "setInterval(() => {}, 1e9);",
+  ].join("\n"));
+  const start = (name, command) => {
+    const dir = join(lab, name);
+    mkdirSync(dir);
+    const attempt = join(dir, "attempt");
+    const child = spawn(process.execPath, [scheduler, library, "serial", JSON.stringify([{ index: 1, name, command }])], {
+      env: { ...process.env, GATE_ATTEMPT_DIR: attempt, G_DIR: dir, G_HOLDER: holder, G_NODE: process.execPath },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    children.push(child);
+    let err = "";
+    child.stderr.on("data", (chunk) => { err += chunk; });
+    const closed = new Promise((resolve) => child.on("close", (code) => resolve(code)));
+    return { child, dir, attempt, closed, err: () => err.trim() };
+  };
+  const pidsIn = (dir) => ["parent", "child"].map((role) => {
+    const file = join(dir, `${role}.pid`);
+    return existsSync(file) ? Number(readFileSync(file, "utf8")) : null;
+  });
+  const holderRuns = '"$G_NODE" "$G_HOLDER" "$G_DIR" parent';
+  const bothStarted = 'i=0; while [ ! -s "$G_DIR/parent.pid" ] || [ ! -s "$G_DIR/child.pid" ]; do i=$((i+1)); [ "$i" -gt 300 ] && exit 3; sleep 0.1; done';
+  const stranger = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
+  let strangerExited = false; // this test's own child: once killed, a zombie would still answer kill(pid, 0)
+  stranger.on("exit", () => { strangerExited = true; });
+  try {
+    // G1: the gate starts node in the background, waits for it and its child, and exits 0.
+    const reaped = start("reap", `${holderRuns} & ${bothStarted}; exit 0`);
+    const reapCode = await Promise.race([reaped.closed, sleep(60_000).then(() => "no exit within 60 s")]);
+    const left = pidsIn(reaped.dir);
+    recorded.push(...left.filter(Boolean));
+    if (reapCode !== 0 || left.includes(null)) fail(fact, where, `the reap case did not run (scheduler: ${reapCode}; pids ${JSON.stringify(left)}): ${reaped.err()}`);
+    else if (!(await until(() => !left.some(alive), 10_000))) fail(fact, where, `the gate scheduler left a finished gate's processes running (${left.filter(alive).join(", ")})`);
+    // G2: the gate runs node in the foreground; the run is interrupted once node and its child run.
+    const stoppedRun = start("stop", holderRuns);
+    const running = await until(() => !pidsIn(stoppedRun.dir).includes(null), 30_000);
+    const stopping = pidsIn(stoppedRun.dir);
+    recorded.push(...stopping.filter(Boolean));
+    if (!running) fail(fact, where, `the stop case's gate did not start its processes: ${stoppedRun.err()}`);
+    else {
+      // POSIX: a TERM, as repo-gates.sh sends it. Windows: the stop file repo-gates.sh writes there.
+      if (process.platform === "win32") writeFileSync(join(stoppedRun.attempt, "workers", "stop"), "");
+      else stoppedRun.child.kill("SIGTERM");
+      const stopCode = await Promise.race([stoppedRun.closed, sleep(20_000).then(() => "no exit within 20 s")]);
+      const gone = await until(() => !stopping.some(alive), 10_000);
+      if (stopCode !== 130 || !gone)
+        fail(fact, where, `the gate scheduler did not stop its gates on an interrupt (scheduler: ${stopCode}; still running: ${stopping.filter(alive).join(", ") || "none"})`);
+    }
+    // G4: a process the gates never started is still running after both.
+    await sleep(200);
+    if (strangerExited || !alive(stranger.pid)) fail(fact, where, "the gate scheduler stopped a process the gate did not start");
+  } finally {
+    // A gate process only while its last check, this one included, finds it running; the test's own
+    // children through their handles, which know when their process has exited.
+    for (const pid of recorded) {
+      if (lastSeen.get(pid) === false || !alive(pid)) continue;
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+    for (const child of [stranger, ...children]) { try { child.kill("SIGKILL"); } catch { /* already gone */ } }
+    await sleep(500);
+    rmSync(lab, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+  checked.push(fact);
+}
 
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);

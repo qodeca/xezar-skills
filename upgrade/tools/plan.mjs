@@ -52,10 +52,10 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { git, gitBlobSha, sha256 } from "./lib/hash.mjs";
+import { git, gitBlobSha, lfText, sha256 } from "./lib/hash.mjs";
 import { SKILL_DIR } from "./lib/kit-index.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
-import { detect } from "./detect.mjs";
+import { detect, recordedAsMine } from "./detect.mjs";
 import { render, placeholdersIn } from "./lib/rewrites.mjs";
 import {
   OWNER_SHAPED,
@@ -107,7 +107,7 @@ export function templateChanged(ctx, template) {
   const v = ctx.history.find((x) => x.version === ctx.manifest.version);
   let target;
   try {
-    target = gitBlobSha(readFileSync(join(ctx.kitSkillDir, "kit", template)));
+    target = gitBlobSha(lfText(readFileSync(join(ctx.kitSkillDir, "kit", template))));
   } catch {
     return null;
   }
@@ -148,7 +148,9 @@ export function upgradeEntries(toolRoot, projectVersion) {
   // depends on which commit was tagged.
   const sources = [];
   const notes = join(toolRoot, "UPGRADE_NOTES.md");
-  if (existsSync(notes)) sources.push(["UPGRADE_NOTES.md", readFileSync(notes, "utf8")]);
+  // As LF text (contract §1 → Digests): the machine-block parser splits on "\n", and a clone
+  // checked out with CRLF must find the same entries (#122).
+  if (existsSync(notes)) sources.push(["UPGRADE_NOTES.md", lfText(readFileSync(notes)).toString("utf8")]);
   const entries = [];
   const errors = [];
   for (const [source, text] of sources) {
@@ -182,7 +184,7 @@ export function unblockedEntries(toolRoot, projectVersion, projectDate) {
   if (!existsSync(notes)) return { entries: [], errors: [] };
   const errors = [];
   const entries = [];
-  for (const u of parseEntries(readFileSync(notes, "utf8"), "UPGRADE_NOTES.md")) {
+  for (const u of parseEntries(lfText(readFileSync(notes)).toString("utf8"), "UPGRADE_NOTES.md")) {
     if (u.hasBlock) continue;
     let inRange = true;
     try {
@@ -632,17 +634,19 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     const baseText = f.base.text ?? ctx.blobs.get(be.kitBlob);
     const baseR = baseText != null ? render(baseText, inputs) : null;
     const hint = ctx.manifest.hints.get(p);
+    // The manifest's digest, over LF text or, from an install before 3.1.0 on CRLF, raw bytes.
+    const recordedMine = recordedAsMine(hint?.sha256, { text: mine, rawSha256: f.mineRawSha256 });
     const mineEqBase =
       mineSha === be.sha256 ||
       (baseR !== null && baseR.missing.length === 0 && baseR.text === mine) ||
-      (be.rewrite === "adapted" && f.base.via === "manifest-sha256-rendered" && hint?.sha256 === mineSha);
+      (be.rewrite === "adapted" && f.base.via === "manifest-sha256-rendered" && recordedMine);
     const baseEqTheirs = be.kitBlob === te.kitBlob;
     const removed = isCheckLike(p) ? removedSafetyLines(baseText, mine) : [];
 
     // A file the project changed since install (the manifest says so, or the register lists
     // it) that now equals the target is "already upstream", even when its content also
     // matches the newest kit version: the local patch is what became obsolete.
-    const changedSinceInstall = reg.length > 0 || (hint?.sha256 && hint.sha256 !== mineSha);
+    const changedSinceInstall = reg.length > 0 || (hint?.sha256 && !recordedMine);
     if (baseEqTheirs && mineEqBase && !(mineEqTheirs && changedSinceInstall)) {
       item.class = "unchanged-upstream";
     } else if (mineEqTheirs) {

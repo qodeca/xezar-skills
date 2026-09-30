@@ -557,7 +557,8 @@ to carry — do not invent one, and do not tell the owner to run one.
     an install that names neither stopped in §0 (how to read it is there). The `kitBlob` values below still identify the kit
     exactly. `date` and `descriptors` as above.
   - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
-    file's bytes and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
+    file (the upgrade contract's digest rule: a text file's CRLF line endings are read as LF,
+    which on an LF checkout is the file's bytes) and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
     file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`, and
     any file whose absolute path was rewritten. `generated` — written for this project with no
     kit source file: the tracker descriptor and `.xezar/docs/leader-guide.md` (built from

@@ -1,6 +1,8 @@
 # The guard suite (scripts/test-guards.mjs) breaks every gate on purpose to prove it still
-# fires. It takes about twenty-five minutes, so it runs here once a night instead of on every
-# PR (owner decision 2026-09-27; see DECISIONS.md -> "The guard suite runs nightly").
+# fires. It takes about seventy minutes on GitHub's Linux runner, so it runs here once a night
+# instead of on every PR (owner decision 2026-09-27; see DECISIONS.md -> "The guard suite runs
+# nightly"). A second job runs the same suite on native Windows (#122); it is informational and
+# never opens the issue.
 #
 # When this starts firing: GitHub runs scheduled workflows only from the repository's
 # default branch (main). This file reaches main with the 3.1.0 release; until then the
@@ -24,9 +26,9 @@ concurrency:
 jobs:
   guards:
     runs-on: ubuntu-latest
-    # The suite takes about twenty-five minutes and grows with every guard; a run still going
-    # after forty-five is hung, not slow.
-    timeout-minutes: 45
+    # The suite took 70 minutes here on 2026-09-29 (309 breaks) and grows with every guard; #123
+    # is to make it faster. A run still going after 120 minutes is hung, not slow.
+    timeout-minutes: 120
     outputs:
       sha: ${{ steps.head.outputs.sha }}
     steps:
@@ -42,6 +44,31 @@ jobs:
       - id: head
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Guard suite (every gate broken on purpose)
+        run: node scripts/test-guards.mjs
+
+  # The same suite on native Windows (#122), informational: it never fails the run and never
+  # opens the failure issue (`report` needs only `guards`). It is known not to finish: a local
+  # Windows run projected about eleven hours, and GitHub stops a hosted job at six. The owner kept
+  # it on (2026-09-29) until the suite gets faster (#123); until then it stops at 240 minutes.
+  guards-windows:
+    runs-on: windows-latest
+    timeout-minutes: 240
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Allow long paths in Git
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: develop
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - run: jq --version
       - name: Guard suite (every gate broken on purpose)
         run: node scripts/test-guards.mjs
 

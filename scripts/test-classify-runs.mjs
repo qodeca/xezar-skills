@@ -10,12 +10,16 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { shPath } from "./lib/platform.mjs";
+import { prepareTestPlatform } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const script = join(root, "skills/xez-pipeline-retro/references/classify-runs.sh");
 
 const classify = (prs, args = []) => {
-  const out = execFileSync("sh", [script, ...args], {
+  const out = execFileSync(shPath(), [script, ...args], {
     input: JSON.stringify(prs),
     encoding: "utf8",
   });
@@ -24,7 +28,7 @@ const classify = (prs, args = []) => {
 
 const failsWith = (input, args = []) => {
   try {
-    execFileSync("sh", [script, ...args], { input, encoding: "utf8", stdio: "pipe" });
+    execFileSync(shPath(), [script, ...args], { input, encoding: "utf8", stdio: "pipe" });
   } catch (error) {
     return error.status;
   }

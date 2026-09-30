@@ -29,7 +29,7 @@ Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. T
 the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
-are the same changes for a hand upgrade, which ends – after the last entry, 13 – with the verifier
+are the same changes for a hand upgrade, which ends – after the last entry, 14 – with the verifier
 writing the new manifest (described in entry 10): **one ordered block – apply them top to bottom, in the
 order below**. Skip an entry only when your repository does not have its symptom **and** no entry
 you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
@@ -45,10 +45,11 @@ refused after entry 9; re-dispatch it.
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
 changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing →
-single-root freshness → leader launcher. Entries 3 and 11 change the same routing files: copy
-`.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once against the defaults
-version 4, which carries both changes. Entries 5, 6 and 12 copy the same `deps.mjs`, and
-entries 6 and 12 the same `worktrees.md`: copy each once.
+single-root freshness → leader launcher → native Windows. Entries 3 and 11 change the same
+routing files: copy `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once
+against the defaults version 4, which carries both changes. Entries 5, 6 and 12 copy the same
+`deps.mjs`, entries 6 and 12 the same `worktrees.md`, and entries 13 and 14 the same
+`scripts/xezar-leader.sh`: copy each once.
 
 **Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
 older file:
@@ -71,6 +72,7 @@ older file:
   and the 3.1.0 `lib/deps.mjs` it calls (`deps.mjs single-contents`), so it stands alone there.
 - Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
   only entry 10 installs that file.
+- Entry 14 needs entry 12: its common.sh carries entry 12's re-stamp and calls the 3.1.0 deps.mjs.
 
 **After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
 and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists its
@@ -393,7 +395,7 @@ cp $K/checks/local-tree.sh .xezar/checks/
 ```
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
-prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (13), with the verifier from a
+prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (14), with the verifier from a
 verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry
@@ -522,6 +524,44 @@ Otherwise the leader starts only by hand
 ```upgrade
 Applies-to: <3.1.0
 Files: scripts/xezar-leader.sh
+```
+
+### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", a worktree check "cannot resolve this checkout", or the leader launcher finds no engine
+
+Applies to a repository onboarded by `xez-onboard-opinionated` whose gates, kit checks or leader
+launcher run in Git Bash on Windows. Linux and macOS behave exactly as before. The upgrade tool
+applies it everywhere; on Linux and macOS it changes nothing you'll notice.
+
+**Symptom.** `gate process-group supervision requires a POSIX host`; `cannot resolve this
+checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`;
+`./scripts/xezar-leader.sh` says `the engine is not running here` while an engine runs on
+native Windows, where it listens on a named pipe instead of a socket.
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/gate-parallel.mjs $K/checks/lib/windows-process.mjs $K/checks/lib/common.sh .xezar/checks/lib/
+cp $K/scripts/xezar-leader.sh scripts/
+```
+
+Then copy `.xezar/checks/repo-gates.sh` the way entry 12 says: keep your three gate assignments.
+Under Git Bash a stop now reaches the gates through a file the scheduler watches, because a TERM
+from bash never reaches it there. The gate scheduler on Windows needs the full Git for Windows
+install (its `ps.exe`), not MinGit. The launcher now also takes a live pipe the engine names in
+`.local/xezar/ipc/<id>.pipe`; that marker is the engine's draft Windows contract, so a later
+engine may need a later launcher. On Linux and macOS it finds the socket exactly as before. A Node
+pinned by `.nvmrc` now goes on Git Bash's `PATH` in bash's own path form, so it is found from any
+drive.
+
+**What you lose by skipping it.** Nothing on Linux or macOS; on native Windows the gates cannot run,
+and the launcher does not find an engine that listens on a pipe.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh; scripts/xezar-leader.sh
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed

@@ -39,7 +39,10 @@
 # Refused as <program>: git and gh (their writing subcommands are exactly what a reviewer may not
 # run – read through git-read.sh and gh pr view/diff instead), sudo/su, and every shell or wrapper
 # that would run another program unseen (bash, sh, zsh, dash, env, eval, exec, xargs, nohup,
-# command, timeout, nice). Never the project's main checkout: this script refuses to run there.
+# command, timeout, nice, and the Windows shells and launchers cmd, powershell, pwsh, wsl, winpty,
+# git-bash, start, mintty, git-cmd, refused on every OS) – any case, either path separator, with or
+# without .exe/.cmd/.bat/.com; a short 8.3 name is refused. Never
+# the project's main checkout: this script refuses to run there.
 #
 # The name list is a courtesy, not the boundary: `node -e`, `python3 -c`, `make`, a test suite or
 # an npm lifecycle script can start git or gh all the same. So what `install`, `run` and `start`
@@ -92,12 +95,19 @@ state="$evidence/review"
 mkdir -p "$state" || refuse "cannot create $state"
 cd "$TASK_CWD" || exit 1
 
-REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice"
+REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice cmd powershell pwsh wsl winpty git-bash start mintty git-cmd"
 
 check_program() {
   local program="${1:-}" base
   [ -n "$program" ] || usage
-  base="${program##*/}"
+  # One spelling per program on every OS: a backslash is a path separator (Windows), case is
+  # folded (Windows and a case-insensitive macOS volume), and a Windows program extension is
+  # dropped, so `C:\...\BASH.EXE` is `bash`. `\134` is the backslash, in octal (#122).
+  base="$(printf '%s' "$program" | LC_ALL=C tr '\134A-Z' '/a-z')"
+  base="${base##*/}"
+  case "$base" in *.exe | *.cmd | *.bat | *.com) base="${base%.*}" ;; esac
+  [ -n "$base" ] || refuse "\"$program\" names no program"
+  case "$base" in *~[0-9]*) refuse "\"$program\" is a short (8.3) name; name the program in full" ;; esac
   case " $REFUSED_PROGRAMS " in *" $base "*) refuse "\"$base\" is not a command a review step runs (see the header of review-run.sh)" ;; esac
 }
 

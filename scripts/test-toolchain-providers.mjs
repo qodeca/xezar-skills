@@ -14,12 +14,18 @@
 //
 // Run: node scripts/test-toolchain-providers.mjs
 
-import { readFileSync, existsSync, globSync } from "node:fs";
+import { readFileSync, existsSync, globSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { toLF, toPosixPath } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+// Descriptors are read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) parses
+// the same (#122); glob results are written with "/", the form the parity matrix names them in.
+// `from` is for the CRLF cases at the end, which read CRLF copies through this same reader.
+const norm = (raw) => toLF(raw);
+const read = (p, from = root) => norm(readFileSync(join(from, p), "utf8"));
 const refs = "skills/xez-setup-agent-pipeline/references";
 
 let failures = 0;
@@ -61,9 +67,11 @@ expect(
 );
 
 const toolchains = globSync(`${refs}/toolchains/*.md`, { cwd: root })
+  .map((f) => toPosixPath(f))
   .filter((f) => !f.endsWith("TEMPLATE.md"))
   .sort();
 const security = globSync(`${refs}/security/*.md`, { cwd: root })
+  .map((f) => toPosixPath(f))
   .filter((f) => !f.endsWith("TEMPLATE.md"))
   .sort();
 
@@ -470,6 +478,34 @@ for (const file of toolchains) {
     unknown.units[0].blocker === "pnpm" && !unknown.units[0].restore, JSON.stringify(unknown.units));
   expect("xezar-dependency-maintenance says a missing descriptor is a blocker to name",
     /no installed descriptor is a blocker to name/.test(depsBody));
+}
+
+// #122 (Windows): a CRLF copy, written to disk and read by `read`, parses exactly as the LF file does.
+{
+  const crlfRoot = mkdtempSync(join(tmpdir(), "toolchain-providers-crlf-"));
+  const readCrlfCopy = (rel) => {
+    mkdirSync(dirname(join(crlfRoot, rel)), { recursive: true });
+    writeFileSync(join(crlfRoot, rel), readFileSync(join(root, rel), "utf8").replace(/\r?\n/g, "\r\n"));
+    return read(rel, crlfRoot);
+  };
+  try {
+    const kitRole = "skills/xez-onboard-opinionated/kit/skills/xezar-dependency-maintenance.md";
+    const lf = read(kitRole);
+    expect(
+      "a CRLF copy of a kit role skill splits at its Shared contract heading exactly as the LF file does",
+      JSON.stringify(readCrlfCopy(kitRole).split(/^## Shared contract$/m)) === JSON.stringify(lf.split(/^## Shared contract$/m)),
+    );
+    // The dotnet cell, whose pattern spans a line break (npm's cell of the same capability does not).
+    const lockCell = MATRIX.find((c) => c.capability === "reports how far an update spread" && c.provider.endsWith("/dotnet.md"));
+    const lfMatches = lockCell.expect.test(read(lockCell.provider));
+    expect(
+      "a CRLF copy of the dotnet descriptor still satisfies its multi-line parity cell",
+      lfMatches && lockCell.expect.test(readCrlfCopy(lockCell.provider)) === lfMatches,
+      `looked for ${lockCell.expect}`,
+    );
+  } finally {
+    rmSync(crlfRoot, { recursive: true, force: true });
+  }
 }
 
 if (failures) {

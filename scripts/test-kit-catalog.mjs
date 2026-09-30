@@ -28,16 +28,20 @@
 //   9. the documented-output check, RUN on the kit staged as a project, outside a leader session –
 //      which is how every gate runs it;
 //  10. the leader launcher, RUN with `claude` stubbed: it takes the socket the engine names by
-//      project id, and stops with its message when there is none.
+//      project id, and stops with its message when there is none; on native Windows it takes a
+//      live pipe an engine marker names, and skips a stale marker or one naming another pipe.
 //
 // Run: node scripts/test-kit-catalog.mjs
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { bashPath, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, restrict, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = "skills/xez-onboard-opinionated";
@@ -53,7 +57,7 @@ const fail = (message) => {
 // --- 1. The kit's own validator, on the kit ---------------------------------------------------
 // Staged as `<tmp>/.xezar/{workflows,skills,checks}` because that is the only layout the
 // validator reads. The config is the smallest one it accepts.
-const stage = mkdtempSync(join(tmpdir(), "kit-catalog-"));
+const stage = mkdtempSync(join(tempRoot(), "kit-catalog-"));
 try {
   mkdirSync(join(stage, ".xezar"));
   for (const dir of ["workflows", "skills", "checks"]) {
@@ -86,6 +90,22 @@ try {
     }
     if (!/runs a reading step's command outside its sandbox/.test(out)) fail(`catalog-check accepts a Codex prefix_rule with ${label}, which runs a reading step's command outside its sandbox`);
   }
+  // #122 (Windows): the same kit checked out with CRLF line endings (core.autocrlf) passes too.
+  // Every text file the validator parses is rewritten with CRLF in the stage, never in the kit.
+  writeFileSync(codexRule, '# reading only\nprefix_rule(pattern=["git", "push"], decision="forbidden")\n');
+  const toCrlf = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) toCrlf(path);
+      else if (entry.isFile() && /\.(md|yaml|rules)$/.test(entry.name)) writeFileSync(path, readFileSync(path, "utf8").replace(/\r?\n/g, "\r\n"));
+    }
+  };
+  toCrlf(stage);
+  try {
+    execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    fail(`the kit's catalog-check refuses the kit checked out with CRLF line endings:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+  }
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
@@ -104,7 +124,7 @@ try {
     if (/printf '%s'/.test(text)) fail(`kit/${rel} teaches printf, which no reading step's allowlist holds; build the text with jq -n`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-writers-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-writers-"));
   try {
     const repo = join(lab, "repo");
     mkdirSync(join(repo, ".xezar"), { recursive: true });
@@ -116,10 +136,10 @@ try {
     const log = join(lab, "gh.log");
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\nprintf 'ARGS %s\\n' "$*" >>"${log}"\ncase " $* " in *" --body-file - "*) { printf 'BODY '; cat; echo; } >>"${log}" ;; esac\nexit 0\n`);
     chmodSync(join(bin, "gh"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
     const pipe = (script, request, extra = {}) => {
       try {
-        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
+        execFileSync(bashPath(), [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
         return 0;
       } catch (error) {
         return error.status;
@@ -236,7 +256,7 @@ for (const name of routed) {
   }
 
   // --rows is the classification view: it must carry no lane and no login.
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-"));
   try {
     const out = execFileSync("node", [ROUTE, "--file", join(KIT, "routing.json"), "--rows"], { cwd: lab, encoding: "utf8", stdio: "pipe" });
     for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
@@ -369,7 +389,7 @@ for (const name of routed) {
 // A script that asks "am I the main module" by comparing an unresolved path does nothing at all,
 // and exits 0, when `.xezar/checks` is a link -- which reads as a pass.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-main-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-main-"));
   try {
     const real = join(lab, "with space", "checks");
     mkdirSync(join(lab, "with space"), { recursive: true });
@@ -531,7 +551,7 @@ for (const name of workflowFiles) {
 // Every case names the distinctive words of the refusal, not just its exit status: a guard that
 // fails for another reason is not the guard working.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-guards-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-guards-"));
   const work = join(lab, "work");
   const TASK = "fixture-task-1";
   const evidence = join(work, ".local/xezar/tasks", TASK);
@@ -548,7 +568,7 @@ for (const name of workflowFiles) {
   };
   const guard = (name, ...args) => {
     try {
-      const out = execFileSync("bash", [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
+      const out = execFileSync(bashPath(), [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
       return { code: 0, out };
     } catch (error) {
       return { code: error.status ?? -1, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -717,7 +737,7 @@ for (const name of workflowFiles) {
     if (!known) fail(`local-tree.sh does not know the engine's ${entry.kind} "${entry.name}" (xezar state-names at 0.19.0) -- every project's gate would fail on it`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-local-tree-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-local-tree-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar/checks"), { recursive: true });
@@ -731,7 +751,7 @@ for (const name of workflowFiles) {
     const standIn = (body) => { writeFileSync(join(bin, "xezar"), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, "xezar"), 0o755); };
     const run = () => {
       try {
-        return { code: 0, out: execFileSync("bash", [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }) };
+        return { code: 0, out: execFileSync(bashPath(), [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: prependPath(process.env, [bin]) }) };
       } catch (error) { return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") }; }
     };
     const newer = structuredClone(published);
@@ -766,7 +786,7 @@ for (const name of workflowFiles) {
 // Its fixture once ran the loader without the flag, so it failed in every onboarded project's gate
 // and in no test here, because nothing here ran it.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-documented-output-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-documented-output-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
@@ -794,8 +814,11 @@ for (const name of workflowFiles) {
 // on PATH: a socket named by the engine is accepted, no socket stops it with its message.
 {
   const { createServer } = await import("node:net");
-  const lab = mkdtempSync(join(tmpdir(), "kl-"));
+  const { randomBytes } = await import("node:crypto");
+  const { spawnSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kl-"));
   const server = createServer();
+  const pipeServers = [];
   try {
     const project = join(lab, "My Proj");
     mkdirSync(join(project, "scripts"), { recursive: true });
@@ -805,29 +828,108 @@ for (const name of workflowFiles) {
     const record = join(lab, "claude-args");
     writeFileSync(join(bin, "claude"), `#!/usr/bin/env bash\nprintf '%s\\n' "XEZAR_LEADER=$XEZAR_LEADER" "$@" > "${record}"\nexit 0\n`);
     chmodSync(join(bin, "claude"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
-    const launch = () => {
+    const env = prependPath(process.env, [bin]);
+    // Output is stdout and stderr on success too: the launcher warns on stderr and still starts.
+    const launch = (launchEnv = env) => {
       rmSync(record, { force: true });
-      try {
-        return { code: 0, out: execFileSync("bash", [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env, encoding: "utf8", stdio: "pipe" }) };
-      } catch (error) {
-        return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
-      }
+      const result = spawnSync(bashPath(), [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env: launchEnv, encoding: "utf8" });
+      if (result.error) throw result.error;
+      return { code: result.status, out: `${result.stdout}${result.stderr}` };
     };
+    const started = () => {
+      const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
+      return args.includes("XEZAR_LEADER=1") && args.includes("--settings") && args.includes("--extra");
+    };
+    const stopped = (result) => result.code !== 0 && result.out.includes("the engine is not running here") && !existsSync(record);
 
     const none = launch();
-    if (none.code === 0 || !none.out.includes("the engine is not running here") || existsSync(record))
+    if (!stopped(none))
       fail(`xezar-leader.sh with no socket in .local/xezar/ipc/ did not stop with "the engine is not running here" (exit ${none.code}):\n${none.out}`);
 
-    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
     const ipc = join(project, ".local/xezar/ipc");
     mkdirSync(ipc, { recursive: true });
-    const here = process.cwd();
-    process.chdir(ipc);
-    try {
-      await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
-    } finally {
-      process.chdir(here);
+
+    // #122 (Windows): the engine on native Windows listens on a named pipe and names it in
+    // `.local/xezar/ipc/<id>.pipe` (a draft contract, DECISIONS.md). On win32 these are real named
+    // pipes; elsewhere Node binds the same name as a socket file in the project folder (a `\` is a
+    // filename byte there) and OSTYPE says msys, so the Windows rule runs on every OS. bash keeps an
+    // OSTYPE it finds in its environment, and the launcher tells Windows by OSTYPE alone, as the
+    // kit's other scripts do.
+    const ostypeAs = (ostype) => {
+      const next = { ...env };
+      for (const key of Object.keys(next)) if (key.toUpperCase() === "OSTYPE") delete next[key];
+      return { ...next, OSTYPE: ostype };
+    };
+    const windowsEnv = process.platform === "win32" ? env : ostypeAs("msys");
+    const linuxEnv = ostypeAs("linux-gnu");
+    const pipeName = (prefix) => `\\\\.\\pipe\\${prefix}-${randomBytes(16).toString("hex")}`;
+    const listenPipe = async (name) => {
+      const pipe = createServer();
+      pipeServers.push(pipe);
+      const here = process.cwd();
+      process.chdir(project); // off Windows the name is relative: bind it where the launcher runs
+      try {
+        await new Promise((resolve, reject) => { pipe.once("error", reject); pipe.listen(name, resolve); });
+      } finally {
+        process.chdir(here);
+      }
+    };
+    const markers = ["stale", "foreign", "command", "live", "second"].map((m) => join(ipc, `${m}.pipe`));
+    const [staleMarker, foreignMarker, commandMarker, liveMarker, secondMarker] = markers;
+
+    writeFileSync(staleMarker, `${pipeName("xezar-mcp")}\n`);
+    const stale = launch(windowsEnv);
+    if (!stopped(stale))
+      fail(`xezar-leader.sh accepts a stale pipe marker (a pipe nothing listens on) as a running engine (exit ${stale.code}):\n${stale.out}`);
+
+    const foreign = pipeName("other");
+    await listenPipe(foreign);
+    writeFileSync(foreignMarker, `${foreign}\n`);
+    writeFileSync(commandMarker, "$(touch owned)\n");
+    const wrongName = launch(windowsEnv);
+    if (!stopped(wrongName))
+      fail(`xezar-leader.sh accepts a marker that names another program's pipe, not one of the engine's shape (exit ${wrongName.code}):\n${wrongName.out}`);
+    if (existsSync(join(project, "owned")) || existsSync(join(lab, "owned")))
+      fail("xezar-leader.sh ran the text of a pipe marker; a marker is data");
+
+    const live = pipeName("xezar-mcp");
+    await listenPipe(live);
+    writeFileSync(liveMarker, live);
+    const offWindows = launch(linuxEnv);
+    if (!stopped(offWindows))
+      fail(`xezar-leader.sh reads a pipe marker outside Windows, where the engine opens a socket (exit ${offWindows.code}):\n${offWindows.out}`);
+    const piped = launch(windowsEnv);
+    if (piped.code !== 0 || !started() || piped.out.includes("warning"))
+      fail(`xezar-leader.sh on Windows does not accept the engine's live pipe beside a stale and a foreign marker (exit ${piped.code}):\n${piped.out}`);
+
+    const second = pipeName("xezar-mcp");
+    await listenPipe(second);
+    writeFileSync(secondMarker, `${second}\n`);
+    const older = new Date(Date.now() - 60_000);
+    utimesSync(liveMarker, older, older);
+    const two = launch(windowsEnv);
+    if (two.code !== 0 || !started() || !two.out.includes("xezar-leader: warning: 2 engine pipes answer") || !two.out.includes("the newest, .local/xezar/ipc/second.pipe"))
+      fail(`xezar-leader.sh with two live engine pipes does not take the newest marker with a warning (exit ${two.code}):\n${two.out}`);
+    for (const marker of markers) if (!existsSync(marker)) fail(`xezar-leader.sh deleted the pipe marker ${marker}; the engine replaces its own markers`);
+
+    // The socket case below must not pass on a pipe: close them and drop their markers.
+    await Promise.all(pipeServers.splice(0).map((pipe) => new Promise((resolve) => pipe.close(() => resolve()))));
+    for (const marker of markers) rmSync(marker, { force: true });
+
+    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
+    if (process.platform === "win32") {
+      // #122: on Windows Node binds named pipes only. Git's perl makes the MSYS socket file that the
+      // launcher's `[ -S ]` sees (spike S-5); the file outlives perl. This keeps the socket rule
+      // proven on Windows too; the engine's own Windows endpoint is the pipe above.
+      execFileSync(bashPath(), ["-c", 'cd "$1" && perl -MIO::Socket::UNIX -e \'IO::Socket::UNIX->new(Local => shift, Listen => 1) or die qq{bind: $!\\n}\' my-proj.sock', "sock", ipc], { env, stdio: "pipe" });
+    } else {
+      const here = process.cwd();
+      process.chdir(ipc);
+      try {
+        await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
+      } finally {
+        process.chdir(here);
+      }
     }
     const found = launch();
     const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
@@ -837,6 +939,7 @@ for (const name of workflowFiles) {
     fail(`the leader launcher fixture could not run: ${error.message}`);
   } finally {
     server.close();
+    for (const pipe of pipeServers) pipe.close();
     rmSync(lab, { recursive: true, force: true });
   }
 }
@@ -862,7 +965,7 @@ for (const name of workflowFiles) {
   const b = Object.keys(schema.properties.vendorExclusions?.items?.properties ?? {}).sort().join(",");
   if (!a || a !== b) fail(`route.mjs KNOWN.vendorExclusion is [${a}] and routing.schema.json says [${b}] -- the script and the schema must name the same keys`);
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-chain-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-chain-"));
   const printed = [];
   try {
     const project = join(lab, "project");
@@ -980,7 +1083,7 @@ for (const name of workflowFiles) {
 // still fails the quote check. C2: a widening Bash rule in the untracked settings.local.json warns
 // and a committed one fails; a browser grant outside the kit's tool list fails in either file.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-claude-settings-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-claude-settings-"));
   const out = (error) => (error.stdout ?? "") + (error.stderr ?? "");
   try {
     const project = join(lab, "project");
@@ -1026,7 +1129,7 @@ for (const name of workflowFiles) {
     rmSync(lab, { recursive: true, force: true });
   }
 
-  const stage = mkdtempSync(join(tmpdir(), "kit-catalog-settings-"));
+  const stage = mkdtempSync(join(tempRoot(), "kit-catalog-settings-"));
   try {
     mkdirSync(join(stage, ".xezar"));
     for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(stage, ".xezar", dir), { recursive: true });
@@ -1078,7 +1181,7 @@ for (const name of workflowFiles) {
 // review-run.sh and holds every chrome-devtools tool; the review-only browser tools stay out of
 // every other workflow; review preflights run strict; a verdict needs an unchanged tree.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-stream-d-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-stream-d-"));
   try {
     mkdirSync(join(lab, ".xezar"));
     for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(lab, ".xezar", dir), { recursive: true });
@@ -1143,7 +1246,7 @@ for (const name of workflowFiles) {
 
   // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
   // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
-  const run = mkdtempSync(join(tmpdir(), "kit-review-run-"));
+  const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1197,13 +1300,13 @@ for (const name of workflowFiles) {
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
     chmodSync(join(bin, "gh"), 0o755);
     const handoff = join(run, "handoff");
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
     // A review step runs every kit script from the kit step's copy (its allowlist names nothing else);
     // `tracked` is the copy in the tracked tree, for a checkout that has no kit-step copy.
     const TRUSTED = ".local/xezar/cache/kit/checks";
     const sh = (cwd, script, args = [], input = "", dir = TRUSTED) => {
       try {
-        const out = execFileSync("bash", [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
+        const out = execFileSync(bashPath(), [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
         return { status: 0, out };
       } catch (error) {
         return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -1216,7 +1319,7 @@ for (const name of workflowFiles) {
     const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
 
     // The kit step: bootstrap copies the primary's checks/ outside the tracked tree.
-    const kit = execFileSync("bash", [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
+    const kit = execFileSync(bashPath(), [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
     const kitCopy = join(wt, TRUSTED);
     const same = (rel) => existsSync(join(kitCopy, rel)) && readFileSync(join(kitCopy, rel), "utf8") === readFileSync(join(KIT, "checks", rel), "utf8");
     if (!kit.includes("REVIEW TOOLS:") || !same("verdict-write.sh") || !same("lib/common.sh"))
@@ -1225,6 +1328,31 @@ for (const name of workflowFiles) {
     if (sh(repo, "review-run.sh", ["verify-unchanged"], "", ".xezar/checks").status !== 1) fail("review-run.sh runs in the project's main checkout");
     for (const argv of [["git", "status"], ["/usr/bin/env", "ls"], ["bash", "-c", "true"], ["gh", "pr", "merge", "5"]]) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    // #122: the same programs under another spelling – a Windows path, another case, a Windows
+    // program extension, an 8.3 short name – and a path that names no program at all. A Windows
+    // path names no real folder, so a refusal that went missing starts nothing (WSL's bash.exe
+    // lives in System32).
+    for (const argv of [
+      ["/usr/bin/bash", "-c", "true"], ["bash.exe", "-c", "true"], ["BASH", "-c", "true"],
+      ["C:\\no-such-dir\\Git\\bin\\BASH.EXE", "-c", "true"], ["C:/no-such-dir/bash.exe"],
+      ["git.CMD", "status"], ["env.com", "ls"], ["sh.bat"], ["GIT-BA~1.EXE"], ["C:\\tools\\"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    // #122: the Windows shells and launchers, each of which runs another program unseen. A full path
+    // names no real folder and a bare name carries arguments that end it at once, so a refusal that
+    // went missing fails here fast: a real git-bash.exe opens a terminal window, and wsl.exe can wait
+    // for a distribution that is not installed. start, mintty and git-cmd each open a window, so
+    // they appear only as full paths.
+    for (const argv of [
+      ["cmd", "/c", "exit"], ["C:\\no-such-dir\\CMD.EXE", "/c", "exit"],
+      ["powershell", "-NoProfile", "-Command", "exit"], ["C:\\no-such-dir\\WindowsPowerShell\\v1.0\\powershell.exe"],
+      ["pwsh.EXE", "-NoProfile", "-Command", "exit"], ["C:/no-such-dir/wsl.exe", "--version"],
+      ["winpty", "--version"], ["C:/no-such-dir/git-bash.exe"],
+      ["C:/no-such-dir/START"], ["C:\\no-such-dir\\usr\\bin\\MinTTY.exe"], ["C:/no-such-dir/git-cmd.EXE"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
     }
     if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
     // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,
@@ -1244,9 +1372,9 @@ for (const name of workflowFiles) {
     if (process.getuid?.() !== 0) {
       const privateGitDir = git(wt, "rev-parse", "--absolute-git-dir");
       for (const [what, dir] of [["the worktree's own git directory", privateGitDir], ["the shared git directory", join(repo, ".git")]]) {
-        chmodSync(dir, 0o555);
+        const restore = restrict(dir, "no-write");
         let confined;
-        try { confined = rr("checkout", "5"); } finally { chmodSync(dir, 0o755); }
+        try { confined = rr("checkout", "5"); } finally { restore(); }
         if (confined.status !== 3 || !confined.out.includes("review-run=confined") || !confined.out.includes("report every check that needed running as not run")
           || git(wt, "rev-parse", "HEAD") === prHead || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
           fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
@@ -1392,7 +1520,7 @@ for (const name of workflowFiles) {
     const producer = () => {
       const probeEnv = { ...process.env, MAIN_ROOT: repo, TASK_ID: implRun.id, TASK_CWD: producerCwd };
       delete probeEnv.XEZ_TASK_ID;
-      return execFileSync("bash", ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
+      return execFileSync(bashPath(), ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
     };
     writeFileSync(runsIndex, JSON.stringify([implRun]));
     if (producer() !== "gates") fail("gate-record.sh does not find a pre-flag run's frozen gates step in the engine's runs index");
@@ -1416,7 +1544,7 @@ for (const name of workflowFiles) {
 // older than it: a check that still falls back to `main` sees the base's own commits as this
 // branch's edits, and refuses a branch that only wrote a fragment.
 {
-  const lab = mkdtempSync(join(tmpdir(), "kit-changelog-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-changelog-"));
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
     GIT_CONFIG_GLOBAL: "/dev/null",
@@ -1462,7 +1590,7 @@ for (const name of workflowFiles) {
     k.put("CHANGELOG.md", KAC.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Changed\n\n- Legacy bullet on develop.\n"));
     k.git("commit", "--quiet", "-am", "legacy unreleased bullet");
     const developSha = k.git("rev-parse", "--short=12", "HEAD");
-    const check = (...args) => exec(k.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+    const check = (...args) => exec(k.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
 
     expect("the format is detected from a Keep a Changelog file", exec(k.dir, "node", [FRAG, "--format-of"]), 0, "format=keep-a-changelog");
 
@@ -1523,7 +1651,7 @@ for (const name of workflowFiles) {
     h.put("changelog.d/7.md", "## 🐛 Fixes\n\n- Fragment. (#7)\n");
     h.git("add", "-A");
     h.git("commit", "--quiet", "-m", "fragment");
-    const hcheck = (...args) => exec(h.dir, "bash", [CHECK, "--file", "CHANGELOG.md", ...args]);
+    const hcheck = (...args) => exec(h.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
     expect("house: a fragment-only branch is accepted against the configured base", hcheck("--diff-base", "auto", "--fragments", "changelog.d"), 0, "no direct edit of CHANGELOG.md");
     h.git("checkout", "--quiet", "-b", "feature-direct", "develop");
     h.put("CHANGELOG.md", h.read("CHANGELOG.md").replace("- Old.\n", "- Old.\n- Direct.\n"));
@@ -1592,7 +1720,7 @@ for (const name of workflowFiles) {
   const { createHash } = await import("node:crypto");
   const sha = (text) => createHash("sha256").update(text).digest("hex");
   const DRIFT = join(KIT, "checks/manifest-drift.mjs");
-  const lab = mkdtempSync(join(tmpdir(), "kit-drift-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-drift-"));
   const drift = (dir) => {
     try {
       return { code: 0, out: execFileSync("node", [DRIFT, dir], { encoding: "utf8", stdio: "pipe" }) };
@@ -1660,6 +1788,27 @@ for (const name of workflowFiles) {
     expect("an unknown origin", project("origin", { manifest: v2({ ".xezar/y": entry("x", "patched") }), tree: { ".xezar/y": "x" } }), 2, []);
     expect("a register id used twice", project("twice", { manifest: patched, register: lp("yes") + lp("yes").replace("# Local patches\n", "") }), 2, []);
     expect("a register entry missing a field", project("field", { manifest: patched, register: lp("yes").replace("- Since: 2026-09-27\n", "") }), 2, []);
+    // #122 (Windows): text is compared with LF line endings (upgrade contract §1 → Digests), and a
+    // digest an earlier install recorded over the raw bytes of a CRLF file still passes.
+    const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
+    const crlfTree = { ".xezar/checks/x.sh": crlf(COPIED), "AGENTS.md": crlf(OWNER) };
+    expect("a CRLF checkout of an unchanged file", project("crlf", { manifest: v2(), tree: crlfTree }), 0, ["drift-status=pass"]);
+    const rawRecorded = v2();
+    rawRecorded.files[".xezar/checks/x.sh"].sha256 = sha(crlf(COPIED));
+    rawRecorded.files["AGENTS.md"].sha256 = sha(crlf(BLOCK));
+    expect("a CRLF file an earlier install recorded over its raw bytes", project("crlf-raw", { manifest: rawRecorded, tree: crlfTree }), 0, ["drift-status=pass"]);
+    expect("a CRLF edit", project("crlf-edit", { manifest: v2(), tree: { ".xezar/checks/x.sh": "copied check!\r\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    const BINARY = Buffer.from([0x89, 0x50, 0x0d, 0x0a, 0x00, 0x0a]);
+    expect("a binary file recorded over its raw bytes", project("binary", { manifest: v2({ ".xezar/logo.png": entry(BINARY, "copied") }), tree: { ".xezar/logo.png": BINARY } }), 0, ["drift-status=pass"]);
+    // The drift check's inline rule and the upgrade tool's lfText() hash the same bytes.
+    const { lfText } = await import(pathToFileURL(join(root, "upgrade/tools/lib/hash.mjs")).href);
+    const PARITY = [
+      ["binary with CRLF bytes", Buffer.concat([BINARY, Buffer.from("x\r\n")])],
+      ["a NUL byte past the first 8000 bytes", Buffer.concat([Buffer.alloc(9000, 0x61), Buffer.from([0x00]), Buffer.from("\r\n")])],
+      ["a lone CR beside a CRLF", Buffer.from("a\rb\r\n")],
+    ];
+    for (const [i, [label, bytes]] of PARITY.entries())
+      expect(`a file recorded as the upgrade tool's lfText digest (${label})`, project(`parity-${i}`, { manifest: v2({ ".xezar/p.bin": entry(lfText(bytes), "copied") }), tree: { ".xezar/p.bin": bytes } }), 0, ["drift-status=pass"]);
     // The kit's own format document: its example entry must be one this check accepts.
     const doc = readFileSync(join(KIT, "docs/local-patches.md"), "utf8");
     const example = /```markdown\n([\s\S]*?)```/.exec(doc);
@@ -1747,7 +1896,7 @@ for (const name of workflowFiles) {
   refused((f) => { f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
   function byIdOf(f) { return Object.fromEntries(f.rows.map((r) => [r.id, r])); }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-r-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-r-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });

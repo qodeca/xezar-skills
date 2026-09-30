@@ -23,6 +23,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath, toLF } from "./lib/platform.mjs";
+import { prepareTestPlatform } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -50,18 +54,18 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 let failures = 0;
 let asserts = 0;
 
-function run(command, args) {
+function run(command, args, options = {}) {
   try {
     return {
       code: 0,
-      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }),
+      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options }),
     };
   } catch (err) {
     return { code: err.status ?? -1, out: (err.stdout ?? "") + (err.stderr ?? "") };
   }
 }
 
-const lint = () => run("bash", ["scripts/lint.sh"]);
+const lint = () => run(bashPath(), ["scripts/lint.sh"]);
 const script = (name) => run("node", [`scripts/${name}`]);
 
 // Snapshot the working tree before anything is broken, so the final assertion compares
@@ -81,16 +85,26 @@ const KIT_INDEX_PKG_IS_NEWEST =
 function breaks(name, file, mutate, gate, expect) {
   asserts += 1;
   const path = join(root, file);
-  const original = readFileSync(path, "utf8");
+  const original = readFileSync(path, "utf8"); // the restore stays byte-exact
+  // #122: every search string below is written with LF line endings, so a CRLF checkout is
+  // mutated as LF and written back with CRLF. A file mixing both cannot be written back without
+  // changing more than the mutation, so it is refused rather than broken for the wrong reason.
+  const crlf = original.includes("\r\n");
+  if (crlf && /(^|[^\r])\n/.test(original)) {
+    failures += 1;
+    console.error(`FAIL  ${name}\n      ${file} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`);
+    return;
+  }
+  const lf = toLF(original);
   let result;
   try {
-    const broken = mutate(original);
-    if (broken === original) {
+    const broken = mutate(lf);
+    if (broken === lf) {
       failures += 1;
       console.error(`FAIL  ${name}\n      the mutation changed nothing -- this test is testing nothing`);
       return;
     }
-    writeFileSync(path, broken);
+    writeFileSync(path, crlf ? broken.replace(/\n/g, "\r\n") : broken);
     result = gate();
   } finally {
     writeFileSync(path, original);
@@ -1660,7 +1674,7 @@ breaks(
 // 3.1.0-stream-E:start
 // #53 install freshness: the tree digest in deps.mjs and the fail-closed resume. Each property
 // breaks on its own; the gate runs only the #53 block of test-deps-units.mjs to keep the suite short.
-const depsOnly53 = () => run("env", ["XEZ_DEPS_TEST_ONLY=53", "node", "scripts/test-deps-units.mjs"]);
+const depsOnly53 = () => run("node", ["scripts/test-deps-units.mjs"], { env: { ...process.env, XEZ_DEPS_TEST_ONLY: "53" } });
 const DEPS_MJS = "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs";
 
 breaks(
@@ -2418,6 +2432,324 @@ breaks(
   "the manifest version literal an installer copy writes is \"0.0.1\"",
 );
 // 3.1.0-stream-OC:end
+
+// --- #122: the gate on native Windows -----------------------------------------
+// Each guard below was written for Windows, and each break reproduces a defect that is not
+// Windows-only, so it fires on the Linux nightly too.
+// 122-windows:start
+breaks(
+  "a link check whose skills scan matches nothing is rejected",
+  "scripts/check-links.mjs",
+  (s) => s.replace('rel.startsWith("skills/")', 'rel.startsWith("skills\\\\")'),
+  () => script("check-links.mjs"),
+  "proved nothing",
+);
+
+breaks(
+  "a review-run.sh that runs bash.exe or a Windows path to bash is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(
+    "  base=\"$(printf '%s' \"$program\" | LC_ALL=C tr '\\134A-Z' '/a-z')\"\n  base=\"${base##*/}\"\n  case \"$base\" in *.exe | *.cmd | *.bat | *.com) base=\"${base%.*}\" ;; esac\n",
+    "  base=\"${program##*/}\"\n",
+  ),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs "bash.exe',
+);
+
+breaks(
+  "a Git Bash resolver that takes bash.exe from PATH is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace(
+    "  const root = findGitRoot({ env, exists });\n",
+    '  const fromPath = pathEntries(env).map((dir) => win.join(dir, "bash.exe")).find((file) => exists(file));\n  if (fromPath) return fromPath;\n  const root = findGitRoot({ env, exists });\n',
+  ),
+  () => script("test-platform.mjs"),
+  "picked WSL's bash.exe",
+);
+
+breaks(
+  "a lint that counts description bytes is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace('desc_len=$(desc_chars "$fm_desc")', "desc_len=${#fm_desc}"),
+  () => script("test-onboarding-content.mjs"),
+  "a 500-character description in a multibyte script is rejected in the C locale",
+);
+
+// lint.sh's targeted mode (`--only`, `--files`) is what test-onboarding-content runs on. Each break
+// puts a defect in a listed file and asks for the check that owns it, so a targeted run that skips
+// the check, drops the file, or reads a typo as "run nothing" passes the defect and fails here.
+const lintTargeted = (...args) => () => run(bashPath(), ["scripts/lint.sh", ...args]);
+
+breaks(
+  "a targeted lint that skips the per-file check it was asked for is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKILL.md"),
+  "forbidden pattern",
+);
+
+breaks(
+  "a targeted lint that leaves out the skill owning a listed file is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => s.replace(/^name: xez-fix$/m, "name: xez-repair"),
+  lintTargeted("--only", "frontmatter", "--files", "skills/xez-fix/references/rules.md"),
+  "does not match directory",
+);
+
+breaks(
+  "a targeted lint that greps none of the listed files is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nWhen the change is large, hand it to the xez-mega-refactor skill.\n`,
+  lintTargeted("--only", "names", "--files", "skills/xez-fix/SKILL.md"),
+  "which is not a skill in this collection",
+);
+
+breaks(
+  "a targeted lint that reads an unknown check as nothing to run is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portabilty", "--files", "skills/xez-fix/SKILL.md"),
+  "unknown check 'portabilty'",
+);
+
+breaks(
+  "a targeted lint that skips a listed file it cannot find is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKIL.md"),
+  "not a file in this repository",
+);
+
+breaks(
+  "a catalog check that reads CRLF files as they are is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const readText = (path) => readFileSync(path, "utf8").replace(/\\r\\n/g, "\\n");', 'const readText = (path) => readFileSync(path, "utf8");'),
+  () => script("test-kit-catalog.mjs"),
+  "checked out with CRLF line endings",
+);
+
+breaks(
+  "a shared-block sync that reads CRLF files as they are is rejected",
+  "scripts/sync-shared-blocks.mjs",
+  (s) => s.replace('const readText = (path) => toLF(readFileSync(path, "utf8"));', 'const readText = (path) => readFileSync(path, "utf8");'),
+  () => script("test-shared-blocks.mjs"),
+  "a CRLF copy",
+);
+
+breaks(
+  "a kit index that hashes CRLF bytes is rejected",
+  "upgrade/tools/lib/hash.mjs",
+  (s) => s.replace("  if (buf.subarray(0, 8000).includes(0) || !buf.includes(13)) return buf;\n", "  return buf;\n"),
+  () => script("test-upgrade.mjs"),
+  "a CRLF copy of an unchanged kit file",
+);
+
+breaks(
+  "a drift check that hashes CRLF bytes is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('const lf = raw.subarray(0, 8000).includes(0) ? raw : Buffer.from(raw.toString("latin1").replaceAll("\\r\\n", "\\n"), "latin1");', "const lf = raw;"),
+  () => script("test-kit-catalog.mjs"),
+  "a CRLF checkout of an unchanged file",
+);
+
+breaks(
+  "a kit path check that reads a Git for Windows path as relative is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('    msys* | cygwin*) case "$1" in [A-Za-z]:/*) return 0 ;; esac ;;\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "reads a Git for Windows path",
+);
+
+breaks(
+  "a kit path check that reads C:/ as absolute outside Git Bash is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(
+    '  case "${OSTYPE:-}" in\n    msys* | cygwin*) case "$1" in [A-Za-z]:/*) return 0 ;; esac ;;\n  esac\n',
+    '  case "$1" in [A-Za-z]:/*) return 0 ;; esac\n',
+  ),
+  () => script("test-kit-facts.mjs"),
+  "as absolute outside Git Bash",
+);
+
+breaks(
+  "a kit that lets Git Bash rewrite a base-branch file argument is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('      *) export MSYS2_ARG_CONV_EXCL="origin/;refs/${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}" ;;\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "lets Git Bash rewrite",
+);
+
+breaks(
+  "a kit Git Bash resolver that takes bash.exe from PATH is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace(
+    "return candidates.find(isGitBashRoot) ?? null;",
+    "return pathEntries(env).find((dir) => exists(win.join(dir, 'bash.exe'))) ?? candidates.find(isGitBashRoot) ?? null;",
+  ),
+  () => script("test-platform.mjs"),
+  "the kit's Git Bash resolver disagrees",
+);
+
+breaks(
+  "a Windows tree stop that ignores start times is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("row.startedAt !== undefined && row.startedAt >= root.spawnedAt - SPAWN_CLOCK_SLACK_MS && row.startedAt <= root.stoppedAt", "row.startedAt !== undefined"),
+  () => script("test-kit-facts.mjs"),
+  "reused the pid",
+);
+
+breaks(
+  "a Windows tree stop that ignores the MSYS process group is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("row.pgid === msysPid", "false"),
+  () => script("test-kit-facts.mjs"),
+  "whose parent already exited",
+);
+
+breaks(
+  "a gate scheduler that never reaps a finished gate is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
+  (s) => s.replace("if (pid) { await reap(pid); groups.delete(pid); }", "if (pid) { groups.delete(pid); }"),
+  () => script("test-kit-facts.mjs"),
+  "left a finished gate's processes running",
+);
+
+breaks(
+  "a gate scheduler that stops nothing on an interrupt is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
+  (s) => s.replace("function signal(pid, kind) {", "function signal(pid, kind) { return;"),
+  () => script("test-kit-facts.mjs"),
+  "did not stop its gates on an interrupt",
+);
+
+breaks(
+  "a leader launcher that takes any pipe a marker names is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("    return PIPE_NAME.test(name) ? { file, name, mtime: stat.mtimeMs } : null;\n", "    return { file, name, mtime: stat.mtimeMs };\n"),
+  () => script("test-kit-catalog.mjs"),
+  "accepts a marker that names another program's pipe",
+);
+
+breaks(
+  "a leader launcher that takes a stale pipe marker for a running engine is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace('    client.once("error", () => settle(false));\n', '    client.once("error", () => settle(true));\n'),
+  () => script("test-kit-catalog.mjs"),
+  "accepts a stale pipe marker",
+);
+
+breaks(
+  "a cross-platform CI job that no longer runs the whole gate is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("        run: node scripts/run-gate.mjs\n", "        run: node scripts/test-kit-catalog.mjs\n"),
+  () => script("test-browser-providers.mjs"),
+  "the cross-platform job must run the whole gate",
+);
+
+breaks(
+  "a required lint job moved off ubuntu is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("  lint:\n    runs-on: ubuntu-latest\n", "  lint:\n    runs-on: windows-latest\n"),
+  () => script("test-browser-providers.mjs"),
+  "the `lint` job must run on ubuntu-latest",
+);
+
+breaks(
+  "a Git tools env that leaves Git's Perl script folders (shasum) off PATH is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace('  if (perlDirs.length) next = envSet(next, "PATH", [envGet(next, "PATH", platform), ...perlDirs].join(";"), platform);\n', ""),
+  () => script("test-platform.mjs"),
+  "withGitTools leaves Git's Perl script folders (shasum) off PATH",
+);
+
+breaks(
+  "a review-run.sh that runs a Windows shell or launcher is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' nice cmd powershell pwsh wsl winpty git-bash ', ' nice '),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "',
+);
+
+breaks(
+  "a review-run.sh that runs start, mintty or git-cmd is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' git-bash start mintty git-cmd"\n', ' git-bash"\n'),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "C:/no-such-dir/START"',
+);
+
+breaks(
+  "a Windows reap that reads an empty ps as the end of a worker whose MSYS pid is unknown is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("if (!killRoot && knowsGroup && psText !== null", "if (!killRoot && psText !== null"),
+  () => script("test-kit-facts.mjs"),
+  "a reap whose worker left no MSYS pid",
+);
+
+breaks(
+  "a gate worker env that takes a bare program name from the working folder is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("  next.NoDefaultCurrentDirectoryInExePath = '1';\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "the gate workers' env lets a bare program name resolve from the working folder",
+);
+
+breaks(
+  "a kit noglob env that drifts from scripts/lib/platform.mjs is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("? `${msys} noglob` :", "? msys :"),
+  () => script("test-platform.mjs"),
+  "the kit's MSYS quoting, noglob env and Git Bash message agree",
+);
+
+breaks(
+  "a leader launcher that reads pipe markers outside Git Bash is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("    msys* | cygwin*)\n", "    *)\n"),
+  () => script("test-kit-catalog.mjs"),
+  "reads a pipe marker outside Windows",
+);
+
+breaks(
+  "a Git Bash start that leaves its command line to libuv's quoting is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace("  return [file, args.map(msysQuote), { ...options, env, windowsVerbatimArguments: true, argv0: msysQuote(file) }];\n", "  return [file, args, { ...options, env }];\n"),
+  () => script("test-platform.mjs"),
+  "msysSpawnArgs quotes every argument for MSYS on win32",
+);
+
+breaks(
+  "a run-bash.mjs that loses the script's exit code is rejected",
+  "scripts/run-bash.mjs",
+  (s) => s.replace("process.exit(result.status ?? 1);", "process.exit(result.status === 0 ? 0 : 1);"),
+  () => script("test-platform.mjs"),
+  "run-bash.mjs passes a script's arguments and exit code through",
+);
+
+breaks(
+  "a run-gate.mjs that stops at the first failing command is rejected",
+  "scripts/run-gate.mjs",
+  (s) => s.replace("  rows.push({ number: index + 1, command, exit, seconds });\n", "  rows.push({ number: index + 1, command, exit, seconds });\n  if (exit !== 0) break;\n"),
+  () => script("test-platform.mjs"),
+  "run-gate.mjs runs every command, reports each exit code",
+);
+
+breaks(
+  "an upgrade planner that reads UPGRADE_NOTES.md with CRLF line endings as it is is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('sources.push(["UPGRADE_NOTES.md", lfText(readFileSync(notes)).toString("utf8")]);', 'sources.push(["UPGRADE_NOTES.md", readFileSync(notes, "utf8")]);'),
+  () => script("test-upgrade.mjs"),
+  "a CRLF UPGRADE_NOTES.md gives",
+);
+
+breaks(
+  "an upgrade planner that ignores a manifest digest of raw CRLF bytes is rejected",
+  "upgrade/tools/detect.mjs",
+  (s) => s.replace("  return recorded === sha256(mine.text) || recorded === mine.rawSha256;\n", "  return recorded === sha256(mine.text);\n"),
+  () => script("test-upgrade.mjs"),
+  "a manifest that recorded the raw CRLF bytes of an unchanged file plans",
+);
+// 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:

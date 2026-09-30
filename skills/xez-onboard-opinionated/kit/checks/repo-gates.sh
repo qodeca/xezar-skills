@@ -424,7 +424,12 @@ GATE_SCHEDULER_PID=""
 gate_cancel() {
   trap '' INT TERM
   if [ -n "$GATE_SCHEDULER_PID" ]; then
-    kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true
+    # Under Git Bash a TERM never reaches node's handler: it ends the MSYS stub and leaves node and
+    # its gates running (#122). The scheduler polls this file there and stops its gates itself.
+    case "${OSTYPE:-}" in
+      msys* | cygwin*) : > "$GATE_ATTEMPT_DIR/workers/stop" 2>/dev/null || kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true ;;
+      *) kill -TERM "$GATE_SCHEDULER_PID" 2>/dev/null || true ;;
+    esac
     wait "$GATE_SCHEDULER_PID" 2>/dev/null || true
   fi
   if [ -f "$GATE_ATTEMPT_DIR/result.json" ]; then
@@ -447,6 +452,9 @@ gate_phase() {
     for (let i = 0; i < args.length; i += 3) entries.push({index: Number(args[i]), name: args[i+1], command: args[i+2]});
     process.stdout.write(JSON.stringify(entries));
   ' "${args[@]}")" || return 1
+  # The folder gate_cancel writes its stop file to under Git Bash: made before node starts, so an
+  # interrupt that lands before the scheduler made it still reaches the scheduler.
+  mkdir -p "$GATE_ATTEMPT_DIR/workers" || return 1
   node "$SCRIPT_DIR/lib/gate-parallel.mjs" "$SCRIPT_DIR/lib/gate-record.sh" "$mode" "$entries" &
   GATE_SCHEDULER_PID=$!
   wait "$GATE_SCHEDULER_PID"

@@ -52,7 +52,8 @@ A session started without `XEZAR_LEADER=1` is an ordinary Claude Code session in
 repository – no leader guide, no leader rules.
 
 You need Node 20 or later, `git`, the GitHub CLI logged in, and a GitHub remote. Claude Code and
-GitHub only; on Windows, use WSL.
+GitHub only; on Windows, run it in WSL. (Working on this repository itself on Windows? See
+[Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).)
 
 ### Which setup skill
 
@@ -118,7 +119,7 @@ Working on the skills themselves? Skip the `npx skills add` round-trip and symli
 npm run install-skills
 ```
 
-This links every skill in `skills/` into `~/.claude/skills` (Claude Code) and `~/.codex/skills` (Codex). Because they are symlinks, any edit you make in this repo is live on the next skill invocation — no reinstall needed.
+This links every skill in `skills/` into `~/.claude/skills` (Claude Code) and `~/.codex/skills` (Codex). Because they are symlinks, any edit you make in this repo is live on the next skill invocation — no reinstall needed. On Windows the links are directory junctions, which need no Developer Mode.
 
 Options:
 

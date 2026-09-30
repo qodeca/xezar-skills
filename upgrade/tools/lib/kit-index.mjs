@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildCopyMap } from "./copy-map.mjs";
-import { gitBlobSha, sha256 } from "./hash.mjs";
+import { gitBlobSha, lfText, sha256 } from "./hash.mjs";
 
 export const SKILL_DIR = "skills/xez-onboard-opinionated";
 
@@ -42,7 +42,7 @@ function walk(dir, prefix, out) {
     const rel = `${prefix}${name}`;
     const st = statSync(full);
     if (st.isDirectory()) walk(full, `${rel}/`, out);
-    else if (st.isFile()) out.set(rel, readFileSync(full));
+    else if (st.isFile()) out.set(rel, lfText(readFileSync(full))); // a CRLF checkout indexes like LF (#122)
   }
   return out;
 }

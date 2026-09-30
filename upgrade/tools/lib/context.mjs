@@ -12,7 +12,7 @@ import { indexFromTree, loadIndexes, diffIndexes, SKILL_DIR } from "./kit-index.
 import { readManifest } from "./manifest.mjs";
 import { parseRegister } from "./register.mjs";
 import { gitState, resolveInside, PathRefused } from "./paths.mjs";
-import { git } from "./hash.mjs";
+import { git, lfText, sha256 } from "./hash.mjs";
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const SCRATCH = ".local/xezar/scratch/upgrade";
@@ -128,7 +128,7 @@ export function loadContext(o) {
   const manifest = readManifest(readFileSync(manifestPath, "utf8"));
   const candidates = baseCandidates(history, target, manifest.version);
   const registerPath = join(project, ".xezar/LOCAL-PATCHES.md");
-  const registerText = existsSync(registerPath) ? readFileSync(registerPath, "utf8") : null;
+  const registerText = existsSync(registerPath) ? lfText(readFileSync(registerPath)).toString("utf8") : null;
   const register = parseRegister(registerText);
 
   const blobs = createBlobSource({
@@ -155,7 +155,7 @@ export function loadContext(o) {
   const gs = gitState(project);
   const startCommit = gs.isGit ? (git(["rev-parse", "HEAD"], project, { allowFail: true }) ?? "").trim() || null : null;
 
-  /** Read a project file safely. Returns { text, sha? } | { missing } | { refused, reason }. */
+  /** Read a project file safely. Returns { text, mode, rawSha256? } | { missing } | { refused, reason }. */
   const readMine = (p) => {
     let full;
     try {
@@ -167,7 +167,11 @@ export function loadContext(o) {
     if (!existsSync(full)) return { missing: true };
     const st = lstatSync(full);
     if (!st.isFile()) return { refused: true, reason: "not a regular file" };
-    return { text: readFileSync(full, "utf8"), mode: st.mode & 0o777 };
+    // Read as LF text (contract §1 → Digests), so a CRLF checkout compares like the LF file (#122).
+    // rawSha256, only when that changed the bytes: an earlier install may have recorded the raw digest.
+    const raw = readFileSync(full);
+    const lf = lfText(raw);
+    return { text: lf.toString("utf8"), mode: st.mode & 0o777, ...(lf !== raw ? { rawSha256: sha256(raw) } : {}) };
   };
 
   return {

@@ -226,16 +226,38 @@ function digest(path, origin) {
     return { reason: "missing" };
   }
   if (!within(real)) return { reason: "hash-mismatch", note: "resolves outside the repository" };
-  let bytes = readFileSync(real);
-  if (origin === "owner-file-appended") {
-    const text = bytes.toString("utf8");
-    const start = text.indexOf(START);
-    const end = start < 0 ? -1 : text.indexOf(END, start);
-    if (start < 0 || end < 0 || text.indexOf(START, start + 1) >= 0)
-      return { reason: "hash-mismatch", note: "does not hold exactly one kit block" };
-    bytes = Buffer.from(text.slice(start, end + END.length), "utf8");
-  }
-  return { sha256: createHash("sha256").update(bytes).digest("hex"), bytes };
+  const raw = readFileSync(real);
+  // Text is compared with LF line endings (upgrade contract §1 → Digests), so a CRLF checkout
+  // (core.autocrlf on Windows) matches; a NUL byte in the first 8000 bytes means binary, hashed as
+  // it is. The raw digest is kept too: an earlier install may have recorded one over CRLF bytes.
+  const lf = raw.subarray(0, 8000).includes(0) ? raw : Buffer.from(raw.toString("latin1").replaceAll("\r\n", "\n"), "latin1");
+  const bytes = recordedBytes(lf, origin);
+  const rawBytes = recordedBytes(raw, origin);
+  if (bytes === null || rawBytes === null) return { reason: "hash-mismatch", note: "does not hold exactly one kit block" };
+  const sha = (b) => createHash("sha256").update(b).digest("hex");
+  return { sha256: sha(bytes), bytes, rawSha256: sha(rawBytes), rawBytes };
+}
+
+// What a manifest entry is recorded over: the whole file, or for an appended owner file only the
+// kit's block. null when an owner file does not hold exactly one kit block.
+function recordedBytes(bytes, origin) {
+  if (origin !== "owner-file-appended") return bytes;
+  const text = bytes.toString("utf8");
+  const start = text.indexOf(START);
+  const end = start < 0 ? -1 : text.indexOf(END, start);
+  if (start < 0 || end < 0 || text.indexOf(START, start + 1) >= 0) return null;
+  return Buffer.from(text.slice(start, end + END.length), "utf8");
+}
+
+// The variant of `seen` the record was taken over: the LF one, unless only the raw bytes match
+// (plainly, or with the recorded gate list put back). The checks below then run on it unchanged.
+function recordedVariant(seen, path, entry) {
+  if (seen.reason || seen.sha256 === entry.sha256) return seen;
+  const raw = { sha256: seen.rawSha256, bytes: seen.rawBytes };
+  if (raw.sha256 === entry.sha256) return raw;
+  if (recordedGateList(path, entry, seen.bytes) === entry.sha256) return seen;
+  if (recordedGateList(path, entry, raw.bytes) === entry.sha256) return raw;
+  return seen;
 }
 
 const drift = [];
@@ -249,7 +271,7 @@ for (const [path, entry] of Object.entries(files).sort(([a], [b]) => (a < b ? -1
     explain(`${path}: the project's own file is not tracked; its manifest entry is ignored`);
     continue;
   }
-  const seen = digest(path, entry.origin);
+  const seen = recordedVariant(digest(path, entry.origin), path, entry);
   // A patched file may be absent: the register entry records a deliberate removal.
   if (seen.reason === "missing" && !entry.patch) {
     report(path, entry.origin, "missing", "recorded in the manifest, absent from the tree");

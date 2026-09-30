@@ -41,10 +41,31 @@
 # Xezar's worktree parent, relative to the primary checkout.
 XEZAR_WORKTREES_RELDIR=".local/xezar/worktrees"
 
+# Git Bash rewrites an argument that looks like a list of POSIX paths before git.exe sees it:
+# `origin/<base>:.xezar/x.json` arrived as `origin\<base>;.xezar\x.json` (#122). An argument that
+# starts with `origin/` or `refs/` is a git ref in every kit script, never a file path.
+case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    case ";${MSYS2_ARG_CONV_EXCL:-};" in
+      *";origin/;refs/;"*) ;;
+      *) export MSYS2_ARG_CONV_EXCL="origin/;refs/${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}" ;;
+    esac ;;
+esac
+
 # Absolute, symlink-resolved form of a directory. Comparing two paths that reach the
 # same directory through different symlinks is the whole reason this exists.
 abs_real_dir() {
   ( cd "$1" 2>/dev/null && pwd -P ) || return 1
+}
+
+# Is "$1" an absolute path? `/…` everywhere. Under Git Bash also `C:/…`: Git for Windows prints
+# --git-dir and --git-common-dir that way (#122). Everywhere else `C:/x` is a relative path.
+is_absolute_path() {
+  case "$1" in /*) return 0 ;; esac
+  case "${OSTYPE:-}" in
+    msys* | cygwin*) case "$1" in [A-Za-z]:/*) return 0 ;; esac ;;
+  esac
+  return 1
 }
 
 # A task id becomes a directory name under the task evidence root. Anything that is not a
@@ -84,10 +105,7 @@ resolve_task_paths() {
   # In the primary checkout `--git-common-dir` is relative (".git"); in a linked
   # worktree it is the absolute path of the primary checkout's .git directory.
   common_dir="$(cd "$TASK_CWD" && git rev-parse --git-common-dir 2>/dev/null)" || return 1
-  case "$common_dir" in
-    /*) ;;
-    *) common_dir="$TASK_CWD/$common_dir" ;;
-  esac
+  is_absolute_path "$common_dir" || common_dir="$TASK_CWD/$common_dir"
   MAIN_ROOT="$(abs_real_dir "$(dirname "$common_dir")")" || return 1
 
   WORKTREES_DIR="$MAIN_ROOT/$XEZAR_WORKTREES_RELDIR"
@@ -306,10 +324,7 @@ task_tree_is_dirty() {
 task_git_dir() {
   local git_dir
   git_dir="$(cd "$TASK_CWD" && git rev-parse --git-dir 2>/dev/null)" || return 1
-  case "$git_dir" in
-    /*) ;;
-    *) git_dir="$TASK_CWD/$git_dir" ;;
-  esac
+  is_absolute_path "$git_dir" || git_dir="$TASK_CWD/$git_dir"
   printf '%s' "$git_dir"
 }
 
@@ -419,13 +434,10 @@ fixture_scratch_remove() {
     printf 'fixture_scratch_remove: refusing an EMPTY path\n' >&2
     return 1
   fi
-  case "$dir" in
-    /*) ;;
-    *)
-      printf 'fixture_scratch_remove: refusing a RELATIVE path ("%s") — it resolves against the CWD\n' "$dir" >&2
-      return 1
-      ;;
-  esac
+  if ! is_absolute_path "$dir"; then
+    printf 'fixture_scratch_remove: refusing a RELATIVE path ("%s") — it resolves against the CWD\n' "$dir" >&2
+    return 1
+  fi
 
   # A final segment of `.` or `..` names a DIRECTORY, not the thing the caller meant, and it is how
   # a path like `<root>/owned/..` reads as "inside the root" while pointing at its parent. `rm`
@@ -525,6 +537,11 @@ deps_use_pinned_node() {
   command -v node >/dev/null 2>&1 || return 0
   bin="$(node "$DEPS_MJS" node-pin --root "$root" 2>/dev/null)" || return 0
   [ -n "$bin" ] || return 0
+  # Under Git Bash node prints a Windows path (C:\…). On bash's PATH it would split at the drive
+  # colon and leave a drive-relative `\…` entry, which finds node only from that drive (#122).
+  case "${OSTYPE:-}" in
+    msys* | cygwin*) bin="$(cygpath -u "$bin" 2>/dev/null)" && [ -n "$bin" ] || return 0 ;;
+  esac
   PATH="$bin:$PATH"
   export PATH
 }

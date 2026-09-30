@@ -22,6 +22,13 @@ const AGENT_DIRS = {
   codex: path.join(homedir(), '.codex', 'skills'),
 }
 
+// A junction on Windows reads back as an absolute path in any letter case, so link targets are
+// compared resolved, and case-insensitively there (#122).
+const samePath = (a, b) => {
+  const [left, right] = [path.resolve(a), path.resolve(b)]
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 const args = process.argv.slice(2)
 const uninstall = args.includes('--uninstall')
 const force = args.includes('--force')
@@ -61,7 +68,7 @@ for (const agent of agents) {
       existing = lstatSync(target)
     } catch {}
 
-    const ownedByRepo = existing?.isSymbolicLink() && path.resolve(path.dirname(target), readlinkSync(target)) === source
+    const ownedByRepo = existing?.isSymbolicLink() && samePath(path.resolve(path.dirname(target), readlinkSync(target)), source)
 
     if (uninstall) {
       if (ownedByRepo) {
@@ -84,10 +91,13 @@ for (const agent of agents) {
         failures++
         continue
       }
-      rmSync(target, { recursive: true, force: true })
+      // A link (a junction counts) is removed itself, never recursively: what it points at stays.
+      if (existing.isSymbolicLink()) rmSync(target)
+      else rmSync(target, { recursive: true, force: true })
     }
 
-    symlinkSync(source, target, 'dir')
+    // Windows: a directory junction, which needs no Developer Mode or admin rights (#122).
+    symlinkSync(source, target, process.platform === 'win32' ? 'junction' : 'dir')
     console.log(`  linked   ${skill}`)
   }
 }

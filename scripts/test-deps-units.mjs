@@ -21,9 +21,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
+import { bashPath, posixToolDirs, prependPath, toPosixPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeStub } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(root, "skills", "xez-onboard-opinionated", "kit");
@@ -37,7 +41,7 @@ const expect = (name, ok, detail = "") => {
   if (!ok) { failures += 1; console.error(`FAIL  ${name}${detail ? `\n      ${detail}` : ""}`); }
 };
 
-const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-deps-units-")));
+const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-deps-units-")));
 const write = (file, text) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
 const git = (cwd, ...args) =>
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: "pipe" }).trim();
@@ -47,7 +51,7 @@ const sha = (text) => createHash("sha256").update(text).digest("hex");
 const bin = join(lab, "bin");
 const LOG = join(lab, "calls.ndjson");
 const record = `node -e 'require("fs").appendFileSync(process.env.DEPS_STUB_LOG, JSON.stringify({ tool: process.argv[1], argv: process.argv.slice(2), cwd: process.cwd(), husky: process.env.HUSKY ?? null }) + "\\n")'`;
-const stub = (name, body) => { write(join(bin, name), `#!/usr/bin/env bash\n${body}\n`); chmodSync(join(bin, name), 0o755); };
+const stub = (name, body) => { mkdirSync(bin, { recursive: true }); writeStub(join(bin, name), `#!/usr/bin/env bash\n${body}\n`); };
 stub("yarn", `[ "\${1:-}" = "--version" ] && { echo "\${STUB_YARN_VERSION:-1.22.22}"; exit 0; }
 ${record} yarn "$@"
 [ -n "\${STUB_FAIL:-}" ] && exit 1
@@ -59,12 +63,16 @@ stub("dotnet", `[ "\${1:-}" = "--version" ] && { echo "\${STUB_DOTNET_VERSION:-8
 ${record} dotnet "$@"
 find . -name '*.csproj' -not -path '*/obj/*' -not -path '*/bin/*' | while IFS= read -r f; do
   d="$(cd "$(dirname "$f")" && pwd -P)"; mkdir -p "$d/obj"
-  printf '{"project":{"restore":{"projectPath":"%s/%s"}}}' "$d" "$(basename "$f")" > "$d/obj/project.assets.json"
+  # #122 (Windows): the real dotnet writes a native path; cygpath -m gives it with / (valid JSON).
+  p="$d"; command -v cygpath >/dev/null 2>&1 && p="$(cygpath -m "$d")"
+  printf '{"project":{"restore":{"projectPath":"%s/%s"}}}' "$p" "$(basename "$f")" > "$d/obj/project.assets.json"
 done`);
 
 const home = join(lab, "home");
 mkdirSync(home, { recursive: true });
-const baseEnv = () => ({ ...process.env, PATH: `${bin}:${process.env.PATH}`, DEPS_STUB_LOG: LOG, HOME: home, NVM_DIR: join(lab, "no-nvm") });
+// #122 (Windows): deps.mjs starts yarn, npm and dotnet natively; stubSpawnEnv() lets those
+// native spawns reach the extensionless stubs above (an empty object off Windows).
+const baseEnv = () => ({ ...prependPath(process.env, [bin]), ...stubSpawnEnv(), DEPS_STUB_LOG: LOG, HOME: home, NVM_DIR: join(lab, "no-nvm") });
 const calls = () => (existsSync(LOG) ? readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
 const clearCalls = () => rmSync(LOG, { force: true });
 
@@ -75,7 +83,7 @@ function run(cmd, args, cwd, env = {}) {
 const deps = (repo, command, env) => run("node", [join(repo, ".xezar/checks/lib/deps.mjs"), command, "--root", repo], repo, env);
 // A bash snippet with lib/common.sh sourced and the task paths resolved.
 const sh = (repo, snippet, env) =>
-  run("bash", ["-c", `set -uo pipefail\n. .xezar/checks/lib/common.sh\nresolve_task_paths || exit 99\n${snippet}`], repo, env);
+  run(bashPath(), ["-c", `set -uo pipefail\n. .xezar/checks/lib/common.sh\nresolve_task_paths || exit 99\n${snippet}`], repo, env);
 
 // --- fixtures -----------------------------------------------------------------------------------
 let seq = 0;
@@ -129,13 +137,14 @@ try {
   // wholesale; a package folder swapped or a file edited inside the same tree needs the digest.
   {
     const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
-    run("bash", [join(r, RESTORE)], r);
+    run(bashPath(), [join(r, RESTORE)], r);
     const nm = join(r, "apps/web/node_modules");
     const pkg = (name, body = "module.exports = 1;\n") => { write(join(nm, name, "package.json"), `{"name":"${name}"}\n`); write(join(nm, name, "index.js"), body); };
     pkg("left-pad");
     pkg("other");
     mkdirSync(join(nm, ".bin"));
-    symlinkSync("../left-pad/index.js", join(nm, ".bin/left-pad"));
+    // #122 (Windows): a relative link target gets an explicit type; Windows makes file and folder links differently.
+    symlinkSync("../left-pad/index.js", join(nm, ".bin/left-pad"), "file");
     pkg("other/node_modules/nested");
     const fresh = (env) => sh(r, "deps_are_fresh", env).code;
     const restamp = () => sh(r, "write_deps_stamp").code === 0 && fresh() === 0;
@@ -153,7 +162,7 @@ try {
     expect("stale: a file edited in place, same size (#53)", fresh() !== 0);
     expect("digest: re-stamped after the edit", restamp());
     rmSync(join(nm, ".bin/left-pad"));
-    symlinkSync("../other/index.js", join(nm, ".bin/left-pad"));
+    symlinkSync("../other/index.js", join(nm, ".bin/left-pad"), "file");
     expect("stale: a .bin entry swapped (#53)", fresh() !== 0);
     expect("digest: re-stamped after the swap", restamp());
     // What the gates themselves write: build caches directly inside a node_modules.
@@ -180,17 +189,17 @@ try {
     cacheCase("a build cache that holds a package.json is digested like the rest", () => write(join(nm, ".cache/evil/package.json"), "{}\n"), () => rmSync(join(nm, ".cache/evil"), { recursive: true }));
     cacheCase("a build cache that holds a .bin", () => write(join(nm, ".vite/.bin/tool"), "x\n"), () => rmSync(join(nm, ".vite/.bin"), { recursive: true }));
     cacheCase("a .tmp cache that holds a package.json is digested like the rest", () => write(join(nm, ".tmp/evil/package.json"), "{}\n"), () => rmSync(join(nm, ".tmp/evil"), { recursive: true }));
-    cacheCase("a build cache that holds a link", () => symlinkSync("../other", join(nm, ".cache/ln")), () => rmSync(join(nm, ".cache/ln")));
+    cacheCase("a build cache that holds a link", () => symlinkSync("../other", join(nm, ".cache/ln"), "dir"), () => rmSync(join(nm, ".cache/ln")));
     cacheCase("a cache-named folder that is not directly inside a node_modules", () => write(join(nm, "other/.cache/x"), "x\n"), () => rmSync(join(nm, "other/.cache"), { recursive: true }));
-    symlinkSync(".cache/babel", join(nm, "sneaky"));
+    symlinkSync(".cache/babel", join(nm, "sneaky"), "dir");
     const into = deps(r, "fresh");
     expect("refused: a link into a build cache the digest leaves out (#53)", into.code === 1 && into.err.includes("sneaky links into the build cache .cache"), JSON.stringify(into));
     rmSync(join(nm, "sneaky"));
     expect("digest: fresh again once the link is gone", fresh() === 0);
     if (process.getuid?.() !== 0) {
-      chmodSync(join(nm, "other"), 0o000);
-      const locked = deps(r, "fresh");
-      chmodSync(join(nm, "other"), 0o755);
+      const restore = restrict(join(nm, "other"), "no-read");
+      let locked;
+      try { locked = deps(r, "fresh"); } finally { restore(); }
       expect("refused: a tree the digest cannot read is not fresh, never skipped (#53)", locked.code === 1 && locked.err.includes("cannot be read"), JSON.stringify(locked));
     } else console.log("SKIP  unreadable tree: running as root, which reads everything");
     const slow = deps(r, "fresh", { XEZ_DEPS_DIGEST_TIMEOUT_MS: "0" });
@@ -207,7 +216,7 @@ try {
       config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]),
       files: unitFiles,
       extra: (d) => {
-        const x = (f, body) => { write(join(d, ".xezar/checks", f), `#!/usr/bin/env bash\n${body}\n`); chmodSync(join(d, ".xezar/checks", f), 0o755); };
+        const x = (f, body) => { mkdirSync(join(d, ".xezar/checks"), { recursive: true }); writeStub(join(d, ".xezar/checks", f), `#!/usr/bin/env bash\n${body}\n`); };
         copyFileSync(join(KIT, "checks/resume-complete.sh"), join(d, ".xezar/checks/resume-complete.sh"));
         x("worktree-preflight.sh", `printf 'preflight %s\\n' "$*" >> "$RESUME_LOG"`);
         x("phase-record.sh", "exit 1");
@@ -215,10 +224,10 @@ try {
         write(join(d, ".xezar/checks/lib/gate-results.mjs"), 'console.log("seal: eligible (stub)");\n');
       },
     });
-    run("bash", [join(res, RESTORE)], res);
+    run(bashPath(), [join(res, RESTORE)], res);
     write(join(res, "apps/web/node_modules/dep/package.json"), '{"name":"dep"}\n');
     sh(res, "write_deps_stamp");
-    const resume = (flag, env = {}) => { rmSync(log, { force: true }); const o = run("bash", [".xezar/checks/resume-complete.sh", ...(flag ? [flag] : [])], res, { XEZ_TASK_ID: "run-53", RESUME_LOG: log, ...env }); return { ...o, log: existsSync(log) ? readFileSync(log, "utf8") : "" }; };
+    const resume = (flag, env = {}) => { rmSync(log, { force: true }); const o = run(bashPath(), [".xezar/checks/resume-complete.sh", ...(flag ? [flag] : [])], res, { XEZ_TASK_ID: "run-53", RESUME_LOG: log, ...env }); return { ...o, log: existsSync(log) ? readFileSync(log, "utf8") : "" }; };
     const reused = resume("--dry-run");
     expect("resume: eligible evidence with fresh dependencies is reused", reused.code === 0 && reused.out.includes("would be reused"), reused.out + reused.err);
     rmSync(join(res, "apps/web/node_modules/dep"), { recursive: true });
@@ -283,7 +292,8 @@ try {
     expect("a single npm root is single mode, silently", mode.code === 0 && mode.out === "single\n" && mode.err === "", JSON.stringify(mode));
     expect("a single npm root is never pinned to a Node, even with a numeric .nvmrc", deps(r, "node-pin").out === "");
     // The old fingerprint, computed independently: `shasum -a 256` lines, then the three facts.
-    const line = (f) => `${sha(readFileSync(join(r, f)))}  ${f}\n`;
+    // #122 (Windows): Git for Windows' shasum reads in binary mode there and marks it with "*".
+    const line = (f) => `${sha(readFileSync(join(r, f)))} ${process.platform === "win32" ? "*" : " "}${f}\n`;
     const want = sha(`${line("package-lock.json")}${line("package.json")}packageManager=npm@10.9.0\nnpm=10.9.0\nnode=${process.version}\n`);
     const fp = sh(r, "deps_fingerprint");
     expect("single root: deps_fingerprint is the old formula, byte for byte", fp.out === `${want}\n`, `got ${JSON.stringify(fp)} want ${want}`);
@@ -301,7 +311,7 @@ try {
     const profile = sh(r, "env_profile");
     expect("single root: env_profile records exactly the old keys", JSON.stringify(Object.keys(JSON.parse(profile.out))) === '["platform","arch","node","npm","git","bash"]', profile.out);
     clearCalls();
-    const restore = run("bash", [join(r, RESTORE)], r);
+    const restore = run(bashPath(), [join(r, RESTORE)], r);
     expect("single root: deps-restore.sh runs npm ci at the root", restore.code === 0 && JSON.stringify(calls().map((c) => [c.tool, c.argv, c.cwd])) === JSON.stringify([["npm", ["ci"], r]]), JSON.stringify(calls()));
   }
 
@@ -311,17 +321,17 @@ try {
     const listed = JSON.parse(deps(u, "units").out).map((x) => x.dir);
     expect("units: the loader lists exactly the configured units, in order", JSON.stringify(listed) === JSON.stringify(UNITS.map((x) => x.dir)), JSON.stringify(listed));
     clearCalls();
-    const restore = run("bash", [join(u, RESTORE)], u);
+    const restore = run(bashPath(), [join(u, RESTORE)], u);
     const got = calls();
     expect("units: deps-restore.sh installs every unit and nothing else", restore.code === 0 && JSON.stringify(got.map((c) => c.cwd)) === JSON.stringify(UNITS.map((x) => join(u, x.dir))), `${restore.err}\n${JSON.stringify(got)}`);
-    expect("units: the excluded folder is never installed", !got.some((c) => c.cwd.endsWith("apps/excluded")));
+    expect("units: the excluded folder is never installed", !got.some((c) => toPosixPath(c.cwd).endsWith("apps/excluded")));
     const yarnCalls = got.filter((c) => c.tool === "yarn");
     expect("units: Yarn 1 runs with --frozen-lockfile --non-interactive and HUSKY=0", yarnCalls.length === 2 && yarnCalls.every((c) => JSON.stringify(c.argv) === '["install","--frozen-lockfile","--non-interactive"]' && c.husky === "0"), JSON.stringify(yarnCalls));
     expect("units: npm runs npm ci", JSON.stringify(got.filter((c) => c.tool === "npm").map((c) => c.argv)) === '[["ci"]]');
     expect("units: dotnet restores the entry, without --locked-mode when no project has packages.lock.json", JSON.stringify(got.filter((c) => c.tool === "dotnet").map((c) => c.argv)) === '[["restore","Svc.sln"]]');
     const setup = readFileSync(join(KIT, "checks/worktree-setup.sh"), "utf8");
     expect("units: worktree-setup.sh installs through deps-restore.sh, the gates' first command", /DEPS_UNITS" -eq 0 \]; then\n\s+"\$SCRIPT_DIR\/deps-restore\.sh"/.test(setup));
-    const gates = run("bash", [join(u, ".xezar/checks/repo-gates.sh")], u, { XEZ_GATE_LEASE: "1" });
+    const gates = run(bashPath(), [join(u, ".xezar/checks/repo-gates.sh")], u, { XEZ_GATE_LEASE: "1" });
     expect("units: the gates refuse a first gate that is not deps-restore.sh", gates.code === 1 && gates.err.includes('the first gate must be .xezar/checks/deps-restore.sh, and it is "npm ci"'), gates.err);
     const drift = repo({ config: unitsConfig(UNITS, "npm ci"), files: unitFiles });
     const refused = deps(drift, "mode");
@@ -411,7 +421,7 @@ try {
     // #46: the stamp lives outside node_modules, so it must be bound to the tree it was written
     // for. A twin task with equal inputs, installed and stamped; its tree copied over ours.
     const twin = repo({ config: unitsConfig(), files: unitFiles });
-    run("bash", [join(twin, RESTORE)], twin);
+    run(bashPath(), [join(twin, RESTORE)], twin);
     expect("tree swap: the twin task is installed and fresh", sh(twin, "deps_resolve_in_task && write_deps_stamp && deps_are_fresh").code === 0);
     rmSync(nmw, { recursive: true });
     execFileSync("cp", ["-R", join(twin, "apps/web/node_modules"), nmw]);
@@ -423,7 +433,7 @@ try {
     const gates = readFileSync(join(KIT, "checks/repo-gates.sh"), "utf8");
     expect("tree swap: the fast gate installs whenever deps_are_fresh refuses", gates.includes('if [ "$FAST" -eq 1 ] && ! deps_are_fresh; then'));
     clearCalls();
-    const again = run("bash", ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && write_deps_stamp && deps_are_fresh`], u);
+    const again = run(bashPath(), ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && write_deps_stamp && deps_are_fresh`], u);
     expect("tree swap: reinstalling and stamping makes the task fresh again", again.code === 0 && calls().some((c) => c.tool === "yarn" && c.cwd === join(u, "apps/web")), again.err);
     // The no-unit failure: a unit whose folder is gone is a failure, never a skip.
     execFileSync("mv", [join(u, "apps/tool"), join(lab, "tool-away")]);
@@ -441,7 +451,7 @@ try {
 
     // The stamp location passes the tidiness check.
     for (const d of ["runtime", "tasks", "worktrees", "scratch", "qa"]) mkdirSync(join(u, ".local/xezar", d), { recursive: true });
-    const tidy = run("bash", [join(u, ".xezar/checks/local-tree.sh")], u, { PATH: `${bin}:/usr/bin:/bin:${dirname(process.execPath)}` });
+    const tidy = run(bashPath(), [join(u, ".xezar/checks/local-tree.sh")], u, { PATH: [bin, ...posixToolDirs(), dirname(process.execPath)].join(delimiter) });
     expect("units: the stamps under .local/xezar/cache/deps pass local-tree.sh", tidy.code === 0, tidy.out + tidy.err);
   }
 
@@ -451,8 +461,8 @@ try {
     const wt = unitsConfig([...UNITS, { dir: "apps/excluded", provider: "yarn" }]);
     write(join(r, ".xezar/pipeline/config.json"), JSON.stringify(wt));
     clearCalls();
-    run("bash", [join(r, RESTORE)], r);
-    expect("units read from the base branch: a unit added in the working tree is not installed", calls().length === UNITS.length && !calls().some((c) => c.cwd.endsWith("apps/excluded")), JSON.stringify(calls().map((c) => c.cwd)));
+    run(bashPath(), [join(r, RESTORE)], r);
+    expect("units read from the base branch: a unit added in the working tree is not installed", calls().length === UNITS.length && !calls().some((c) => toPosixPath(c.cwd).endsWith("apps/excluded")), JSON.stringify(calls().map((c) => c.cwd)));
     write(join(r, ".xezar/pipeline/config.json"), '{"validation":{"commands":["npm ci"]}}\n');
     expect("units read from the base branch: removing the units in the working tree changes nothing", deps(r, "mode").out === "units\n");
     const none = repo({ config: { validation: { commands: ["npm ci"] } }, files: unitFiles });
@@ -469,10 +479,10 @@ try {
 
   // 4. Symlinked folders and bad shapes are refused.
   {
-    const linked = repo({ config: unitsConfig([{ dir: "apps/link", provider: "yarn" }]), files: unitFiles, extra: (d) => symlinkSync("web", join(d, "apps/link")) });
+    const linked = repo({ config: unitsConfig([{ dir: "apps/link", provider: "yarn" }]), files: unitFiles, extra: (d) => symlinkSync("web", join(d, "apps/link"), "dir") });
     const r1 = deps(linked, "mode");
     expect("a symlinked unit folder is refused", r1.code === 2 && r1.err.includes("symlink refused: apps/link"), r1.err);
-    const parent = repo({ config: unitsConfig([{ dir: "lnk/web", provider: "yarn" }]), files: unitFiles, extra: (d) => symlinkSync("apps", join(d, "lnk")) });
+    const parent = repo({ config: unitsConfig([{ dir: "lnk/web", provider: "yarn" }]), files: unitFiles, extra: (d) => symlinkSync("apps", join(d, "lnk"), "dir") });
     const r2 = deps(parent, "mode");
     expect("a unit under a symlinked parent is refused", r2.code === 2 && r2.err.includes("symlink refused: lnk/web"), r2.err);
     for (const [name, units, fragment] of [
@@ -497,12 +507,12 @@ try {
   ]) {
     const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: { ...unitFiles, ...files } });
     clearCalls();
-    const res = run("bash", [join(r, RESTORE)], r, env);
+    const res = run(bashPath(), [join(r, RESTORE)], r, env);
     expect(`Yarn 2+ refused: ${name}`, res.code !== 0 && res.err.includes("Yarn 1 only") && calls().length === 0, `${res.err} ${JSON.stringify(calls())}`);
   }
   {
     const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
-    const res = run("bash", [join(r, RESTORE)], r, { STUB_FAIL: "1" });
+    const res = run(bashPath(), [join(r, RESTORE)], r, { STUB_FAIL: "1" });
     expect("a failing install fails deps-restore.sh and names the unit", res.code === 1 && res.err.includes("failed in apps/web"), res.err);
   }
 
@@ -513,7 +523,7 @@ try {
       files: { "svc/Svc.slnx": "<Solution/>\n", "svc/Api/Api.csproj": "<Project/>\n", "svc/Api/packages.lock.json": "{}\n" },
     });
     clearCalls();
-    const res = run("bash", [join(r, RESTORE)], r);
+    const res = run(bashPath(), [join(r, RESTORE)], r);
     expect("dotnet: a .slnx entry is restored, with --locked-mode when packages.lock.json exists", res.code === 0 && JSON.stringify(calls().map((c) => c.argv)) === '[["restore","Svc.slnx","--locked-mode"]]', `${res.err} ${JSON.stringify(calls())}`);
   }
 
@@ -525,7 +535,7 @@ try {
       config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.sln" }]),
       files: { "svc/Svc.sln": sln(["Api\\Api.csproj", "..\\shared\\Lib\\Lib.csproj"]), "svc/Api/Api.csproj": "<Project/>\n", "shared/Lib/Lib.csproj": "<Project/>\n" },
     });
-    run("bash", [join(r, RESTORE)], r);
+    run(bashPath(), [join(r, RESTORE)], r);
     const unrestored = deps(r, "resolve");
     expect("dotnet: a project the solution lists outside the unit must be restored too", unrestored.code === 1 && unrestored.err.includes("shared/Lib/Lib.csproj: not restored"), unrestored.err);
     write(join(r, "shared/Lib/obj/project.assets.json"), JSON.stringify({ project: { restore: { projectPath: join(r, "shared/Lib/Lib.csproj") } } }));
@@ -543,7 +553,7 @@ try {
   {
     const major = Number(process.versions.node.split(".")[0]);
     const nvm = join(lab, "nvm");
-    const fake = (v) => { write(join(nvm, "versions/node", v, "bin/node"), `#!/bin/sh\nexec "${process.execPath}" "$@"\n`); chmodSync(join(nvm, "versions/node", v, "bin/node"), 0o755); };
+    const fake = (v) => { mkdirSync(join(nvm, "versions/node", v, "bin"), { recursive: true }); writeStub(join(nvm, "versions/node", v, "bin/node"), `#!/bin/sh\nexec "${process.execPath}" "$@"\n`); };
     fake(`v${major + 1}.9.0`);
     fake(`v${major + 1}.10.0`);
     fake(`v${major + 2}.1.0`);
@@ -552,7 +562,13 @@ try {
     const want = join(nvm, "versions/node", `v${major + 1}.10.0`, "bin");
     expect("node pin: the numerically newest v<major>.* is chosen (10 beats 9)", pin.out === `${want}\n`, JSON.stringify(pin));
     const onPath = sh(pinned, "command -v node", { NVM_DIR: nvm });
-    expect("node pin: lib/common.sh puts it first on PATH", onPath.out === `${join(want, "node")}\n`, JSON.stringify(onPath));
+    // #122 (Windows): bash prints a POSIX path (/c/…), so the expected path is compared in that
+    // form. A Windows path on bash's PATH splits at the drive colon and leaves a drive-relative
+    // entry (\Users\…), which finds node only while the current drive is the one it names.
+    const inBashForm = (file) => (process.platform === "win32"
+      ? execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-u", file], { encoding: "utf8" }).trim()
+      : file);
+    expect("node pin: lib/common.sh puts it first on PATH", onPath.out === `${inBashForm(join(want, "node"))}\n`, JSON.stringify(onPath));
     const missing = deps(pinned, "tools");
     expect("node pin: with the pinned major not installed, setup names the Node found and the major wanted", missing.code === 1 && missing.err.includes(`node ${process.version} is on PATH, but this repository pins Node ${major + 1}`), missing.err);
     const same = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: { ...unitFiles, ".nvmrc": `${major}\n` } });
@@ -589,13 +605,15 @@ try {
       files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n', ...files },
       extra: (d) => {
         copyFileSync(join(KIT, "checks/lib/gate-parallel.mjs"), join(d, ".xezar/checks/lib/gate-parallel.mjs"));
+        copyFileSync(join(KIT, "checks/lib/windows-process.mjs"), join(d, ".xezar/checks/lib/windows-process.mjs"));
         for (const f of ["security-scan.sh", "repository-checks.sh"]) { write(join(d, ".xezar/checks", f), "#!/usr/bin/env bash\nexit 0\n"); chmodSync(join(d, ".xezar/checks", f), 0o755); }
       },
     });
     // An npm in front of the recording stub: `npm test` plays `prisma generate` (and, on request,
     // fails, edits the lockfile or reinstalls), `npm run build` plays Vite's optimizer.
     const gbin = join(lab, "gates-bin");
-    write(join(gbin, "npm"), `#!/usr/bin/env bash
+    mkdirSync(gbin, { recursive: true });
+    writeStub(join(gbin, "npm"), `#!/usr/bin/env bash
 if [ "\${1:-}" = test ]; then
   mkdir -p node_modules/.prisma/client
   printf '{"name":".prisma/client"}\\n' > node_modules/.prisma/client/package.json
@@ -609,11 +627,10 @@ if [ "\${1:-} \${2:-}" = "run build" ]; then
 fi
 exec "${join(bin, "npm")}" "$@"
 `);
-    chmodSync(join(gbin, "npm"), 0o755);
-    const gatesPath = { PATH: `${gbin}:${bin}:${process.env.PATH}` };
+    const gatesPath = { PATH: prependPath(process.env, [gbin, bin]).PATH };
     const gates = (r, args = [], env = {}) => {
       clearCalls();
-      const o = run("bash", [".xezar/checks/repo-gates.sh", ...args], r, { ...gatesPath, XEZ_GATE_LEASE: "1", ...env });
+      const o = run(bashPath(), [".xezar/checks/repo-gates.sh", ...args], r, { ...gatesPath, XEZ_GATE_LEASE: "1", ...env });
       return { ...o, installed: calls().some((c) => c.tool === "npm" && c.argv[0] === "ci") };
     };
     const freshIn = (r) => sh(r, "deps_are_fresh", gatesPath).code;
@@ -651,7 +668,7 @@ exec "${join(bin, "npm")}" "$@"
 
     // Units: the same re-stamp, and a unit tree reinstalled after the baseline is refused.
     const u2 = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
-    run("bash", [join(u2, RESTORE)], u2);
+    run(bashPath(), [join(u2, RESTORE)], u2);
     const base = sh(u2, "deps_resolve_in_task && write_deps_stamp && deps_restamp_baseline");
     expect("units gates write: a baseline is taken after the stamp", base.code === 0 && base.out.split("\n").length === 2, JSON.stringify(base));
     write(join(u2, "apps/web/node_modules/.prisma/client/package.json"), '{"name":".prisma/client"}\n');
@@ -660,18 +677,18 @@ exec "${join(bin, "npm")}" "$@"
     expect("units gates write: re-stamped over the tree the baseline names, fresh again", restamped.out.includes("refreshed after the gates") && sh(u2, "deps_are_fresh").code === 0, restamped.out + restamped.err);
     const base2 = sh(u2, "deps_restamp_baseline").out;
     rmSync(join(u2, "apps/web/node_modules"), { recursive: true });
-    run("bash", [join(u2, RESTORE)], u2);
+    run(bashPath(), [join(u2, RESTORE)], u2);
     const swapped = sh(u2, `deps_restamp_after_gates '${base2}'`);
     expect("units gates write: a unit tree reinstalled after the baseline is never re-stamped", swapped.out.includes("NOT refreshed (node_modules was replaced") && sh(u2, "deps_are_fresh").code !== 0, swapped.out);
   }
 
   // Opt-in: the real tools.
   if (process.env.XEZ_DEPS_REAL === "1") {
-    const realEnv = { PATH: process.env.PATH, HOME: process.env.HOME, NVM_DIR: process.env.NVM_DIR ?? "" };
+    const realEnv = { PATH: process.env.PATH, HOME: process.env.HOME ?? homedir(), NVM_DIR: process.env.NVM_DIR ?? "" };
     const yarnV = spawnSync("yarn", ["--version"], { encoding: "utf8" });
     if (yarnV.status === 0 && /^1\./.test(yarnV.stdout)) {
       const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: { "apps/web/package.json": '{"name":"web","version":"1.0.0","private":true}\n', "apps/web/yarn.lock": "# THIS IS AN AUTOGENERATED FILE. DO NOT EDIT THIS FILE DIRECTLY.\n# yarn lockfile v1\n\n\n" } });
-      const res = run("bash", ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && deps_resolve_in_task && write_deps_stamp && deps_are_fresh`], r, realEnv);
+      const res = run(bashPath(), ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && deps_resolve_in_task && write_deps_stamp && deps_are_fresh`], r, realEnv);
       expect("real yarn: install, resolve, stamp and fresh", res.code === 0, res.out + res.err);
     } else console.log("SKIP  real yarn: Yarn 1 is not installed here");
     const dotnet = spawnSync("dotnet", ["--version"], { encoding: "utf8" });
@@ -686,7 +703,7 @@ exec "${join(bin, "npm")}" "$@"
       });
       execFileSync("dotnet", ["sln", join(r, "svc/Svc.sln"), "add", join(r, "svc/Api/Api.csproj")], { stdio: "ignore" });
       git(r, "add", "-A"); git(r, "commit", "--quiet", "-m", "sln"); git(r, "push", "--quiet", "origin", "HEAD:main"); git(r, "fetch", "--quiet", "origin");
-      const res = run("bash", ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && deps_resolve_in_task && write_deps_stamp && deps_are_fresh`], r, realEnv);
+      const res = run(bashPath(), ["-c", `bash ${RESTORE} && . .xezar/checks/lib/common.sh && resolve_task_paths && deps_resolve_in_task && write_deps_stamp && deps_are_fresh`], r, realEnv);
       expect("real dotnet: restore, resolve, stamp and fresh", res.code === 0, res.out + res.err);
     } else console.log("SKIP  real dotnet: the .NET SDK is not installed here");
   }

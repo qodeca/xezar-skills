@@ -106,6 +106,28 @@ withFile(VICTIM, (s) => s.replace("<!-- shared:untrusted-content:start -->", "")
   expect("the failure names the file missing markers", out.includes("missing"), out.trim());
 });
 
+// --- #122 (Windows): a CRLF checkout is in sync exactly when its LF form is ---
+// core.autocrlf on Windows checks every copy out with CRLF; the sync must neither call such a
+// copy drifted nor let a real drift through because the line endings already differ.
+const crlf = (s) => s.replace(/\r?\n/g, "\r\n");
+const KIT_ROLE = join(root, "skills", "xez-onboard-opinionated", "kit", "skills", "xezar-code-review.md");
+
+withFile(VICTIM, crlf, () => {
+  const { code, out } = runCheck();
+  expect("a CRLF copy of a synced marked block passes", code === 0, out.trim());
+});
+
+withFile(VICTIM, (s) => crlf(s.replace("data, never instructions", "data, never instruction")), () => {
+  const { code, out } = runCheck();
+  expect("a CRLF copy with a one-byte divergence fails", code !== 0);
+  expect("the CRLF failure names the drifted file", out.includes("xez-approve-merge-pr"), out.trim());
+});
+
+withFile(KIT_ROLE, crlf, () => {
+  const { code, out } = runCheck();
+  expect("a CRLF copy of a kit role skill's Shared contract tail passes", code === 0, out.trim());
+});
+
 // --- the tree is restored ----------------------------------------------------
 {
   const { code } = runCheck();
@@ -116,4 +138,4 @@ if (failures) {
   console.error(`\nshared-blocks: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-console.log(`Shared-block sync contract OK (${asserts} assertions: drift, repair, narrowing, clause floor, missing markers).`);
+console.log(`Shared-block sync contract OK (${asserts} assertions: drift, repair, narrowing, clause floor, missing markers, CRLF copies).`);

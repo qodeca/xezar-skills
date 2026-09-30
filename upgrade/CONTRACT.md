@@ -98,10 +98,14 @@ Rules:
     the kit's.
 
   The list is closed: adding a value is a breaking change.
+- **Digests.** `sha256` values are of the file as text with `\r\n` read as `\n`; a file with a NUL
+  byte in its first 8000 bytes is binary and hashed as it is. On an LF checkout this is the file's
+  bytes. A digest an earlier install recorded over the raw bytes of a CRLF file is still accepted,
+  by the drift check (§4) and by the planner, which reads it as the file's own record.
 - **`patch` present = locally patched.** It names a register entry (§2). A file with no `patch`
-  must hash-match `sha256`. A patched file may also be absent: a kit file the project removed on
-  purpose keeps its entry – what was installed – with the `patch`, so the next upgrade reads the
-  absence as the recorded local change and does not add the file back.
+  must hash-match `sha256` (Digests, above). A patched file may also be absent: a kit file the
+  project removed on purpose keeps its entry – what was installed – with the `patch`, so the next
+  upgrade reads the absence as the recorded local change and does not add the file back.
 - **`kitSource`** is the path under `kit/`. It is required for `copied` and `adapted`, and absent
   for `generated`.
 - **`kitBlob`** is the git blob sha of the kit file before rewrite. It is required for `copied` and
@@ -186,7 +190,7 @@ Built by `scripts/build-kit-index.mjs` and committed.
     ".xezar/checks/route.mjs": {
       "kitSource": "checks/route.mjs",
       "kitBlob": "<40-hex>",
-      "sha256": "<64-hex of the raw kit file>",
+      "sha256": "<64-hex of the kit file (§1 Digests)>",
       "rewrite": "copied",
       "renamedFrom": ".xezar/docs/model-routing.md"
     }
@@ -214,6 +218,9 @@ Exit codes:
 - 0 – `pass` or `not-applicable`;
 - 1 – `fail`;
 - 2 – the manifest or register cannot be parsed.
+
+A file is compared by the digest rule in §1 (Digests): as LF text, or as its raw bytes when that is
+what an earlier install recorded.
 
 ## 5. Upgrade entry machine block
 

@@ -43,6 +43,16 @@ export function universe(ctx) {
 }
 
 /**
+ * True when a digest the manifest recorded is this file's: over its LF text (contract §1 →
+ * Digests), or over its raw bytes, which an install on a CRLF checkout before 3.1.0 recorded.
+ * `mine` is ctx.readMine()'s result, or any { text, rawSha256? }.
+ */
+export function recordedAsMine(recorded, mine) {
+  if (!recorded || mine?.text == null) return false;
+  return recorded === sha256(mine.text) || recorded === mine.rawSha256;
+}
+
+/**
  * Find the base of one file. Returns { version, entry, confidence, via, inputs, text }.
  * `entry` is that version's index entry; `text` its raw kit content when available;
  * `inputs` the placeholder values recovered from the installed file (memory only).
@@ -82,7 +92,7 @@ export function findBase(ctx, path, mine) {
     const mineSha = sha256(mine.text);
     const same = newest((e) => e.sha256 === mineSha);
     if (same) {
-      const agrees = (hint.sha256 && hint.sha256 === mineSha) || (hint.kitBlob && hint.kitBlob === same.files[path].kitBlob);
+      const agrees = recordedAsMine(hint.sha256, mine) || (hint.kitBlob && hint.kitBlob === same.files[path].kitBlob);
       return result(same, agrees ? "high" : "medium", agrees ? "manifest-sha256" : "content");
     }
   }
@@ -111,7 +121,7 @@ export function findBase(ctx, path, mine) {
         const t = textOf(e);
         if (t == null) continue;
         const m = normalisedMatch(t, mine.text);
-        if (m.match && m.exact && sha256(mine.text) === hint.sha256) return result(v, "high", "manifest-sha256-rendered", { text: t, inputs: m.inputs });
+        if (m.match && m.exact && recordedAsMine(hint.sha256, mine)) return result(v, "high", "manifest-sha256-rendered", { text: t, inputs: m.inputs });
       }
     }
   }
@@ -157,6 +167,7 @@ export function detect(ctx) {
       mine: mine.refused ? "refused" : mine.missing ? "missing" : "present",
       refusedReason: mine.reason ?? null,
       mineText: mine.text ?? null,
+      mineRawSha256: mine.rawSha256 ?? null,
       mineMode: mine.mode ?? null,
       base,
     });
