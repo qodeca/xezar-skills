@@ -1,7 +1,8 @@
 # The guard suite (scripts/test-guards.mjs) breaks every gate on purpose to prove it still
-# fires. It takes about twenty-five minutes, so it runs here once a night instead of on every
-# PR (owner decision 2026-09-27; see DECISIONS.md -> "The guard suite runs nightly"). A second
-# job runs the same suite on native Windows (#122); it is informational and never opens the issue.
+# fires. It takes about seventy minutes on GitHub's Linux runner, so it runs here once a night
+# instead of on every PR (owner decision 2026-09-27; see DECISIONS.md -> "The guard suite runs
+# nightly"). A second job runs the same suite on native Windows (#122); it is informational and
+# never opens the issue.
 #
 # When this starts firing: GitHub runs scheduled workflows only from the repository's
 # default branch (main). This file reaches main with the 3.1.0 release; until then the
@@ -25,9 +26,9 @@ concurrency:
 jobs:
   guards:
     runs-on: ubuntu-latest
-    # The suite takes about twenty-five minutes and grows with every guard; a run still going
-    # after forty-five is hung, not slow.
-    timeout-minutes: 45
+    # The suite took 70 minutes here on 2026-09-29 (309 breaks) and grows with every guard; #123
+    # is to make it faster. A run still going after 120 minutes is hung, not slow.
+    timeout-minutes: 120
     outputs:
       sha: ${{ steps.head.outputs.sha }}
     steps:
