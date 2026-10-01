@@ -24,7 +24,10 @@
 // root the kit always had, and `lib/common.sh` then takes its old path unchanged.
 //
 // WHAT IS INSTALLED. The install map below, as argv arrays run with `spawnSync` and never through
-// a shell. npm: `npm ci`. Yarn 1 only, checked per unit: Yarn 2 or later is refused by name, since
+// a shell – with one exception on native Windows, where npm and Yarn are `.cmd` shims that only
+// cmd.exe starts: there `start()` runs them through cmd.exe with every argument and the shim's path
+// checked first, and never searches the unit's folder for a program (lib/windows-programs.mjs,
+// #122). npm: `npm ci`. Yarn 1 only, checked per unit: Yarn 2 or later is refused by name, since
 // its flags, lockfile and install layout are different tools. dotnet: `restore <entry>`, with
 // `--locked-mode` when a project carries `packages.lock.json`. Lifecycle scripts run, as `npm ci`
 // always did here (DECISIONS.md -> "Dependency units").
@@ -43,6 +46,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+
+const WINDOWS = process.platform === "win32" ? await import("./windows-programs.mjs") : null;
 
 const CONFIG = ".xezar/pipeline/config.json";
 const STAMPS = ".local/xezar/cache/deps";
@@ -72,17 +77,31 @@ function safeParents(base, rel) {
   }
 }
 
+// Every unit tool starts here. Off Windows: spawnSync, as it always did. On native Windows the tool
+// is looked up on PATH as Windows names it (npm.cmd, yarn.cmd, dotnet.exe; an absolute path is
+// kept) and started by that full path, a .cmd through cmd.exe (launchFor); a tool that is not
+// found answers as spawnSync does, with an ENOENT error, and is never started by its bare name,
+// which Windows would look for in the unit's folder first.
+function start(tool, args, options = {}) {
+  if (!WINDOWS) return spawnSync(tool, args, options);
+  const plan = WINDOWS.launchFor(tool, args, { env: options.env ?? process.env, cwd: options.cwd });
+  if (plan.error) return { status: null, error: plan.error };
+  return spawnSync(plan.file, plan.args, { ...options, ...plan.options });
+}
+
 // The first line a tool prints for `--version`, or "unknown". Run in the unit's folder: Yarn 1
 // honours a `.yarnrc` there, and dotnet a `global.json`.
 function version(tool, cwd) {
   if (!tool) return "unknown";
-  const r = spawnSync(tool, ["--version"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
+  const r = start(tool, ["--version"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
   return r.status === 0 && r.stdout.trim() ? r.stdout.trim().split("\n")[0].trim() : "unknown";
 }
 
 // dotnet is often installed off PATH (`dotnet-install.sh` puts it in ~/.dotnet). Both fallbacks
-// are absolute paths outside the repository, never a repository-local binary.
+// are absolute paths outside the repository, never a repository-local binary. On Windows it is
+// dotnet.exe, found the same way, in the same order.
 function dotnetBin() {
+  if (WINDOWS) return WINDOWS.findProgram("dotnet", { extraDirs: [process.env.DOTNET_ROOT, join(homedir(), ".dotnet")] });
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir && isAbsolute(dir) && executable(join(dir, "dotnet"))) return join(dir, "dotnet");
   }
@@ -192,19 +211,29 @@ function nodePin(root) {
   return m ? { kind: "major", major: Number(m[1]) } : { kind: "alias", raw };
 }
 
-const nvmVersions = () => join(process.env.NVM_DIR || join(homedir(), ".nvm"), "versions", "node");
+// The folders nvm keeps Node versions in, searched in this order: nvm-windows' %NVM_HOME%, whose
+// version folder holds node.exe itself (only when NVM_HOME is an absolute path, #122), then nvm's
+// $NVM_DIR/versions/node, whose version folder holds bin/node.
+// NVM_HOME is read on every OS so the Linux gate proves the nvm-windows layout; only nvm-windows sets it.
+const nvmRoots = () => [
+  ...(process.env.NVM_HOME && isAbsolute(process.env.NVM_HOME) ? [{ dir: process.env.NVM_HOME, bin: "" }] : []),
+  { dir: join(process.env.NVM_DIR || join(homedir(), ".nvm"), "versions", "node"), bin: "bin" },
+];
 
-// The numerically newest installed v<major>.x.y (v22.10.0 beats v22.9.0), already on disk.
+// The numerically newest installed v<major>.x.y (v22.10.0 beats v22.9.0), already on disk: the
+// folder that holds its executable node (or node.exe), from the first root that has one.
 function nvmBin(major) {
-  let names = [];
-  try { names = readdirSync(nvmVersions()); } catch { return null; }
-  const found = names
-    .map((name) => /^v(\d+)\.(\d+)\.(\d+)$/.exec(name))
-    .filter((m) => m && Number(m[1]) === major)
-    .sort((a, b) => Number(b[2]) - Number(a[2]) || Number(b[3]) - Number(a[3]));
-  for (const m of found) {
-    const bin = join(nvmVersions(), m[0], "bin");
-    if (executable(join(bin, "node"))) return bin;
+  for (const root of nvmRoots()) {
+    let names = [];
+    try { names = readdirSync(root.dir); } catch { continue; }
+    const found = names
+      .map((name) => /^v(\d+)\.(\d+)\.(\d+)$/.exec(name))
+      .filter((m) => m && Number(m[1]) === major)
+      .sort((a, b) => Number(b[2]) - Number(a[2]) || Number(b[3]) - Number(a[3]));
+    for (const m of found) {
+      const bin = join(root.dir, m[0], root.bin);
+      if (executable(join(bin, "node")) || executable(join(bin, "node.exe"))) return bin;
+    }
   }
   return null;
 }
@@ -602,7 +631,7 @@ function cmdInstall(root, units) {
     if (!plan.tool) throw new Refusal(`${u.dir}: dotnet is not on PATH, nor at $DOTNET_ROOT or ~/.dotnet`);
     const shown = `${u.provider === "dotnet" ? "dotnet" : plan.tool} ${plan.args.join(" ")}`;
     console.log(`  deps          installing ${u.dir} (${shown})`);
-    const r = spawnSync(plan.tool, plan.args, { cwd: join(root, u.dir), stdio: "inherit", env: { ...process.env, ...plan.env } });
+    const r = start(plan.tool, plan.args, { cwd: join(root, u.dir), stdio: "inherit", env: { ...process.env, ...plan.env } });
     if (r.error || r.status !== 0) {
       console.error(`deps-restore: ${shown} failed in ${u.dir}${r.error ? ` (${r.error.message})` : ` (exit ${r.status})`}`);
       return 1;
@@ -618,11 +647,11 @@ function cmdTools(root, units) {
   console.log(`${pad("node")}${process.version}`);
   if (pin.kind === "alias") console.log(`${pad("node pin")}.nvmrc holds "${pin.raw}", which is not a version number, so no Node is pinned here`);
   if (pin.kind === "major" && nodeMajor() !== pin.major) {
-    console.error(`node ${process.version} is on PATH, but this repository pins Node ${pin.major} (.nvmrc), and no Node ${pin.major} was found under ${nvmVersions()}. Install Node ${pin.major} (nvm is one way: nvm install ${pin.major}) or start the session under it.`);
+    console.error(`node ${process.version} is on PATH, but this repository pins Node ${pin.major} (.nvmrc), and no Node ${pin.major} was found under ${nvmRoots().map((r) => r.dir).join(" or ")}. Install Node ${pin.major} (nvm is one way: nvm install ${pin.major}) or start the session under it.`);
     return 1;
   }
-  if (needsNode && pin.kind !== "major" && nodeMajor() < 20) {
-    console.error(`node ${process.version} is below the required 20`);
+  if (needsNode && pin.kind !== "major" && nodeMajor() < 22) {
+    console.error(`node ${process.version} is below the required 22`);
     return 1;
   }
   const providers = [...new Set(units.map((u) => u.provider))];

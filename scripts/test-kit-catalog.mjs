@@ -54,6 +54,13 @@ const fail = (message) => {
   console.error(`FAIL  ${message}`);
 };
 
+/** `env` with OSTYPE set to `ostype` and any other spelling of the key dropped: bash keeps an OSTYPE it finds in its environment. */
+const withOstype = (env, ostype) => {
+  const next = { ...env };
+  for (const key of Object.keys(next)) if (key.toUpperCase() === "OSTYPE") delete next[key];
+  return { ...next, OSTYPE: ostype };
+};
+
 // --- 1. The kit's own validator, on the kit ---------------------------------------------------
 // Staged as `<tmp>/.xezar/{workflows,skills,checks}` because that is the only layout the
 // validator reads. The config is the smallest one it accepts.
@@ -166,6 +173,62 @@ try {
       fail("verdict-write.sh overwrites or accepts a packet that names another task instead of refusing it");
     if (pipe("verdict-write.sh", { kind: "packet", packet: "not an object" }) !== 1)
       fail("verdict-write.sh accepts a packet request whose packet is not an object");
+
+    // #122: jq on native Windows ends every line it writes with CRLF, and jq 1.6 there has no
+    // --binary. A stand-in jq, first on PATH, runs the real one (on Windows the harness's LF jq)
+    // and turns every LF into CRLF, and refuses -b/--binary as jq 1.6 does. Under it, with
+    // OSTYPE=msys (the kit strips jq's CRs under Git Bash or Cygwin only), and under the plain jq
+    // with the host's own OSTYPE, labels, a comment body with a CR inside, and evidence text arrive
+    // byte for byte. Off Windows a CR a label really holds is still refused, as before #122.
+    const crlfDir = join(lab, "crlf-jq");
+    mkdirSync(crlfDir);
+    const shQuote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+    const realJq = execFileSync(bashPath(), ["-c", "command -v jq"], { encoding: "utf8", env }).trim();
+    const crlfFilter = 'const c = []; process.stdin.on("data", (d) => c.push(d)).on("end", () => { const out = []; for (const b of Buffer.concat(c)) { if (b === 10) out.push(13); out.push(b); } process.stdout.write(Buffer.from(out)); });';
+    writeFileSync(join(crlfDir, "jq"), [
+      "#!/usr/bin/env bash",
+      'for a in "$@"; do case "$a" in -b | --binary) echo "jq: Unknown arguments: $a" >&2; exit 2 ;; esac; done',
+      `${shQuote(realJq)} "$@" | ${shQuote(process.execPath.replaceAll("\\", "/"))} -e ${shQuote(crlfFilter)}`,
+      'exit "${PIPESTATUS[0]}"',
+      "",
+    ].join("\n"));
+    chmodSync(join(crlfDir, "jq"), 0o755);
+    const crlfEnv = { PATH: prependPath(env, [crlfDir]).PATH };
+    const probe = execFileSync(bashPath(), ["-c", "jq -r .a <<<'{\"a\":\"x\"}' | od -An -c | tr -d ' '; jq -b -n 1 2>&1; true"], { encoding: "utf8", env: { ...env, ...crlfEnv } });
+    if (!probe.startsWith("x\\r\\n") || !probe.includes("jq: Unknown arguments")) fail(`the CRLF jq stand-in does not write CRLF and refuse -b: ${JSON.stringify(probe)}`);
+    const msysCrlfEnv = withOstype({ ...env, ...crlfEnv }, "msys");
+    rmSync(log, { force: true });
+    let crRefusal = { status: 0, out: "" };
+    try {
+      execFileSync(bashPath(), [".xezar/checks/gh-write.sh"], { cwd: repo, env: withOstype(env, "linux-gnu"), input: JSON.stringify({ action: "label", kind: "issue", number: 7, add: ["risk-low\r"] }), encoding: "utf8", stdio: "pipe" });
+    } catch (error) {
+      crRefusal = { status: error.status, out: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+    }
+    if (crRefusal.status !== 1 || !crRefusal.out.includes("is not a label name") || read() !== "")
+      fail(`gh-write.sh off Windows (OSTYPE=linux-gnu) accepts a label that holds a CR, which it refused before #122 (exit ${crRefusal.status}):\n${crRefusal.out}${read()}`);
+    const evidenceDir = join(repo, ".local/xezar/tasks/run-1");
+    const readOr = (file) => (existsSync(file) ? readFileSync(file, "latin1") : "<missing>");
+    for (const [label, extra] of [["the plain jq", {}], ["a CRLF jq", msysCrlfEnv]]) {
+      rmSync(log, { force: true });
+      const labelled = pipe("gh-write.sh", { action: "label", kind: "issue", number: 7, add: ["risk-low"], remove: ["risk-high"] }, extra);
+      if (labelled !== 0 || read() !== "ARGS issue edit 7 --repo acme/widget --add-label risk-low --remove-label risk-high\n")
+        fail(`gh-write.sh refuses or mangles the label request adding "risk-low" under ${label} (exit ${labelled}):\n${JSON.stringify(read())}`);
+      rmSync(log, { force: true });
+      const commented = pipe("gh-write.sh", { action: "comment", kind: "pr", number: 12, body: "a\nb\r\nc" }, extra);
+      if (commented !== 0 || !read().endsWith("BODY a\nb\r\nc\n"))
+        fail(`gh-write.sh does not post a comment body with a CR inside byte for byte under ${label} (exit ${commented}):\n${JSON.stringify(read())}`);
+      rmSync(evidenceDir, { recursive: true, force: true });
+      const evidence = pipe("verdict-write.sh", { kind: "evidence", name: "notes.md", text: "x\r\ny\n" }, extra);
+      if (evidence !== 0 || readOr(join(evidenceDir, "notes.md")) !== "x\r\ny\n")
+        fail(`verdict-write.sh does not write evidence text under ${label} byte for byte (exit ${evidence}): ${JSON.stringify(readOr(join(evidenceDir, "notes.md")))}`);
+      const blocked = pipe("verdict-write.sh", { kind: "blocked", text: "why\n" }, extra);
+      if (blocked !== 0 || readOr(join(evidenceDir, "BLOCKED")) !== "why\n")
+        fail(`verdict-write.sh does not write blocked text under ${label} byte for byte (exit ${blocked}): ${JSON.stringify(readOr(join(evidenceDir, "BLOCKED")))}`);
+      rmSync(join(lab, "handoff.verdict.json"), { force: true });
+      if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, extra) !== 0 ||
+          readOr(join(lab, "handoff.verdict.json")) !== '{"verdict":"APPROVE","taskId":"run-1","stepId":"review"}\n')
+        fail(`verdict-write.sh does not write a JSON packet request under ${label} as the stamped verdict packet: ${JSON.stringify(readOr(join(lab, "handoff.verdict.json")))}`);
+    }
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }
@@ -855,11 +918,7 @@ for (const name of workflowFiles) {
     // filename byte there) and OSTYPE says msys, so the Windows rule runs on every OS. bash keeps an
     // OSTYPE it finds in its environment, and the launcher tells Windows by OSTYPE alone, as the
     // kit's other scripts do.
-    const ostypeAs = (ostype) => {
-      const next = { ...env };
-      for (const key of Object.keys(next)) if (key.toUpperCase() === "OSTYPE") delete next[key];
-      return { ...next, OSTYPE: ostype };
-    };
+    const ostypeAs = (ostype) => withOstype(env, ostype);
     const windowsEnv = process.platform === "win32" ? env : ostypeAs("msys");
     const linuxEnv = ostypeAs("linux-gnu");
     const pipeName = (prefix) => `\\\\.\\pipe\\${prefix}-${randomBytes(16).toString("hex")}`;
@@ -1949,6 +2008,58 @@ for (const name of workflowFiles) {
   }
 }
 // 3.1.0-stream-R:end
+
+// --- #122: route finds the agent programs the way this OS names them -----------------------------
+// No KIT_TEST_ROUTE_TOOLS: route.mjs looks each program up itself, on a PATH that holds only a
+// fixture folder – executable `claude`, `codex` and `pi` off Windows; `claude.exe`, `codex.cmd`,
+// `pi.cmd` and an extensionless `opencode` on Windows, where an extensionless file is no program.
+// node starts by its own path, and with --file route needs neither git nor gh, so nothing else on
+// this machine (an npm-global opencode beside node, say) can answer for the fixture.
+{
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { installedPrograms } = await import(pathToFileURL(ROUTE).href);
+  const kitPrograms = await import(pathToFileURL(join(KIT, "checks/lib/windows-programs.mjs")).href);
+  // The Windows branch on every OS: the finder sees a fake C:\bin that holds claude.exe only.
+  const fakeEnv = { PATH: "C:\\bin" };
+  const fakeWindows = { findProgram: (name) => kitPrograms.findProgram(name, { env: fakeEnv, exists: (p) => p.toLowerCase() === "c:\\bin\\claude.exe" }) };
+  const fromFake = [...installedPrograms(fakeEnv, fakeWindows)].sort().join(",");
+  if (fromFake !== "claude") fail(`route.mjs does not find the claude program on Windows, where it is claude.exe: found [${fromFake}]`);
+
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-programs-"));
+  try {
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const programs = process.platform === "win32" ? ["claude.exe", "codex.cmd", "pi.cmd", "opencode"] : ["claude", "codex", "pi"];
+    for (const name of programs) { writeFileSync(join(bin, name), ""); chmodSync(join(bin, name), 0o755); }
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const O = "opencode/kimi-k2";
+    const copy = structuredClone(routing);
+    copy.tools.claude.rotation = ["acct-one"];
+    copy.tools.codex.rotation = ["acct-three"];
+    copy.tools.opencode = { usesLogins: false };
+    copy.lanes[O] = { tool: "opencode", model: "kimi-k2", vendor: "moonshot", tier: "mid", vision: false, imageGeneration: false, local: false, enforcesToolLimits: false, advisoryOnly: false };
+    copy.rows.find((row) => row.id === "unit-tests").lanes.push(O);
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["PATH", "KIT_TEST_ROUTE_TOOLS"].includes(key.toUpperCase())));
+    env.PATH = bin;
+    const out = execFileSync(process.execPath, [ROUTE, "--file", ".xezar/routing.json", "unit-tests"], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    const lanes = out.split("\n").filter((line) => line.startsWith("lane=")).map((line) => line.split(" ")[0].slice(5));
+    if (!lanes.includes("claude/sonnet") || /^removed=claude\//m.test(out))
+      fail(`route does not find the claude program on Windows (claude.exe) or on this OS's PATH, so it drops the Claude lanes:\n${out}`);
+    for (const lane of ["codex/gpt-6-sol", "pi/deepseek-api/deepseek-flash"])
+      if (!lanes.includes(lane)) fail(`route does not find the ${lane.split("/")[0]} program in the fixture folder (on Windows a .cmd), so it drops ${lane}:\n${out}`);
+    if (lanes.includes(O) || !/^removed=opencode\/kimi-k2 reason=the opencode program is not installed here$/m.test(out))
+      fail(`route keeps an opencode lane on a machine without the opencode program${process.platform === "win32" ? " (an extensionless opencode is not one)" : ""}:\n${out}`);
+  } catch (error) {
+    fail(`the #122 route programs fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
 
 if (problems) {
   console.error(`\nkit catalog: ${problems} problem(s)`);

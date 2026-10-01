@@ -32,6 +32,7 @@
 
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -517,6 +518,100 @@ for (const version of SYNTHETIC) {
     expect(lfSha !== undefined && crlfV.manifest?.files[pick.path]?.sha256 === lfSha, `CRLF project: the manifest records ${crlfV.manifest?.files[pick.path]?.sha256} for ${pick.path}, the LF run ${lfSha}`);
     const drift = crlfV.checks.find((c) => c.name === "drift");
     expect(drift?.status === "pass", `CRLF project: the drift check does not pass on a CRLF checkout of an unchanged file (${drift?.status}):\n${drift?.out}`);
+  }
+}
+
+// ---------------------------------------------------------------------------------------
+// 4c. #122 (Windows): the kit's executable scripts stay executable in git. Written on Windows, or
+// into a repository with core.filemode=false, a file is recorded as 100644. apply.mjs names each
+// present path whose kit file git records as 100755 (`executable=`), and the prompt's order –
+// chmod +x, git add, git update-index --chmod=+x, commit – records 100755 with a clean tree. Off
+// Windows the same order runs with core.filemode=true too (Windows has no executable bit): there
+// apply.mjs already writes an executable script with its bit, and a kit file git records as 100644
+// – the new windows-programs.mjs – stays 100644.
+// ---------------------------------------------------------------------------------------
+{
+  const prefix = `${SKILL_DIR}/kit/`;
+  const kitExe = new Set();
+  for (const line of git(root, "ls-files", "-s", "-z", "--", prefix).split("\0")) {
+    const m = /^100755 [0-9a-f]+ \d+\t(.+)$/.exec(line);
+    if (m) kitExe.add(m[1].slice(prefix.length));
+  }
+  const executable = [...tree.copyMap].filter(([, e]) => e.kitSource && kitExe.has(e.kitSource)).map(([p]) => p).sort();
+  const probe = ".xezar/checks/push-check.sh";
+  const plainModule = ".xezar/checks/lib/windows-programs.mjs";
+  for (const filemode of process.platform === "win32" ? ["false"] : ["false", "true"]) {
+    const fx = loadFixture("3.0.3");
+    const dir = materialize(fx, { name: `exec-bits-${filemode}` });
+    git(dir, "config", "core.filemode", filemode);
+    expect(executable.includes(probe) && !existsSync(join(dir, probe)), `executable: ${probe} is no longer a new executable kit file for a 3.0.3 install; re-aim this case`);
+    const planFile = join(lab(`exec-plan-${filemode}`), "plan.json");
+    writeFileSync(planFile, JSON.stringify(buildPlan(ctxFor(dir))));
+    let out = "";
+    try {
+      out = execFileSync(process.execPath, [join(root, "upgrade/tools/apply.mjs"), "--project", dir, "--target", TARGET, "--plan", planFile, "--blob-pack", PACK], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    }
+    const printed = out.split("\n").filter((l) => l.startsWith("executable=")).map((l) => l.slice("executable=".length)).sort();
+    const present = executable.filter((p) => existsSync(join(dir, p)));
+    expect(
+      /^apply-status=ok$/m.test(out) && JSON.stringify(printed) === JSON.stringify(present),
+      `executable (core.filemode=${filemode}): apply.mjs prints executable= for ${printed.length} path(s), but the project has ${present.length} executable kit file(s); missing: ${present.filter((p) => !printed.includes(p)).join(", ") || "none"}; extra: ${printed.filter((p) => !present.includes(p)).join(", ") || "none"}`,
+    );
+    const modes = (...paths) => new Map(git(dir, "ls-files", "-s", "-z", "--", ...paths).split("\0").filter(Boolean).map((l) => [l.split("\t")[1], l.split(" ")[0]]));
+    if (filemode === "true") {
+      expect(existsSync(join(dir, probe)) && (lstatSync(join(dir, probe)).mode & 0o111) !== 0, `executable (core.filemode=true): apply.mjs writes ${probe} without an executable bit`);
+      expect(existsSync(join(dir, plainModule)), `executable (core.filemode=true): apply.mjs did not write ${plainModule}, a new 3.1.0 kit file git records as 100644; re-aim this case`);
+    }
+    git(dir, "add", "-A");
+    if (filemode === "false")
+      expect(modes(...present).get(probe) === "100644", `executable: under core.filemode=false a plain git add records ${probe} as ${modes(...present).get(probe)}, not 100644, so this case proves nothing`);
+    if (filemode === "true") {
+      const plain = modes(plainModule).get(plainModule);
+      expect(plain === "100644", `executable (core.filemode=true): the upgrade records ${plainModule} as ${plain}, but the kit's git index records it as 100644`);
+    }
+    // A wrong executable= list (a path git ignores, say) fails the steps below: that is reported
+    // and the next leg still runs, rather than one crash hiding the other leg's findings.
+    try {
+      for (const p of printed) chmodSync(join(dir, p), 0o755);
+      if (printed.length) {
+        git(dir, "add", "--", ...printed);
+        git(dir, "update-index", "--chmod=+x", "--", ...printed);
+      }
+      git(dir, "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "upgrade");
+    } catch (e) {
+      expect(false, `executable (core.filemode=${filemode}): chmod, git add, update-index or commit failed on the printed paths: ${String(e.message).split("\n")[0]}`);
+      continue;
+    }
+    const after = modes(...present);
+    const notExe = present.filter((p) => after.get(p) !== "100755");
+    expect(notExe.length === 0, `executable (core.filemode=${filemode}): after chmod, git add and update-index, git still records ${notExe.join(", ")} as not executable`);
+    const status = git(dir, "status", "--porcelain");
+    expect(status === "", `executable (core.filemode=${filemode}): the tree is not clean after the executable bits were committed:\n${status}`);
+  }
+}
+
+// 4d. The kit's modes come from git only when the kit is its own clone's
+// skills/xez-onboard-opinionated: a copy git does not track, or an installer copy a project
+// tracks, is read with lstat – never an empty answer, never the project's index.
+{
+  const scratch = lab("exec-kit-copy");
+  git(scratch, "init", "-q");
+  const own = join(scratch, SKILL_DIR);
+  cpSync(join(KIT_SKILL, "kit"), join(own, "kit"), { recursive: true });
+  cpSync(join(KIT_SKILL, "references/write.md"), join(own, "references/write.md"));
+  const nested = join(scratch, ".claude/skills/xez-onboard-opinionated");
+  cpSync(own, nested, { recursive: true });
+  const kitPath = ".claude/skills/xez-onboard-opinionated/kit/checks/push-check.sh";
+  git(scratch, "add", "--", ".claude");
+  git(scratch, "update-index", "--chmod=-x", "--", kitPath);
+  const project = materialize(loadFixture("3.0.3"), { name: "exec-kit-lstat" });
+  const probe = ".xezar/checks/push-check.sh";
+  for (const [kitSkillDir, what] of [[own, "a kit copy git does not track"], [nested, "an installer copy a project tracks as 100644"]]) {
+    const want = lstatSync(join(kitSkillDir, "kit/checks/push-check.sh")).mode & 0o777;
+    const got = ctxFor(project, { kitSkillDir }).theirsMode(probe);
+    expect(got === want, `executable: ${what} gives ${probe} the mode ${got.toString(8)}, not its lstat mode ${want.toString(8)}`);
   }
 }
 

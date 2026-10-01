@@ -20,6 +20,15 @@ if (process.argv.length > 3) {
   process.exit(2);
 }
 
+// On native Windows a bare `bash` is WSL's on a stock machine, so the fixture script starts in Git
+// Bash, by its full path (lib/windows-programs.mjs, loaded on Windows only, #122).
+const WINDOWS = process.platform === 'win32' ? await import('./lib/windows-programs.mjs') : null;
+const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';
+if (BASH === null) {
+  console.error(`documented-output: ${WINDOWS.GIT_BASH_MISSING}`);
+  process.exit(1);
+}
+
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const repositoryRoot = realpathSync(requestedRoot ? path.resolve(requestedRoot) : scriptRoot);
 const allowlistPath = path.join(repositoryRoot, '.xezar/checks/documented-output.allowlist.json');
@@ -243,7 +252,7 @@ function cleanEnvironment() {
 }
 
 function executeFixtureScript(root, row, { cwd = root, env = cleanEnvironment() } = {}) {
-  return run('bash', [path.join(root, row.script)], { cwd, env });
+  return run(BASH, [path.join(root, row.script)], { cwd, env });
 }
 
 function assertSilent(result, name) {

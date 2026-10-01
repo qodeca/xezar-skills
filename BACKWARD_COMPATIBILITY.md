@@ -197,10 +197,11 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Twenty-four breaks have shipped, all deliberate. Each gets a row here on the day it ships:
+Twenty-five breaks have shipped, all deliberate. Each gets a row here on the day it ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
+| 2026-10-01 | the kit's Node floor rises from 20 to 22: `worktree-setup.sh` and `lib/deps.mjs` stop a task on an older Node with `node v20.… is below the required 22`, and the README, the bootstrap prompt and `.xezar/docs/worktrees.md` say Node 22 | a project whose tasks run on Node 20 and that copies the 3.1.0 checks; a `dependencies.units` project that pins a major in a numeric `.nvmrc` keeps that pin | install Node 22, or, with `dependencies.units`, pin a major in a numeric `.nvmrc` (`UPGRADE_NOTES.md`, 3.1.0 entry 15) | Node 20 reached its end of life in April 2026: a floor nobody supports lets tasks run on a Node that gets no security fixes |
 | 2026-09-27 | `route.mjs --check` refuses a `vendorExclusions` that is not a list, names a vendor twice, or names a vendor no lane has | nobody with a file written before 3.1.0: the key did not exist | fix or drop the entry | an exclusion that matches no lane is a ban that silently does nothing |
 | 2026-09-27 | `route.mjs` exits 2 on an `--author` or `--repair` lane that is not in `routing.json`, and on `--repair` without `--author` | only callers of the new arguments | run without `--author` and check independence by hand, as before | an unknown author must never read as "independent of everything" |
 | 2026-09-27 | the kit's `catalog-check.mjs` refuses a `permissions.allow` entry in `.claude/settings.json` or `.claude/settings.local.json` that grants a chrome-devtools tool outside the kit's list, or the whole `mcp__chrome-devtools` server | a project onboarded by `xez-onboard-opinionated` that copies the new `catalog-check.mjs` and granted such a tool or the whole server in its settings | list only the exact tool names in the kit's `.claude/settings.local.json`; `emulate` and the other review-only tools are granted by the review and QA workflows' own tool lists (D13), never by a settings file | a settings grant reaches every step, including reading steps, while the browser server runs outside every runner sandbox, so the exact tool list is the only limit it has |

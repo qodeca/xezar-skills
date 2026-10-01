@@ -69,6 +69,8 @@ const WINDOWS_APPS = "C:\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps";
 // The kit's gate scheduler finds Git Bash with its own copy of the rule (a kit file never imports
 // scripts/lib). Every resolver case below runs through both, and they must agree (#122).
 const kitProcess = await import(new URL("../skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs", import.meta.url).href);
+// The kit's check scripts start Git Bash through windows-programs.mjs's gitBash(), held to the same rule.
+const kitPrograms = await import(new URL("../skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs", import.meta.url).href);
 const parity = [];
 const resolve = (env, ...paths) => {
   const exists = fakeFs(...paths);
@@ -76,6 +78,8 @@ const resolve = (env, ...paths) => {
   const kitRoot = kitProcess.gitRoot({ env, exists });
   const kit = kitRoot === null ? null : win.join(kitRoot, "bin", "bash.exe");
   if (kit !== got) parity.push(`${JSON.stringify(env)}: kit ${kit}, scripts/lib ${got}`);
+  const checkBash = kitPrograms.gitBash({ env, exists });
+  if (checkBash !== got) parity.push(`${JSON.stringify(env)}: kit gitBash() ${checkBash}, scripts/lib ${got}`);
   return got;
 };
 
@@ -180,6 +184,158 @@ check("msysSpawnArgs quotes every argument for MSYS on win32 and changes nothing
   assert.equal(options.env.MSYS, "winsymlinks:lnk noglob");
   const posix = { env: { A: "1" } };
   assert.deepEqual(msysSpawnArgs("bash", ["-c", 'a"b'], posix, "linux"), ["bash", ["-c", 'a"b'], posix]);
+});
+
+// --- the kit's program finder and .cmd launcher (windows-programs.mjs) ---------------------
+// On Windows the agents and package managers are claude.exe, codex.cmd, npm.cmd: route.mjs and
+// deps.mjs find them by PATHEXT, and a .cmd starts through cmd.exe only with checked text (#122).
+
+const BIN = "C:\\Users\\u\\AppData\\Roaming\\npm";
+const NODEJS = "C:\\Program Files\\nodejs";
+
+check("findProgram finds claude.exe, codex.cmd and pi.cmd by PATHEXT, and never an extensionless file", () => {
+  const env = { Path: `${BIN};C:\\Users\\u\\.local\\bin`, PATHEXT: ".COM;.EXE;.BAT;.CMD;.VBS;.JS" };
+  const exists = fakeFs("C:\\Users\\u\\.local\\bin\\claude.exe", `${BIN}\\codex.cmd`, `${BIN}\\codex`, `${BIN}\\pi.cmd`, `${BIN}\\opencode`);
+  const find = (name) => kitPrograms.findProgram(name, { env, exists });
+  assert.equal(find("claude"), "C:\\Users\\u\\.local\\bin\\claude.exe", "findProgram did not find claude.exe for claude");
+  assert.equal(find("codex"), `${BIN}\\codex.cmd`, "findProgram did not find codex.cmd for codex");
+  assert.equal(find("pi"), `${BIN}\\pi.cmd`);
+  assert.equal(find("opencode"), null, "an extensionless opencode is not a program Windows starts");
+  assert.equal(find("..\\claude"), null);
+  assert.equal(find(""), null);
+});
+
+check("findProgram tries only .com .exe .bat .cmd, in PATHEXT's order", () => {
+  const exists = fakeFs(`${BIN}\\tool.js`, `${BIN}\\tool.cmd`, `${BIN}\\other.js`);
+  assert.equal(kitPrograms.findProgram("tool", { env: { PATH: BIN, PATHEXT: ".JS;.CMD" }, exists }), `${BIN}\\tool.cmd`);
+  assert.equal(kitPrograms.findProgram("other", { env: { PATH: BIN, PATHEXT: ".JS;.CMD" }, exists }), null, "findProgram returned a .js file");
+  assert.deepEqual(kitPrograms.programExtensions({ PATHEXT: ".JS;.CMD;.EXE;.cmd" }), [".cmd", ".exe"]);
+  assert.deepEqual(kitPrograms.programExtensions({}), [".com", ".exe", ".bat", ".cmd"]);
+  const both = fakeFs(`${BIN}\\npm.cmd`, `${BIN}\\npm.exe`);
+  assert.equal(kitPrograms.findProgram("npm", { env: { PATH: BIN }, exists: both }), `${BIN}\\npm.exe`);
+});
+
+check("findProgram skips a relative PATH entry and takes absolute extra folders after PATH", () => {
+  const env = { PATH: `.;bin;${BIN}`, DOTNET_ROOT: "D:\\dotnet" };
+  assert.equal(kitPrograms.findProgram("claude", { env, exists: fakeFs(".\\claude.exe", "bin\\claude.exe") }), null);
+  const dotnetRoot = kitPrograms.findProgram("dotnet", { env, extraDirs: ["D:\\dotnet", "C:\\Users\\u\\.dotnet"], exists: fakeFs("D:\\dotnet\\dotnet.exe", "C:\\Users\\u\\.dotnet\\dotnet.exe") });
+  assert.equal(dotnetRoot, "D:\\dotnet\\dotnet.exe", "dotnet.exe under DOTNET_ROOT was not found");
+  const userDotnet = kitPrograms.findProgram("dotnet", { env, extraDirs: [undefined, "relative", "C:\\Users\\u\\.dotnet"], exists: fakeFs("C:\\Users\\u\\.dotnet\\dotnet.exe", "relative\\dotnet.exe") });
+  assert.equal(userDotnet, "C:\\Users\\u\\.dotnet\\dotnet.exe", "dotnet.exe under %USERPROFILE%\\.dotnet was not found");
+});
+
+const launchEnv = { PATH: NODEJS, SystemRoot: "C:\\Windows", HUSKY: "0", GH_TOKEN: "" };
+
+check("launchPlan starts a .exe directly and a .cmd through cmd.exe with one quoted command line", () => {
+  assert.deepEqual(kitPrograms.launchPlan("C:\\Users\\u\\.dotnet\\dotnet.exe", ["restore", "A.sln"], { env: launchEnv }), {
+    file: "C:\\Users\\u\\.dotnet\\dotnet.exe", args: ["restore", "A.sln"], options: {},
+  });
+  const plan = kitPrograms.launchPlan(`${NODEJS}\\npm.cmd`, ["ci"], { env: launchEnv, cwd: "C:\\p\\a&b%PATH%^c" });
+  assert.equal(plan.file, "C:\\Windows\\System32\\cmd.exe");
+  assert.deepEqual(plan.args, ["/d", "/v:off", "/s", "/c", '""C:\\Program Files\\nodejs\\npm.cmd" ci"']);
+  assert.equal(plan.options.windowsVerbatimArguments, true);
+  assert.equal(plan.options.env.HUSKY, "0");
+  assert.equal(plan.options.env.GH_TOKEN, "");
+  assert.ok(!plan.args.some((arg) => arg.includes("a&b")), "the working folder reached cmd.exe's command line");
+  assert.equal("cwd" in plan.options, false);
+  assert.deepEqual(kitPrograms.launchPlan(`${NODEJS}\\npm.cmd`, [], { env: launchEnv }).args.at(-1), '""C:\\Program Files\\nodejs\\npm.cmd""');
+});
+
+check("a .cmd launch sets NoDefaultCurrentDirectoryInExePath=1, so cmd.exe never searches the working folder", () => {
+  for (const env of [launchEnv, { ...launchEnv, nodefaultcurrentdirectoryinexepath: "0" }]) {
+    const { options } = kitPrograms.launchPlan(`${NODEJS}\\npm.cmd`, ["ci"], { env });
+    const keys = Object.keys(options.env).filter((key) => key.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH");
+    assert.deepEqual(keys.map((key) => options.env[key]), ["1"], `a .cmd launch searches the working folder for a program it names: ${JSON.stringify(keys)}`);
+  }
+});
+
+check("a .cmd launch with a cmd.exe metacharacter in its path or arguments is refused", () => {
+  const refused = (file, args, options = {}) =>
+    assert.throws(() => kitPrograms.launchPlan(file, args, { env: launchEnv, ...options }), (error) => error.code === "CMD_UNSAFE", `not refused: ${JSON.stringify([file, args, options])}`);
+  refused("C:\\a%b\\npm.cmd", ["ci"]);
+  refused("C:\\a&b\\npm.cmd", ["ci"]);
+  refused("C:\\a!b\\npm.bat", ["ci"]);
+  refused(`${NODEJS}\\npm.cmd`, ["a&b"]);
+  refused(`${NODEJS}\\npm.cmd`, ["a b"]);
+  refused(`${NODEJS}\\npm.cmd`, ['a"b']);
+  refused(`${NODEJS}\\npm.cmd`, ["%PATH%"]);
+  refused(`${NODEJS}\\npm.cmd`, [""]);
+  refused(`${NODEJS}\\npm.cmd`, ["ci"], { cwd: "\\\\srv\\share\\x" });
+  refused(`${NODEJS}\\npm.cmd`, ["ci"], { env: { PATH: NODEJS } });
+  refused(`${NODEJS}\\npm.cmd`, ["ci"], { env: { SystemRoot: "C:\\Win dows" } });
+  assert.throws(() => kitPrograms.launchPlan(`${NODEJS}\\npm`, ["ci"], { env: launchEnv }), (error) => error.code === "NOT_A_PROGRAM", "a file that is not .exe, .com, .cmd or .bat was not refused as NOT_A_PROGRAM");
+  assert.doesNotThrow(() => kitPrograms.launchPlan(`${NODEJS}\\npm.cmd`, ["install", "--frozen-lockfile", "--non-interactive", "@scope/x=1+2,3:4"], { env: launchEnv }));
+});
+
+check("a .cmd launch refuses a SystemRoot holding a cmd.exe metacharacter or a forward slash", () => {
+  for (const systemRoot of ["C:\\Win&dows", "C:\\Win%x%", "C:\\Win^dows", "C:\\Win/c"]) {
+    assert.throws(
+      () => kitPrograms.launchPlan(`${NODEJS}\\npm.cmd`, ["ci"], { env: { ...launchEnv, SystemRoot: systemRoot } }),
+      (error) => error.code === "CMD_UNSAFE",
+      `a cmd.exe path built from SystemRoot ${JSON.stringify(systemRoot)} would reach cmd.exe's command line unquoted`,
+    );
+  }
+});
+
+// launchFor is deps.mjs's whole Windows start: find, plan, and every failure returned as { error }.
+check("launchFor never starts a tool it could not find, and returns a refusal instead of throwing", () => {
+  const missing = kitPrograms.launchFor("npm", ["ci"], { env: launchEnv, exists: fakeFs() });
+  assert.equal(missing.file, undefined, `a tool that was not found would be started by bare name: ${JSON.stringify(missing)}`);
+  assert.ok(missing.error, `a tool that was not found would be started by bare name: ${JSON.stringify(missing)}`);
+  assert.equal(missing.error.code, "ENOENT");
+  assert.equal(missing.error.message, "spawnSync npm ENOENT");
+  const shim = kitPrograms.launchFor("npm", ["ci"], { env: launchEnv, cwd: "C:\\p\\unit", exists: fakeFs(`${NODEJS}\\npm.cmd`) });
+  assert.equal(shim.file, "C:\\Windows\\System32\\cmd.exe");
+  assert.deepEqual(shim.args, ["/d", "/v:off", "/s", "/c", '""C:\\Program Files\\nodejs\\npm.cmd" ci"']);
+  assert.equal(shim.options.env.NoDefaultCurrentDirectoryInExePath, "1");
+  let looked = 0;
+  const direct = kitPrograms.launchFor("D:\\dotnet\\dotnet.exe", ["restore", "A.sln"], { env: launchEnv, exists: () => { looked += 1; return true; } });
+  assert.deepEqual(direct, { file: "D:\\dotnet\\dotnet.exe", args: ["restore", "A.sln"], options: {} });
+  assert.equal(looked, 0, "an absolute tool path was looked up instead of kept");
+  let unsafe;
+  assert.doesNotThrow(() => { unsafe = kitPrograms.launchFor("npm", ["a&b"], { env: launchEnv, exists: fakeFs(`${NODEJS}\\npm.cmd`) }); });
+  assert.equal(unsafe.error?.code, "CMD_UNSAFE", `an unsafe argument was not returned as a refusal: ${JSON.stringify(unsafe)}`);
+  assert.equal(unsafe.file, undefined);
+});
+
+// --- what skills and descriptors teach (#122) -----------------------------------------------
+// jq on native Windows ends every line it writes with CRLF, and jq 1.6 there has no --binary: a
+// list read (`jq -r '…[]'`) then leaves a CR on every item. Each one a skill teaches strips it.
+
+/** Every file under `dir`, as [repo-relative path, text]. */
+const filesUnder = (dir) => {
+  const out = [];
+  const walk = (d) => {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (entry.isFile()) out.push([path.relative(root, p).split(path.sep).join("/"), readFileSync(p, "utf8")]);
+    }
+  };
+  walk(join(root, dir));
+  return out;
+};
+
+check("no skill keeps jq's CR in a list read", () => {
+  const offenders = [];
+  for (const [rel, text] of filesUnder("skills")) {
+    text.split(/\r?\n/).forEach((line, i) => {
+      if (/\bjq -r '[^']*\[\]/.test(line) && !line.includes("tr -d '\\r'") && !line.includes("| drop_jq_cr")) offenders.push(`${rel}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, [], `a skill keeps jq's CR in a list read (append | tr -d '\\r', or | drop_jq_cr in a kit script): ${offenders.join(", ")}`);
+});
+
+// A descriptor's snippet runs on the consumer's machine: a fixed /tmp name collides between two
+// runs, and native Windows tools do not read MSYS's /tmp. Each temp file comes from mktemp.
+check("no descriptor writes a fixed /tmp file", () => {
+  const listed = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" });
+  assert.equal(listed.status, 0, listed.stderr);
+  const family = /(^|\/)(trackers|browsers|toolchains|security)\/[^/]+\.md$/;
+  const files = listed.stdout.split("\0").filter((rel) => family.test(rel) || rel.startsWith("skills/xez-onboard-opinionated/kit/pipeline/"));
+  assert.ok(files.length > 0, "git listed no descriptor files, so nothing was checked");
+  const offenders = files.filter((rel) => existsSync(join(root, rel)) && readFileSync(join(root, rel), "utf8").includes("/tmp/"));
+  assert.deepEqual(offenders, [], `a descriptor writes a fixed /tmp file (take one from mktemp): ${offenders.join(", ")}`);
 });
 
 // --- text, paths and environment ----------------------------------------------------------

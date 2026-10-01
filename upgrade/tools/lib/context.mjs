@@ -4,7 +4,7 @@
 // The tool is always run FROM the verified xezar-skills clone, against a project given by
 // --project. It reads the project; it never executes anything in it.
 
-import { existsSync, readFileSync, lstatSync } from "node:fs";
+import { existsSync, readFileSync, lstatSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createBlobSource } from "./blobs.mjs";
@@ -94,6 +94,37 @@ export function baseCandidates(history, target, projectVersion) {
   return before.slice(0, Math.max(lastRelease, installed) + 1);
 }
 
+const samePath = (a, b) => {
+  const real = (p) => {
+    try {
+      return realpathSync.native(p);
+    } catch {
+      return resolve(p);
+    }
+  };
+  const [x, y] = [real(a), real(b)];
+  return process.platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y;
+};
+
+/**
+ * The kit's file modes as its own clone's git index records them, keyed "kit/<path>" (#122).
+ * A mode on disk says nothing on Windows, where no file has an executable bit, so the kit's
+ * `100755` scripts would land as `100644`. Read only when the kit IS the clone's
+ * `skills/xez-onboard-opinionated` – an installer copy inside a project must never read the
+ * project's index – and null otherwise: the caller falls back to `lstat`.
+ */
+function kitGitModes(kitSkillDir) {
+  const top = (git(["rev-parse", "--show-toplevel"], kitSkillDir, { allowFail: true }) ?? "").trim();
+  if (!top || !samePath(join(top, SKILL_DIR), kitSkillDir)) return null;
+  const out = git(["ls-files", "-s", "-z", "--", "kit"], kitSkillDir, { allowFail: true }) ?? "";
+  const modes = new Map();
+  for (const line of out.split("\0")) {
+    const m = /^(100755|100644) [0-9a-f]+ \d+\t(.+)$/.exec(line);
+    if (m) modes.set(m[2], m[1] === "100755" ? 0o755 : 0o644);
+  }
+  return modes;
+}
+
 /**
  * @param {object} o
  * @param {string} o.project   project root
@@ -142,15 +173,20 @@ export function loadContext(o) {
     const buf = built.kitFiles.get(`kit/${e.kitSource}`);
     return buf ? buf.toString("utf8") : blobs.get(e.kitBlob);
   };
+  // A kit file git does not track (a test's copy, a tarball) keeps its mode from lstat.
+  const gitModes = kitGitModes(kitSkillDir);
   const theirsMode = (p) => {
     const e = theirs.files[p];
     if (!e?.kitSource) return 0o644;
+    const recorded = gitModes?.get(`kit/${e.kitSource}`);
+    if (recorded !== undefined) return recorded;
     try {
       return lstatSync(join(kitSkillDir, "kit", e.kitSource)).mode & 0o777;
     } catch {
       return 0o644;
     }
   };
+  const theirsExecutable = (p) => (theirsMode(p) & 0o111) !== 0;
 
   const gs = gitState(project);
   const startCommit = gs.isGit ? (git(["rev-parse", "HEAD"], project, { allowFail: true }) ?? "").trim() || null : null;
@@ -185,6 +221,7 @@ export function loadContext(o) {
     theirsCopyMap: built.copyMap,
     theirsText,
     theirsMode,
+    theirsExecutable,
     manifest,
     register,
     registerText,

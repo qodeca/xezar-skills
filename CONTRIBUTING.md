@@ -11,9 +11,10 @@ purpose and runs nightly.
 
 ## Contributing from Windows
 
-Native Windows works for **this repository's checks**. To use the skills, the kit and the leader
-in a project on Windows, run them in WSL, as the [README](README.md) says. To work on this
-repository on Windows itself, you need:
+Native Windows works for **this repository's checks**, and the kit's checks run natively in Git
+Bash in a project too. The leader and the engine's tasks need an engine that runs natively on
+Windows (qodeca/xezar#963 phases 2b and 3, not released yet); until it ships, run them in WSL, as
+the [README](README.md) says. To work on this repository on Windows itself, you need:
 
 - **Node 22 or later.** The gate uses `fs.globSync` and a Node preload.
 - **Git for Windows with Git Bash** – the full installer, not MinGit: the kit's gate scheduler
@@ -43,5 +44,6 @@ lint only in its targeted mode (`--only`, `--files`), so it takes seconds.
 
 The Windows and macOS CI jobs are informational: they report without blocking a merge. A green
 gate on Windows proves the kit's logic there – the tests adapt the environment, for example with
-Git's tools first on `PATH` – not that every kit script runs natively on Windows; the known gaps
-are listed in [DECISIONS.md](DECISIONS.md#the-gate-runs-on-native-windows).
+Git's tools first on `PATH` – and the cases that start a program the Windows way (`.cmd` shims, Git
+Bash, `C:/…` worktree paths) run there for real. The gaps left are listed in
+[DECISIONS.md](DECISIONS.md#the-gate-runs-on-native-windows).

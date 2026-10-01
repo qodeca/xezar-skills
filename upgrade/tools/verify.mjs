@@ -52,6 +52,15 @@ import { OWNER_CONFIG, OWNER_SHAPED, SAFETY_LINE, isCheckLike, isNeverTouched, i
 import { detect } from "./detect.mjs";
 import { extractInputs, normalisedMatch, render } from "./lib/rewrites.mjs";
 import { lineDistance } from "./lib/diff.mjs";
+import { SKILL_DIR } from "./lib/kit-index.mjs";
+
+// On native Windows a bare `bash` is WSL's on a stock machine, and a bare `node` run in the project
+// is looked for in the project first: the checks start Git Bash and this Node by full path. Git
+// Bash is found by this clone's own kit copy of the finder (never scripts/lib), loaded on Windows
+// only (#122).
+const WINDOWS = process.platform === "win32"
+  ? await import(new URL(`../../${SKILL_DIR}/kit/checks/lib/windows-programs.mjs`, import.meta.url).href)
+  : null;
 
 const CONFIG_FILES = [".xezar/pipeline/config.json", ".xezar/config.json"];
 const LEADER_GUIDE = ".xezar/docs/leader-guide.md";
@@ -396,18 +405,22 @@ export function projectChecks(ctx, which) {
   const results = [];
   if (which.includes("drift")) {
     const drift = join(kit, "manifest-drift.mjs");
-    if (existsSync(drift)) results.push(runCheck("drift", "node", [drift, ctx.project], ctx.project));
+    if (existsSync(drift)) results.push(runCheck("drift", process.execPath, [drift, ctx.project], ctx.project));
     else results.push({ name: "drift", status: "skipped", out: "the target kit has no manifest-drift.mjs" });
   }
-  if (which.includes("catalog")) results.push(runCheck("catalog", "node", [join(kit, "catalog-check.mjs"), ctx.project], ctx.project));
+  if (which.includes("catalog")) results.push(runCheck("catalog", process.execPath, [join(kit, "catalog-check.mjs"), ctx.project], ctx.project));
   if (which.includes("route")) {
     if (existsSync(join(ctx.project, ".xezar/routing.json"))) {
-      results.push(runCheck("route", "node", [join(kit, "route.mjs"), "--check", join(ctx.project, ".xezar/routing.json")], ctx.project));
+      results.push(runCheck("route", process.execPath, [join(kit, "route.mjs"), "--check", join(ctx.project, ".xezar/routing.json")], ctx.project));
     } else results.push({ name: "route", status: "skipped", out: "no .xezar/routing.json" });
   }
   // The project root is passed: left to itself the script takes two folders up from its own
   // location, which here is this clone's skill folder, not the project.
-  if (which.includes("repository")) results.push(runCheck("repository", "bash", [join(kit, "repository-checks.sh"), ctx.project], ctx.project));
+  if (which.includes("repository")) {
+    const bash = WINDOWS ? WINDOWS.gitBash() : "bash";
+    if (bash === null) results.push({ name: "repository", status: "fail", out: WINDOWS.GIT_BASH_MISSING });
+    else results.push(runCheck("repository", bash, [join(kit, "repository-checks.sh"), ctx.project], ctx.project));
+  }
   return results;
 }
 

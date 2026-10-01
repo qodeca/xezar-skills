@@ -281,7 +281,8 @@ change the project; `stage-merge` and `stage-theirs` only fill the staging folde
 file with a stop is never written, only staged. It prints `applied=<path> op=<write|delete>`,
 `staged=<path> op=<stage-merge|stage-theirs> [merge=<conflicts>]`, `held=<path> reason=<stop,…>`
 (a write or delete a stop held back: mine and theirs are staged instead), `done=<path>` (already
-had the result) and `refused=<path> reason=<why>`, then `apply-status=ok|refused`. Exit 3 means it
+had the result), `refused=<path> reason=<why>` and `executable=<path>` (a file the project has
+whose kit file is executable), then `apply-status=ok|refused`. Exit 3 means it
 refused and **wrote nothing**: stop and show every `refused=` line. Exit 2 means it could not
 run: stop and show the output. It enforces these rules itself; if you see it break one, stop and
 report it as a tool fault:
@@ -292,8 +293,17 @@ report it as a tool fault:
 - it deletes only paths that appear in the base version's index;
 - running it twice changes nothing.
 
+Then make every `executable=` path executable in git, on every OS. A file written on Windows, or
+into a repository with `core.filemode=false`, is recorded as `100644`, and a Linux or macOS clone
+of the project then stops with `Permission denied` on it. Do it in this order, with the paths
+from the `executable=` lines: `chmod +x -- <paths>` (a POSIX working file then matches; in Git
+Bash it changes nothing), `git add -- <paths>`, then `git update-index --chmod=+x -- <paths>`
+(it refuses a path not yet added). Leaving out `chmod` leaves a POSIX file dirty, and the next
+`git add` takes the bit away again.
+
 Then check the result with `git status` and `git diff --stat`. Every changed path must be one the
-plan named. An unexpected path is a stop. Commit:
+plan named, or an `executable=` path whose only change is its mode (`old mode 100644`,
+`new mode 100755`). An unexpected path is a stop. Commit:
 
 ```text
 chore(xezar): upgrade kit to <target> – mechanical files
@@ -404,7 +414,12 @@ Walk the `Actions:` of every upgrade entry in the range, oldest first:
 - `per-machine=<verb>:<detail>` – owner checklist, under "on every machine that runs the leader
   or reviews". Never apply it. `add-runner-model:<runner>/<provider>/<model>` means "add
   `<provider>/<model>` to that runner's model config"; `trust-codex-project:<absolute-project-path>`
-  means the project's absolute path, and applies only when a routing lane is `codex/…`.
+  means the project's absolute path, and applies only when a routing lane is `codex/…`. On native
+  Windows the owner writes that path as Windows prints it, in lower case, the way Codex writes it
+  when the owner accepts its trust prompt (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a
+  TOML literal-string key in single quotes, `[projects.'c:\users\me\app']`, in
+  `%USERPROFILE%\.codex\config.toml` unless `CODEX_HOME` is set; a mixed-case key is untested, and
+  a path holding a `'` takes the double-quoted form with every `\` doubled.
 - An action outside this list is refused: report it as an unknown action and do not guess.
 
 Then read every entry on `unblockedEntries` (its heading and line in the clone's

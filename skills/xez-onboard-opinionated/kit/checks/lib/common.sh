@@ -68,6 +68,39 @@ is_absolute_path() {
   return 1
 }
 
+# Does `git worktree list` for the checkout at "$2" report the worktree at "$1" (a `pwd -P` path)?
+# Git Bash prints porcelain paths as `C:/…` while `pwd -P` gives `/c/…` or `/tmp/…` (#122), so
+# there both sides go through `cygpath -m` and compare without case; a task path cygpath cannot
+# convert is never listed (an empty one would equal a blank line). Empty porcelain paths never
+# reach cygpath, which stops at the first one. Elsewhere: the exact porcelain line, as always.
+worktree_is_listed() {
+  local want
+  case "${OSTYPE:-}" in
+    msys* | cygwin*)
+      want="$(cygpath -m -- "$1" 2>/dev/null)" && [ -n "$want" ] || return 1
+      want="$(printf '%s' "$want" | LC_ALL=C tr 'A-Z' 'a-z')"
+      # never -q: under pipefail an early exit fails the pipeline
+      git -C "$2" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree \(.\)/\1/p' |
+        cygpath -m -f - 2>/dev/null | LC_ALL=C tr 'A-Z' 'a-z' | grep -xF -- "$want" >/dev/null
+      ;;
+    *) git -C "$2" worktree list --porcelain 2>/dev/null | grep -qxF "worktree $1" ;;
+  esac
+}
+
+# jq on native Windows writes CRLF, and jq 1.6 there has no --binary (#122). Both helpers check
+# OSTYPE when called, and only under Git Bash or Cygwin do anything new; elsewhere they are
+# today's reads, so a CR a token really holds is still refused there.
+# drop_jq_cr: a filter for a token jq printed (an action, a label, a name) – drops jq's CRs.
+drop_jq_cr() { case "${OSTYPE:-}" in msys* | cygwin*) tr -d '\r' ;; *) cat ;; esac; }
+# jq_string_bytes: the string filter "$1" selects from the JSON on stdin, byte for byte. Under Git
+# Bash it travels as one @base64 line, which a CR cannot change, and is decoded here: a CR inside
+# the string survives, none is added. Elsewhere `jq -j`, which adds nothing either.
+jq_string_bytes() { case "${OSTYPE:-}" in msys* | cygwin*) jq -r "($1) | @base64" | tr -d '\r' | base64 --decode ;; *) jq -j "$1" ;; esac; }
+
+# `shasum -a 256` lines for files or stdin. Git Bash has shasum only on a login PATH (core_perl),
+# so without it the same lines come from coreutils' sha256sum (#122).
+sha256_lines() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
+
 # A task id becomes a directory name under the task evidence root. Anything that is not a
 # single safe path segment is refused outright rather than sanitised, so a crafted id
 # can never escape the evidence root.
@@ -570,12 +603,12 @@ deps_fingerprint() {
     cd "$TASK_CWD" || return 1
     local f
     for f in package-lock.json npm-shrinkwrap.json package.json .npmrc; do
-      [ -f "$f" ] && shasum -a 256 "$f"
+      [ -f "$f" ] && sha256_lines "$f"
     done
     # Patches are applied at install time, so a changed patch means a different node_modules.
     if [ -d patches ]; then
       find patches -type f -print 2>/dev/null | LC_ALL=C sort |
-        while IFS= read -r f; do shasum -a 256 "$f"; done
+        while IFS= read -r f; do sha256_lines "$f"; done
     fi
     # Workspace manifests. `find` is given only the directories that exist, because a
     # missing `examples/` must not turn into a failed fingerprint under `set -o pipefail`.
@@ -585,7 +618,7 @@ deps_fingerprint() {
     if [ ${#roots[@]} -gt 0 ]; then
       find "${roots[@]}" -mindepth 2 -maxdepth 2 -name package.json -print 2>/dev/null |
         LC_ALL=C sort |
-        while IFS= read -r f; do shasum -a 256 "$f"; done
+        while IFS= read -r f; do sha256_lines "$f"; done
     fi
     # The pinned package manager: a different npm resolves differently.
     node -e '
@@ -597,7 +630,7 @@ deps_fingerprint() {
     ' 2>/dev/null
     printf 'npm=%s\n' "$(npm --version 2>/dev/null || printf 'unknown')"
     printf 'node=%s\n' "$(node --version 2>/dev/null || printf 'unknown')"
-  ) | shasum -a 256 | cut -d' ' -f1
+  ) | sha256_lines | cut -d' ' -f1
 }
 
 # Lives inside node_modules on purpose: wiping node_modules must also invalidate the
@@ -820,11 +853,11 @@ tree_fingerprint() {
     for kit_part in checks skills workflows docs pipeline; do
       if [ -d ".xezar/$kit_part" ]; then
         find ".xezar/$kit_part" -type f -print | LC_ALL=C sort |
-          while IFS= read -r kit_file; do shasum -a 256 "$kit_file"; done
+          while IFS= read -r kit_file; do sha256_lines "$kit_file"; done
       fi
     done
     for kit_file in config.json CLAUDE.md kit-manifest.json .gitignore; do
-      [ ! -f ".xezar/$kit_file" ] || shasum -a 256 ".xezar/$kit_file"
+      [ ! -f ".xezar/$kit_file" ] || sha256_lines ".xezar/$kit_file"
     done
     printf -- '--tracked--\n'
     git diff HEAD 2>/dev/null
@@ -834,11 +867,11 @@ tree_fingerprint() {
       while IFS= read -r -d '' f; do
         if [ -f "$f" ] && [ ! -L "$f" ]; then
           printf '%s ' "$f"
-          shasum -a 256 "$f" | cut -d' ' -f1
+          sha256_lines "$f" | cut -d' ' -f1
         else
           # A symlink or a special file: record its kind and target, never follow it.
           printf '%s special %s\n' "$f" "$(readlink "$f" 2>/dev/null || printf 'non-regular')"
         fi
       done
-  ) | shasum -a 256 | cut -d' ' -f1
+  ) | sha256_lines | cut -d' ' -f1
 }

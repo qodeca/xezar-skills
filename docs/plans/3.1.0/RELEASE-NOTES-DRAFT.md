@@ -9,7 +9,7 @@ Release-Commit: 0000000000000000000000000000000000000000
 
 ## 🎯 What this release is
 
-Twelve fixes and features found while running the kit in live projects. It adds design-system
+Fifteen fixes and features found while running the kit in live projects. It adds design-system
 modules and an upgrade tool. The tool brings an onboarded project to 3.1.0 and keeps its local
 changes.
 
@@ -39,15 +39,20 @@ The prompt never pushes, never opens a pull request and never merges. `upgrade/R
 the clone has the full steps and the rollback. Try it on a throwaway copy of the project first.
 
 **By hand.** `UPGRADE_NOTES.md` → "upgrading an onboarded project to 3.1.0" holds the same
-changes as twelve entries. Apply them top to bottom, in order.
+changes as fifteen entries. Apply them top to bottom, in order.
 
 **Projects set up without the kit** (only `xez-setup-agent-pipeline`) keep using
 `/xez-apply-upgrade-notes`.
 
 ## ⚠️ Windows
 
-Native Windows is not supported. Use WSL2, and run the kit, the leader and the upgrade prompt
-inside it.
+The kit's checks run natively on Windows, in Git Bash: install Git for Windows (the full
+installer, not MinGit) and `jq`. The engine, the leader and its tasks need an engine that runs
+natively on Windows – qodeca/xezar#963 phases 2b and 3, not released yet. Until it ships, run the
+engine, the leader and the upgrade prompt in WSL2, which stays the fallback. The MCP servers start
+with a plain `npx`, tested on Windows with Claude Code 2.1.286 and Codex 0.157.1. A project
+onboarded or upgraded from Windows has its kit scripts marked executable in git; for one onboarded
+from Windows before 3.1.0, `UPGRADE_NOTES.md` entry 14 has the repair.
 
 ## ⚠️ Before and after you upgrade
 
@@ -61,6 +66,9 @@ inside it.
 
 ## 💥 Behaviour that changes
 
+- **Node 22 is the minimum.** Node 20 left support in April 2026. A task on Node 20 stops at setup
+  with `node v20.… is below the required 22`: install Node 22. A `dependencies.units` project that
+  pins a major in a numeric `.nvmrc` keeps that pin.
 - **A repair's `DELIVERED` record is now refused.** A repair no longer pushes its fix before the
   gates. Re-dispatch any repair that already wrote `DELIVERED`.
 - **The drift check fails a gate run on an edited kit file with no record.** Record deliberate
@@ -105,6 +113,10 @@ inside it.
   by class, a mechanical applier, a verifier, and `upgrade/UPGRADE-PROMPT.md`.
 - **More work goes to DeepSeek.** A new lane, `pi/deepseek-api/deepseek-v4-pro`, takes mid-size
   writing work and is the last-resort reviewer (#89).
+- **The kit's checks on native Windows (Git Bash).** The router finds `claude.exe` and `codex.cmd`,
+  dependency installs start npm's and Yarn's `.cmd` shims with checked text only, the worktree check
+  reads Git Bash's `/c/…` paths, label and comment writes drop the CR a Windows jq adds, and
+  onboarding and the upgrade mark every kit script executable in git (#122).
 
 ## 🧪 Checks
 

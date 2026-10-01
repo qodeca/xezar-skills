@@ -2749,6 +2749,204 @@ breaks(
   () => script("test-upgrade.mjs"),
   "a manifest that recorded the raw CRLF bytes of an unchanged file plans",
 );
+
+// #122 run 2: the kit runtime on native Windows. Each break below fires on Linux too: the Windows
+// rules are pure functions, OSTYPE-injected shell, a CRLF jq emulator, or a fact about the text.
+breaks(
+  "a program finder that ignores PATHEXT is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("const file = win.join(dir, `${name}${ext}`);", "const file = win.join(dir, name);"),
+  () => script("test-platform.mjs"),
+  "claude.exe",
+);
+
+breaks(
+  "a .cmd launch that lets a cmd.exe metacharacter through is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  if (unsafeForCmd(file, args)) throw refusal(", "  if (false) throw refusal("),
+  () => script("test-platform.mjs"),
+  "a .cmd launch with a cmd.exe metacharacter",
+);
+
+breaks(
+  "a .cmd launch that lets cmd.exe search the working folder is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  next.NoDefaultCurrentDirectoryInExePath = '1';\n", ""),
+  () => script("test-platform.mjs"),
+  "searches the working folder",
+);
+
+breaks(
+  "a router that looks for claude without its extension on Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  (s) => s.replace("    if (windows) {\n      if (windows.findProgram(program, { env })) found.add(program);\n      continue;\n    }\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "the claude program on Windows",
+);
+
+breaks(
+  "a deps.mjs that starts a unit's tool by bare name is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace("    const r = start(plan.tool, plan.args, ", "    const r = spawnSync(plan.tool, plan.args, "),
+  () => script("test-kit-facts.mjs"),
+  "starts a unit's tool without start()",
+);
+
+breaks(
+  "a node pin that ignores nvm-windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace('  ...(process.env.NVM_HOME && isAbsolute(process.env.NVM_HOME) ? [{ dir: process.env.NVM_HOME, bin: "" }] : []),\n', ""),
+  () => script("test-deps-units.mjs"),
+  "nvm-windows",
+);
+
+breaks(
+  "a documented-output that starts a bare bash on Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/documented-output.mjs",
+  (s) => s.replace("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';", "const BASH = WINDOWS ? \"bash\" : 'bash';"),
+  () => script("test-kit-facts.mjs"),
+  "WSL's bash",
+);
+
+breaks(
+  "a digest helper with no sha256sum fallback is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('else sha256sum "$@"; fi; }', 'else shasum -a 256 "$@"; fi; }'),
+  () => script("test-kit-facts.mjs"),
+  "without shasum",
+);
+
+breaks(
+  "a worktree check that compares /c/… with C:/… as text is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(
+    "      git -C \"$2\" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree \\(.\\)/\\1/p' |\n        cygpath -m -f - 2>/dev/null | LC_ALL=C tr 'A-Z' 'a-z' | grep -xF -- \"$want\" >/dev/null\n",
+    "      git -C \"$2\" worktree list --porcelain 2>/dev/null | grep -qxF \"worktree $1\"\n",
+  ),
+  () => script("test-kit-facts.mjs"),
+  "/c/… and C:/…",
+);
+
+breaks(
+  "a worktree check that lists a tree cygpath could not convert is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("      want=\"$(cygpath -m -- \"$1\" 2>/dev/null)\" && [ -n \"$want\" ] || return 1\n", "      want=\"$(cygpath -m -- \"$1\" 2>/dev/null)\"\n"),
+  () => script("test-kit-facts.mjs"),
+  "cygpath failed",
+);
+
+breaks(
+  "a gh-write.sh that keeps a CRLF jq's CR in a label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("done < <(jq -r '(.add // [])[]' <<<\"$request\" | drop_jq_cr)", "done < <(jq -r '(.add // [])[]' <<<\"$request\")"),
+  () => script("test-kit-catalog.mjs"),
+  "\"risk-low\" under a CRLF jq",
+);
+
+breaks(
+  "a gh-write.sh body read that loses or adds a CR is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("json_body=\"$(jq_string_bytes '.body' <<<\"$request\")\"", "json_body=\"$(jq -r '.body' <<<\"$request\")\""),
+  () => script("test-kit-catalog.mjs"),
+  "a comment body with a CR inside",
+);
+
+breaks(
+  "a verdict-write.sh that writes jq's CRLF into evidence is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("evidence \"$(jq -r '.name' <<<\"$request\" | drop_jq_cr)\" < <(jq_string_bytes '.text' <<<\"$request\")", "evidence \"$(jq -r '.name' <<<\"$request\" | drop_jq_cr)\" < <(jq -j '.text' <<<\"$request\")"),
+  () => script("test-kit-catalog.mjs"),
+  "evidence text under a CRLF jq",
+);
+
+breaks(
+  "a skill list read that keeps jq's CR is rejected",
+  "skills/xez-maintain-deps/references/agentic-setup.md",
+  (s) => s.replace("\"$CONFIG\" 2>/dev/null | tr -d '\\r')", "\"$CONFIG\" 2>/dev/null)"),
+  () => script("test-platform.mjs"),
+  "keeps jq's CR in a list read",
+);
+
+breaks(
+  "a descriptor that writes a fixed /tmp file is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/github.md",
+  (s) => s.replace("base64 < \"$img\" | tr -d '\\n' > \"$B64\"", "base64 < \"$img\" | tr -d '\\n' > /tmp/ev-content.b64"),
+  () => script("test-platform.mjs"),
+  "fixed /tmp",
+);
+
+breaks(
+  "an onboarding that leaves a kit script non-executable is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("  .xezar/checks/push-check.sh \\\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "not marked executable",
+);
+
+breaks(
+  "an applier that does not name executable files is rejected",
+  "upgrade/tools/apply.mjs",
+  (s) => s.replace("  for (const p of r.executable ?? []) console.log(`executable=${p}`);\n", ""),
+  () => script("test-upgrade.mjs"),
+  "executable=",
+);
+
+breaks(
+  "a Codex trust line with a basic-string Windows key is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/ \*\*On native Windows the\n {2}key is the project's Windows path[\s\S]*?\]`\.\*\*/, ""),
+  () => script("test-kit-facts.mjs"),
+  "literal-string key",
+);
+
+breaks(
+  "a kit that still accepts Node 20 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-setup.sh",
+  (s) => s.replace("    if (major < 22) {\n", "    if (major < 20) {\n"),
+  () => script("test-kit-facts.mjs"),
+  "Node 22",
+);
+
+// QG-8 fix round (F1, F4, F5, F7, F8).
+breaks(
+  "a Windows start that runs a tool it could not find is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  if (!found) return { error: Object.assign(new Error(`spawnSync ${tool} ENOENT`), { code: 'ENOENT' }) };", "  if (!found) return { file: tool, args: [...args], options: {} };"),
+  () => script("test-platform.mjs"),
+  "started by bare name",
+);
+
+breaks(
+  "a cmd.exe path built from a SystemRoot with a metacharacter is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace(" || CMD_UNSAFE_PATH.test(systemRoot) || systemRoot.includes('/')", ""),
+  () => script("test-platform.mjs"),
+  "SystemRoot",
+);
+
+breaks(
+  "a jq CR step that also runs off Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("*) cat ;; esac; }", "*) tr -d '\\r' ;; esac; }"),
+  () => script("test-kit-facts.mjs"),
+  "off Windows",
+);
+
+breaks(
+  "a worktree check that stops reading a long list early is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("| grep -xF -- \"$want\" >/dev/null\n", "| grep -qxF -- \"$want\"\n"),
+  () => script("test-kit-facts.mjs"),
+  "long worktree list",
+);
+
+breaks(
+  "an applier that writes a 0644 kit file as executable is rejected",
+  "upgrade/tools/lib/context.mjs",
+  (s) => s.replace("m[1] === \"100755\" ? 0o755 : 0o644", "m[1] === \"100755\" ? 0o755 : 0o755"),
+  () => script("test-upgrade.mjs"),
+  "records .xezar/checks/lib/windows-programs.mjs as 100755",
+);
 // 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------

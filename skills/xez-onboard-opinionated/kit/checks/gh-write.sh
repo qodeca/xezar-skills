@@ -138,22 +138,25 @@ if [ $# -eq 0 ]; then
   request="$(head -c $((COMMENT_MAX_BYTES + 4096)))" || refuse "could not read stdin"
   [ "${#request}" -le $((COMMENT_MAX_BYTES + 4095)) ] || refuse "the request is too large"
   jq -e 'type == "object"' >/dev/null 2>&1 <<<"$request" || refuse "stdin is not one JSON request object"
-  field() { jq -r --arg k "$1" 'if (.[$k] | type) == "string" or (.[$k] | type) == "number" then .[$k] | tostring else "" end' <<<"$request"; }
+  # jq on native Windows ends every line with CR (#122): under Git Bash or Cygwin a token loses it
+  # through drop_jq_cr, and the body, free text that must stay byte-exact, comes through
+  # jq_string_bytes (both lib/common.sh; elsewhere both reads are today's).
+  field() { jq -r --arg k "$1" 'if (.[$k] | type) == "string" or (.[$k] | type) == "number" then .[$k] | tostring else "" end' <<<"$request" | drop_jq_cr; }
   j_action="$(field action)"
   set -- "$j_action" "$(field kind)" "$(field number)"
   case "$j_action" in
     comment)
       jq -e '(.body | type) == "string"' >/dev/null <<<"$request" || refuse "a comment request needs a string body"
-      json_body="$(jq -r '.body' <<<"$request")"
+      json_body="$(jq_string_bytes '.body' <<<"$request")"
       ;;
     label)
       jq -e '[(.add // []), (.remove // [])] | all(type == "array" and all(.[]; type == "string"))' >/dev/null <<<"$request" ||
         refuse "add and remove must be lists of label names"
-      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --add "$l"; done < <(jq -r '(.add // [])[]' <<<"$request")
-      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --remove "$l"; done < <(jq -r '(.remove // [])[]' <<<"$request")
+      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --add "$l"; done < <(jq -r '(.add // [])[]' <<<"$request" | drop_jq_cr)
+      while IFS= read -r l; do [ -n "$l" ] && set -- "$@" --remove "$l"; done < <(jq -r '(.remove // [])[]' <<<"$request" | drop_jq_cr)
       if jq -e 'has("verdict")' >/dev/null <<<"$request"; then
-        verdict_role="$(jq -r 'if (.verdict | type) == "object" and (.verdict.role | type) == "string" then .verdict.role else "" end' <<<"$request")"
-        verdict_head="$(jq -r 'if (.verdict | type) == "object" and (.verdict.head | type) == "string" then .verdict.head else "" end' <<<"$request")"
+        verdict_role="$(jq -r 'if (.verdict | type) == "object" and (.verdict.role | type) == "string" then .verdict.role else "" end' <<<"$request" | drop_jq_cr)"
+        verdict_head="$(jq -r 'if (.verdict | type) == "object" and (.verdict.head | type) == "string" then .verdict.head else "" end' <<<"$request" | drop_jq_cr)"
         case "$verdict_role" in qa | design-review) ;; *) refuse "verdict.role must be qa or design-review" ;; esac
         printf '%s' "$verdict_head" | grep -Eq '^[0-9a-f]{40}$' || refuse "verdict.head must be the full 40-character sha you reviewed"
         declared="$(step_verdict_role)" || declared=""

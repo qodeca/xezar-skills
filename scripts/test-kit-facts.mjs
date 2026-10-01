@@ -1736,6 +1736,362 @@ function walk(rel, match) {
   checked.push(fact);
 }
 
+// ---------------------------------------------------------------------------
+// #122 run 2: the kit runtime on native Windows. Each fact runs on every OS.
+//
+// FACT W3 -- every unit tool deps.mjs starts goes through start(). On Windows npm and Yarn are
+// .cmd shims: start() finds a tool by PATHEXT and starts a .cmd through cmd.exe with checked text,
+// and never by its bare name, which Windows looks for in the unit's own folder first. A spawnSync
+// outside start() is a tool started without those rules.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT W3: deps.mjs starts every unit tool through start()";
+  const where = "kit/checks/lib/deps.mjs";
+  const text = read(`${SKILL}/${where}`);
+  const body = /\nfunction start\(tool, args, options = \{\}\) \{\n[\s\S]*?\n\}\n/.exec(text);
+  if (!body) fail(fact, where, "has no start(tool, args, options), so nothing starts a unit's .cmd tool on Windows");
+  else {
+    const rest = text.replace(body[0], "\n");
+    if (/\bspawnSync\(/.test(rest))
+      fail(fact, where, "starts a unit's tool without start() (a spawnSync outside it): on Windows that is a bare name, searched in the unit's folder first, and a .cmd that never starts");
+    for (const call of ['start(tool, ["--version"]', "start(plan.tool, plan.args"])
+      if (!rest.includes(call)) fail(fact, where, `no longer calls ${call}…), so it starts a unit's tool without start()`);
+    if (!body[0].includes("WINDOWS.launchFor(tool, args, { env: options.env ?? process.env, cwd: options.cwd })"))
+      fail(fact, where, "start() no longer calls launchFor on Windows, which finds the tool by PATHEXT, answers ENOENT when it is missing and starts a .cmd through cmd.exe with checked text");
+  }
+  checked.push(fact);
+}
+
+// FACT W4 -- the two scripts that start a kit check script outside the gates start Git Bash on
+// Windows, through gitBash(): a bare `bash` there is WSL's on a stock machine. The upgrade verifier
+// also starts its Node checks with this Node (a bare `node` run in the project is looked for in the
+// project first), and finds Git Bash with this clone's own kit copy of the finder, never scripts/lib.
+{
+  const fact = "FACT W4: documented-output.mjs and the upgrade verifier start Git Bash on Windows, never WSL's bash";
+  const docWhere = "kit/checks/documented-output.mjs";
+  const docOut = read(`${SKILL}/${docWhere}`);
+  if (!docOut.includes("const WINDOWS = process.platform === 'win32' ? await import('./lib/windows-programs.mjs') : null;"))
+    fail(fact, docWhere, "no longer loads lib/windows-programs.mjs on Windows, so it has no way to find Git Bash");
+  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !docOut.includes("run(BASH, [path.join(root, row.script)]") || /\brun\(\s*['"]bash['"]/.test(docOut))
+    fail(fact, docWhere, "starts a bare bash on Windows, which on a stock machine is WSL's bash; start Git Bash through gitBash()");
+  if (!/if \(BASH === null\) \{\n\s+console\.error\(`documented-output: \$\{WINDOWS\.GIT_BASH_MISSING\}`\);\n\s+process\.exit\(1\);/.test(docOut))
+    fail(fact, docWhere, "does not stop with the one-line Git Bash message when Git for Windows is missing");
+  const verifyWhere = "upgrade/tools/verify.mjs";
+  const verify = read(verifyWhere);
+  if (!verify.includes('import { SKILL_DIR } from "./lib/kit-index.mjs";') || !verify.includes("await import(new URL(`../../${SKILL_DIR}/kit/checks/lib/windows-programs.mjs`, import.meta.url).href)") || /scripts\/lib\//.test(verify))
+    fail(fact, verifyWhere, "does not load this clone's own kit copy of windows-programs.mjs (or reaches into scripts/lib, which the upgrade tool never imports)");
+  if (!verify.includes('const bash = WINDOWS ? WINDOWS.gitBash() : "bash";') || /runCheck\("repository", "bash"/.test(verify))
+    fail(fact, verifyWhere, "starts a bare bash for the repository check on Windows, which on a stock machine is WSL's bash");
+  if (/runCheck\([^\n]*?, "node",/.test(verify) || (verify.match(/runCheck\("(?:drift|catalog|route)", process\.execPath,/g) ?? []).length !== 3)
+    fail(fact, verifyWhere, "starts a bare node for a check, which Windows looks for in the project first; start process.execPath");
+  checked.push(fact);
+}
+
+// FACT W5 -- the kit's digests do not need shasum. Git Bash has shasum only on a login PATH
+// (core_perl), so `sha256_lines` falls back to coreutils' sha256sum with the same lines. Proven on
+// every OS: PATH is cut down to a folder holding a node stand-in `sha256sum` (and cut and cat), so
+// no shasum is found, and the lines must be node's own digests. Where shasum exists, the helper's
+// output on the full PATH is also byte-equal to `shasum -a 256`; elsewhere that leg says so.
+{
+  const fact = "FACT W5: the kit's digests work without shasum, with the same lines";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const { createHash } = await import("node:crypto");
+  const lab = mkdtempSync(join(tempRoot(), "kit-sha256-"));
+  try {
+    const found = spawnSync(bashPath(), ["-c", "command -v bash; command -v cut; command -v cat"], { encoding: "utf8" }).stdout.trim().split(/\r?\n/);
+    const [bashAbs, cutAbs, catAbs] = found;
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const q = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+    const node = process.execPath.replaceAll("\\", "/");
+    const standIn = [
+      'const fs = require("fs"), crypto = require("crypto");',
+      'const line = (buf, name) => process.stdout.write(crypto.createHash("sha256").update(buf).digest("hex") + "  " + name + "\\n");',
+      'const files = process.argv.slice(1);',
+      'if (files.length) for (const f of files) line(fs.readFileSync(f), f); else line(fs.readFileSync(0), "-");',
+    ].join("\n");
+    writeFileSync(join(bin, "sha256sum"), `#!${bashAbs}\nexec ${q(node)} -e ${q(standIn)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "cut"), `#!${bashAbs}\nexec ${q(cutAbs)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "cat"), `#!${bashAbs}\nexec ${q(catAbs)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(lab, "f.txt"), "kit\n");
+    const script = [
+      '. "$1" || exit 99',
+      'cd "$2" || exit 98',
+      'if command -v shasum >/dev/null 2>&1; then printf "identity="; if [ "$(sha256_lines f.txt)" = "$(shasum -a 256 f.txt)" ]; then echo same; else echo differs; fi; else echo "identity=none"; fi',
+      'only="$3"; if command -v cygpath >/dev/null 2>&1; then only="$(cygpath -u "$3")"; fi',
+      'PATH="$only"',
+      'command -v shasum >/dev/null 2>&1 && echo "shasum still on PATH"',
+      'sha256_lines f.txt',
+      'printf x | sha256_lines',
+      'printf x | sha256_lines | cut -d" " -f1',
+    ].join("\n");
+    const run = spawnSync(bashPath(), ["-c", script, "fact-w5", join(root, SKILL, where), lab, bin], { encoding: "utf8" });
+    const digest = (text) => createHash("sha256").update(text).digest("hex");
+    const lines = run.stdout.split(/\r?\n/);
+    const want = [`${digest("kit\n")}  f.txt`, `${digest("x")}  -`, digest("x")];
+    if (run.status !== 0 || lines.includes("shasum still on PATH") || JSON.stringify(lines.slice(1, 4)) !== JSON.stringify(want))
+      fail(fact, where, `sha256_lines prints other lines (or none) on a machine without shasum: got ${JSON.stringify(lines.slice(1, 4))}, want ${JSON.stringify(want)} (exit ${run.status}) ${run.stderr.trim()}`);
+    if (lines[0] === "identity=differs") fail(fact, where, "sha256_lines does not print what `shasum -a 256` prints where shasum exists");
+    else if (lines[0] === "identity=none") console.log("note  FACT W5: the byte-equal-to-shasum leg is not checked here (no shasum on this machine's PATH)");
+    for (const file of [where, "kit/checks/repo-gates.sh"])
+      if (/\bshasum -a 256\b/.test(read(`${SKILL}/${file}`).replace(/^sha256_lines\(\) \{.*\}$/m, "").replace(/^#.*$/gm, "")))
+        fail(fact, file, "still runs shasum -a 256 directly, which a Git Bash without a login PATH does not have; use sha256_lines");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W6 -- the preflight's "git lists this worktree" reads Git Bash paths. git prints porcelain
+// paths as C:/… there, while the task path comes from `pwd -P` as /c/… or /tmp/…, so every real
+// Xezar worktree failed [isolation.worktree-listed]. Here `worktree_is_listed` runs with OSTYPE set
+// and `git` and `cygpath` as shell functions (a stand-in cygpath: /c/x -> C:/x, /tmp/x -> C:/Temp/x,
+// and /odd/… -> a blank line, which only an unconverted, empty task path could equal), on every OS.
+{
+  const fact = "FACT W6: the worktree check reads /c/… and C:/… as one path under Git Bash, and nothing more";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const porcelain = [
+    "worktree C:/Users/U/Proj", "HEAD 1111", "branch refs/heads/main", "",
+    "worktree C:/Users/U/Proj/.local/xezar/worktrees/abc", "HEAD 2222", "branch refs/heads/xez/abc", "",
+    "worktree C:/Temp/p", "HEAD 3333", "detached", "",
+    "worktree /odd/unconvertible", "HEAD 4444", "detached", "",
+  ].join("\n");
+  const script = String.raw`lib="$1"; shift
+conv() {
+  case "$1" in
+    /odd/*) printf '\n' ;;
+    /tmp/*) printf 'C:/Temp/%s\n' "$(printf '%s' "$1" | cut -c6-)" ;;
+    /?/*) printf '%s:/%s\n' "$(printf '%s' "$1" | cut -c2 | tr 'a-z' 'A-Z')" "$(printf '%s' "$1" | cut -c4-)" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+for os in msys linux-gnu; do
+  for mode in ok fail empty; do
+    for p in "$@"; do (
+      OSTYPE=$os
+      . "$lib" || exit 99
+      git() { printf '%s\n' "$PORCELAIN"; }
+      cygpath() {
+        if [ "$2" = -f ]; then while IFS= read -r l; do conv "$l"; done; return 0; fi
+        case "$mode" in fail) return 1 ;; empty) return 0 ;; esac
+        conv "$3"
+      }
+      if worktree_is_listed "$p" /main; then r=0; else r=1; fi
+      printf '%s %s %s=%s\n' "$os" "$mode" "$p" "$r"
+    ); done
+  done
+done`;
+  const W = "/c/users/u/proj/.local/xezar/worktrees/abc";
+  const paths = [W, "/tmp/p", "/c/users/u/other", `${W}/sub`, "C:/Temp/p"];
+  const env = { ...process.env, PORCELAIN: porcelain };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS2_ARG_CONV_EXCL") delete env[key];
+  const run = spawnSync(bashPath(), ["-c", script, "fact-w6", join(root, SKILL, where), ...paths], { encoding: "utf8", env });
+  const seen = new Map(run.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const at = line.lastIndexOf("="); return [line.slice(0, at), line.slice(at + 1)]; }));
+  const got = (os, mode, p) => seen.get(`${os} ${mode} ${p}`);
+  if (run.status !== 0 || seen.size !== 30) fail(fact, where, `could not be sourced and run in bash (exit ${run.status}, ${seen.size} answers): ${run.stderr.trim()}`);
+  else {
+    if (got("msys", "ok", W) !== "0" || got("msys", "ok", "/tmp/p") !== "0")
+      fail(fact, where, "`worktree_is_listed` under Git Bash reads /c/… and C:/… (or /tmp/… and C:/Temp/…) as two paths, so every real Xezar worktree fails [isolation.worktree-listed]");
+    if (got("msys", "ok", "/c/users/u/other") !== "1") fail(fact, where, "`worktree_is_listed` under Git Bash lists a path git does not report");
+    if (got("msys", "ok", `${W}/sub`) !== "1") fail(fact, where, "`worktree_is_listed` under Git Bash lists a path below a listed worktree");
+    for (const mode of ["fail", "empty"])
+      for (const p of paths) if (got("msys", mode, p) !== "1")
+        fail(fact, where, `\`worktree_is_listed\` under Git Bash lists ${p} when cygpath failed or printed nothing for it (cygpath ${mode}), which matches a blank line`);
+    if (got("linux-gnu", "ok", W) !== "1" || got("linux-gnu", "ok", "/tmp/p") !== "1" || got("linux-gnu", "ok", "C:/Temp/p") !== "0" || got("linux-gnu", "ok", `${W}/sub`) !== "1")
+      fail(fact, where, "`worktree_is_listed` outside Git Bash is no longer the exact porcelain line it always was");
+  }
+  // A long list, under pipefail as the preflight runs it: the wanted tree comes first, then 1 MiB
+  // of others. A grep that stops at the first match leaves the writers before it to die of
+  // SIGPIPE, and the pipeline's status then reads a listed tree as unlisted.
+  const longLab = mkdtempSync(join(tempRoot(), "kit-worktree-long-"));
+  try {
+    const big = join(longLab, "porcelain.txt");
+    const others = [];
+    for (let i = 0, size = 0; size < 1 << 20; i += 1) {
+      const line = `worktree C:/Users/U/Other/${String(i).padStart(8, "0")}`;
+      others.push(line);
+      size += line.length + 1;
+    }
+    writeFileSync(big, `${others.join("\n")}\n`);
+    const longScript = String.raw`lib="$1"; big="$2"; want="$3"
+OSTYPE=msys
+. "$lib" || exit 99
+set -o pipefail
+git() { printf 'worktree %s\n' "$want"; cat "$big"; }
+cygpath() { if [ "$2" = -f ]; then cat; else printf '%s\n' "$3"; fi; }
+if worktree_is_listed "$want" /main; then echo listed; else echo "unlisted $?"; fi`;
+    const long = spawnSync(bashPath(), ["-c", longScript, "fact-w6-long", join(root, SKILL, where), big, "C:/Users/U/Proj/.local/xezar/worktrees/abc"], { encoding: "utf8", env });
+    if (long.status !== 0 || long.stdout.trim() !== "listed")
+      fail(fact, where, `\`worktree_is_listed\` under Git Bash and pipefail reads the first tree of a long worktree list as unlisted (${long.stdout.trim() || `exit ${long.status}`}): a grep that stops reading early fails the pipeline ${long.stderr.trim()}`);
+  } finally {
+    rmSync(longLab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W6, run: the real strict preflight, in a real project with a real linked worktree where
+// Xezar makes it. It passes, with no [isolation.worktree-listed]; once git no longer lists the tree
+// (its registration points elsewhere) it fails with exactly that tag. On Windows this is the Git
+// Bash path case itself: git lists C:/…, the preflight runs in /c/….
+{
+  const fact = "FACT W6: the strict preflight accepts a real Xezar worktree and refuses one git does not list";
+  const where = "kit/checks/worktree-preflight.sh";
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { cpSync, realpathSync } = await import("node:fs");
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-preflight-listed-")));
+  const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  try {
+    const proj = join(lab, "proj");
+    mkdirSync(join(proj, ".xezar/checks/lib"), { recursive: true });
+    git(proj, "init", "-q", "-b", "main");
+    for (const [k, v] of [["user.email", "t@example.com"], ["user.name", "t"], ["commit.gpgsign", "false"]]) git(proj, "config", k, v);
+    for (const f of ["worktree-preflight.sh", "repo-gates.sh", "lib/common.sh"]) cpSync(join(root, SKILL, "kit/checks", f), join(proj, ".xezar/checks", f));
+    writeFileSync(join(proj, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    writeFileSync(join(proj, ".gitignore"), ".local/\nnode_modules/\ndist/\ncoverage/\n");
+    writeFileSync(join(proj, "AGENTS.md"), "# Agents\n");
+    git(proj, "add", "-A");
+    git(proj, "commit", "-q", "-m", "base");
+    const run = "abcd1234-h54";
+    const wt = join(proj, ".local/xezar/worktrees", run);
+    git(proj, "worktree", "add", "-q", "-b", "xez/abcd1234", wt);
+    const preflight = () => {
+      const env = { ...process.env };
+      for (const key of Object.keys(env)) if (/^XEZ_/i.test(key)) delete env[key];
+      const r = spawnSync(bashPath(), [".xezar/checks/worktree-preflight.sh"], { cwd: wt, encoding: "utf8", env });
+      return { code: r.status, out: `${r.stdout}${r.stderr}` };
+    };
+    const strict = preflight();
+    if (strict.code !== 0 || strict.out.includes("isolation.worktree-listed"))
+      fail(fact, where, `refuses a real Xezar worktree git lists (exit ${strict.code}):\n    ${strict.out.trim().split("\n").filter((l) => /\[|PREFLIGHT/.test(l)).join("\n    ")}`);
+    writeFileSync(join(proj, ".git/worktrees", run, "gitdir"), `${join(lab, "elsewhere", ".git")}\n`);
+    const unlisted = preflight();
+    if (unlisted.code === 0 || !unlisted.out.includes("[isolation.worktree-listed]"))
+      fail(fact, where, `does not refuse a worktree git no longer lists with [isolation.worktree-listed] (exit ${unlisted.code}):\n    ${unlisted.out.trim().split("\n").slice(-12).join("\n    ")}`);
+    checked.push(fact);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// FACT W7 -- the jq CR helpers act under Git Bash or Cygwin only (QG-8 C1). jq there writes CRLF,
+// so `drop_jq_cr` strips CRs from a token and `jq_string_bytes` carries free text through @base64.
+// Off Windows both are today's reads: a CR a label or name really holds is kept, and refused later
+// as it always was. common.sh is sourced with OSTYPE msys and linux-gnu, on every OS (on Windows
+// with the harness's LF jq first on PATH).
+{
+  const fact = "FACT W7: the jq CR helpers strip CRs under Git Bash or Cygwin, and change nothing off Windows";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kit-jq-cr-"));
+  try {
+    const text = "a\nb\r\nc\n";
+    writeFileSync(join(lab, "t.json"), JSON.stringify({ t: text }));
+    const script = String.raw`lib="$1"; out="$2"
+for os in msys linux-gnu; do (
+  OSTYPE=$os
+  . "$lib" || exit 99
+  printf 'x\r\n' | drop_jq_cr >"$out/$os.drop" || exit 97
+  jq_string_bytes .t <"$out/t.json" >"$out/$os.bytes" || exit 96
+) || exit $?; done`;
+    const run = spawnSync(bashPath(), ["-c", script, "fact-w7", join(root, SKILL, where), lab], { encoding: "utf8" });
+    const bytes = (name) => (existsSync(join(lab, name)) ? readFileSync(join(lab, name), "latin1") : "<missing>");
+    if (run.status !== 0) fail(fact, where, `could not be sourced and run in bash (exit ${run.status}): ${run.stderr.trim()}`);
+    else {
+      if (bytes("msys.drop") !== "x\n") fail(fact, where, `drop_jq_cr under Git Bash keeps jq's CR: ${JSON.stringify(bytes("msys.drop"))}`);
+      if (bytes("linux-gnu.drop") !== "x\r\n")
+        fail(fact, where, `drop_jq_cr strips a CR off Windows (OSTYPE=linux-gnu), so a label or name that really holds one is accepted there instead of refused: ${JSON.stringify(bytes("linux-gnu.drop"))}`);
+      for (const os of ["msys", "linux-gnu"])
+        if (bytes(`${os}.bytes`) !== text) fail(fact, where, `jq_string_bytes under OSTYPE=${os} does not give the string byte for byte: ${JSON.stringify(bytes(`${os}.bytes`))}, want ${JSON.stringify(text)}`);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W10 -- every kit file git records as executable is made executable in git by onboarding
+// (write.md §6) and by the 3.1.0 upgrade's entry 14. A copy on Windows, or into a repository with
+// core.filemode=false, is recorded as 100644, and a Linux or macOS clone then stops with
+// "Permission denied". The list is derived on every run from git's modes through the kit's own copy
+// map, so a script added later cannot be missed; each block also runs chmod, then git add, then
+// git update-index, in that order (chmod first, or a POSIX working file stays dirty).
+{
+  const fact = "FACT W10: onboarding and upgrade entry 14 make every executable kit file executable in git";
+  const { execFileSync } = await import("node:child_process");
+  const { indexFromTree } = await import("../upgrade/tools/lib/kit-index.mjs");
+  const prefix = `${SKILL}/kit/`;
+  const modes = execFileSync("git", ["ls-files", "-s", "-z", "--", prefix], { cwd: root, encoding: "utf8" });
+  const exe = new Set();
+  for (const line of modes.split("\0")) {
+    const m = /^100755 [0-9a-f]+ \d+\t(.+)$/.exec(line);
+    if (m) exe.add(m[1].slice(prefix.length));
+  }
+  const want = [...indexFromTree(join(root, SKILL), { version: "kit-facts" }).copyMap]
+    .filter(([, e]) => e.kitSource && exe.has(e.kitSource))
+    .map(([installed]) => installed);
+  if (!want.length) fail(fact, `${SKILL}/kit`, "git records no executable kit file at an installed path; re-aim this fact");
+  const writeMd = read(`${SKILL}/references/write.md`);
+  const notes = read("UPGRADE_NOTES.md");
+  const entry14 = /^### 14\. Native Windows[\s\S]*?(?=^#{2,3} )/m.exec(notes)?.[0] ?? "";
+  const places = [
+    [`${SKILL}/references/write.md §6`, writeMd.slice(writeMd.indexOf("\n## 6. "))],
+    ["UPGRADE_NOTES.md 3.1.0 entry 14", entry14],
+  ];
+  for (const [where, text] of places) {
+    const block = /^set -- \\\n((?: {2}\S+ \\\n)* {2}\S+)\n([\s\S]*?)^```$/m.exec(text);
+    if (!block) {
+      fail(fact, where, "has no `set -- \\` list of the kit's executable files, so a copy from Windows leaves every script not marked executable");
+      continue;
+    }
+    const list = block[1].split("\n").map((l) => l.trim().replace(/ \\$/, ""));
+    for (const p of want) if (!list.includes(p)) fail(fact, where, `${p} is executable in the kit but not marked executable here: a Linux or macOS clone stops with "Permission denied" on it`);
+    for (const p of list) if (!want.includes(p)) fail(fact, where, `marks ${p} executable, but no kit file git records as executable is installed there`);
+    const steps = ["chmod +x -- ", "git add -- ", "git update-index --chmod=+x -- "].map((s) => block[2].indexOf(s));
+    if (steps.some((at) => at < 0) || !(steps[0] < steps[1] && steps[1] < steps[2]))
+      fail(fact, where, "does not run chmod +x, then git add, then git update-index --chmod=+x on the list, in that order");
+  }
+  checked.push(fact);
+}
+
+// FACT W11 -- the Codex trust line on native Windows. A double-quoted TOML key reads `\u` and `\m`
+// in `c:\users\me\app` as escapes, so the key is a single-quoted literal string, in lower case as
+// Codex writes it itself (a mixed-case key is untested), and the Codex home there is
+// %USERPROFILE%\.codex. Stated where the owner is told to add it: onboarding, the upgrade prompt's
+// per-machine action, and the 3.0.2 browser entry.
+{
+  const fact = "FACT W11: the Codex trust line on Windows uses a literal-string key in %USERPROFILE%\\.codex";
+  for (const where of [`${SKILL}/references/write.md`, "upgrade/UPGRADE-PROMPT.md", "UPGRADE_NOTES.md"]) {
+    const text = read(where).replace(/\n\s*/g, " ");
+    if (!text.includes("[projects.'c:\\users\\me\\app']") || !/literal-string key/.test(text))
+      fail(fact, where, "does not give the Windows trust line as a literal-string key ([projects.'c:\\users\\me\\app']): in double quotes TOML reads \\u as an escape");
+    if (!text.includes(`cygpath -w "$PWD" | tr 'A-Z' 'a-z'`) || !/a mixed-case key is untested/i.test(text) || /\[projects\.'[A-Z]:\\/.test(text))
+      fail(fact, where, "does not give the key in lower case, the way Codex writes it (cygpath -w \"$PWD\" | tr 'A-Z' 'a-z'), or does not say a mixed-case key is untested");
+    if (!text.includes("%USERPROFILE%\\.codex"))
+      fail(fact, where, "does not name %USERPROFILE%\\.codex as the Codex home on native Windows");
+  }
+  checked.push(fact);
+}
+
+// FACT W12 -- the kit's Node floor is 22 (Node 20 left support in April 2026), in both checks that
+// refuse an older Node and in the doc that states the floor. A check left at 20 lets a task run on a
+// Node nothing supports, and a doc left at 20 tells the owner that is fine.
+{
+  const fact = "FACT W12: the kit requires Node 22 wherever it checks or states the floor";
+  const places = [
+    ["kit/checks/worktree-setup.sh", ["# The repo requires Node >= 22", "if (major < 22) {", "is below the required 22`"]],
+    ["kit/checks/lib/deps.mjs", ["nodeMajor() < 22) {", "is below the required 22`"]],
+    ["kit/docs/worktrees.md", ["Setup checks Node >=22/npm"]],
+  ];
+  for (const [where, needles] of places) {
+    const text = read(`${SKILL}/${where}`);
+    for (const n of needles) if (!text.includes(n)) fail(fact, where, `no longer requires Node 22 (\`${n}\` is missing)`);
+    if (/(?:<|>=?) ?20\b|required 20\b|Node 20\b/.test(text)) fail(fact, where, "still accepts Node 20; the kit requires Node 22");
+  }
+  checked.push(fact);
+}
+
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);

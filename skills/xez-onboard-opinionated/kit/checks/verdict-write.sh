@@ -77,7 +77,10 @@ evidence_dir() {
 if [ $# -eq 0 ]; then
   request="$(head -c $((EVIDENCE_MAX_BYTES + 4096)))" || refuse "could not read stdin"
   jq -e 'type == "object"' >/dev/null 2>&1 <<<"$request" || refuse "stdin is not one JSON request object"
-  j_kind="$(jq -r 'if (.kind | type) == "string" then .kind else "" end' <<<"$request")"
+  # jq on native Windows ends every line with CR (#122): under Git Bash or Cygwin the kind and name
+  # lose it through drop_jq_cr, and the text, which must stay byte-exact, comes through
+  # jq_string_bytes (both lib/common.sh; elsewhere both reads are today's).
+  j_kind="$(jq -r 'if (.kind | type) == "string" then .kind else "" end' <<<"$request" | drop_jq_cr)"
   case "$j_kind" in
     packet)
       jq -e '(.packet | type) == "object"' >/dev/null <<<"$request" || refuse "a packet request needs a packet object"
@@ -85,11 +88,11 @@ if [ $# -eq 0 ]; then
       ;;
     blocked)
       jq -e '(.text | type) == "string"' >/dev/null <<<"$request" || refuse "a blocked request needs a string text"
-      exec bash "$SCRIPT_DIR/verdict-write.sh" blocked < <(jq -j '.text' <<<"$request")
+      exec bash "$SCRIPT_DIR/verdict-write.sh" blocked < <(jq_string_bytes '.text' <<<"$request")
       ;;
     evidence)
       jq -e '(.text | type) == "string" and (.name | type) == "string"' >/dev/null <<<"$request" || refuse "an evidence request needs a string name and text"
-      exec bash "$SCRIPT_DIR/verdict-write.sh" evidence "$(jq -r '.name' <<<"$request")" < <(jq -j '.text' <<<"$request")
+      exec bash "$SCRIPT_DIR/verdict-write.sh" evidence "$(jq -r '.name' <<<"$request" | drop_jq_cr)" < <(jq_string_bytes '.text' <<<"$request")
       ;;
     *) usage ;;
   esac
