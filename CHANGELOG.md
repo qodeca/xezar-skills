@@ -342,6 +342,30 @@ V4 Pro review runs with a full shell, because pi's read-only lock is not proven 
 Off switch: remove the model from a machine's pi config; the lane cache marks the lane unavailable
 and `route.mjs` drops it on that machine.
 
+**The kit's checks run on native Windows, in Git Bash (#122).** A new
+`.xezar/checks/lib/windows-programs.mjs`, loaded on Windows only, finds a program by its Windows
+extension and finds Git Bash rather than WSL's `bash`. `route.mjs` sees `claude.exe` and
+`codex.cmd`, so it no longer drops installed lanes as "not installed here". `deps.mjs` starts npm's
+and Yarn's `.cmd` shims through `cmd.exe` with checked text only, never by bare name and never
+searching the unit's own folder, and finds a Node that nvm-windows installed and a `dotnet.exe`
+under `%DOTNET_ROOT%` or `%USERPROFILE%\.dotnet`. The worktree preflight reads Git Bash's `/c/…`
+and `/tmp/…` paths and git's `C:/…` as one path. `gh-write.sh` and `verdict-write.sh` read jq's
+output without the CR a Windows jq adds, byte-exact for comment bodies and evidence, and with jq
+1.6. The kit's digests use `sha256sum` where `shasum` is missing, and `documented-output.mjs` and
+the upgrade verifier start Git Bash. Onboarding and the upgrade mark every kit script executable
+in git (`chmod +x`, `git add`, `git update-index --chmod=+x`), so a project set up from Windows
+no longer gives a Linux clone `Permission denied`; `apply.mjs` prints an `executable=` line for
+each. The GitHub tracker descriptor's image upload writes a fresh `mktemp` file instead of a fixed
+`/tmp` one. The MCP servers stay a plain `npx`, tested on Windows with Claude Code 2.1.286 and
+Codex 0.157.1. The engine, the leader and its tasks still need qodeca/xezar#963 phases 2b and 3,
+not released yet; until then WSL2 stays the fallback. On Linux and macOS the checks behave as
+before apart from the Node floor below; there too, onboarding and the upgrade set the scripts'
+executable bits in git, and the upgrade verifier runs its checks with its own Node.
+
+**Node 22 is the minimum.** Node 20 left support in April 2026. The kit's task setup and
+dependency checks refuse a Node below 22, the README and the bootstrap prompt say Node 22, and
+`BACKWARD_COMPATIBILITY.md` and `UPGRADE_NOTES.md` (3.1.0 entry 15) say what to do.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

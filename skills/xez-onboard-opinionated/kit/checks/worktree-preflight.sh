@@ -164,7 +164,7 @@ if [ "$IS_WORKTREE" -eq 1 ]; then
     if [ ! -d "$MAIN_ROOT/.git/worktrees/$leaf" ]; then
       fail isolation.worktree-registered "git has no worktree registration at .git/worktrees/$leaf — the tree is unregistered or stale"
     fi
-    if ! git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null | grep -qxF "worktree $TASK_CWD"; then
+    if ! worktree_is_listed "$TASK_CWD" "$MAIN_ROOT"; then
       fail isolation.worktree-listed "git worktree list does not report $TASK_CWD — refusing to work in an unregistered tree"
     fi
 

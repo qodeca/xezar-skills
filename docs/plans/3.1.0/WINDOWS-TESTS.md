@@ -4,10 +4,47 @@ Use this guide to test Xezar skills 3.1.0 on Windows. The release waits for thes
 
 ## Before you start
 
-- The xezar engine 0.19.0 does not run on native Windows. It needs POSIX and bash.
-- Run the engine, the leader and the workflows in WSL2 (Ubuntu).
-- Run only the Erfana UI tests on native Windows.
 - Version 3.1.0 is on the `develop` branch. It has no release and no tag yet.
+- On native Windows, the kit's checks run in Git Bash. Install Git for Windows (the full
+  installer, not MinGit), `jq`, Node 22 or later and the GitHub CLI.
+- The xezar engine 0.19.0 does not run on native Windows. Native Windows needs qodeca/xezar#963
+  phases 2b and 3, which are not released yet. Until then, run the engine, the leader and the
+  workflows in WSL2 (Ubuntu). WSL2 stays the fallback.
+- Do part A on native Windows, in Git Bash. Do part B (sections 1 to 6) in WSL2. Do section 7 on
+  native Windows.
+
+## Part A – the kit's checks on native Windows (Git Bash)
+
+Use a scratch project that has the 3.1.0 kit, for example one onboarded in WSL2 and cloned on
+Windows. Run each command in Git Bash, in the project root.
+
+1. **Router.** Run `node .xezar/checks/route.mjs --rows`, then `node .xezar/checks/route.mjs <row id>`
+   for one row. No line may say `removed=claude/…` while `claude` runs in this shell.
+2. **Dependency install.** Set two npm units in `dependencies.units`, one in a folder whose name
+   has `&`. Commit the config and both unit folders to the default branch, push, then `git fetch`:
+   the kit reads `dependencies.units` from `origin/<default branch>` only
+   (`git remote set-head origin --auto` if `origin/HEAD` is unset). Run
+   `bash .xezar/checks/deps-restore.sh`. Both units must install.
+3. **Worktrees.** Make a linked worktree under `.local/xezar/worktrees/<id>` and one under `/tmp`.
+   In each, `bash .xezar/checks/worktree-preflight.sh` must pass. A worktree git does not list
+   must fail with `[isolation.worktree-listed]`.
+4. **Gate list without a login shell.** Run
+   `"C:\Program Files\Git\bin\bash.exe" -c ".xezar/checks/repo-gates.sh --list"`. It must
+   print the gate list, with no `shasum` error.
+5. **Executable bits.** In a scratch repository with `core.filemode=false`, copy the kit as
+   `references/write.md` says and run its §6 block. `git ls-files -s` must show `100755` for
+   every path in the block. Clone the repository into WSL2 and run one check there: no
+   `Permission denied`.
+6. **MCP and Codex trust.** In Claude Code, `/mcp` must show the project's servers connected. Add
+   the Codex trust line as `references/write.md` §4 says (`[projects.'c:\…']`), then
+   `codex mcp list` must list the project's servers. Also check that a key Codex wrote itself, when
+   its trust prompt was accepted, has the same form: lower case, in single quotes.
+7. **pi.** With pi-mcp-adapter, both `.mcp.json` servers must start, and `pi --list-models` must
+   answer. Report a failure to the owner.
+8. **GitHub writes.** A label move on a scratch pull request and one image upload, only with the
+   owner's approval.
+
+## Part B – the engine, the leader and the workflows in WSL2
 
 ## 1. Set up WSL2
 
@@ -124,6 +161,8 @@ Make sure all tests pass.
 
 ## Checklist
 
+- [ ] Part A: the router, the dependency install, the worktree checks, the gate list, the
+      executable bits, MCP, Codex trust and pi work on native Windows.
 - [ ] The leader starts in WSL2.
 - [ ] One workflow (a small bug fix) runs end to end.
 - [ ] The review step uses chrome-devtools (headless, in WSL2) with no denial.

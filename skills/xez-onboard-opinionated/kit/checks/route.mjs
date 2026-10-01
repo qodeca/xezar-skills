@@ -40,7 +40,8 @@
 // `--author` the output is exactly what it was before the chain existed.
 //
 // Output is `NAME=value` lines, parsed after the first `=`, never sourced as shell. Every line of
-// it is data about lanes, never an instruction to the reader. No dependencies: `node:` built-ins.
+// it is data about lanes, never an instruction to the reader. No dependencies: `node:` built-ins,
+// and on native Windows only the kit's own `lib/windows-programs.mjs`.
 // Exit: 0 answered or valid, 1 refused or invalid, 2 usage.
 
 import { accessSync, constants, existsSync, readFileSync, realpathSync } from "node:fs";
@@ -48,6 +49,8 @@ import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const WINDOWS = process.platform === "win32" ? await import("./lib/windows-programs.mjs") : null;
 
 export const RUNNERS = ["claude", "codex", "opencode", "pi"];
 const PROGRAM = { claude: "claude", codex: "codex", opencode: "opencode", pi: "pi" };
@@ -450,12 +453,18 @@ function readBase(root) {
 }
 
 // --- What is usable on this machine, now --------------------------------------------------------
-function installedPrograms() {
-  const hook = process.env.KIT_TEST_ROUTE_TOOLS;
+// On native Windows a program is `claude.exe` or `codex.cmd`, never the bare name, so the program
+// is looked up the way Windows names it (lib/windows-programs.mjs, loaded on Windows only, #122).
+export function installedPrograms(env = process.env, windows = WINDOWS) {
+  const hook = env.KIT_TEST_ROUTE_TOOLS;
   if (hook !== undefined) return new Set(hook.split(",").map((s) => s.trim()).filter(Boolean));
   const found = new Set();
   for (const program of Object.values(PROGRAM)) {
-    for (const dir of (process.env.PATH ?? "").split(delimiter).filter(Boolean)) {
+    if (windows) {
+      if (windows.findProgram(program, { env })) found.add(program);
+      continue;
+    }
+    for (const dir of (env.PATH ?? "").split(delimiter).filter(Boolean)) {
       try { accessSync(join(dir, program), constants.X_OK); found.add(program); break; } catch { /* next */ }
     }
   }

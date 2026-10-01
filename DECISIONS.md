@@ -1491,30 +1491,25 @@ engine does (the whole process tree, each process checked by its start time befo
 never `taskkill /T`), plus the processes an MSYS `exec` leaves under a parent that has already
 exited; and the leader launcher finds an engine that listens on a named pipe (next entry).
 
-**Known native-runtime gaps (#122, second run).** Each is a place where the kit or the upgrade
-tool, run natively on Windows rather than under the tests, still does the wrong thing:
+**Native-runtime gaps left (#122, second run).** The second run fixed the kit's other native gaps
+("The kit's checks run on native Windows, in Git Bash", below). What is left is hardening, or
+belongs to the engine:
 
-- `kit/checks/lib/deps.mjs:79`, `:605` – `spawnSync(tool)` cannot start `npm.cmd` or `yarn.cmd`
-  (Node 20.12 and later refuse a `.cmd` without a shell).
-- `kit/checks/documented-output.mjs:32` (called with `bash` at `:246`) – a bare `bash` reaches
-  WSL's `bash.exe` on a stock Windows.
-- `kit/checks/route.mjs:648` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd` shim fails
-  silently, and the login reads as empty.
-- `kit/checks/gh-write.sh:141-156` – `$(jq -r …)` from a Windows jq ends in `\r`; the tests use an
-  LF jq shim. The same holds for every other `$(jq …)` run without `-b`: `kit/checks/verdict-write.sh`,
-  `xez-approve-merge-pr`'s `gate-status.sh` and `merge-gate.sh`, the config reads in most skills'
-  `references/agentic-setup.md` and a few other step files, and the GitHub tracker descriptors.
-- `kit/checks/lib/common.sh:573-600`, `:823-843` and `kit/checks/repo-gates.sh:96` – `shasum` lives
-  in Git for Windows' `usr\bin\core_perl`, which only a login Git Bash puts on `PATH`; a bash started
-  without a login (GitHub Actions' `shell: bash`, a program running `bash -c`) does not find it. The
-  tests append Git's Perl script folders to `PATH`.
-- `upgrade/tools/verify.mjs:410` – a bare `bash`, which is Git Bash only when Git's `usr\bin` comes
-  first on `PATH`.
-- `kit/mcp.json:4`, `:8`, `kit/codex/config.toml:5` and `xez-onboard`'s `templates/claude-mcp.json`,
-  `codex-mcp.toml`, `pi-mcp.json` – each MCP server starts with a bare `npx`, which on native
-  Windows is `npx.cmd` and does not start without a `cmd /c` wrapper.
+- `ghLogin()` in `kit/checks/route.mjs` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd`
+  shim fails silently, and the login reads as empty.
+- A bare `git` or `gh` in the kit's `.mjs` files is looked for in the working folder first on
+  Windows, so a `git.exe` committed to a project would run there. The class is older than #122 and
+  wider than it: tech debt.
+- The upgrade tool reads a kit file's executable bit from its own clone's git index. A kit copy git
+  does not track falls back to `lstat`, which finds no executable bit on Windows; the prompt
+  requires a verified git clone, so only the tests reach that fallback: tech debt.
+- A `du` fallback and the browser descriptors' URL escaping, which the readiness audit named as
+  hardening, not function.
+- The engine: Codex and pi tasks start through a `.cmd` (qodeca/xezar#963 phase 2b), and check steps
+  need Git Bash and the leader's MCP bridge a named pipe (phase 3); both need an engine release, and
+  the pipe contract is still a draft (next entry).
 
-The issue stays open for them: the pull request references #122 without a closing keyword.
+#122 closes when the second run's pull request merges; the engine part stays in qodeca/xezar#963.
 
 ## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
 
@@ -1539,3 +1534,51 @@ copies again by hand – UPGRADE_NOTES entry 14 says so. `scripts/test-kit-catal
 launcher against real named pipes on Windows and against the same names bound as socket files
 elsewhere, so the rule is checked on every OS; `scripts/test-guards.mjs` breaks the name check and
 the stale-marker skip.
+
+## The kit's checks run on native Windows, in Git Bash
+
+**Owner: Marcin. Decided 2026-10-01.**
+
+The kit's checks now run natively on Windows in Git Bash (#122, second run); the engine part stays
+in qodeca/xezar#963. On Linux and macOS the checks behave as before apart from the Node floor;
+three changes there are deliberate: executable bits set in git, the upgrade verifier's own Node,
+and the nvm picker reading `NVM_HOME`.
+
+- **Two Windows modules.** `kit/checks/lib/windows-process.mjs` keeps its one job, the gate
+  scheduler's process tree, and exports its `PATH` helpers. The new
+  `kit/checks/lib/windows-programs.mjs` finds a program by `PATHEXT`, finds Git Bash, and plans a
+  `.cmd` start. `route.mjs`, `lib/deps.mjs` and `documented-output.mjs` load it with a Windows-only
+  import. Its functions take an injected `exists`, so the Windows rules are tested on every OS.
+- **The upgrade verifier loads the clone's own kit copy of that module.** It already runs the kit's
+  scripts from the same clone, and it still never imports `scripts/lib`. A lazy import would have
+  made `verify()` asynchronous for no gain.
+- **The upgrade verifier starts its Node checks with the Node that runs it, on every OS:** a bare
+  `node` is looked up in the project first on Windows, and everywhere the checks run on the
+  tool's Node.
+- **A `.cmd` starts through `cmd.exe` with checked text only.** Node refuses a `.cmd` without a
+  shell (CVE-2024-27980). `launchPlan` refuses a shim path or an argument holding a `cmd.exe`
+  metacharacter, a UNC working folder and an odd `SystemRoot`, and sets
+  `NoDefaultCurrentDirectoryInExePath=1`, so the bare `node` npm's shim starts is never a
+  `node.cmd` committed to the unit's folder. A program that is not found is an `ENOENT`, never a
+  start by bare name.
+- **jq's CR, jq 1.6 included.** No `--binary`, which jq 1.6 lacks. A token read drops the CR with
+  `tr -d '\r'` (`drop_jq_cr`); free text goes through `@base64` and `base64 --decode`
+  (`jq_string_bytes`), both in `lib/common.sh`, so a CR inside a comment body survives and none is
+  added. Git Bash and Cygwin only; elsewhere both reads are today's. A single `$(jq -r …)` value
+  needs nothing, since Git Bash's command substitution drops jq's trailing CR (probe: Git Bash
+  5.3.15, jq 1.8.2); only reads of several lines keep it.
+- **MCP stays a plain `npx`.** Claude Code 2.1.286 and Codex 0.157.1 start it on Windows. A
+  `cmd /c` wrapper would break the Linux and macOS members of a mixed team, and a question at
+  onboarding to choose between the two forms is no longer needed.
+- **Executable bits are set in git, on every OS:** `chmod +x`, then `git add`, then
+  `git update-index --chmod=+x`. `update-index` alone leaves a POSIX file dirty, and the next
+  `git add` takes the bit away again. Onboarding runs it on a list a gate fact derives from git's
+  modes. The upgrade tool reads the kit's modes from its own clone's index, never a project's, and
+  prints an `executable=` line for each; the kit index format is unchanged.
+- **Node 22 for everyone.** Node 20 left support in April 2026. The kit's two Node checks and its
+  worktree doc say 22, with no `engines` field. The npm toolchain descriptor keeps "Node.js 18",
+  npm's own floor: moving it would move a digest pin for no change in behaviour.
+- **One nvm picker.** `nvmBin` looks in `%NVM_HOME%` (nvm-windows, only when it is an absolute
+  path), then in `$NVM_DIR/versions/node`, newest version first. With no `NVM_HOME` it behaves as
+  before. `NVM_HOME` is read on every OS so the Linux gate proves the nvm-windows layout; only
+  nvm-windows sets it.

@@ -71,7 +71,7 @@ From this skill's `kit/` into the project:
 | `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
 | `kit/codex/config.toml` | `.codex/config.toml` — its `[mcp_servers.chrome-devtools]` table merged into an existing file, never over it |
 | `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
-| `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, executable |
+| `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, made executable (§6) |
 | `kit/scripts/xezar-leader-settings.json` | `scripts/xezar-leader-settings.json` — the leader's merge permission, loaded only by the launcher |
 
 **Rewritten during the copy**, routine and not an owner decision: any absolute path becomes the
@@ -488,8 +488,14 @@ to carry — do not invent one, and do not tell the owner to run one.
 - **Codex trust, when a routing lane is `codex/…`.** Codex reads the project's `.codex/` only for
   a trusted project, so print this line for the owner to add to the `config.toml` of the Codex home
   the engine's `codex` uses (`$CODEX_HOME` when that `codex`, or a wrapper script on PATH, sets
-  one; otherwise `~/.codex`): `[projects."<absolute project path>"]` then
-  `trust_level = "trusted"`. Say what trust enables: the project's MCP servers, and its Codex hooks
+  one; otherwise `~/.codex`, which on native Windows is `%USERPROFILE%\.codex`):
+  `[projects."<absolute project path>"]` then `trust_level = "trusted"`. **On native Windows the
+  key is the project's Windows path in lower case, the way Codex writes it when the owner accepts
+  its trust prompt (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a TOML literal-string
+  key, in single quotes: `[projects.'c:\users\me\app']`.** A mixed-case key is untested. In double
+  quotes TOML reads `\u` and `\m` as escapes. A path that holds a `'` takes the double-quoted form
+  with every `\` doubled. Say what
+  trust enables: the project's MCP servers, and its Codex hooks
   and rules too. Say also that a `[mcp_servers.chrome-devtools]` table in that home config makes the
   engine switch the project's server off for Codex runs. It is the owner's setting; never write it.
 - **A committed launcher script** that starts the agent with the
@@ -600,6 +606,50 @@ pending file below: a later session cannot tell them apart, and the report for a
 has to name the ones it would be undoing. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
 which carries the three design labels the kit's policy needs; the tracker descriptor is this
 skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
+
+**Make the kit's scripts executable in git, on every OS, before the commit.** A copy made on
+Windows, or into a repository with `core.filemode=false`, is recorded as `100644`, and the first
+Linux or macOS clone or CI job then stops with `Permission denied` on a check. Run this block as it
+stands: `chmod +x` makes a POSIX working file match (in Git Bash it changes nothing), `git add`
+puts each path in the index, and `git update-index --chmod=+x` sets the bit there (it refuses a
+path that is not added yet). The list is every kit file git records as executable, at its
+installed path. A path this block cannot find is a copy that failed: stop and name it.
+
+```bash
+set -- \
+  .xezar/checks/bootstrap.sh \
+  .xezar/checks/changelog-check.sh \
+  .xezar/checks/ci-watch.sh \
+  .xezar/checks/config-guard.sh \
+  .xezar/checks/deploy-guard.sh \
+  .xezar/checks/deps-restore.sh \
+  .xezar/checks/gh-write.sh \
+  .xezar/checks/git-read.sh \
+  .xezar/checks/integration-preflight.sh \
+  .xezar/checks/leader-context.sh \
+  .xezar/checks/lib/common.sh \
+  .xezar/checks/lib/gate-record.sh \
+  .xezar/checks/local-tree.sh \
+  .xezar/checks/merge-recovery.sh \
+  .xezar/checks/phase-record.sh \
+  .xezar/checks/push-check.sh \
+  .xezar/checks/repo-gates.sh \
+  .xezar/checks/repository-checks.sh \
+  .xezar/checks/resume-complete.sh \
+  .xezar/checks/review-run.sh \
+  .xezar/checks/root-sync-preflight.sh \
+  .xezar/checks/route.mjs \
+  .xezar/checks/security-scan.sh \
+  .xezar/checks/verdict-write.sh \
+  .xezar/checks/verify-evidence.sh \
+  .xezar/checks/worktree-git.sh \
+  .xezar/checks/worktree-preflight.sh \
+  .xezar/checks/worktree-setup.sh \
+  scripts/xezar-leader.sh
+chmod +x -- "$@"
+git add -- "$@"
+git update-index --chmod=+x -- "$@"
+```
 
 Commit on a setup branch and open a pull request. The pull request carries the full label
 set the pipeline itself demands — one pipeline label, a category, a QA label, one priority, one

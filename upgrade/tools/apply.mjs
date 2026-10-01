@@ -23,7 +23,9 @@
 // Running apply twice changes nothing the second time.
 //
 // Output: NAME=value lines – applied=<path> op=<op>, done=<path>, staged=<path> op=<op> [merge=<exit>],
-// held=<path> reason=<stop,…>, refused=<path> reason=<why>, and last apply-status=ok|refused.
+// held=<path> reason=<stop,…>, refused=<path> reason=<why>, executable=<path> (every path the
+// project has whose kit file is executable: the prompt sets git's executable bit on each), and
+// last apply-status=ok|refused.
 // Exit: 0 ok; 3 refused (nothing written); 2 cannot run.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync } from "node:fs";
@@ -177,7 +179,26 @@ export function applyPlan(ctx, plan) {
   const recordPath = resolveInside(ctx.project, `${SCRATCH}/applied.json`);
   mkdirSync(dirname(recordPath), { recursive: true });
   writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
-  return { status: "ok", refused: [], results, done };
+  return { status: "ok", refused: [], results, done, executable: executablePaths(ctx) };
+}
+
+/**
+ * Every target copy-map path whose kit file is executable and that the project now has (#122).
+ * A write on Windows, or into a `core.filemode=false` repository, cannot set git's executable
+ * bit, so the prompt sets it on these paths; listing each present one, not only this run's
+ * writes, also repairs a project onboarded from Windows before 3.1.0.
+ */
+function executablePaths(ctx) {
+  const out = [];
+  for (const p of Object.keys(ctx.theirs.files).sort()) {
+    if (!ctx.theirsExecutable(p)) continue;
+    try {
+      if (existsSync(resolveInside(ctx.project, p))) out.push(p);
+    } catch (e) {
+      if (!(e instanceof PathRefused)) throw e;
+    }
+  }
+  return out;
 }
 
 function main() {
@@ -201,6 +222,7 @@ function main() {
     else console.log(`staged=${x.path} op=${x.op}${x.merge === null ? "" : ` merge=${x.merge}`}`);
   }
   for (const p of r.done) console.log(`done=${p}`);
+  for (const p of r.executable ?? []) console.log(`executable=${p}`);
   console.log(`apply-status=${r.status}`);
   if (r.status !== "ok") process.exit(3);
 }

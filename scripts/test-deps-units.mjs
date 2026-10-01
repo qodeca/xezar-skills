@@ -25,7 +25,7 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { delimiter, dirname, join } from "node:path";
 import { bashPath, posixToolDirs, prependPath, toPosixPath } from "./lib/platform.mjs";
-import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeStub } from "./lib/test-harness.mjs";
+import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeCmdShim, writeStub } from "./lib/test-harness.mjs";
 
 prepareTestPlatform({ symlinks: true });
 
@@ -51,7 +51,9 @@ const sha = (text) => createHash("sha256").update(text).digest("hex");
 const bin = join(lab, "bin");
 const LOG = join(lab, "calls.ndjson");
 const record = `node -e 'require("fs").appendFileSync(process.env.DEPS_STUB_LOG, JSON.stringify({ tool: process.argv[1], argv: process.argv.slice(2), cwd: process.cwd(), husky: process.env.HUSKY ?? null }) + "\\n")'`;
-const stub = (name, body) => { mkdirSync(bin, { recursive: true }); writeStub(join(bin, name), `#!/usr/bin/env bash\n${body}\n`); };
+// #122 (Windows): deps.mjs finds its tools by PATHEXT there, so each stub also gets an npm.cmd-style
+// shim (writeCmdShim, a no-op elsewhere) and is reached through cmd.exe, as the real npm.cmd is.
+const stub = (name, body) => { mkdirSync(bin, { recursive: true }); writeStub(join(bin, name), `#!/usr/bin/env bash\n${body}\n`); writeCmdShim(join(bin, name)); };
 stub("yarn", `[ "\${1:-}" = "--version" ] && { echo "\${STUB_YARN_VERSION:-1.22.22}"; exit 0; }
 ${record} yarn "$@"
 [ -n "\${STUB_FAIL:-}" ] && exit 1
@@ -72,7 +74,13 @@ const home = join(lab, "home");
 mkdirSync(home, { recursive: true });
 // #122 (Windows): deps.mjs starts yarn, npm and dotnet natively; stubSpawnEnv() lets those
 // native spawns reach the extensionless stubs above (an empty object off Windows).
-const baseEnv = () => ({ ...prependPath(process.env, [bin]), ...stubSpawnEnv(), DEPS_STUB_LOG: LOG, HOME: home, NVM_DIR: join(lab, "no-nvm") });
+// NVM_HOME is cleared (#122): a developer's own nvm-windows must never answer for a fixture; the
+// nvm-windows cases set their own.
+const baseEnv = () => {
+  const env = { ...prependPath(process.env, [bin]), ...stubSpawnEnv(), DEPS_STUB_LOG: LOG, HOME: home, NVM_DIR: join(lab, "no-nvm") };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "NVM_HOME") delete env[key];
+  return { ...env, NVM_HOME: "" };
+};
 const calls = () => (existsSync(LOG) ? readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
 const clearCalls = () => rmSync(LOG, { force: true });
 
@@ -99,7 +107,7 @@ function repo({ config, files = {}, extra = () => {} } = {}) {
   const dir = join(lab, `repo-${++seq}`);
   mkdirSync(dir, { recursive: true });
   git(dir, "init", "--quiet");
-  for (const f of ["lib/deps.mjs", "lib/common.sh", "deps-restore.sh", "local-tree.sh", "repo-gates.sh", "lib/gate-record.sh", "lib/gate-results.mjs"]) {
+  for (const f of ["lib/deps.mjs", "lib/windows-programs.mjs", "lib/windows-process.mjs", "lib/common.sh", "deps-restore.sh", "local-tree.sh", "repo-gates.sh", "lib/gate-record.sh", "lib/gate-results.mjs"]) {
     mkdirSync(dirname(join(dir, ".xezar/checks", f)), { recursive: true });
     copyFileSync(join(KIT, "checks", f), join(dir, ".xezar/checks", f));
   }
@@ -576,6 +584,47 @@ try {
     const alias = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: { ...unitFiles, ".nvmrc": "lts/*\n" } });
     const note = deps(alias, "tools");
     expect("node pin: an alias is a note, not a failure", note.code === 0 && note.out.includes('.nvmrc holds "lts/*", which is not a version number') && note.out.includes("(Yarn 1)"), JSON.stringify(note));
+
+    // #122: nvm-windows keeps each version as %NVM_HOME%\v<x.y.z>\node.exe. That layout is searched
+    // first, with the same numeric order; nvm's layout above holds the same major, so the answer
+    // also proves the order.
+    const nvmHome = join(lab, "nvm-home");
+    const fakeIn = (dir, v, file = "node") => { mkdirSync(join(dir, v), { recursive: true }); writeStub(join(dir, v, file), `#!/bin/sh\nexec "${process.execPath}" "$@"\n`); };
+    fakeIn(nvmHome, `v${major + 1}.9.0`);
+    fakeIn(nvmHome, `v${major + 1}.10.0`);
+    const homePin = deps(pinned, "node-pin", { NVM_DIR: nvm, NVM_HOME: nvmHome });
+    expect("node pin: nvm-windows' %NVM_HOME%\\v<x.y.z> is searched first, the numerically newest chosen", homePin.out === `${join(nvmHome, `v${major + 1}.10.0`)}\n`, JSON.stringify(homePin));
+    const exeOnly = join(lab, "nvm-home-exe");
+    fakeIn(exeOnly, `v${major + 1}.4.0`, "node.exe"); // never run: the pin only names the folder
+    expect("node pin: an nvm-windows version folder holding only node.exe counts", deps(pinned, "node-pin", { NVM_HOME: exeOnly }).out === `${join(exeOnly, `v${major + 1}.4.0`)}\n`);
+    fakeIn(join(pinned, "nvm-home"), `v${major + 1}.11.0`);
+    expect("node pin: a relative NVM_HOME is ignored (it would name a folder in the repository)", deps(pinned, "node-pin", { NVM_DIR: nvm, NVM_HOME: "nvm-home" }).out === `${want}\n`);
+    const searched = deps(pinned, "tools", { NVM_HOME: nvmHome });
+    expect("node pin: with the pinned major not installed, setup names every folder it searched (nvm-windows' first)", searched.code === 1 && searched.err.includes(`was found under ${nvmHome} or ${join(lab, "no-nvm", "versions", "node")}.`), searched.err);
+  }
+
+  // #122: a unit folder whose name cmd.exe would read as syntax installs all the same. On Windows
+  // npm is npm.cmd, started through cmd.exe: the folder is only ever its working folder, never text
+  // on its command line, and cmd.exe is told not to search it – a node.cmd and an npm.exe planted
+  // there never run. The npm shim used for that names a bare `node` first, as npm's own npm.cmd does
+  // when no node.exe sits beside it.
+  {
+    const odd = "a&b%PATH%^c";
+    const r = repo({ config: unitsConfig([{ dir: odd, provider: "npm" }]), files: { [`${odd}/package.json`]: '{"name":"odd"}\n', [`${odd}/package-lock.json`]: '{"lockfileVersion":3}\n' } });
+    const sentinel = join(lab, "planted-ran");
+    let env = {};
+    if (process.platform === "win32") {
+      writeFileSync(join(r, odd, "node.cmd"), `@echo planted> "${sentinel}"\r\n`);
+      writeFileSync(join(r, odd, "npm.exe"), "not a program\n");
+      const bareNode = join(lab, "bare-node-bin");
+      mkdirSync(bareNode, { recursive: true });
+      writeFileSync(join(bareNode, "npm.cmd"), `@node -e "0"\r\n@"${bashPath()}" "${join(bin, "npm")}" %*\r\n`);
+      env = { PATH: prependPath(baseEnv(), [bareNode]).PATH };
+    }
+    clearCalls();
+    const res = run(bashPath(), [join(r, RESTORE)], r, env);
+    expect("units: an npm unit in a folder named a&b%PATH%^c installs with npm ci, in that folder", res.code === 0 && JSON.stringify(calls().map((c) => [c.tool, c.argv, c.cwd])) === JSON.stringify([["npm", ["ci"], join(r, odd)]]), `${res.out}${res.err}\n${JSON.stringify(calls())}`);
+    if (process.platform === "win32") expect("units: a node.cmd and an npm.exe planted in the unit's folder never run (cmd.exe does not search it)", !existsSync(sentinel), existsSync(sentinel) ? readFileSync(sentinel, "utf8") : "");
   }
 
   // The permitted skip is named by the caller, never by the record.

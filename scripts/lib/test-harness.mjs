@@ -89,6 +89,17 @@ export function writeStub(file, content) {
   }
 }
 
+/**
+ * win32: writes `<file>.cmd` beside the extensionless stub `file`:
+ * `@"<Git>\bin\bash.exe" "%~dp0<name>" %*`. A program that finds its tools by PATHEXT – the kit's
+ * deps.mjs on Windows, which starts npm.cmd through cmd.exe – then reaches the stub the way it
+ * reaches the real tool. POSIX: no-op.
+ */
+export function writeCmdShim(file) {
+  if (process.platform !== "win32") return;
+  writeFileSync(`${file}.cmd`, `@"${bashPath()}" "%~dp0${path.basename(file)}" %*\r\n`);
+}
+
 const isRegularFile = (file) => {
   try {
     return statSync(file).isFile();

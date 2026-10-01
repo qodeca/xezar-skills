@@ -1,7 +1,8 @@
 // The gate scheduler's process layer on native Windows (Git Bash) (#122).
 //
-// Only `gate-parallel.mjs` loads this file, with a dynamic import, and only on Windows: Linux and
-// macOS never read it. There the scheduler stops a gate by signalling the gate's process group;
+// Two files load it, both only on Windows: `gate-parallel.mjs` for the process layer, and
+// `windows-programs.mjs` for `gitRoot`, `envGet` and `pathEntries`. Linux and macOS never read it.
+// Off Windows the scheduler stops a gate by signalling the gate's process group;
 // Windows has no signal a console program can catch from outside and no group a signal reaches,
 // so this file does it the way the engine's own Windows layer does (`stopChildTree`,
 // `readProcessTable`, `killIdentified`):
@@ -52,13 +53,14 @@ const DRIVE_PATH = /^[A-Za-z]:\\/;
 const ABSOLUTE_ENTRY = /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/])/;
 
 /** A variable read the way Windows does: any case; with several spellings the lexicographically first key wins. */
-function envGet(env, name) {
+export function envGet(env, name) {
   const upper = name.toUpperCase();
   const key = Object.keys(env).sort().find((k) => k.toUpperCase() === upper);
   return key === undefined ? undefined : env[key];
 }
 
-function pathEntries(env) {
+/** PATH's absolute folders (drive or UNC), in order, unquoted and normalised; a relative entry is never one. */
+export function pathEntries(env) {
   return String(envGet(env, 'PATH') ?? '')
     .split(';')
     .map((entry) => entry.trim().replace(/^"(.*)"$/, '$1').trim())
@@ -113,7 +115,9 @@ export function withNoglob(env) {
 /**
  * What the scheduler needs on Windows: { ok: true, bash, ps, powershell, env }, or
  * { ok: false, reason } with one plain sentence. bash is Git's usr\bin\bash.exe (no wrapper, so
- * the worker's pid is bash's own); env carries MSYS=noglob, and NoDefaultCurrentDirectoryInExePath=1
+ * the worker's pid is bash's own, which the scheduler stops by identity); a check script started
+ * outside the scheduler takes the wrapper `gitBash()` (windows-programs.mjs) returns instead, which
+ * puts Git's tools first on PATH. env carries MSYS=noglob, and NoDefaultCurrentDirectoryInExePath=1
  * so a bare program name in a gate is never taken from the working folder.
  */
 export function prepare(env = process.env, { exists = existsSync } = {}) {

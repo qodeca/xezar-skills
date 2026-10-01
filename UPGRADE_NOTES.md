@@ -23,13 +23,29 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-01 – QA evidence uploads use a fixed `/tmp` file
+
+Applies to any repository with this collection's GitHub tracker descriptor,
+`.xezar/pipeline/trackers/github.md`, whichever setup skill installed it.
+
+**Symptom.** Your descriptor's **attach-image-evidence** writes each image to
+`/tmp/ev-content.b64`. Two uploads running at once on one machine write the same file, so one run
+can post the other's image, and on a shared machine another user can own that file first.
+
+**What to do.** Re-sync the descriptor as "Re-syncing the tracker descriptor" below says, moving
+its recorded digest in an onboarded project. The new **attach-image-evidence** writes to a fresh
+`mktemp` file and removes it after the upload loop; nothing else in the descriptor changed.
+
+**What you lose by skipping it.** Evidence uploads that run at the same time can mix up their
+images.
+
 ## 2026-09-27 – upgrading an onboarded project to 3.1.0
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. The easy path is
 the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
-are the same changes for a hand upgrade, which ends – after the last entry, 14 – with the verifier
+are the same changes for a hand upgrade, which ends – after the last entry, 15 – with the verifier
 writing the new manifest (described in entry 10): **one ordered block – apply them top to bottom, in the
 order below**. Skip an entry only when your repository does not have its symptom **and** no entry
 you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
@@ -40,16 +56,22 @@ upgrade prompt.
 
 **Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
 mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
-refused after entry 9; re-dispatch it.
+refused after entry 9; re-dispatch it. Check that every machine that runs tasks has Node 22 or
+later: the 3.1.0 `deps.mjs` (entries 5, 6, 12, 14 and 15) and `worktree-setup.sh` (entry 15) stop
+a task on an older Node at setup.
 
 **Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
 guide → leader context and settings → workflow timeouts and review runs → install freshness →
 changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing →
-single-root freshness → leader launcher → native Windows. Entries 3 and 11 change the same
-routing files: copy `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json` once
-against the defaults version 4, which carries both changes. Entries 5, 6 and 12 copy the same
-`deps.mjs`, entries 6 and 12 the same `worktrees.md`, and entries 13 and 14 the same
-`scripts/xezar-leader.sh`: copy each once.
+single-root freshness → leader launcher → native Windows → Node 22. Entries 3 and 11 change the
+same routing files: copy `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json`
+once against the defaults version 4, which carries both changes. Several entries copy the same
+3.1.0 file – `route.mjs` (3, 11, 14), `deps.mjs` (5, 6, 12, 14, 15), `lib/common.sh` (5, 12, 14),
+`worktrees.md` (6, 12, 15), `documented-output.mjs` (4, 14), `gh-write.sh` and
+`verdict-write.sh` (5, 14), `worktree-preflight.sh` (9, 14), `scripts/xezar-leader.sh`
+(13, 14), `catalog-check.mjs` (4, 5), `repository-checks.sh` (7, 10), `docs/phase-record.md`
+(8, 9) and `repo-gates.sh` (12, 14 – each time as entry 12 says), and the role skills and
+workflows that entries 1, 2, 5, 7 and 9 share: copy each once.
 
 **Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
 older file:
@@ -72,7 +94,14 @@ older file:
   and the 3.1.0 `lib/deps.mjs` it calls (`deps.mjs single-contents`), so it stands alone there.
 - Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
   only entry 10 installs that file.
-- Entry 14 needs entry 12: its common.sh carries entry 12's re-stamp and calls the 3.1.0 deps.mjs.
+- Entry 9 needs entry 14 on every OS: its `worktree-preflight.sh` calls `worktree_is_listed`,
+  which only the 3.1.0 `lib/common.sh` has (entries 5 and 12 copy the same file).
+- Entry 14 needs entries 3, 4, 5, 9, 11 and 12: it copies the 3.1.0 `route.mjs`,
+  `documented-output.mjs`, `gh-write.sh`, `verdict-write.sh`, `worktree-preflight.sh` and
+  `deps.mjs` they bring, and its `common.sh` carries entry 12's re-stamp.
+- On native Windows, entries 3, 4, 5, 6, 11, 12 and 15 need entry 14 as well: their `route.mjs`,
+  `documented-output.mjs` and `deps.mjs` load `lib/windows-programs.mjs` there, and Node stops
+  on the missing file, naming it.
 
 **After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
 and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists its
@@ -395,7 +424,7 @@ cp $K/checks/local-tree.sh .xezar/checks/
 ```
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
-prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (14), with the verifier from a
+prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (15), with the verifier from a
 verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry
@@ -529,39 +558,132 @@ Files: scripts/xezar-leader.sh
 ### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", a worktree check "cannot resolve this checkout", or the leader launcher finds no engine
 
 Applies to a repository onboarded by `xez-onboard-opinionated` whose gates, kit checks or leader
-launcher run in Git Bash on Windows. Linux and macOS behave exactly as before. The upgrade tool
-applies it everywhere; on Linux and macOS it changes nothing you'll notice.
+launcher run in Git Bash on Windows, and, on every OS, to one onboarded or upgraded from Windows
+(its scripts may not be executable in git). The upgrade tool applies it everywhere; on Linux and
+macOS the kit behaves as before, apart from the Node 22 floor its `deps.mjs` shares with entry 15.
 
 **Symptom.** `gate process-group supervision requires a POSIX host`; `cannot resolve this
 checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`;
 `./scripts/xezar-leader.sh` says `the engine is not running here` while an engine runs on
-native Windows, where it listens on a named pipe instead of a socket.
+native Windows, where it listens on a named pipe instead of a socket;
+`deps-restore: npm ci failed in <unit> (spawnSync npm ENOENT)` although npm is installed;
+`PREFLIGHT FAILED` with `[isolation.worktree-listed]` in a worktree git does list;
+`removed=claude/… reason=the claude program is not installed here` from `route.mjs` although
+`claude` runs; `gh-write.sh: refused: "risk-low" is not a label name` for a label that exists.
+An MCP server that never starts, with `spawn npx ENOENT`, is the agent, not the project: Claude
+Code 2.1.286 and Codex 0.157.1 were tested and start the plain `npx` in `.mcp.json` on Windows, so
+update the agent. On a Linux or macOS clone, or in CI, of a project onboarded or upgraded from
+Windows: `Permission denied` on `.xezar/checks/*.sh` or `scripts/xezar-leader.sh`.
 
 **What to do.** One PR:
 
 ```bash
 K=.claude/skills/xez-onboard-opinionated/kit
-cp $K/checks/lib/gate-parallel.mjs $K/checks/lib/windows-process.mjs $K/checks/lib/common.sh .xezar/checks/lib/
+cp $K/checks/lib/gate-parallel.mjs $K/checks/lib/windows-process.mjs $K/checks/lib/windows-programs.mjs .xezar/checks/lib/
+cp $K/checks/lib/common.sh $K/checks/lib/deps.mjs .xezar/checks/lib/
+cp $K/checks/route.mjs $K/checks/documented-output.mjs $K/checks/worktree-preflight.sh .xezar/checks/
+cp $K/checks/gh-write.sh $K/checks/verdict-write.sh .xezar/checks/
 cp $K/scripts/xezar-leader.sh scripts/
 ```
 
 Then copy `.xezar/checks/repo-gates.sh` the way entry 12 says: keep your three gate assignments.
+Last, on any OS, make the kit's scripts executable in git – a copy made on Windows, or with
+`core.filemode=false`, records them as `100644`. In this order: `chmod +x` (a POSIX working file
+then matches; in Git Bash it changes nothing), `git add`, `git update-index --chmod=+x`, then
+commit. The loop skips a script your project does not have:
+
+```bash
+set -- \
+  .xezar/checks/bootstrap.sh \
+  .xezar/checks/changelog-check.sh \
+  .xezar/checks/ci-watch.sh \
+  .xezar/checks/config-guard.sh \
+  .xezar/checks/deploy-guard.sh \
+  .xezar/checks/deps-restore.sh \
+  .xezar/checks/gh-write.sh \
+  .xezar/checks/git-read.sh \
+  .xezar/checks/integration-preflight.sh \
+  .xezar/checks/leader-context.sh \
+  .xezar/checks/lib/common.sh \
+  .xezar/checks/lib/gate-record.sh \
+  .xezar/checks/local-tree.sh \
+  .xezar/checks/merge-recovery.sh \
+  .xezar/checks/phase-record.sh \
+  .xezar/checks/push-check.sh \
+  .xezar/checks/repo-gates.sh \
+  .xezar/checks/repository-checks.sh \
+  .xezar/checks/resume-complete.sh \
+  .xezar/checks/review-run.sh \
+  .xezar/checks/root-sync-preflight.sh \
+  .xezar/checks/route.mjs \
+  .xezar/checks/security-scan.sh \
+  .xezar/checks/verdict-write.sh \
+  .xezar/checks/verify-evidence.sh \
+  .xezar/checks/worktree-git.sh \
+  .xezar/checks/worktree-preflight.sh \
+  .xezar/checks/worktree-setup.sh \
+  scripts/xezar-leader.sh
+for f in "$@"; do
+  if [ -f "$f" ]; then chmod +x -- "$f" && git add -- "$f" && git update-index --chmod=+x -- "$f"; fi
+done
+```
+
 Under Git Bash a stop now reaches the gates through a file the scheduler watches, because a TERM
 from bash never reaches it there. The gate scheduler on Windows needs the full Git for Windows
 install (its `ps.exe`), not MinGit. The launcher now also takes a live pipe the engine names in
 `.local/xezar/ipc/<id>.pipe`; that marker is the engine's draft Windows contract, so a later
 engine may need a later launcher. On Linux and macOS it finds the socket exactly as before. A Node
 pinned by `.nvmrc` now goes on Git Bash's `PATH` in bash's own path form, so it is found from any
-drive.
+drive, and a Node that nvm-windows installed (under `%NVM_HOME%`) is found too. The new
+`lib/windows-programs.mjs` finds a program by its Windows extension (`claude.exe`, `npm.cmd`),
+starts a `.cmd` through `cmd.exe` with checked text only, and finds Git Bash rather than WSL's
+`bash`; `route.mjs`, `deps.mjs` and `documented-output.mjs` load it on Windows only. The worktree
+check reads Git Bash's `/c/…` and git's `C:/…` as one path; `gh-write.sh` and `verdict-write.sh`
+drop the CR a Windows jq adds; the kit's digests use `sha256sum` where `shasum` is missing.
 
-**What you lose by skipping it.** Nothing on Linux or macOS; on native Windows the gates cannot run,
-and the launcher does not find an engine that listens on a pipe.
+**What you lose by skipping it.** On Linux or macOS, nothing on its own – but entry 9 needs it
+(**Needs**), and a project onboarded or upgraded from Windows keeps scripts that are not
+executable. On native Windows the gates cannot run, the launcher does not find an engine that
+listens on a pipe, and the installs, routing, worktree checks and label writes fail as the
+symptom says.
 
 **Rollback.** Revert the PR.
 
 ```upgrade
 Applies-to: <3.1.0
-Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh; scripts/xezar-leader.sh
+Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/windows-programs.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh; scripts/xezar-leader.sh; .xezar/checks/worktree-preflight.sh; .xezar/checks/lib/deps.mjs; .xezar/checks/route.mjs; .xezar/checks/gh-write.sh; .xezar/checks/verdict-write.sh; .xezar/checks/documented-output.mjs
+```
+
+### 15. Node 22 – a task stops with `node v20.… is below the required 22`
+
+Applies to every repository onboarded by `xez-onboard-opinionated`, on every OS.
+
+**Symptom.** After the upgrade a task stops at setup with `node v20.… is below the required 22`,
+from `worktree-setup.sh`, or from `deps.mjs tools` in a project with `dependencies.units`. Node 20
+reached its end of life in April 2026, and the kit's floor is now 22.
+
+**What to do.** Install Node 22 or later on every machine that runs tasks (with nvm or
+nvm-windows: `nvm install 22`). Then one PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/worktree-setup.sh .xezar/checks/
+cp $K/checks/lib/deps.mjs .xezar/checks/lib/
+cp $K/docs/worktrees.md .xezar/docs/
+```
+
+With `dependencies.units`, a numeric `.nvmrc` that pins a major keeps working as before: that Node
+is used, and the floor is not checked.
+
+**What you lose by skipping it.** Nothing stops, and tasks keep running on a Node that gets no
+security fixes. Entries 5, 6, 12 and 14 copy the same `deps.mjs`, so with `dependencies.units` the
+floor arrives with them anyway.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/worktree-setup.sh; .xezar/checks/lib/deps.mjs; .xezar/docs/worktrees.md
 ```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed
@@ -727,7 +849,13 @@ wires `chrome-devtools-mcp`, which runs outside every sandbox, for Claude and fo
    ```
 
    Codex reads the project's `.codex/` only for a trusted project. Trust also loads the project's
-   Codex hooks and rules, not only its MCP servers.
+   Codex hooks and rules, not only its MCP servers. On native Windows the Codex home is
+   `%USERPROFILE%\.codex` unless `CODEX_HOME` is set, and the key is the project's Windows path in
+   lower case, the way Codex writes it when you accept its trust prompt
+   (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a TOML literal-string key, in single
+   quotes: `[projects.'c:\users\me\app']`. A mixed-case key is untested. In double quotes TOML
+   reads `\u` and `\m` as escapes; a path that holds a `'` takes the double-quoted form with every
+   `\` doubled.
 
 Two user-level settings undo this. A `[mcp_servers.chrome-devtools]` table in that Codex home
 config can make the engine drop the project's server for Codex runs. A user-level

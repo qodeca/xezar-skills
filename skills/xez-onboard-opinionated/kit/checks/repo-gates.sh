@@ -93,7 +93,7 @@ gate_names_json() {
   node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' "${GATE_NAMES[@]}"
 }
 gate_list_id() {
-  gate_list_json | shasum -a 256 | cut -d' ' -f1
+  gate_list_json | sha256_lines | cut -d' ' -f1
 }
 
 FAST=0

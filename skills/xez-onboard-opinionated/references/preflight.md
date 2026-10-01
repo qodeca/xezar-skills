@@ -209,7 +209,9 @@ preflight report, where the owner can still walk away:
   request cannot merge without a second person or an administrator's merge. Name that now.
 - **One agent account, or none.** The rule "the leader's login never runs tasks" cannot hold
   with a single login. Carry on, and record the warning in the report.
-- **Windows.** The launcher is a shell script and the engine's socket is a Unix socket: WSL only.
+- **Native Windows (Git Bash).** Supported once the engine ships native Windows (qodeca/xezar#963
+  phases 2b and 3; not released yet): until then the leader cannot attach and check steps start
+  WSL's bash. Carry on; say so in the report. WSL stays the fallback.
 - **A monorepo.** Supported via units: with no root manifest, each folder's install is listed in
   `dependencies.units` (analysis §2). A monorepo with a root manifest installs at the root, as
   before.
