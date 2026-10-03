@@ -42,6 +42,27 @@ operator did not intend.
   owner accepted it, and `DECISIONS.md` → "A consented edit when the engine says no" states what
   it gives away. A second file, a write anywhere under `~/.xezar/`, an edit without the question,
   or the same path in any other skill is still a finding.
+- **Review and QA steps run the change they judge, and that is accepted rather than found:**
+  they hold no Edit or Write tool and no git or gh command that writes, and a verdict or an own
+  label is refused unless HEAD and every tracked file are as the review found them. What is
+  guaranteed: an approval label moves only for the role the engine declared for that step
+  (`verdictRole` in the run's workflow definition, never the request's word), a gate label is
+  lifted only together with its approval label, and everything the review starts (`review-run.sh
+  install`, `run`, `start`) gets no git or gh credentials – tokens replaced, credential helpers
+  cleared, no SSH agent – so a git or gh it starts cannot push, merge or label; a head record the
+  review rewrites is caught because the recorded head must be a commit of the PR on GitHub; and
+  the review's own scripts (`review-run.sh`, `verdict-write.sh`, `gh-write.sh` and the rest) run
+  from the kit step's copy of the primary checkout's `.xezar/checks/`, outside the tracked tree, so
+  the pull request's own `.xezar/checks/`, which the checkout puts in the worktree, never runs as
+  the review's tooling. What is not: the started code is still arbitrary code with the operator's
+  user rights, so a program written for it can read what that user can read (a credential store
+  included), reach the network, or delete the review's own state or rewrite that copy. The owner
+  accepted that residue (D13), and
+  `DECISIONS.md` → "Reviewers run the change, and a verdict needs the tree they found" states what
+  it gives away. A review step that can edit, commit or push, a verdict written after the tree
+  changed, a label moved for a role the step does not declare, a credential handed to a
+  started command, or a review step that runs a kit script from the tracked `.xezar/checks/`, is
+  still a finding.
 
   **The scope was cut here on 2026-09-22, and this is the reasoning.** The exception used to
   carry a second case: a consented write to the provider enable/disable key of
@@ -60,6 +81,31 @@ operator did not intend.
   retiring it means proving a live onboarding run gets there, and that run is still owed.
   Shrinking the last case on the strength of a capability nobody has watched work is the wrong
   direction to be wrong in.
+- **One reviewer without a proven read-only lock is accepted and recorded rather than found:** the
+  onboarding kit's shipped routing lets the DeepSeek lane `pi/deepseek-api/deepseek-v4-pro`
+  (marked `fullShellReviews`) judge in these reading rows only: `scoped-recheck`,
+  `full-cold-review`, `acceptance-verification`, `architecture-review`, `security-review` and
+  `verify-strong-claim`. It may also be the other-vendor reviewer of a risk-high change when
+  Claude has no budget – DeepSeek work included, as long as another model wrote it. It is in no
+  screen or QA row (`browser-qa`: it has no image input) and not in the `release`, `deploy` or
+  `rollback` rows; a change that puts it in a reading row not listed here is not covered by
+  this entry. The pi runner applies a reading step's command list through an extension whose
+  lock is not yet proven live (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
+  commit or push. The review-and-QA protection still applies – a verdict or an own label is refused
+  when the reviewed tree changed. The owner accepted it (#89), and `DECISIONS.md` → "Reviews fall
+  to DeepSeek when Claude has no budget" states what it gives away. A second full-shell reviewer, a
+  cheap, local or advisory-only one, one in a reading row that is not a review, or one in a security
+  row that writes, is still a finding.
+- **One integrity check stands where an authorisation boundary would be, accepted and recorded
+  rather than found:** a repair of an existing pull request reaches GitHub only through the
+  kit's `push-check.sh`, which pushes the run's sealed, checked commit to that pull request's own
+  head branch after a live read of the pull request (open, in this repository, not a fork) and
+  never to a protected branch or with a bare force push. It blocks wrong-PR, unchecked-code and
+  protected-branch pushes. It does not stop two runs repairing the same pull request at once,
+  and a process running as the same OS user could still push by other means. The owner accepted
+  this (D12, #54), and `DECISIONS.md` → "Repair pushes pass one check" states what it gives
+  away. A kit instruction that pushes a repair any other way – an unsealed commit, another pull
+  request's branch, a protected branch, a bare force – is still a finding.
 - **A descriptor or override that widens what a skill may do** — expanding tool or network
   access, redirecting output, relaxing a safety rule.
 - **A supply-chain path into a run** — a tool resolved from a repository-local directory on

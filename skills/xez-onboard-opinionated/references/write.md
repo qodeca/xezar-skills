@@ -30,6 +30,28 @@ the whole point:
 
 Comparing **ids and providers only**. Never a label, and never anything from inside a profile.
 
+**The kit version is settled here too, before anything is written.** The manifest's `version`
+(§5) is the collection release this skill came from, or `<last release>+<12-character commit>`
+for an install between releases. Read it from the folder this skill runs from, in this order:
+
+1. **A git checkout of the collection.** `git -C <skill folder> describe --tags --exact-match`
+   names a `v<version>` tag → that version, without the `v`. No tag on HEAD, but
+   `git -C <skill folder> describe --tags --abbrev=0` names the last release and
+   `git -C <skill folder> rev-parse --short=12 HEAD` the commit → `<last release>+<commit>`.
+2. **A copy the skills installer put there** – not a git checkout, and the installer's lock file
+   (the project's `skills-lock.json`, or the global one for a global install) lists this skill
+   with the collection as its source. The installer copies the collection's default branch,
+   which carries releases only, so the version is the release this copy ships: the literal in
+   §5, which the collection's own gate (`scripts/test-kit-facts.mjs`) keeps equal to its
+   `package.json` version. That literal is never read for a git checkout, and never for a copy
+   no installer recorded.
+
+When the install names **neither** (a hand-copied folder, a checkout git cannot describe),
+**stop**: write nothing, and tell the owner plainly that the kit's version cannot be
+told, so a later upgrade would not know what it is upgrading from, and that they should install
+the skills from a release or from a git checkout of the collection and run onboarding again. The
+interview answers are saved, so that run resumes. Never write `unknown`, and never guess a version.
+
 ## 1. Copy what is copied
 
 From this skill's `kit/` into the project:
@@ -49,7 +71,7 @@ From this skill's `kit/` into the project:
 | `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
 | `kit/codex/config.toml` | `.codex/config.toml` — its `[mcp_servers.chrome-devtools]` table merged into an existing file, never over it |
 | `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
-| `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, executable |
+| `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, made executable (§6) |
 | `kit/scripts/xezar-leader-settings.json` | `scripts/xezar-leader-settings.json` — the leader's merge permission, loaded only by the launcher |
 
 **Rewritten during the copy**, routine and not an owner decision: any absolute path becomes the
@@ -215,6 +237,11 @@ Never copied, because each depends on an answer:
   to any of them sets `reviewerRequired` by machine, not by memory. Say so in the generated
   `CODE_REVIEW.md`, beside the hook and its loader: a change to `deploy.*`, to the base branch, to a
   workflow file, to a check script or to the routing file is routed to the security-review row.
+  A project's own sensitive paths go in `security.trustBoundaries` in
+  `.xezar/pipeline/config.json` (`[{ "pattern": "<glob>", "why": "<one line>" }]`), which the scan
+  reads from the base branch and adds to the kit's list — never in a `CODE_REVIEW.md` list a
+  reviewer has to remember. Say so in the generated `CODE_REVIEW.md` too: paths in that key are
+  machine-routed like the kit's, and an invalid list routes the change to review.
 - **`.xezar/pipeline/trackers/github.md`** — copied from this skill's own
   `references/trackers/github.md`, which a gate keeps byte-identical to the collection's
   canonical descriptor, so a new project starts on the current contract.
@@ -461,8 +488,14 @@ to carry — do not invent one, and do not tell the owner to run one.
 - **Codex trust, when a routing lane is `codex/…`.** Codex reads the project's `.codex/` only for
   a trusted project, so print this line for the owner to add to the `config.toml` of the Codex home
   the engine's `codex` uses (`$CODEX_HOME` when that `codex`, or a wrapper script on PATH, sets
-  one; otherwise `~/.codex`): `[projects."<absolute project path>"]` then
-  `trust_level = "trusted"`. Say what trust enables: the project's MCP servers, and its Codex hooks
+  one; otherwise `~/.codex`, which on native Windows is `%USERPROFILE%\.codex`):
+  `[projects."<absolute project path>"]` then `trust_level = "trusted"`. **On native Windows the
+  key is the project's Windows path in lower case, the way Codex writes it when the owner accepts
+  its trust prompt (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a TOML literal-string
+  key, in single quotes: `[projects.'c:\users\me\app']`.** A mixed-case key is untested. In double
+  quotes TOML reads `\u` and `\m` as escapes. A path that holds a `'` takes the double-quoted form
+  with every `\` doubled. Say what
+  trust enables: the project's MCP servers, and its Codex hooks
   and rules too. Say also that a `[mcp_servers.chrome-devtools]` table in that home config makes the
   engine switch the project's server off for Codex runs. It is the owner's setting; never write it.
 - **A committed launcher script** that starts the agent with the
@@ -520,8 +553,47 @@ to carry — do not invent one, and do not tell the owner to run one.
   `.local/xezar/runtime/onboarding-identity.json`: account names, profile values, absolute paths. A
   teammate cloning the repository gets the first and not the second, and a future migration
   reads both when present and degrades honestly when the local half is absent.
-- The drift check, which compares the installed setup against the current one and **reports**.
-  It never auto-updates: a file installed into a consumer repository never updates itself.
+
+  **The committed half is manifest version 2** — the shape and rules are the upgrade contract's,
+  and `.xezar/docs/local-patches.md` says which files it tracks. Write it **last**, after the
+  formatter run above, because every digest is of the file as committed:
+  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.1.0`
+    for an installer copy of this release; a git checkout reads its own tag or commit),
+    or `<last release>+<12-character commit>` for an install between releases – never `unknown`:
+    an install that names neither stopped in §0 (how to read it is there). The `kitBlob` values below still identify the kit
+    exactly. `date` and `descriptors` as above.
+  - `files`, one entry per tracked path, keyed by the repository-relative path: `sha256` of the
+    file (the upgrade contract's digest rule: a text file's CRLF line endings are read as LF,
+    which on an LF checkout is the file's bytes) and its `origin`. `copied` — byte-identical to its kit file. `adapted` — the kit
+    file after this run filled it: the `.github/` templates, `.xezar/checks/repo-gates.sh`, and
+    any file whose absolute path was rewritten. `generated` — written for this project with no
+    kit source file: the tracker descriptor and `.xezar/docs/leader-guide.md` (built from
+    `kit/leader-guide.template.md`, but recorded as `generated`, as the upgrade tool records it).
+    **Never listed** (upgrade contract §1.2, `.xezar/docs/local-patches.md`), because the project
+    changes them in normal work: its own documents — `AGENTS.md`, `SDLC.md`, `CODE_REVIEW.md`,
+    `BACKWARD_COMPATIBILITY.md`, `SECURITY.md` and the `CLAUDE.md` files, even though this step
+    generates them; its configuration — both `config.json` files, `labels.json` and
+    `.xezar/routing.json`; and an owner file merged without a kit block — `.mcp.json`,
+    `.codex/config.toml` and the root `.gitignore`. The one exception is a document that got a
+    kit block appended, recorded as `owner-file-appended` below.
+    `owner-file-appended` — a file the project already had, with one block appended between
+    `<!-- xezar:kit:start -->` and `<!-- xezar:kit:end -->`; its `sha256` covers only that block,
+    both markers included.
+  - For `copied` and `adapted`: `kitSource`, the path under `kit/`, and `kitBlob`, the output of
+    `git hash-object` on that kit file. For `adapted`: `renderInputs`, every value a rewrite used,
+    as plain text under the placeholder's name (a generated array as its lines). Never a secret,
+    a token or an account name — those belong in the gitignored half. Leave `renderInputs` out
+    when the edits are not named values, as the routing screens' edits are not.
+    `.xezar/checks/repo-gates.sh` records its gate list here, byte for byte as written:
+    `GATE_NAMES` and `GATE_COMMANDS`, the text between each array's `(` and `)`, and
+    `GATE_APPLICATION_LANES`, the rest of that line after `=`. The drift check puts these back
+    before a second hash, so a later change to the gate list is the project's value, not drift.
+  - No `patch` key: a fresh setup has no local patches, and no `.xezar/LOCAL-PATCHES.md`.
+- **The drift check passes before the commit.** `node .xezar/checks/manifest-drift.mjs` prints
+  `drift-status=pass` on the tree about to be committed; `repository-checks.sh` runs it at every
+  gate from then on. A `drift=` line here means a file changed after its digest was taken — hash
+  it again, never edit the check. It only **reports**: a file installed into a consumer repository
+  never updates itself.
 
 ## 6. Commit, open the pull request, and offer the merge
 
@@ -534,6 +606,50 @@ pending file below: a later session cannot tell them apart, and the report for a
 has to name the ones it would be undoing. `.xezar/pipeline/labels.json` is this skill's own `references/labels.json`,
 which carries the three design labels the kit's policy needs; the tracker descriptor is this
 skill's own `references/trackers/github.md`. Neither is read from another skill's folder.
+
+**Make the kit's scripts executable in git, on every OS, before the commit.** A copy made on
+Windows, or into a repository with `core.filemode=false`, is recorded as `100644`, and the first
+Linux or macOS clone or CI job then stops with `Permission denied` on a check. Run this block as it
+stands: `chmod +x` makes a POSIX working file match (in Git Bash it changes nothing), `git add`
+puts each path in the index, and `git update-index --chmod=+x` sets the bit there (it refuses a
+path that is not added yet). The list is every kit file git records as executable, at its
+installed path. A path this block cannot find is a copy that failed: stop and name it.
+
+```bash
+set -- \
+  .xezar/checks/bootstrap.sh \
+  .xezar/checks/changelog-check.sh \
+  .xezar/checks/ci-watch.sh \
+  .xezar/checks/config-guard.sh \
+  .xezar/checks/deploy-guard.sh \
+  .xezar/checks/deps-restore.sh \
+  .xezar/checks/gh-write.sh \
+  .xezar/checks/git-read.sh \
+  .xezar/checks/integration-preflight.sh \
+  .xezar/checks/leader-context.sh \
+  .xezar/checks/lib/common.sh \
+  .xezar/checks/lib/gate-record.sh \
+  .xezar/checks/local-tree.sh \
+  .xezar/checks/merge-recovery.sh \
+  .xezar/checks/phase-record.sh \
+  .xezar/checks/push-check.sh \
+  .xezar/checks/repo-gates.sh \
+  .xezar/checks/repository-checks.sh \
+  .xezar/checks/resume-complete.sh \
+  .xezar/checks/review-run.sh \
+  .xezar/checks/root-sync-preflight.sh \
+  .xezar/checks/route.mjs \
+  .xezar/checks/security-scan.sh \
+  .xezar/checks/verdict-write.sh \
+  .xezar/checks/verify-evidence.sh \
+  .xezar/checks/worktree-git.sh \
+  .xezar/checks/worktree-preflight.sh \
+  .xezar/checks/worktree-setup.sh \
+  scripts/xezar-leader.sh
+chmod +x -- "$@"
+git add -- "$@"
+git update-index --chmod=+x -- "$@"
+```
 
 Commit on a setup branch and open a pull request. The pull request carries the full label
 set the pipeline itself demands — one pipeline label, a category, a QA label, one priority, one

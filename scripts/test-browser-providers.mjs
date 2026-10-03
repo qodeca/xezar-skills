@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toLF } from "./lib/platform.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFileSync(join(root, path), "utf8");
@@ -33,7 +34,7 @@ const envDescriptor = read("skills/xez-prepare-test-env/references/env-descripto
 const qaPr = readSkill("xez-auto-qa-pr");
 const integration = readSkill("xez-integration-tests");
 const repoConfig = JSON.parse(read(".xezar/pipeline/config.json"));
-const lintWorkflow = read(".github/workflows/lint.yml");
+const lintWorkflow = toLF(read(".github/workflows/lint.yml"));
 const installedAgentBrowser = read(".xezar/pipeline/browsers/agent-browser.md");
 const shippedGithubTracker = read("skills/xez-setup-agent-pipeline/references/trackers/github.md");
 const installedGithubTracker = read(".xezar/pipeline/trackers/github.md");
@@ -130,7 +131,16 @@ assert.deepEqual(repoConfig.engine, {
 assert.deepEqual(repoConfig.closeKeywords, []);
 assert.ok(repoConfig.labels?.meta?.includes("ci-monitoring"));
 
-const ciCommands = [...lintWorkflow.matchAll(/^\s+run:\s+(.+)$/gm)]
+// Only the `lint` job states the gate: it is the required check, and it runs on ubuntu. The
+// cross-platform job (#122) runs the same list through scripts/run-gate.mjs, so it cannot drift.
+// `[ \t]+`, not `\s+`: `\s` also matches a newline, so a match could run on into the next line.
+const workflowJobs = lintWorkflow.split(/^(?=  \S)/m);
+const lintJobs = workflowJobs.filter((block) => block.startsWith("  lint:"));
+assert.equal(lintJobs.length, 1, "lint.yml must hold exactly one `lint` job");
+assert.match(lintJobs[0], /^    runs-on: ubuntu-latest$/m, "the `lint` job must run on ubuntu-latest");
+const crossJob = workflowJobs.find((block) => block.startsWith("  cross-platform:")) ?? "";
+assert.match(crossJob, /^[ \t]+run: node scripts\/run-gate\.mjs$/m, "the cross-platform job must run the whole gate");
+const ciCommands = [...lintJobs[0].matchAll(/^[ \t]+run:[ \t]+(.+)$/gm)]
   .map((match) => match[1].trim());
 assert.deepEqual(
   repoConfig.validation?.commands,

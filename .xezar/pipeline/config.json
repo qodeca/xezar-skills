@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "baseBranch": "auto",
+  "baseBranch": "develop",
   "tracker": "github",
   "browser": { "provider": "agent-browser" },
   "validation": {
@@ -25,7 +25,7 @@
     "node scripts/test-deps-units.mjs",
     "node scripts/test-compat-pins.mjs",
     "node scripts/check-allowlists.mjs",
-    "node scripts/test-guards.mjs",
+    "node scripts/test-upgrade.mjs",
       "npm run check:generic-instructions",
       "npm run test:generic-instructions"
     ]

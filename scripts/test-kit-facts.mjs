@@ -25,14 +25,33 @@
 //
 // Run: node scripts/test-kit-facts.mjs
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath, posixToolDirs, prependPath, toLF } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const read = (p) => readFileSync(join(root, p), "utf8");
+// Every file is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) states
+// the same facts and hashes to the same pins (#122).
+const norm = (raw) => toLF(raw);
+const read = (p, from = root) => norm(readFileSync(join(from, p), "utf8"));
+const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const has = (p) => existsSync(join(root, p));
+/** A CRLF copy of `p`, written to a temp root and read back by `read` – the reader every fact uses. */
+function readCrlfCopy(p) {
+  const dir = mkdtempSync(join(tempRoot(), "kit-facts-crlf-"));
+  try {
+    mkdirSync(dirname(join(dir, p)), { recursive: true });
+    writeFileSync(join(dir, p), crlf(readFileSync(join(root, p), "utf8")));
+    return read(p, dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const SKILL = "skills/xez-onboard-opinionated";
 const problems = [];
@@ -304,7 +323,8 @@ const fail = (fact, where, detail) =>
     const src = `skills/xez-setup-agent-pipeline/references/${name}`;
     if (!has(src)) { fail(fact, kit, `has no canonical sibling at ${src} -- a kit descriptor is a copy of the collection's, never an original`); continue; }
     if (read(kit) !== read(src)) fail(fact, kit, `differs from ${src} -- copy the canonical file over it`);
-    const digest = createHash("sha256").update(readFileSync(join(root, kit))).digest("hex");
+    // The digest of the file as LF text: on an LF checkout, its bytes (#122).
+    const digest = createHash("sha256").update(read(kit)).digest("hex");
     if (pinned[`kit/pipeline/${name}`] !== digest)
       fail(fact, lockPath, `pins ${pinned[`kit/pipeline/${name}`] ?? "nothing"} for kit/pipeline/${name}, and the file is ${digest} -- review the change, then update the pin`);
     if (!/^[0-9a-f]{64}$/.test(pinned[`kit/pipeline/${name}`] ?? ""))
@@ -312,6 +332,14 @@ const fail = (fact, where, detail) =>
   }
   for (const key of Object.keys(pinned)) {
     if (!descriptors.includes(key.replace("kit/pipeline/", ""))) fail(fact, lockPath, `pins ${key}, and the kit ships no such descriptor`);
+  }
+  // #122 (Windows): a CRLF copy of a pinned descriptor, read by `read`, still matches its pin.
+  if (descriptors.length > 0) {
+    const name = descriptors[0];
+    const kit = `${SKILL}/kit/pipeline/${name}`;
+    const crlfDigest = createHash("sha256").update(readCrlfCopy(kit)).digest("hex");
+    if (pinned[`kit/pipeline/${name}`] !== crlfDigest)
+      fail(fact, lockPath, `a CRLF copy of kit/pipeline/${name} hashes to ${crlfDigest}, not its pin -- the digest must be taken over LF text`);
   }
   if (!/descriptor-digests\.json/.test(read(`${SKILL}/references/write.md`)))
     fail(fact, `${SKILL}/references/write.md`, "never tells the write step to record the installed descriptor digests");
@@ -471,10 +499,18 @@ function walk(rel, match) {
 {
   const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
   const LIMIT = 200;
-  const tpl = read(`${SKILL}/kit/leader-guide.template.md`)
-    .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
-    .replace(/^---\n+/m, "");                       // and the rule above the generated half
-  const fixed = tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  const fixedLines = (text) => {
+    const tpl = text
+      .replace(/<!--[\s\S]*?-->\n*/g, "")          // the comments the write step deletes
+      .replace(/^---\n+/m, "");                       // and the rule above the generated half
+    return tpl.replace(/\n+$/, "").split("\n").filter((l) => !/^\{\{[A-Z_]+\}\}$/.test(l)).length;
+  };
+  const template = read(`${SKILL}/kit/leader-guide.template.md`);
+  const fixed = fixedLines(template);
+  // #122 (Windows): a CRLF copy of the template, read by `read`, counts the same fixed lines.
+  const crlfFixed = fixedLines(readCrlfCopy(`${SKILL}/kit/leader-guide.template.md`));
+  if (crlfFixed !== fixed)
+    fail(fact, "kit/leader-guide.template.md", `a CRLF copy counts ${crlfFixed} fixed lines, the LF file ${fixed}`);
   const write = read(`${SKILL}/references/write.md`);
   const budgets = [...write.matchAll(/^\s*\| `\{\{[A-Z_]+\}\}` \|.*\| ≤ (\d+) \|\s*$/gm)].map((m) => Number(m[1]));
   if (budgets.length !== 4)
@@ -634,7 +670,8 @@ function walk(rel, match) {
   const fact = "FACT 16: reading steps are limited by their shell, and loosening that is a trust-boundary change";
   for (const wf of ["architecture-review", "business-analysis", "code-review", "issue-triage", "security-review"]) {
     const text = read(`${SKILL}/kit/workflows/${wf}.yaml`);
-    if (!/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\/verdict-write\.sh".*\]$/m.test(text))
+    // A review step names the kit step's copy (.local/xezar/cache/kit/checks/), since its checkout replaces .xezar/checks/.
+    if (!/^\s+bashAllowlist: \[.*"bash (?:\.xezar|\.local\/xezar\/cache\/kit)\/checks\/verdict-write\.sh".*\]$/m.test(text))
       fail(fact, `kit/workflows/${wf}.yaml`, "the reading step has no bashAllowlist naming verdict-write.sh -- its shell can write anywhere");
   }
   const gitRead = read(`${SKILL}/kit/checks/git-read.sh`);
@@ -776,6 +813,10 @@ function walk(rel, match) {
   const DEBUG = new Set(["list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "get_css_styles"]);
   const WANT = Object.fromEntries(["qa", "design-review", "acceptance-verification", "design", "ui-design", "design-system"].map((w) => [w, ALLOWED]));
   WANT.research = ALLOWED.filter((t) => !DEBUG.has(t));
+  // D13: every review and QA workflow holds every chrome-devtools tool, through its own tool list only.
+  const REVIEW_ONLY = ["emulate", "evaluate_script", "upload_file", "drag", "performance_start_trace", "performance_stop_trace",
+    "performance_analyze_insight", "take_heapsnapshot", "lighthouse_audit"];
+  for (const w of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) WANT[w] = [...ALLOWED, ...REVIEW_ONLY];
   const same = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
   const wfDir = `${SKILL}/kit/workflows`;
   for (const rel of walk(wfDir, /\.ya?ml$/)) {
@@ -807,6 +848,1247 @@ function walk(rel, match) {
   if (JSON.stringify(mcpArgs) !== JSON.stringify(codexArgs)) fail(fact, codexRel, `args ${JSON.stringify(codexArgs)} differ from kit/mcp.json ${JSON.stringify(mcpArgs)}`);
   if (!/^\| `kit\/codex\/config\.toml` \| `\.codex\/config\.toml`/m.test(read(`${SKILL}/references/write.md`))) fail(fact, "references/write.md", "does not map kit/codex/config.toml to .codex/config.toml");
   if (!/^bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(read(`${SKILL}/kit/checks/repository-checks.sh`))) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base, so a changed browser entry passes the gate");
+  checked.push(fact);
+}
+
+// --- 3.1.0 stream anchors -------------------------------------------------------
+// Each 3.1.0 stream adds its cases between its own start and end lines, never elsewhere,
+// so parallel PRs do not touch the same lines. The release PR removes the markers.
+// 3.1.0-stream-A:start
+// 3.1.0-stream-A:end
+
+// 3.1.0-stream-B:start
+// ---------------------------------------------------------------------------
+// FACT B1 (#65) -- the leader guide ships the dispatch, quota and merge-queue rules, and L3 is
+// still the only dispatcher. Two consumer projects added these three rules by hand; the template
+// carries them now, the reasoning lives in the detail page and close-out, and "dispatch at once"
+// is an L3 run, never a second dispatcher and never an L1 or L2 tick.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT B1: the leader guide carries dispatch-at-once, read-quota and merge-queue, and L3 stays the only dispatcher";
+  const guide = read(`${SKILL}/kit/leader-guide.template.md`);
+  const body = guide.split("## One-page checklist")[0];
+  const checklist = guide.split("## One-page checklist")[1] ?? "";
+  const need = [
+    [body, /\*\*L3 is the only dispatcher\.\*\*/, "no longer says **L3 is the only dispatcher.**"],
+    [body, /\*\*Dispatch at once\*\*[^\n]*never an L1 or L2 tick[^\n]*counts as an L3 run/, "does not say that dispatching at once is an L3 run, never an L1 or L2 tick"],
+    [body, /\*\*Before every dispatch, read quota\*\*[^\n]*`read_quota`/, "does not tell the leader to read quota with `read_quota` before every dispatch"],
+    [body, /merge queue[^\n]*`gh pr merge --auto`[^\n]*never update-branch in a loop[^\n]*close-out\.md/, "does not give the merge-queue path with its pointer to close-out.md"],
+    [checklist, /Quota read from `read_quota` before this dispatch/, "checklist has no \"Quota read from `read_quota` before this dispatch\" item"],
+  ];
+  for (const [text, re, detail] of need) if (!re.test(text)) fail(fact, "kit/leader-guide.template.md", detail);
+
+  const loops = JSON.parse(read(`${SKILL}/kit/loops.json`));
+  const l1 = (loops.loops ?? []).find((l) => l.id === "L1");
+  if (!l1 || !/Never start new work here/.test(l1.prompt) || !/dispatches at once counts as a pacing run, and this tick is never one/.test(l1.prompt))
+    fail(fact, "kit/loops.json", "L1's prompt does not say that dispatching at once is a pacing run and never this tick");
+  if (!(loops.rules ?? []).some((r) => /^L3 is the only loop that may dispatch/.test(r)))
+    fail(fact, "kit/loops.json", "the rule \"L3 is the only loop that may dispatch\" is gone");
+
+  const detail = read(`${SKILL}/kit/docs/leader-guide-detail.md`);
+  if (!/\*\*Why dispatching at once is safe\.\*\*[\s\S]*?at most one wake is still pending/.test(detail))
+    fail(fact, "kit/docs/leader-guide-detail.md", "does not explain why dispatching at once keeps at most one pending wake");
+  if (!/\*\*Why a merge queue changes the merge steps\.\*\*[\s\S]*?update-branch/.test(detail))
+    fail(fact, "kit/docs/leader-guide-detail.md", "does not explain why update-branch loops cost CI time");
+  const close = read(`${SKILL}/kit/docs/close-out.md`);
+  if (!/\*\*No queue\.\*\*[^\n]*[Uu]pdate the branch/.test(close) || !/\*\*Queue on\.\*\*[^\n]*`gh pr merge <number> --auto`/.test(close) || !/mergeQueue/.test(close))
+    fail(fact, "kit/docs/close-out.md", "does not describe both merge paths and how to tell which applies");
+  checked.push(fact);
+}
+// 3.1.0-stream-B:end
+
+// 3.1.0-stream-C:start
+// ---------------------------------------------------------------------------
+// FACT C1 (#64) -- the leader gets the newest timeline ENTRIES and a pointer, and a decisions.md it
+// cannot load is announced in the trusted part of the context, never skipped in silence. RUN, on a
+// throwaway primary checkout, because both halves are behaviour a text pin cannot see.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT C1: newest timeline entries plus a pointer; a decisions.md the loader cannot read is a WARNING";
+  const where = "kit/checks/leader-context.sh";
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const lab = fs.mkdtempSync(join(tempRoot(), "kit-leader-context-"));
+  try {
+    // The loader names files by their physical path (`pwd -P`); macOS's temp folder is a symlink.
+    const repo = join(fs.realpathSync(lab), "repo");
+    const camp = join(repo, ".xezar/campaigns/20260901-fixture");
+    fs.mkdirSync(join(repo, ".xezar/checks"), { recursive: true });
+    fs.mkdirSync(join(repo, ".xezar/docs"), { recursive: true });
+    fs.mkdirSync(camp, { recursive: true });
+    fs.cpSync(join(root, SKILL, "kit/checks/leader-context.sh"), join(repo, ".xezar/checks/leader-context.sh"));
+    fs.writeFileSync(join(repo, ".xezar/docs/leader-guide.md"), "# Guide\n");
+    fs.writeFileSync(join(camp, "README.md"), "# Campaign\n");
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
+    const timeline = join(camp, "timeline-2026-09-01.md");
+    const decisions = join(camp, "decisions.md");
+    // #122 (Windows): the loader is a bash script and names files by their POSIX path there.
+    const shown = (p) => (process.platform === "win32"
+      ? execFileSync(join(posixToolDirs().at(-1), "cygpath.exe"), ["-u", p], { encoding: "utf8" }).trim()
+      : p);
+    // Multi-line entries, and a fenced block whose list-looking line belongs to the entry above it.
+    const entries = (n) => "# Timeline\n\n" + Array.from({ length: n }, (_, i) =>
+      `- 2026-09-01 10:${String(i).padStart(2, "0")} - event ${i + 1}\n  detail of event ${i + 1}\n` +
+      (i === n - 1 ? "```text\n- not an entry\n```\n" : "")).join("");
+    const load = (extra = {}) => {
+      const env = { ...process.env, XEZAR_LEADER: "1", ...extra };
+      for (const k of ["XEZ_HANDOFF_FILE", "XEZ_TODOS_FILE", "XEZ_TASK_ID", "XEZAR_TIMELINE_ENTRIES"]) if (!(k in extra)) delete env[k];
+      const out = execFileSync(bashPath(), [join(repo, ".xezar/checks/leader-context.sh")], { cwd: repo, env, encoding: "utf8", stdio: "pipe" });
+      return JSON.parse(out).hookSpecificOutput.additionalContext;
+    };
+    const kept = (ctx) => [...ctx.matchAll(/^- 2026-09-01 \d\d:\d\d - event (\d+)$/gm)].map((m) => Number(m[1]));
+    const same = (a, b) => a.join() === b.join();
+    const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+    fs.writeFileSync(decisions, "# Decisions\n- 2026-09-01 owner: keep going\n");
+    fs.writeFileSync(timeline, entries(45));
+    let ctx = load();
+    if (!same(kept(ctx), range(6, 45)))
+      fail(fact, where, `the timeline is not cut to its newest 40 entries: kept [${kept(ctx).join(", ")}]`);
+    if (!ctx.includes("detail of event 45\n```text\n- not an entry\n```"))
+      fail(fact, where, "a multi-line entry, or the fenced block inside it, was split by the entry cut");
+    if (!ctx.includes(`[timeline cut: showing the newest 40 of 45 entries; 5 older entries are left out. The full file is ${shown(timeline)}: read it on demand.]`))
+      fail(fact, where, "no pointer line naming the full timeline file and the entries left out");
+    if (/WARNING/.test(ctx)) fail(fact, where, "prints a WARNING although decisions.md is a normal file");
+    if (!ctx.includes("- 2026-09-01 owner: keep going")) fail(fact, where, "decisions.md is no longer injected");
+
+    ctx = load({ XEZAR_TIMELINE_ENTRIES: "3" });
+    if (!same(kept(ctx), range(43, 45))) fail(fact, where, `XEZAR_TIMELINE_ENTRIES=3 kept [${kept(ctx).join(", ")}], expected [43, 44, 45]`);
+    ctx = load({ XEZAR_TIMELINE_ENTRIES: "x" });
+    if (!same(kept(ctx), range(6, 45))) fail(fact, where, "an invalid XEZAR_TIMELINE_ENTRIES does not fall back to 40");
+
+    fs.writeFileSync(timeline, entries(40));
+    ctx = load();
+    if (!same(kept(ctx), range(1, 40)) || ctx.includes("[timeline cut:") || !ctx.includes("# Timeline"))
+      fail(fact, where, "a timeline of 40 entries or fewer is no longer loaded whole");
+
+    // The warning: before the guide, outside the untrusted region, with the region's nonce.
+    const warned = (label, reason) => {
+      const text = load();
+      const nonce = /--- ([0-9a-f]+): BEGIN UNTRUSTED CAMPAIGN RECORD ---/.exec(text)?.[1];
+      const line = `WARNING ${nonce}: ${shown(decisions)} ${reason},`;
+      const at = text.indexOf(line);
+      if (!nonce || at < 0 || at > text.indexOf("=== .xezar/docs/leader-guide.md"))
+        fail(fact, where, `no WARNING with the nonce, before the guide, for a ${label} decisions.md`);
+    };
+    fs.rmSync(decisions);
+    warned("missing", "is missing");
+    fs.symlinkSync(join(camp, "README.md"), decisions);
+    warned("symlinked", "is a symlink, which the loader refuses");
+    fs.rmSync(decisions);
+    if (typeof process.getuid === "function" && process.getuid() !== 0) {
+      fs.writeFileSync(decisions, "# Decisions\n");
+      fs.chmodSync(decisions, 0o000);
+      warned("unreadable", "is not readable");
+      fs.chmodSync(decisions, 0o644);
+    }
+  } catch (error) {
+    fail(fact, where, `the loader fixture could not be built or run: ${error.message}`);
+  } finally {
+    fs.rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT C2 (#69) -- the settings check refuses a browser grant by the same list the kit ships. Its
+// own copy of the chrome-devtools tools must equal the kit's local settings, or it refuses the
+// kit's own grants (or passes one the kit never gives).
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT C2: catalog-check's browser tool list equals the kit's chrome-devtools grants";
+  const check = read(`${SKILL}/kit/checks/catalog-check.mjs`);
+  const listed = [...(/^const SETTINGS_BROWSER_TOOLS = new Set\(\[([\s\S]*?)\]\);/m.exec(check)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const granted = (JSON.parse(read(`${SKILL}/kit/claude/settings.local.json`)).permissions?.allow ?? [])
+    .filter((t) => t.startsWith("mcp__chrome-devtools__")).map((t) => t.slice("mcp__chrome-devtools__".length));
+  if (!listed.length || listed.slice().sort().join() !== granted.slice().sort().join())
+    fail(fact, "kit/checks/catalog-check.mjs", `SETTINGS_BROWSER_TOOLS is [${listed.join(", ")}], expected the kit's grants [${granted.join(", ")}]`);
+  checked.push(fact);
+}
+// 3.1.0-stream-C:end
+
+// 3.1.0-stream-D:start
+// 3.1.0-stream-D:end
+
+// 3.1.0-stream-E:start
+// 3.1.0-stream-E:end
+
+// 3.1.0-stream-F:start
+// 3.1.0-stream-F:end
+
+// 3.1.0-stream-G:start
+// ---------------------------------------------------------------------------
+// FACT G1 -- a project adds its own trust boundaries, read from the base branch tip (#70).
+//
+// `security.trustBoundaries` only ADDS to the kit's list; it is read from
+// refs/remotes/origin/<baseBranch>, so a branch that drops its own path is still routed; an
+// unreadable or invalid list sets reviewerRequired through a `trust-boundary-config` check that
+// COUNTS in the stage status; every match names its list; the matcher is hand-written and bounded;
+// the engine repository's own paths are not shipped. Driven against the real scan, in a
+// throwaway origin and clone.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT G1: project trust boundaries add to the kit's, from the base branch, and fail toward review";
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { pathToFileURL } = await import("node:url");
+  const SCAN = join(root, SKILL, "kit/checks/lib/security-scan.mjs");
+  const scan = await import(pathToFileURL(SCAN).href);
+  const grammar = await import(pathToFileURL(join(root, SKILL, "kit/checks/lib/config-grammar.mjs")).href);
+  const where = "kit/checks/lib/security-scan.mjs";
+
+  // The matcher: what it accepts, what it refuses, and that a hostile pattern stays cheap.
+  const matches = (pattern, path) => {
+    const parsed = grammar.parseTrustPattern(pattern);
+    return parsed.error ? `refused: ${parsed.error}` : grammar.matchTrustPattern(parsed.tokens, path);
+  };
+  for (const [pattern, path, want] of [
+    ["tools/example/**", "tools/example/build.mjs", true],
+    ["tools/example/**", "tools/example-two/build.mjs", false],
+    ["**/tokens.json", "tokens.json", true],
+    ["**/tokens.json", "a/b/tokens.json", true],
+    ["**/tokens.json", "a/btokens.json", false],
+    ["src/*.ts", "src/a.ts", true],
+    ["src/*.ts", "src/x/a.ts", false],
+    ["a?c", "a/c", false],
+  ]) {
+    const got = matches(pattern, path);
+    if (got !== want) fail(fact, "kit/checks/lib/config-grammar.mjs", `pattern ${pattern} against ${path} gave ${got}, expected ${want}`);
+  }
+  for (const pattern of ["!tools/**", "tools/{a,b}/**", "tools/@(a|b)/**", "tools/[ab]/**", "^tools/.*$", "tools\\x", "a+b/**"]) {
+    if (!grammar.parseTrustPattern(pattern).error)
+      fail(fact, "kit/checks/lib/config-grammar.mjs", `the trust-boundary pattern ${JSON.stringify(pattern)} was accepted; negation, braces, extglobs, character classes and regex characters must be refused`);
+  }
+  {
+    const started = Date.now();
+    grammar.matchTrustPattern(grammar.parseTrustPattern("a*".repeat(128)).tokens, `${"a".repeat(4000)}b`);
+    if (Date.now() - started > 3000) fail(fact, "kit/checks/lib/config-grammar.mjs", "a 256-character pattern took over 3s against a 4001-character path; the matcher is not bounded");
+  }
+  const judged = (list) => {
+    try { return grammar.judgeTrustBoundaries({ security: { trustBoundaries: list } }); } catch (error) { return { status: `threw ${error.message}` }; }
+  };
+  const ok = { pattern: "tools/example/**", why: "the build script CI trusts" };
+  for (const [label, list] of [
+    ["an entry with no why", [{ pattern: "tools/example/**" }]],
+    ["an entry with an unknown field", [{ ...ok, except: "x" }]],
+    ["65 entries", Array.from({ length: 65 }, (_, i) => ({ pattern: `tools/t${i}/**`, why: "a reason" }))],
+    ["a 257-character pattern", [{ pattern: `tools/${"a".repeat(251)}`, why: "a reason" }]],
+    ["a braces pattern", [{ pattern: "tools/{a,b}/**", why: "a reason" }]],
+  ]) {
+    const got = judged(list);
+    if (got.status !== "malformed") fail(fact, "kit/checks/lib/config-grammar.mjs", `security.trustBoundaries with ${label} was ${got.status}, expected malformed`);
+  }
+  if (judged([ok]).status !== "ok" || judged(Array.from({ length: 64 }, (_, i) => ({ pattern: `t${i}/${"a".repeat(240)}`, why: "a reason" }))).status !== "ok")
+    fail(fact, "kit/checks/lib/config-grammar.mjs", "a valid list (one entry, or 64 entries near 256 characters) was refused");
+
+  // The kit's own entries still route with a project list present, and the engine's are gone.
+  for (const path of [".xezar/pipeline/config.json", ".github/workflows/ci.yml", ".xezar/checks/x.sh", ".xezar/routing.json", ".claude/settings.json", ".codex/config.toml", ".env.example"]) {
+    const hit = scan.trustBoundariesTouched([path], judged([ok]).entries ?? []);
+    if (!hit.some((h) => h.list === "kit")) fail(fact, where, `${path} no longer routes as a kit trust boundary when a project list is present`);
+  }
+  if (/packages\\\/xezar/.test(read(`${SKILL}/kit/checks/lib/security-scan.mjs`)) || scan.trustBoundariesTouched(["packages/xezar/src/server/index.ts"]).length)
+    fail(fact, where, "TRUST_BOUNDARIES still ships the engine repository's packages/xezar/src entries");
+
+  // The real scan, over a real branch.
+  const lab = mkdtempSync(join(tempRoot(), "kit-trust-"));
+  const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const put = (dir, file, text) => { mkdirSync(join(dir, dirname(file)), { recursive: true }); writeFileSync(join(dir, file), text); };
+  const runScan = (work, config, changes, baseBranch = "main") => {
+    const origin = join(lab, `origin-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(origin);
+    g(origin, "init", "-q");
+    put(origin, ".xezar/pipeline/config.json", JSON.stringify(config));
+    put(origin, "tools/example/build.mjs", "export {};\n");
+    put(origin, "README.md", "readme\n");
+    g(origin, "add", "-A");
+    g(origin, "commit", "-qm", "base");
+    const clone = join(lab, work);
+    g(lab, "clone", "-q", origin, clone);
+    g(clone, "checkout", "-qb", "feature");
+    for (const [file, text] of Object.entries(changes)) put(clone, file, text);
+    g(clone, "add", "-A");
+    g(clone, "commit", "-qm", "change");
+    const base = g(clone, "merge-base", "HEAD", "refs/remotes/origin/main").trim();
+    const out = join(clone, ".out.json");
+    try {
+      execFileSync("node", [SCAN, "--cwd", clone, "--base", base, "--head", "HEAD", "--base-branch", baseBranch, "--out", out, "--quiet"], { encoding: "utf8", stdio: "pipe" });
+    } catch (error) {
+      return { error: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+    return JSON.parse(readFileSync(out, "utf8"));
+  };
+  const configCheck = (r) => r.checks?.find((c) => c.name === "trust-boundary-config");
+  try {
+    const withEntry = { security: { trustBoundaries: [ok] } };
+    const touched = runScan("touched", withEntry, { "tools/example/build.mjs": "export const x = 1;\n" });
+    const project = touched.trustBoundaries?.find((b) => b.list === "project");
+    if (touched.reviewerRequired !== true || project?.file !== "tools/example/build.mjs" || project?.why !== ok.why)
+      fail(fact, where, `a project entry for tools/example/** did not set reviewerRequired with its reason and list: ${JSON.stringify(touched.trustBoundaries ?? touched)}`);
+    if (touched.trustBoundaries?.some((b) => !["kit", "project"].includes(b.list)))
+      fail(fact, where, "a trust-boundary match does not name its list as kit or project");
+
+    // The branch drops its own path from the config in the same change: the base tip still names it.
+    const dropped = runScan("dropped", withEntry, { ".xezar/pipeline/config.json": "{}\n", "tools/example/build.mjs": "export const x = 2;\n" });
+    if (!dropped.trustBoundaries?.some((b) => b.list === "project" && b.file === "tools/example/build.mjs"))
+      fail(fact, where, "a branch that drops its own path from security.trustBoundaries is no longer routed -- the list was not read from the base branch tip");
+
+    // An invalid list: stage unknown with a clear message, reviewer required, even for a docs-only change.
+    const invalid = runScan("invalid", { security: { trustBoundaries: [{ pattern: "tools/{a,b}/**", why: "x" }] } }, { "README.md": "changed\n" });
+    if (invalid.status !== "unknown" || invalid.reviewerRequired !== true || configCheck(invalid)?.status !== "unknown" || !/invalid/.test(configCheck(invalid)?.detail ?? ""))
+      fail(fact, where, `an invalid security.trustBoundaries did not make the stage status unknown with reviewerRequired and a clear trust-boundary-config message: ${JSON.stringify({ status: invalid.status, reviewerRequired: invalid.reviewerRequired, check: configCheck(invalid) })}`);
+
+    // An unresolvable base branch ref is refused, never replaced by another source.
+    const unresolved = runScan("unresolved", withEntry, { "README.md": "changed\n" }, "no-such-branch");
+    if (unresolved.status !== "unknown" || unresolved.reviewerRequired !== true || configCheck(unresolved)?.status !== "unknown")
+      fail(fact, where, `an unresolvable base branch ref did not route to review: ${JSON.stringify({ status: unresolved.status, reviewerRequired: unresolved.reviewerRequired, check: configCheck(unresolved) })}`);
+
+    // No key: nothing changes for a project that adds nothing.
+    const none = runScan("none", {}, { "README.md": "changed\n" });
+    if (none.status !== "not-applicable" || none.reviewerRequired !== false || configCheck(none)?.status !== "not-applicable")
+      fail(fact, where, `a project with no security.trustBoundaries changed its result: ${JSON.stringify({ status: none.status, reviewerRequired: none.reviewerRequired })}`);
+  } catch (error) {
+    fail(fact, where, `the trust-boundary fixture could not run: ${error.message}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+
+  // The prose that describes the list says there is one, and where it is read from.
+  for (const [file, what] of [
+    [`${SKILL}/kit/docs/phase-record.md`, "kit/docs/phase-record.md"],
+    [`${SKILL}/references/write.md`, "references/write.md (the CODE_REVIEW.md text)"],
+    ["skills/xez-setup-agent-pipeline/references/config-fields.md", "xez-setup-agent-pipeline/references/config-fields.md"],
+  ]) {
+    const text = read(file);
+    if (!/`security\.trustBoundaries`[\s\S]{0,600}base branch/.test(text))
+      fail(fact, what, "does not describe the project's security.trustBoundaries list and that it is read from the base branch");
+  }
+  checked.push(fact);
+}
+// 3.1.0-stream-G:end
+
+// 3.1.0-stream-H:start
+// ---------------------------------------------------------------------------
+// FACT H1 -- a repair push passes one check (#54).
+//
+// `push-check.sh` is RUN, in a throwaway repository with a run worktree, a local bare origin and a
+// stand-in `gh`. Its two siblings are stubbed: the strict preflight passes, and verify-evidence
+// answers what the case says. Each refusal leaves origin untouched; one fast-forward push lands.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT H1: a repair pushes only the sealed HEAD to its own open PR's head branch";
+  const where = "kit/checks/push-check.sh";
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync, chmodSync, realpathSync } = await import("node:fs");
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-push-check-")));
+  const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  const exe = (p, body) => { writeFileSync(p, body); chmodSync(p, 0o755); };
+  try {
+    const bare = join(lab, "remote/acme/widgets.git");
+    mkdirSync(bare, { recursive: true });
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const proj = join(lab, "proj");
+    mkdirSync(proj);
+    git(proj, "init", "-q", "-b", "main");
+    for (const [k, v] of [["user.email", "t@example.com"], ["user.name", "t"], ["commit.gpgsign", "false"],
+      ["remote.origin.url", "https://github.com/acme/widgets.git"], ["remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+      [`url.${bare}.insteadOf`, "https://github.com/acme/widgets.git"]]) git(proj, "config", k, v);
+    mkdirSync(join(proj, ".xezar"));
+    writeFileSync(join(proj, ".xezar/config.json"), '{"baseBranch":"develop"}\n');
+    writeFileSync(join(proj, ".gitignore"), ".local/\n");
+    git(proj, "add", "-A");
+    git(proj, "commit", "-q", "-m", "base");
+    git(proj, "push", "-q", "origin", "main:refs/heads/main", "main:refs/heads/develop");
+    git(proj, "switch", "-q", "-c", "feature/fix");
+    writeFileSync(join(proj, "a.txt"), "pr\n");
+    git(proj, "add", "a.txt");
+    git(proj, "commit", "-q", "-m", "pr work");
+    git(proj, "push", "-q", "origin", "feature/fix:refs/heads/feature/fix");
+    const prHead = git(proj, "rev-parse", "HEAD");
+    git(proj, "switch", "-q", "main");
+
+    // The run's worktree, its own branch moved onto the PR head, one fix commit on top.
+    const run = "abcd1234-h54";
+    const wt = join(proj, ".local/xezar/worktrees", run);
+    git(proj, "worktree", "add", "-q", "-b", "xez/abcd1234", wt, prHead);
+    writeFileSync(join(wt, "a.txt"), "pr\nfix\n");
+    git(wt, "commit", "-q", "-am", "fix");
+    const checks = join(wt, ".xezar/checks");
+    mkdirSync(join(checks, "lib"), { recursive: true });
+    for (const f of ["push-check.sh", "lib/common.sh", "lib/manifest.mjs"]) cpSync(join(root, SKILL, "kit/checks", f), join(checks, f));
+    chmodSync(join(checks, "push-check.sh"), 0o755);
+    exe(join(checks, "worktree-preflight.sh"), "#!/usr/bin/env bash\nexit 0\n");
+    exe(join(checks, "verify-evidence.sh"),
+      '#!/usr/bin/env bash\ne="${PUSH_TEST_ELIGIBILITY:-ELIGIBLE}"\nprintf \'{"currentEligibility":"%s"}\\n\' "$e"\n[ "$e" = ELIGIBLE ]\n');
+    const evidence = join(proj, ".local/xezar/tasks", run);
+    mkdirSync(evidence, { recursive: true });
+    const seal = (sha) => writeFileSync(join(evidence, "manifest.json"), `${JSON.stringify({ runId: run, gateEvidence: { headSha: sha } })}\n`);
+    const fixed = git(wt, "rev-parse", "HEAD");
+    seal(fixed);
+
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    exe(join(bin, "gh"), '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$PUSH_TEST_GH_LOG"\n[ "$1 $2" = "pr view" ] || exit 1\ncat "$PUSH_TEST_PR"\n');
+    const prFile = join(lab, "pr.json");
+    const ghLog = join(lab, "gh.log");
+    const pr = (over = {}) => writeFileSync(prFile, JSON.stringify({ state: "OPEN", headRefName: "feature/fix",
+      headRepositoryOwner: { login: "acme" }, baseRefName: "main", isCrossRepository: false, ...over }));
+    const tip = () => git(bare, "rev-parse", "refs/heads/feature/fix");
+    const push = (args, env = {}) => {
+      const { XEZ_TASK_ID: _drop, ...base } = process.env;
+      const r = spawnSync(bashPath(), [".xezar/checks/push-check.sh", ...args], { cwd: wt, encoding: "utf8",
+        env: { ...prependPath(base, [bin]), PUSH_TEST_PR: prFile, PUSH_TEST_GH_LOG: ghLog, ...env } });
+      return { code: r.status, out: `${r.stdout}${r.stderr}` };
+    };
+    const refused = (what, args, tag, env = {}, over = {}) => {
+      pr(over);
+      const r = push(args, env);
+      if (r.code === 0 || !r.out.includes(`[${tag}]`)) fail(fact, where, `does not refuse ${what} with [${tag}] (exit ${r.code}):\n    ${r.out.trim().split("\n").slice(-3).join("\n    ")}`);
+      if (tip() !== prHead) fail(fact, where, `moved origin's feature/fix while refusing ${what}`);
+    };
+    const OK = ["--pr", "7", "--branch", "feature/fix"];
+
+    refused("an unsealed HEAD", OK, "push.sealed-head", { PUSH_TEST_ELIGIBILITY: "INELIGIBLE" });
+    seal(prHead);
+    refused("a HEAD that changed after the seal", OK, "push.sealed-head");
+    seal(fixed);
+    refused("a closed PR", OK, "push.pr-open", {}, { state: "CLOSED" });
+    refused("a fork PR", OK, "push.pr-same-repo", {}, { isCrossRepository: true, headRepositoryOwner: { login: "someone" } });
+    refused("a branch other than the PR head", ["--pr", "7", "--branch", "feature/other"], "push.pr-head-branch");
+    for (const branch of ["main", "master", "develop", "release/1.2"]) refused(`the protected branch ${branch}`, ["--pr", "7", "--branch", branch], "push.protected-ref", {}, { headRefName: branch });
+    refused("the PR's own base branch", ["--pr", "7", "--branch", "feature/fix"], "push.protected-ref", {}, { baseRefName: "feature/fix" });
+    for (const force of ["--force", "-f", "--force-with-lease", `--force-with-lease=feature/fix:${prHead}`, `--force-with-lease=refs/heads/feature/fix`])
+      refused(`the bare force push ${force}`, [...OK, force], "push.no-bare-force");
+    refused("a + refspec", ["--pr", "7", "--branch", "+feature/fix"], "push.no-bare-force");
+
+    pr();
+    const ok = push(OK);
+    if (ok.code !== 0 || tip() !== fixed) fail(fact, where, `does not push the sealed fast-forward to the PR head (exit ${ok.code}):\n    ${ok.out.trim().split("\n").slice(-3).join("\n    ")}`);
+    // No log means the stub never ran: a failure to report, not a reason to crash before the rest (#122).
+    if (!(existsSync(ghLog) ? readFileSync(ghLog, "utf8") : "").includes("pr view 7 -R acme/widgets")) fail(fact, where, "does not read the PR from origin's own repository");
+    checked.push(fact);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-H:end
+
+// 3.1.0-stream-U:start
+// U1 (#55): the drift check runs at every gate, and the prose that writes and edits the manifest
+// names the same markers and version the check reads. A gate line removed, or a marker spelled
+// differently in one place, lets a silent edit through or turns a fresh setup red.
+{
+  const fact = "FACT U1: the manifest drift check runs in the gate and agrees with the prose that writes the manifest";
+  const checks = read(`${SKILL}/kit/checks/repository-checks.sh`);
+  if (!/^node "\$SCRIPT_DIR\/manifest-drift\.mjs" "\$REPO_ROOT" \|\| drift_rc=\$\?$/m.test(checks))
+    fail(fact, "kit/checks/repository-checks.sh", "no longer runs manifest-drift.mjs, so a silently edited kit file passes the gate");
+  const script = read(`${SKILL}/kit/checks/manifest-drift.mjs`);
+  for (const marker of ["<!-- xezar:kit:start -->", "<!-- xezar:kit:end -->"]) {
+    if (!script.includes(`"${marker}"`)) fail(fact, "kit/checks/manifest-drift.mjs", `does not hash the block marked ${marker}`);
+    for (const where of [`${SKILL}/references/write.md`, `${SKILL}/kit/docs/local-patches.md`])
+      if (!read(where).includes(marker)) fail(fact, where, `does not name the kit block marker ${marker}`);
+  }
+  if (!/"manifestVersion": 2/.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, "references/write.md", "no longer writes manifest version 2, so a fresh setup's manifest is never checked");
+  if (!/manifest-drift\.mjs/.test(read("skills/xez-add-rule/SKILL.md")))
+    fail(fact, "skills/xez-add-rule/SKILL.md", "no longer records a new rule in the manifest, so the first owner rule turns the drift check red");
+  checked.push(fact);
+}
+
+// U4: the upgrade prompt names only helpers that exist, and carries no unreconciled command mark.
+// A renamed helper or a `verify-cli` mark left in would have the owner's session run a command
+// that is not there, mid-upgrade.
+{
+  const fact = "FACT U4: the upgrade prompt names only real helper scripts and has no verify-cli mark left";
+  const where = "upgrade/UPGRADE-PROMPT.md";
+  const prompt = read(where);
+  if (prompt.includes("verify-cli")) fail(fact, where, "still carries a verify-cli mark: reconcile the command with the real helper, then remove the mark");
+  const helpers = [...prompt.matchAll(/node <clone>\/(upgrade\/tools\/[A-Za-z0-9_.-]+\.mjs)/g)].map((m) => m[1]);
+  if (!helpers.length) fail(fact, where, "names no `node <clone>/upgrade/tools/<x>.mjs` helper, so this check reads nothing");
+  for (const h of new Set(helpers)) if (!has(h)) fail(fact, where, `names ${h}, which does not exist`);
+  checked.push(fact);
+}
+
+// U-evals (plan §7): the upgrade prompt's eval set stays gradable. Every case has its build spec
+// and its expected invariants, each of a type the grader knows; and the grader passes a known-good
+// result and fails a known-bad one. A case with no expectations, or a grader that passes
+// everything, would turn the release PR's eval table into noise.
+{
+  const fact = "FACT U-evals: every upgrade eval case is gradable, and the grader tells a good run from a bad one";
+  const casesDir = "upgrade/evals/cases";
+  const { INVARIANT_TYPES, grade } = await import("../upgrade/evals/check.mjs");
+  const { build } = await import("../upgrade/evals/build.mjs");
+  const known = new Set(INVARIANT_TYPES);
+  const types = (list) => list.flatMap((i) => [i.type, ...(i.of ? types(i.of) : [])]);
+  const cases = has(casesDir) ? readdirSync(join(root, casesDir)).filter((n) => !n.startsWith(".")) : [];
+  if (cases.length < 6) fail(fact, casesDir, `holds ${cases.length} case(s); plan §7 asks for the both-changed, base-unknown and owner-shaped cases (6 or more)`);
+  for (const name of cases) {
+    const dir = `${casesDir}/${name}`;
+    if (!has(`${dir}/case.json`) || !has(`${dir}/expected.json`)) {
+      fail(fact, dir, "lacks case.json or expected.json");
+      continue;
+    }
+    const inv = JSON.parse(read(`${dir}/expected.json`)).invariants;
+    if (!Array.isArray(inv) || !inv.length) fail(fact, `${dir}/expected.json`, "has no invariants, so any run passes");
+    else for (const t of types(inv)) if (!known.has(t)) fail(fact, `${dir}/expected.json`, `uses the unknown invariant type ${t}`);
+  }
+  // Known results for the weakened-check case: the run stopped on the file before changing
+  // anything (good), and the same tree with a run that claims it finished (bad).
+  const probe = `${casesDir}/weakened-check`;
+  if (has(`${probe}/expected.json`)) {
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const lab = mkdtempSync(join(tempRoot(), "kit-facts-evals-"));
+    try {
+      build(join(root, probe), lab);
+      const graded = (runRecord) => {
+        writeFileSync(join(lab, "run.json"), JSON.stringify(runRecord));
+        return grade(join(root, probe), lab, { runVerify: false });
+      };
+      const good = graded({ finished: false, stops: [{ step: 3, path: ".xezar/checks/security-scan.sh", rule: "3" }] });
+      const bad = graded({ finished: true, stops: [] });
+      if (!good.every((r) => r.pass)) fail(fact, "upgrade/evals/check.mjs", `fails a known-good result: ${good.filter((r) => !r.pass).map((r) => r.detail).join("; ")}`);
+      if (bad.every((r) => r.pass)) fail(fact, "upgrade/evals/check.mjs", "accepts a run that did not stop on a weakened safety check");
+    } finally {
+      rmSync(lab, { recursive: true, force: true });
+    }
+  }
+  checked.push(fact);
+}
+
+// U-evals F2–F4: every stop the planner raises is named in the prompt's stop-and-ask list, and
+// every read-and-judge flag it sets is acted on in step 5. A planner reason the prompt never
+// names is a flag nobody reads: the eval runs caught those cases only on the model's initiative.
+{
+  const fact = "FACT U-plan-flags: the upgrade prompt acts on every stop and review reason the planner raises";
+  const where = "upgrade/UPGRADE-PROMPT.md";
+  const prompt = read(where);
+  const { STOP_REASONS, REVIEW_REASONS } = await import("../upgrade/tools/plan.mjs");
+  const planSrc = read("upgrade/tools/plan.mjs");
+  for (const [fn, list] of [["stop", STOP_REASONS], ["review", REVIEW_REASONS]]) {
+    for (const m of planSrc.matchAll(new RegExp(`\\b${fn}\\("([^"]+)"\\)`, "g")))
+      if (!list.includes(m[1])) fail(fact, "upgrade/tools/plan.mjs", `raises the ${fn} reason ${m[1]}, which its ${fn === "stop" ? "STOP" : "REVIEW"}_REASONS list does not hold`);
+  }
+  const section = (from, to) => {
+    const a = prompt.indexOf(from);
+    const b = a < 0 ? -1 : prompt.indexOf(to, a + from.length);
+    return a < 0 || b < 0 ? "" : prompt.slice(a, b);
+  };
+  const stops = section("## When you stop and ask", "## Report template");
+  const step5 = section("## Step 5 ", "## Step 6 ");
+  if (!stops) fail(fact, where, "has no \"When you stop and ask\" section before the report template");
+  if (!step5) fail(fact, where, "has no step 5 before step 6");
+  for (const r of STOP_REASONS) if (stops && !stops.includes(`\`${r}\``)) fail(fact, where, `does not name the planner's stop reason \`${r}\` in its stop-and-ask list`);
+  for (const r of REVIEW_REASONS) if (step5 && !step5.includes(`\`${r}\``)) fail(fact, where, `does not say in step 5 what to do with the planner's review reason \`${r}\``);
+  checked.push(fact);
+}
+// 3.1.0-stream-U:end
+
+// 3.1.0-stream-R:start
+// ---------------------------------------------------------------------------
+// FACT R1 (#89) -- three routing bans relax exactly as the owner decided, and no further. The
+// relaxed texts name who may now judge and under which condition; the two bans #89 keeps are word
+// for word what they were; the script still holds the floor under the one relaxation it enforces;
+// and the accepted risk is recorded in SECURITY.md and DECISIONS.md, each pointing at the other.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT R1: the relaxed routing bans say what #89 decided, the kept bans are unchanged, and the risk is recorded";
+  const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
+  const rule = (id) => routing.globalBans.find((b) => b.id === id)?.rule ?? "";
+  const need = [
+    ["no-self-review", /^A review, re-check or QA runs on a different model from the one that wrote the work\.$/, "is no longer word for word the ban #89 keeps"],
+    ["local-never-writes", /^A lane with local: true is in no row with writes: true\.$/, "is no longer word for word the ban #89 keeps"],
+    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
+    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
+    ["tool-limits", /^A lane with enforcesToolLimits: false is in no reading row \(writes: false and not runsCode\) and in no security-and-release row\. One exception: a lane with fullShellReviews: true may be in a review row, or a security row that only reads\.$/, "is relaxed further than #89 decided (fullShellReviews, review rows and security rows that only read)"],
+  ];
+  for (const [id, re, detail] of need) if (!re.test(rule(id))) fail(fact, "kit/routing.json", `ban ${id} ${detail}`);
+  const marked = Object.entries(routing.lanes).filter(([, l]) => l.fullShellReviews === true).map(([id]) => id);
+  if (marked.join(",") !== "pi/deepseek-api/deepseek-v4-pro") fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; the owner accepted pi/deepseek-api/deepseek-v4-pro alone`);
+
+  const route = read(`${SKILL}/kit/checks/route.mjs`);
+  if (!/^const FULL_SHELL_FORBIDDEN = \[\["tier", "cheap"\], \["local", true\], \["advisoryOnly", true\]\];$/m.test(route)
+    || !/const judgesOnly = row\.writes === false && \(row\.class === "review" \|\| security\);/.test(route)
+    || !/lane\.enforcesToolLimits !== true && !\(lane\.fullShellReviews === true && judgesOnly\)/.test(route))
+    fail(fact, "kit/checks/route.mjs", "no longer holds the fullShellReviews exception to judging rows and to strong, non-local lanes that give verdicts");
+
+  const security = read("SECURITY.md");
+  if (!/One reviewer without a proven read-only lock is accepted and recorded[\s\S]*?pi\/deepseek-api\/deepseek-v4-pro[\s\S]*?full shell[\s\S]*?The owner accepted it \(#89\)[\s\S]*?"Reviews fall\s+to DeepSeek when Claude has no budget"/.test(security))
+    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell V4 Pro reviewer that the owner accepted (#89) and that points at its DECISIONS.md entry");
+  // The entry lists the reading rows the full-shell lane judges in, and SECURITY.md outranks the
+  // routing file, so the list must be exactly the rows the routing gives it: a wider list would
+  // pre-accept a placement the owner never accepted, and a row named as excluded must be one it is
+  // truly absent from.
+  const accepted = security.split("One reviewer without a proven read-only lock")[1]?.split(/\n- \*\*/)[0] ?? "";
+  const listed = (accepted.match(/judge in these reading rows only:([\s\S]*?)\./)?.[1]?.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).sort();
+  const actual = routing.rows.filter((r) => r.writes === false && marked.some((m) => r.lanes.includes(m))).map((r) => r.id).sort();
+  if (listed.join(",") !== actual.join(","))
+    fail(fact, "SECURITY.md", `the accepted-risk entry lists the full-shell reviewer in reading rows [${listed}], but kit/routing.json puts it in [${actual}]`);
+  const rowIds = new Set(routing.rows.map((r) => r.id));
+  const rest = accepted.split(/judge in these reading rows only:[\s\S]*?\./)[1] ?? "";
+  for (const id of (rest.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).filter((x) => rowIds.has(x)))
+    if (routing.rows.find((r) => r.id === id).lanes.some((l) => marked.includes(l)))
+      fail(fact, "SECURITY.md", `the accepted-risk entry names row \`${id}\` as one the full-shell reviewer is not in, but kit/routing.json puts it there`);
+  const decisions = read("DECISIONS.md");
+  const entry = decisions.split(/^## Reviews fall to DeepSeek when Claude has no budget$/m)[1]?.split(/^## /m)[0] ?? "";
+  if (!entry) fail(fact, "DECISIONS.md", "has no \"Reviews fall to DeepSeek when Claude has no budget\" entry, which SECURITY.md cites");
+  else for (const id of ["tool-limits", "pi-write-claude-review", "high-risk-other-vendor"]) {
+    if (!new RegExp(`\\*\\*\`${id}\`\\.\\*\\*[\\s\\S]*?Given\\s+away:`).test(entry)) fail(fact, "DECISIONS.md", `the #89 entry does not say what relaxing ${id} gives away`);
+  }
+  checked.push(fact);
+}
+// 3.1.0-stream-R:end
+
+// 3.1.0-stream-OC:start
+// ---------------------------------------------------------------------------
+// FACT OC1 (owner confirmations for 3.1.0) -- two owner decisions, said the same way everywhere.
+// (1) Independence is a different MODEL: route.mjs removes the author chain's models on every row
+// and a vendor only through vendorExclusions, security and release rows included; the schema, the
+// routing doc, the ban texts and DECISIONS.md all say so, and none still says never-author bans the
+// author's vendor. (2) Onboarding never writes `version: "unknown"`: write.md stops instead.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT OC1: same-vendor reviewers are allowed on every row outside vendorExclusions, and onboarding never writes an unknown version";
+  const route = read(`${SKILL}/kit/checks/route.mjs`);
+  if (!/if \(file\.lanes\[cid\]\.vendor === lane\.vendor && excluded\.has\(lane\.vendor\)\) return `author-chain: shared vendor with \$\{cid\}`;/.test(route))
+    fail(fact, "kit/checks/route.mjs", "the author chain removes a same-vendor lane for a reason other than vendorExclusions (the owner allowed a same-vendor reviewer on every row, security and release included)");
+  const schema = JSON.parse(read(`${SKILL}/kit/routing.schema.json`));
+  const neverAuthor = JSON.stringify(schema).match(/"neverAuthor":\{"description":"([^"]*)"/)?.[1] ?? "";
+  if (!/model/.test(neverAuthor) || !/vendor is banned only where vendorExclusions names it/.test(neverAuthor))
+    fail(fact, "kit/routing.schema.json", `neverAuthor does not say the author's model is banned and its vendor only through vendorExclusions: "${neverAuthor}"`);
+  const doc = read(`${SKILL}/kit/docs/routing.md`);
+  if (!/Any other lane of the author's vendor stays, on every row – security and release rows included/.test(doc))
+    fail(fact, "kit/docs/routing.md", "does not say a same-vendor lane on another model stays on every row, security and release rows included");
+  for (const [file, text] of [["kit/docs/routing.md", doc], ["kit/routing.json", read(`${SKILL}/kit/routing.json`)], ["kit/routing.schema.json", read(`${SKILL}/kit/routing.schema.json`)], ["DECISIONS.md", read("DECISIONS.md")]]) {
+    if (/bans the author's vendor|shares a vendor with anyone in the chain, on a security or release row|lane, login and vendor that wrote the work are banned/.test(text))
+      fail(fact, file, "still says never-author bans the author's vendor, which the owner reversed");
+  }
+  if (!/^## A same-vendor reviewer is allowed on every row$/m.test(read("DECISIONS.md"))) fail(fact, "DECISIONS.md", "has no entry recording the owner's same-vendor decision");
+  const write = read(`${SKILL}/references/write.md`);
+  if (/or `unknown` when/.test(write) || !/When the install names \*\*neither\*\*[\s\S]{0,120}\*\*stop\*\*: write nothing/.test(write) || !/Never write `unknown`/.test(write))
+    fail(fact, "references/write.md", "does not stop when the kit version cannot be told, or still allows version \"unknown\" in the manifest");
+  // An installer copy has no tag or commit to read, so it writes the release literal in §5. A
+  // literal left behind by a version bump would stamp every such onboarding with the wrong kit.
+  const literal = write.match(/then `version` — the collection release the kit came from \(`([^`]+)`/)?.[1];
+  const pkgVersion = JSON.parse(read("package.json")).version;
+  if (literal !== pkgVersion)
+    fail(fact, "references/write.md", `the manifest version literal an installer copy writes is ${literal ? `"${literal}"` : "missing"}, but package.json says "${pkgVersion}"`);
+  checked.push(fact);
+}
+// 3.1.0-stream-OC:end
+
+// ---------------------------------------------------------------------------
+// #122 (Windows): FACT W – the kit under Git Bash.
+//
+// The kit's scripts run in Git Bash on Windows, where git prints `C:/…` paths and the MSYS
+// runtime rewrites an argument that looks like a POSIX path list before git.exe sees it. Each
+// rule is asserted on every OS: the Windows branch is taken by setting OSTYPE, so the Linux
+// nightly proves it too, and the non-Windows branch must stay exactly as it was.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT W: the kit's shell helpers read Git for Windows paths and refs";
+  const { spawnSync } = await import("node:child_process");
+  const where = "kit/checks/lib/common.sh";
+  const common = join(root, SKILL, where);
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS2_ARG_CONV_EXCL") delete env[key];
+  const paths = ["C:/x", "c:/x", "/x", "C:\\x", "C:x", "x"];
+  const script = [
+    'lib="$1"; shift',
+    'for os in msys linux-gnu; do ( OSTYPE=$os; . "$lib" || exit 99',
+    '  for p in "$@"; do if is_absolute_path "$p"; then printf "%s %s=0\\n" "$os" "$p"; else printf "%s %s=1\\n" "$os" "$p"; fi; done ); done',
+    '( OSTYPE=msys; . "$lib"; printf "unset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; MSYS2_ARG_CONV_EXCL=x/; . "$lib"; printf "preset=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=msys; . "$lib"; . "$lib"; printf "twice=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+    '( OSTYPE=linux-gnu; . "$lib"; printf "linux=%s\\n" "${MSYS2_ARG_CONV_EXCL-<unset>}" )',
+  ].join("\n");
+  const run = spawnSync(bashPath(), ["-c", script, "fact-w", common, ...paths], { encoding: "utf8", env });
+  const seen = new Map(run.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const at = line.lastIndexOf("="); return [line.slice(0, at), line.slice(at + 1)]; }));
+  if (run.status !== 0) fail(fact, where, `could not be sourced in bash (exit ${run.status}): ${run.stderr.trim()}`);
+  else {
+    if (seen.get("msys C:/x") !== "0" || seen.get("msys c:/x") !== "0")
+      fail(fact, where, "`is_absolute_path` reads a Git for Windows path (C:/…) as relative under Git Bash, so a linked worktree cannot resolve its own checkout");
+    for (const [p, want] of [["/x", "0"], ["C:\\x", "1"], ["C:x", "1"], ["x", "1"]]) {
+      if (seen.get(`msys ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` under Git Bash says ${seen.get(`msys ${p}`)}, not ${want}`);
+      if (seen.get(`linux-gnu ${p}`) !== want) fail(fact, where, `\`is_absolute_path "${p}"\` outside Git Bash says ${seen.get(`linux-gnu ${p}`)}, not ${want}`);
+    }
+    if (seen.get("linux-gnu C:/x") !== "1" || seen.get("linux-gnu c:/x") !== "1")
+      fail(fact, where, "`is_absolute_path` reads C:/… as absolute outside Git Bash, where it is a relative path (and fixture_scratch_remove deletes by it)");
+    const excl = { unset: "origin/;refs/", preset: "origin/;refs/;x/", twice: "origin/;refs/", linux: "<unset>" };
+    const wrong = Object.entries(excl).filter(([k, v]) => seen.get(k) !== v);
+    if (wrong.length)
+      fail(fact, where, `lets Git Bash rewrite origin/<base>:<file> arguments: MSYS2_ARG_CONV_EXCL is ${wrong.map(([k]) => `${k}=${JSON.stringify(seen.get(k))} (want ${JSON.stringify(excl[k])})`).join(", ")}`);
+  }
+  checked.push(fact);
+}
+
+// FACT W, the Windows process layer's rules (kit/checks/lib/windows-process.mjs), as pure functions
+// on recorded tables: they run on every OS, so a rule broken on Linux is caught on Linux.
+{
+  const fact = "FACT W: the Windows gate stop picks a gate's processes by identity, never a stranger";
+  const where = "kit/checks/lib/windows-process.mjs";
+  const { pathToFileURL } = await import("node:url");
+  const wp = await import(pathToFileURL(join(root, SKILL, where)).href);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Git's ps, as this machine printed it (spike S-4), plus a status letter and a torn row.
+  const psSample = [
+    "      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND",
+    "   230432       1  230432       4844  ?         197609 09:04:07 /usr/bin/bash",
+    "   230436  230432  230432      20500  ?         197609 09:04:07 /usr/bin/sleep",
+    "S  230440  230432  230432      20600  ?         197609 09:04:08 /usr/bin/cat",
+    "   230435  230432  230432      19464  ?         197609 09:04:07 /c/Users/u/AppData/Local/Author Software/nvm/.nodejs/node",
+    "   2304",
+  ].join("\r\n");
+  const msysRows = wp.parseMsysTable(psSample);
+  if (!same(msysRows, [
+    { pid: 230432, ppid: 1, pgid: 230432, winpid: 4844 }, { pid: 230436, ppid: 230432, pgid: 230432, winpid: 20500 },
+    { pid: 230440, ppid: 230432, pgid: 230432, winpid: 20600 }, { pid: 230435, ppid: 230432, pgid: 230432, winpid: 19464 },
+  ])) fail(fact, where, `parseMsysTable reads Git's ps output wrong: ${JSON.stringify(msysRows)}`);
+  const winSample = "4844 2776 134351390478236880\r\n19464 5428 134351390479200810\n5428 2184 -\n12 34\n7 8 9 10\n";
+  const winRows = wp.parseWindowsTable(winSample);
+  if (!same(winRows, [{ pid: 4844, ppid: 2776, startedAt: 1790665447823 }, { pid: 19464, ppid: 5428, startedAt: 1790665447920 }, { pid: 5428, ppid: 2184 }]))
+    fail(fact, where, `parseWindowsTable reads the process table wrong: ${JSON.stringify(winRows)}`);
+  const script = wp.killScript([
+    { pid: 100, startedAt: 1790665447823 }, { pid: 3, startedAt: 5 }, { pid: 7.5, startedAt: 5 }, { pid: 101, startedAt: -1 },
+    { pid: 100, startedAt: 1 }, { pid: "102; Remove-Item C:\\", startedAt: 5 }, { pid: process.pid, startedAt: 5 },
+  ]);
+  if (script.split("\n")[1] !== "$t = @(100,1790665447823)" || /Remove-Item/.test(script))
+    fail(fact, where, `killScript embeds something other than validated integers: ${script.split("\n")[1]}`);
+  const outcomes = wp.parseKillOutcomes("100 killed\r\n101 denied\n999 killed\nnoise\n", new Set([100, 101]));
+  if (!same([...outcomes], [[100, "killed"], [101, "denied"]])) fail(fact, where, `parseKillOutcomes reads the kill script's answer wrong: ${JSON.stringify([...outcomes])}`);
+  // The workers' env: noglob for the MSYS runtime, and no program name taken from the working folder.
+  const gitDir = "C:\\Program Files\\Git";
+  const known = new Set([`${gitDir}\\cmd\\git.exe`, `${gitDir}\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\bash.exe`, `${gitDir}\\usr\\bin\\ps.exe`,
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"].map((p) => p.toLowerCase()));
+  const prepared = wp.prepare({ PATH: `${gitDir}\\cmd`, SystemRoot: "C:\\Windows", nodefaultcurrentdirectoryinexepath: "0", MSYS: "winsymlinks:lnk" }, { exists: (p) => known.has(p.toLowerCase()) });
+  const exeKeys = Object.keys(prepared.env ?? {}).filter((k) => k.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH");
+  if (!prepared.ok || prepared.env.MSYS !== "winsymlinks:lnk noglob" || exeKeys.length !== 1 || prepared.env[exeKeys[0]] !== "1")
+    fail(fact, where, `the gate workers' env lets a bare program name resolve from the working folder, or lacks MSYS noglob: ${JSON.stringify(prepared)}`);
+
+  // The start-time window. The worker is Windows pid 5000; it was spawned at T and stopped at T+10 s.
+  const T = 1_790_000_000_000;
+  const targetsOf = (args) => wp.treeTargets({ selfPid: 1, ...args }).map((t) => t.pid).sort((a, b) => a - b);
+  const windowed = targetsOf({
+    root: { winpid: 5000, msysPid: null, spawnedAt: T, stoppedAt: T + 10_000 },
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 6000, ppid: 5000, startedAt: T + 20_000 }, // a stranger whose parent pid is the worker's, reused
+      { pid: 6100, ppid: 5000, startedAt: T + 100 },
+      { pid: 6200, ppid: 6100, startedAt: T + 50 }, // older than its parent: not its child
+      { pid: 6300, ppid: 6100, startedAt: T + 200 },
+    ],
+  });
+  if (windowed.includes(6000)) fail(fact, where, "a process that reused the pid of a gate's child was chosen for a kill (created after the stop, its parent pid names the worker)");
+  if (windowed.includes(6200)) fail(fact, where, "a process created before its parent was chosen for a kill");
+  if (!windowed.includes(6100) || !windowed.includes(6300)) fail(fact, where, `the worker's own child and grandchild were not both chosen: ${JSON.stringify(windowed)}`);
+  // The MSYS layer (spike S-1): after an exec the gate's process has no living Windows parent, and
+  // its MSYS parent may be gone too; only the worker's MSYS process group still names it.
+  const grouped = targetsOf({
+    root: { winpid: 5000, msysPid: 700, spawnedAt: T, stoppedAt: T + 10_000 },
+    msysRows: [{ pid: 700, ppid: 1, pgid: 700, winpid: 5000 }, { pid: 710, ppid: 1, pgid: 700, winpid: 7100 }, { pid: 800, ppid: 1, pgid: 800, winpid: 8000 }],
+    winRows: [
+      { pid: 5000, ppid: 1, startedAt: T },
+      { pid: 7100, ppid: 9999, startedAt: T + 300 },
+      { pid: 7200, ppid: 7100, startedAt: T + 400 },
+      { pid: 8000, ppid: 1, startedAt: T + 100 },
+    ],
+  });
+  if (!grouped.includes(7100) || !grouped.includes(7200))
+    fail(fact, where, `a gate process whose parent already exited (MSYS exec) was not chosen, nor its native child: ${JSON.stringify(grouped)}`);
+  if (grouped.includes(5000) || grouped.includes(8000)) fail(fact, where, `the worker itself or another MSYS group was chosen: ${JSON.stringify(grouped)}`);
+
+  // One stop round, with the three programs answered from here (no process is touched).
+  const tools = { ps: "ps.exe", powershell: "powershell.exe" };
+  const psLive = "      PID    PPID    PGID     WINPID\n   700       1     700    5000\n   710       1     700    7100\n";
+  const fileTime = (ms) => BigInt(ms) * 10000n + 116444736000000000n;
+  const table = `5000 1 ${fileTime(T)}\n7100 9999 ${fileTime(T + 300)}\n`;
+  const noMembers = "      PID    PPID    PGID     WINPID\n";
+  // `tableAnswer` stands in for the Windows table (null: PowerShell could not read it).
+  const round = async (ps, killAnswer, { msysPid = 700, tableAnswer = table, ...options } = {}) => {
+    const calls = [];
+    const run = async (file, args) => {
+      calls.push(file);
+      if (file === "ps.exe") return ps;
+      const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
+      return decoded.includes("Get-CimInstance") ? tableAnswer : killAnswer(decoded);
+    };
+    const result = await wp.stopTree({ winpid: 5000, msysPid, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
+    return { result, calls };
+  };
+  const nothingLeft = await round(noMembers, () => "", { killRoot: false });
+  if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
+  // Without the worker's MSYS pid no member can be found in ps, so an empty group proves nothing:
+  // the Windows table must still be read, and the worker's native child killed.
+  const childTable = `5000 1 ${fileTime(T)}\n7100 5000 ${fileTime(T + 300)}\n`;
+  const noMsysPid = await round(noMembers, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false, msysPid: null, tableAnswer: childTable });
+  if (!noMsysPid.result.ok || noMsysPid.result.killed !== 1 || noMsysPid.calls.length !== 3)
+    fail(fact, where, `a reap whose worker left no MSYS pid took an empty ps for "nothing left" and never read the Windows table: ${JSON.stringify(noMsysPid)}`);
+  const killed = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false });
+  if (!killed.result.ok || killed.result.killed !== 1) fail(fact, where, `a stop round did not kill the worker's process by identity: ${JSON.stringify(killed.result)}`);
+  const denied = await round(psLive, () => "7100 denied\n", { killRoot: true });
+  if (denied.result.ok) fail(fact, where, "a stop round that could not kill a process reported success");
+  const noPs = await round(null, () => "7100 killed\n", { killRoot: true });
+  if (noPs.result.ok) fail(fact, where, "a stop round that could not read Git's ps reported success");
+  const noTable = await round(psLive, () => "7100 killed\n", { killRoot: true, tableAnswer: null });
+  if (noTable.result.ok || noTable.result.reason !== "the Windows process table could not be read" || noTable.calls.length !== 2)
+    fail(fact, where, `a stop round that could not read the Windows process table reported ${JSON.stringify(noTable)}`);
+  const noKill = await round(psLive, () => null, { killRoot: true });
+  if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
+    fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
+  checked.push(fact);
+}
+
+// FACT W, the scheduler itself (kit/checks/lib/gate-parallel.mjs), with real processes on every OS:
+// a gate leaves a node behind that has a native child of its own; a gate is stopped mid-run; and a
+// process the gate never started survives both.
+{
+  const fact = "FACT W: the gate scheduler stops and reaps exactly the processes its gates started";
+  const where = "kit/checks/lib/gate-parallel.mjs";
+  const { spawn } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const scheduler = join(root, SKILL, where);
+  const lab = mkdtempSync(join(tempRoot(), "kit-gates-"));
+  const recorded = []; // the gates' processes, by the pids they wrote
+  const children = [];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // What the last check of each pid found. A pid once seen gone is never signalled again: by the
+  // cleanup it may name an unrelated process (Windows reuses pids quickly).
+  const lastSeen = new Map();
+  const alive = (pid) => {
+    let running;
+    try { process.kill(pid, 0); running = true; } catch (error) { running = error.code === "EPERM"; }
+    lastSeen.set(pid, running);
+    return running;
+  };
+  const until = async (condition, ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) if (condition()) return true;
+    return condition();
+  };
+  // The library the scheduler sources: gate_run runs the command and records its result.
+  const library = join(lab, "gate-lib.sh");
+  writeFileSync(library, 'gate_run() { shift; "$@"; local rc=$?; printf \'{"status":"%s","exitCode":%d}\' "$([ "$rc" -eq 0 ] && echo passed || echo failed)" "$rc" > "$GATE_WORKER_RESULT"; return "$rc"; }\n');
+  const holder = join(lab, "holder.cjs");
+  writeFileSync(holder, [
+    'const { spawn } = require("child_process"); const fs = require("fs"); const path = require("path");',
+    "const [dir, role] = process.argv.slice(2);",
+    'if (role === "parent") spawn(process.execPath, [__filename, dir, "child"], { stdio: "ignore" });',
+    "fs.writeFileSync(path.join(dir, `${role}.pid`), String(process.pid));",
+    "setInterval(() => {}, 1e9);",
+  ].join("\n"));
+  const start = (name, command) => {
+    const dir = join(lab, name);
+    mkdirSync(dir);
+    const attempt = join(dir, "attempt");
+    const child = spawn(process.execPath, [scheduler, library, "serial", JSON.stringify([{ index: 1, name, command }])], {
+      env: { ...process.env, GATE_ATTEMPT_DIR: attempt, G_DIR: dir, G_HOLDER: holder, G_NODE: process.execPath },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    children.push(child);
+    let err = "";
+    child.stderr.on("data", (chunk) => { err += chunk; });
+    const closed = new Promise((resolve) => child.on("close", (code) => resolve(code)));
+    return { child, dir, attempt, closed, err: () => err.trim() };
+  };
+  const pidsIn = (dir) => ["parent", "child"].map((role) => {
+    const file = join(dir, `${role}.pid`);
+    return existsSync(file) ? Number(readFileSync(file, "utf8")) : null;
+  });
+  const holderRuns = '"$G_NODE" "$G_HOLDER" "$G_DIR" parent';
+  const bothStarted = 'i=0; while [ ! -s "$G_DIR/parent.pid" ] || [ ! -s "$G_DIR/child.pid" ]; do i=$((i+1)); [ "$i" -gt 300 ] && exit 3; sleep 0.1; done';
+  const stranger = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e9)"], { stdio: "ignore" });
+  let strangerExited = false; // this test's own child: once killed, a zombie would still answer kill(pid, 0)
+  stranger.on("exit", () => { strangerExited = true; });
+  try {
+    // G1: the gate starts node in the background, waits for it and its child, and exits 0.
+    const reaped = start("reap", `${holderRuns} & ${bothStarted}; exit 0`);
+    const reapCode = await Promise.race([reaped.closed, sleep(60_000).then(() => "no exit within 60 s")]);
+    const left = pidsIn(reaped.dir);
+    recorded.push(...left.filter(Boolean));
+    if (reapCode !== 0 || left.includes(null)) fail(fact, where, `the reap case did not run (scheduler: ${reapCode}; pids ${JSON.stringify(left)}): ${reaped.err()}`);
+    else if (!(await until(() => !left.some(alive), 10_000))) fail(fact, where, `the gate scheduler left a finished gate's processes running (${left.filter(alive).join(", ")})`);
+    // G2: the gate runs node in the foreground; the run is interrupted once node and its child run.
+    const stoppedRun = start("stop", holderRuns);
+    const running = await until(() => !pidsIn(stoppedRun.dir).includes(null), 30_000);
+    const stopping = pidsIn(stoppedRun.dir);
+    recorded.push(...stopping.filter(Boolean));
+    if (!running) fail(fact, where, `the stop case's gate did not start its processes: ${stoppedRun.err()}`);
+    else {
+      // POSIX: a TERM, as repo-gates.sh sends it. Windows: the stop file repo-gates.sh writes there.
+      if (process.platform === "win32") writeFileSync(join(stoppedRun.attempt, "workers", "stop"), "");
+      else stoppedRun.child.kill("SIGTERM");
+      const stopCode = await Promise.race([stoppedRun.closed, sleep(20_000).then(() => "no exit within 20 s")]);
+      const gone = await until(() => !stopping.some(alive), 10_000);
+      if (stopCode !== 130 || !gone)
+        fail(fact, where, `the gate scheduler did not stop its gates on an interrupt (scheduler: ${stopCode}; still running: ${stopping.filter(alive).join(", ") || "none"})`);
+    }
+    // G4: a process the gates never started is still running after both.
+    await sleep(200);
+    if (strangerExited || !alive(stranger.pid)) fail(fact, where, "the gate scheduler stopped a process the gate did not start");
+  } finally {
+    // A gate process only while its last check, this one included, finds it running; the test's own
+    // children through their handles, which know when their process has exited.
+    for (const pid of recorded) {
+      if (lastSeen.get(pid) === false || !alive(pid)) continue;
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+    for (const child of [stranger, ...children]) { try { child.kill("SIGKILL"); } catch { /* already gone */ } }
+    await sleep(500);
+    rmSync(lab, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// #122 run 2: the kit runtime on native Windows. Each fact runs on every OS.
+//
+// FACT W3 -- every unit tool deps.mjs starts goes through start(). On Windows npm and Yarn are
+// .cmd shims: start() finds a tool by PATHEXT and starts a .cmd through cmd.exe with checked text,
+// and never by its bare name, which Windows looks for in the unit's own folder first. A spawnSync
+// outside start() is a tool started without those rules.
+// ---------------------------------------------------------------------------
+{
+  const fact = "FACT W3: deps.mjs starts every unit tool through start()";
+  const where = "kit/checks/lib/deps.mjs";
+  const text = read(`${SKILL}/${where}`);
+  const body = /\nfunction start\(tool, args, options = \{\}\) \{\n[\s\S]*?\n\}\n/.exec(text);
+  if (!body) fail(fact, where, "has no start(tool, args, options), so nothing starts a unit's .cmd tool on Windows");
+  else {
+    const rest = text.replace(body[0], "\n");
+    if (/\bspawnSync\(/.test(rest))
+      fail(fact, where, "starts a unit's tool without start() (a spawnSync outside it): on Windows that is a bare name, searched in the unit's folder first, and a .cmd that never starts");
+    for (const call of ['start(tool, ["--version"]', "start(plan.tool, plan.args"])
+      if (!rest.includes(call)) fail(fact, where, `no longer calls ${call}…), so it starts a unit's tool without start()`);
+    if (!body[0].includes("WINDOWS.launchFor(tool, args, { env: options.env ?? process.env, cwd: options.cwd })"))
+      fail(fact, where, "start() no longer calls launchFor on Windows, which finds the tool by PATHEXT, answers ENOENT when it is missing and starts a .cmd through cmd.exe with checked text");
+  }
+  checked.push(fact);
+}
+
+// FACT W4 -- the two scripts that start a kit check script outside the gates start Git Bash on
+// Windows, through gitBash(): a bare `bash` there is WSL's on a stock machine. The upgrade verifier
+// also starts its Node checks with this Node (a bare `node` run in the project is looked for in the
+// project first), and finds Git Bash with this clone's own kit copy of the finder, never scripts/lib.
+{
+  const fact = "FACT W4: documented-output.mjs and the upgrade verifier start Git Bash on Windows, never WSL's bash";
+  const docWhere = "kit/checks/documented-output.mjs";
+  const docOut = read(`${SKILL}/${docWhere}`);
+  if (!docOut.includes("const WINDOWS = process.platform === 'win32' ? await import('./lib/windows-programs.mjs') : null;"))
+    fail(fact, docWhere, "no longer loads lib/windows-programs.mjs on Windows, so it has no way to find Git Bash");
+  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !docOut.includes("run(BASH, [path.join(root, row.script)]") || /\brun\(\s*['"]bash['"]/.test(docOut))
+    fail(fact, docWhere, "starts a bare bash on Windows, which on a stock machine is WSL's bash; start Git Bash through gitBash()");
+  if (!/if \(BASH === null\) \{\n\s+console\.error\(`documented-output: \$\{WINDOWS\.GIT_BASH_MISSING\}`\);\n\s+process\.exit\(1\);/.test(docOut))
+    fail(fact, docWhere, "does not stop with the one-line Git Bash message when Git for Windows is missing");
+  const verifyWhere = "upgrade/tools/verify.mjs";
+  const verify = read(verifyWhere);
+  if (!verify.includes('import { SKILL_DIR } from "./lib/kit-index.mjs";') || !verify.includes("await import(new URL(`../../${SKILL_DIR}/kit/checks/lib/windows-programs.mjs`, import.meta.url).href)") || /scripts\/lib\//.test(verify))
+    fail(fact, verifyWhere, "does not load this clone's own kit copy of windows-programs.mjs (or reaches into scripts/lib, which the upgrade tool never imports)");
+  if (!verify.includes('const bash = WINDOWS ? WINDOWS.gitBash() : "bash";') || /runCheck\("repository", "bash"/.test(verify))
+    fail(fact, verifyWhere, "starts a bare bash for the repository check on Windows, which on a stock machine is WSL's bash");
+  if (/runCheck\([^\n]*?, "node",/.test(verify) || (verify.match(/runCheck\("(?:drift|catalog|route)", process\.execPath,/g) ?? []).length !== 3)
+    fail(fact, verifyWhere, "starts a bare node for a check, which Windows looks for in the project first; start process.execPath");
+  checked.push(fact);
+}
+
+// FACT W5 -- the kit's digests do not need shasum. Git Bash has shasum only on a login PATH
+// (core_perl), so `sha256_lines` falls back to coreutils' sha256sum with the same lines. Proven on
+// every OS: PATH is cut down to a folder holding a node stand-in `sha256sum` (and cut and cat), so
+// no shasum is found, and the lines must be node's own digests. Where shasum exists, the helper's
+// output on the full PATH is also byte-equal to `shasum -a 256`; elsewhere that leg says so.
+{
+  const fact = "FACT W5: the kit's digests work without shasum, with the same lines";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const { createHash } = await import("node:crypto");
+  const lab = mkdtempSync(join(tempRoot(), "kit-sha256-"));
+  try {
+    const found = spawnSync(bashPath(), ["-c", "command -v bash; command -v cut; command -v cat"], { encoding: "utf8" }).stdout.trim().split(/\r?\n/);
+    const [bashAbs, cutAbs, catAbs] = found;
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const q = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+    const node = process.execPath.replaceAll("\\", "/");
+    const standIn = [
+      'const fs = require("fs"), crypto = require("crypto");',
+      'const line = (buf, name) => process.stdout.write(crypto.createHash("sha256").update(buf).digest("hex") + "  " + name + "\\n");',
+      'const files = process.argv.slice(1);',
+      'if (files.length) for (const f of files) line(fs.readFileSync(f), f); else line(fs.readFileSync(0), "-");',
+    ].join("\n");
+    writeFileSync(join(bin, "sha256sum"), `#!${bashAbs}\nexec ${q(node)} -e ${q(standIn)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "cut"), `#!${bashAbs}\nexec ${q(cutAbs)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "cat"), `#!${bashAbs}\nexec ${q(catAbs)} "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(lab, "f.txt"), "kit\n");
+    const script = [
+      '. "$1" || exit 99',
+      'cd "$2" || exit 98',
+      'if command -v shasum >/dev/null 2>&1; then printf "identity="; if [ "$(sha256_lines f.txt)" = "$(shasum -a 256 f.txt)" ]; then echo same; else echo differs; fi; else echo "identity=none"; fi',
+      'only="$3"; if command -v cygpath >/dev/null 2>&1; then only="$(cygpath -u "$3")"; fi',
+      'PATH="$only"',
+      'command -v shasum >/dev/null 2>&1 && echo "shasum still on PATH"',
+      'sha256_lines f.txt',
+      'printf x | sha256_lines',
+      'printf x | sha256_lines | cut -d" " -f1',
+    ].join("\n");
+    const run = spawnSync(bashPath(), ["-c", script, "fact-w5", join(root, SKILL, where), lab, bin], { encoding: "utf8" });
+    const digest = (text) => createHash("sha256").update(text).digest("hex");
+    const lines = run.stdout.split(/\r?\n/);
+    const want = [`${digest("kit\n")}  f.txt`, `${digest("x")}  -`, digest("x")];
+    if (run.status !== 0 || lines.includes("shasum still on PATH") || JSON.stringify(lines.slice(1, 4)) !== JSON.stringify(want))
+      fail(fact, where, `sha256_lines prints other lines (or none) on a machine without shasum: got ${JSON.stringify(lines.slice(1, 4))}, want ${JSON.stringify(want)} (exit ${run.status}) ${run.stderr.trim()}`);
+    if (lines[0] === "identity=differs") fail(fact, where, "sha256_lines does not print what `shasum -a 256` prints where shasum exists");
+    else if (lines[0] === "identity=none") console.log("note  FACT W5: the byte-equal-to-shasum leg is not checked here (no shasum on this machine's PATH)");
+    for (const file of [where, "kit/checks/repo-gates.sh"])
+      if (/\bshasum -a 256\b/.test(read(`${SKILL}/${file}`).replace(/^sha256_lines\(\) \{.*\}$/m, "").replace(/^#.*$/gm, "")))
+        fail(fact, file, "still runs shasum -a 256 directly, which a Git Bash without a login PATH does not have; use sha256_lines");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W6 -- the preflight's "git lists this worktree" reads Git Bash paths. git prints porcelain
+// paths as C:/… there, while the task path comes from `pwd -P` as /c/… or /tmp/…, so every real
+// Xezar worktree failed [isolation.worktree-listed]. Here `worktree_is_listed` runs with OSTYPE set
+// and `git` and `cygpath` as shell functions (a stand-in cygpath: /c/x -> C:/x, /tmp/x -> C:/Temp/x,
+// and /odd/… -> a blank line, which only an unconverted, empty task path could equal), on every OS.
+{
+  const fact = "FACT W6: the worktree check reads /c/… and C:/… as one path under Git Bash, and nothing more";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const porcelain = [
+    "worktree C:/Users/U/Proj", "HEAD 1111", "branch refs/heads/main", "",
+    "worktree C:/Users/U/Proj/.local/xezar/worktrees/abc", "HEAD 2222", "branch refs/heads/xez/abc", "",
+    "worktree C:/Temp/p", "HEAD 3333", "detached", "",
+    "worktree /odd/unconvertible", "HEAD 4444", "detached", "",
+  ].join("\n");
+  const script = String.raw`lib="$1"; shift
+conv() {
+  case "$1" in
+    /odd/*) printf '\n' ;;
+    /tmp/*) printf 'C:/Temp/%s\n' "$(printf '%s' "$1" | cut -c6-)" ;;
+    /?/*) printf '%s:/%s\n' "$(printf '%s' "$1" | cut -c2 | tr 'a-z' 'A-Z')" "$(printf '%s' "$1" | cut -c4-)" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+for os in msys linux-gnu; do
+  for mode in ok fail empty; do
+    for p in "$@"; do (
+      OSTYPE=$os
+      . "$lib" || exit 99
+      git() { printf '%s\n' "$PORCELAIN"; }
+      cygpath() {
+        if [ "$2" = -f ]; then while IFS= read -r l; do conv "$l"; done; return 0; fi
+        case "$mode" in fail) return 1 ;; empty) return 0 ;; esac
+        conv "$3"
+      }
+      if worktree_is_listed "$p" /main; then r=0; else r=1; fi
+      printf '%s %s %s=%s\n' "$os" "$mode" "$p" "$r"
+    ); done
+  done
+done`;
+  const W = "/c/users/u/proj/.local/xezar/worktrees/abc";
+  const paths = [W, "/tmp/p", "/c/users/u/other", `${W}/sub`, "C:/Temp/p"];
+  const env = { ...process.env, PORCELAIN: porcelain };
+  for (const key of Object.keys(env)) if (key.toUpperCase() === "MSYS2_ARG_CONV_EXCL") delete env[key];
+  const run = spawnSync(bashPath(), ["-c", script, "fact-w6", join(root, SKILL, where), ...paths], { encoding: "utf8", env });
+  const seen = new Map(run.stdout.split(/\r?\n/).filter(Boolean).map((line) => { const at = line.lastIndexOf("="); return [line.slice(0, at), line.slice(at + 1)]; }));
+  const got = (os, mode, p) => seen.get(`${os} ${mode} ${p}`);
+  if (run.status !== 0 || seen.size !== 30) fail(fact, where, `could not be sourced and run in bash (exit ${run.status}, ${seen.size} answers): ${run.stderr.trim()}`);
+  else {
+    if (got("msys", "ok", W) !== "0" || got("msys", "ok", "/tmp/p") !== "0")
+      fail(fact, where, "`worktree_is_listed` under Git Bash reads /c/… and C:/… (or /tmp/… and C:/Temp/…) as two paths, so every real Xezar worktree fails [isolation.worktree-listed]");
+    if (got("msys", "ok", "/c/users/u/other") !== "1") fail(fact, where, "`worktree_is_listed` under Git Bash lists a path git does not report");
+    if (got("msys", "ok", `${W}/sub`) !== "1") fail(fact, where, "`worktree_is_listed` under Git Bash lists a path below a listed worktree");
+    for (const mode of ["fail", "empty"])
+      for (const p of paths) if (got("msys", mode, p) !== "1")
+        fail(fact, where, `\`worktree_is_listed\` under Git Bash lists ${p} when cygpath failed or printed nothing for it (cygpath ${mode}), which matches a blank line`);
+    if (got("linux-gnu", "ok", W) !== "1" || got("linux-gnu", "ok", "/tmp/p") !== "1" || got("linux-gnu", "ok", "C:/Temp/p") !== "0" || got("linux-gnu", "ok", `${W}/sub`) !== "1")
+      fail(fact, where, "`worktree_is_listed` outside Git Bash is no longer the exact porcelain line it always was");
+  }
+  // A long list, under pipefail as the preflight runs it: the wanted tree comes first, then 1 MiB
+  // of others. A grep that stops at the first match leaves the writers before it to die of
+  // SIGPIPE, and the pipeline's status then reads a listed tree as unlisted.
+  const longLab = mkdtempSync(join(tempRoot(), "kit-worktree-long-"));
+  try {
+    const big = join(longLab, "porcelain.txt");
+    const others = [];
+    for (let i = 0, size = 0; size < 1 << 20; i += 1) {
+      const line = `worktree C:/Users/U/Other/${String(i).padStart(8, "0")}`;
+      others.push(line);
+      size += line.length + 1;
+    }
+    writeFileSync(big, `${others.join("\n")}\n`);
+    const longScript = String.raw`lib="$1"; big="$2"; want="$3"
+OSTYPE=msys
+. "$lib" || exit 99
+set -o pipefail
+git() { printf 'worktree %s\n' "$want"; cat "$big"; }
+cygpath() { if [ "$2" = -f ]; then cat; else printf '%s\n' "$3"; fi; }
+if worktree_is_listed "$want" /main; then echo listed; else echo "unlisted $?"; fi`;
+    const long = spawnSync(bashPath(), ["-c", longScript, "fact-w6-long", join(root, SKILL, where), big, "C:/Users/U/Proj/.local/xezar/worktrees/abc"], { encoding: "utf8", env });
+    if (long.status !== 0 || long.stdout.trim() !== "listed")
+      fail(fact, where, `\`worktree_is_listed\` under Git Bash and pipefail reads the first tree of a long worktree list as unlisted (${long.stdout.trim() || `exit ${long.status}`}): a grep that stops reading early fails the pipeline ${long.stderr.trim()}`);
+  } finally {
+    rmSync(longLab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W6, run: the real strict preflight, in a real project with a real linked worktree where
+// Xezar makes it. It passes, with no [isolation.worktree-listed]; once git no longer lists the tree
+// (its registration points elsewhere) it fails with exactly that tag. On Windows this is the Git
+// Bash path case itself: git lists C:/…, the preflight runs in /c/….
+{
+  const fact = "FACT W6: the strict preflight accepts a real Xezar worktree and refuses one git does not list";
+  const where = "kit/checks/worktree-preflight.sh";
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { cpSync, realpathSync } = await import("node:fs");
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-preflight-listed-")));
+  const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  try {
+    const proj = join(lab, "proj");
+    mkdirSync(join(proj, ".xezar/checks/lib"), { recursive: true });
+    git(proj, "init", "-q", "-b", "main");
+    for (const [k, v] of [["user.email", "t@example.com"], ["user.name", "t"], ["commit.gpgsign", "false"]]) git(proj, "config", k, v);
+    for (const f of ["worktree-preflight.sh", "repo-gates.sh", "lib/common.sh"]) cpSync(join(root, SKILL, "kit/checks", f), join(proj, ".xezar/checks", f));
+    writeFileSync(join(proj, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    writeFileSync(join(proj, ".gitignore"), ".local/\nnode_modules/\ndist/\ncoverage/\n");
+    writeFileSync(join(proj, "AGENTS.md"), "# Agents\n");
+    git(proj, "add", "-A");
+    git(proj, "commit", "-q", "-m", "base");
+    const run = "abcd1234-h54";
+    const wt = join(proj, ".local/xezar/worktrees", run);
+    git(proj, "worktree", "add", "-q", "-b", "xez/abcd1234", wt);
+    const preflight = () => {
+      const env = { ...process.env };
+      for (const key of Object.keys(env)) if (/^XEZ_/i.test(key)) delete env[key];
+      const r = spawnSync(bashPath(), [".xezar/checks/worktree-preflight.sh"], { cwd: wt, encoding: "utf8", env });
+      return { code: r.status, out: `${r.stdout}${r.stderr}` };
+    };
+    const strict = preflight();
+    if (strict.code !== 0 || strict.out.includes("isolation.worktree-listed"))
+      fail(fact, where, `refuses a real Xezar worktree git lists (exit ${strict.code}):\n    ${strict.out.trim().split("\n").filter((l) => /\[|PREFLIGHT/.test(l)).join("\n    ")}`);
+    writeFileSync(join(proj, ".git/worktrees", run, "gitdir"), `${join(lab, "elsewhere", ".git")}\n`);
+    const unlisted = preflight();
+    if (unlisted.code === 0 || !unlisted.out.includes("[isolation.worktree-listed]"))
+      fail(fact, where, `does not refuse a worktree git no longer lists with [isolation.worktree-listed] (exit ${unlisted.code}):\n    ${unlisted.out.trim().split("\n").slice(-12).join("\n    ")}`);
+    checked.push(fact);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// FACT W7 -- the jq CR helpers act under Git Bash or Cygwin only (QG-8 C1). jq there writes CRLF,
+// so `drop_jq_cr` strips CRs from a token and `jq_string_bytes` carries free text through @base64.
+// Off Windows both are today's reads: a CR a label or name really holds is kept, and refused later
+// as it always was. common.sh is sourced with OSTYPE msys and linux-gnu, on every OS (on Windows
+// with the harness's LF jq first on PATH).
+{
+  const fact = "FACT W7: the jq CR helpers strip CRs under Git Bash or Cygwin, and change nothing off Windows";
+  const where = "kit/checks/lib/common.sh";
+  const { spawnSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kit-jq-cr-"));
+  try {
+    const text = "a\nb\r\nc\n";
+    writeFileSync(join(lab, "t.json"), JSON.stringify({ t: text }));
+    const script = String.raw`lib="$1"; out="$2"
+for os in msys linux-gnu; do (
+  OSTYPE=$os
+  . "$lib" || exit 99
+  printf 'x\r\n' | drop_jq_cr >"$out/$os.drop" || exit 97
+  jq_string_bytes .t <"$out/t.json" >"$out/$os.bytes" || exit 96
+) || exit $?; done`;
+    const run = spawnSync(bashPath(), ["-c", script, "fact-w7", join(root, SKILL, where), lab], { encoding: "utf8" });
+    const bytes = (name) => (existsSync(join(lab, name)) ? readFileSync(join(lab, name), "latin1") : "<missing>");
+    if (run.status !== 0) fail(fact, where, `could not be sourced and run in bash (exit ${run.status}): ${run.stderr.trim()}`);
+    else {
+      if (bytes("msys.drop") !== "x\n") fail(fact, where, `drop_jq_cr under Git Bash keeps jq's CR: ${JSON.stringify(bytes("msys.drop"))}`);
+      if (bytes("linux-gnu.drop") !== "x\r\n")
+        fail(fact, where, `drop_jq_cr strips a CR off Windows (OSTYPE=linux-gnu), so a label or name that really holds one is accepted there instead of refused: ${JSON.stringify(bytes("linux-gnu.drop"))}`);
+      for (const os of ["msys", "linux-gnu"])
+        if (bytes(`${os}.bytes`) !== text) fail(fact, where, `jq_string_bytes under OSTYPE=${os} does not give the string byte for byte: ${JSON.stringify(bytes(`${os}.bytes`))}, want ${JSON.stringify(text)}`);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT W10 -- every kit file git records as executable is made executable in git by onboarding
+// (write.md §6) and by the 3.1.0 upgrade's entry 14. A copy on Windows, or into a repository with
+// core.filemode=false, is recorded as 100644, and a Linux or macOS clone then stops with
+// "Permission denied". The list is derived on every run from git's modes through the kit's own copy
+// map, so a script added later cannot be missed; each block also runs chmod, then git add, then
+// git update-index, in that order (chmod first, or a POSIX working file stays dirty).
+{
+  const fact = "FACT W10: onboarding and upgrade entry 14 make every executable kit file executable in git";
+  const { execFileSync } = await import("node:child_process");
+  const { indexFromTree } = await import("../upgrade/tools/lib/kit-index.mjs");
+  const prefix = `${SKILL}/kit/`;
+  const modes = execFileSync("git", ["ls-files", "-s", "-z", "--", prefix], { cwd: root, encoding: "utf8" });
+  const exe = new Set();
+  for (const line of modes.split("\0")) {
+    const m = /^100755 [0-9a-f]+ \d+\t(.+)$/.exec(line);
+    if (m) exe.add(m[1].slice(prefix.length));
+  }
+  const want = [...indexFromTree(join(root, SKILL), { version: "kit-facts" }).copyMap]
+    .filter(([, e]) => e.kitSource && exe.has(e.kitSource))
+    .map(([installed]) => installed);
+  if (!want.length) fail(fact, `${SKILL}/kit`, "git records no executable kit file at an installed path; re-aim this fact");
+  const writeMd = read(`${SKILL}/references/write.md`);
+  const notes = read("UPGRADE_NOTES.md");
+  const entry14 = /^### 14\. Native Windows[\s\S]*?(?=^#{2,3} )/m.exec(notes)?.[0] ?? "";
+  const places = [
+    [`${SKILL}/references/write.md §6`, writeMd.slice(writeMd.indexOf("\n## 6. "))],
+    ["UPGRADE_NOTES.md 3.1.0 entry 14", entry14],
+  ];
+  for (const [where, text] of places) {
+    const block = /^set -- \\\n((?: {2}\S+ \\\n)* {2}\S+)\n([\s\S]*?)^```$/m.exec(text);
+    if (!block) {
+      fail(fact, where, "has no `set -- \\` list of the kit's executable files, so a copy from Windows leaves every script not marked executable");
+      continue;
+    }
+    const list = block[1].split("\n").map((l) => l.trim().replace(/ \\$/, ""));
+    for (const p of want) if (!list.includes(p)) fail(fact, where, `${p} is executable in the kit but not marked executable here: a Linux or macOS clone stops with "Permission denied" on it`);
+    for (const p of list) if (!want.includes(p)) fail(fact, where, `marks ${p} executable, but no kit file git records as executable is installed there`);
+    const steps = ["chmod +x -- ", "git add -- ", "git update-index --chmod=+x -- "].map((s) => block[2].indexOf(s));
+    if (steps.some((at) => at < 0) || !(steps[0] < steps[1] && steps[1] < steps[2]))
+      fail(fact, where, "does not run chmod +x, then git add, then git update-index --chmod=+x on the list, in that order");
+  }
+  checked.push(fact);
+}
+
+// FACT W11 -- the Codex trust line on native Windows. A double-quoted TOML key reads `\u` and `\m`
+// in `c:\users\me\app` as escapes, so the key is a single-quoted literal string, in lower case as
+// Codex writes it itself (a mixed-case key is untested), and the Codex home there is
+// %USERPROFILE%\.codex. Stated where the owner is told to add it: onboarding, the upgrade prompt's
+// per-machine action, and the 3.0.2 browser entry.
+{
+  const fact = "FACT W11: the Codex trust line on Windows uses a literal-string key in %USERPROFILE%\\.codex";
+  for (const where of [`${SKILL}/references/write.md`, "upgrade/UPGRADE-PROMPT.md", "UPGRADE_NOTES.md"]) {
+    const text = read(where).replace(/\n\s*/g, " ");
+    if (!text.includes("[projects.'c:\\users\\me\\app']") || !/literal-string key/.test(text))
+      fail(fact, where, "does not give the Windows trust line as a literal-string key ([projects.'c:\\users\\me\\app']): in double quotes TOML reads \\u as an escape");
+    if (!text.includes(`cygpath -w "$PWD" | tr 'A-Z' 'a-z'`) || !/a mixed-case key is untested/i.test(text) || /\[projects\.'[A-Z]:\\/.test(text))
+      fail(fact, where, "does not give the key in lower case, the way Codex writes it (cygpath -w \"$PWD\" | tr 'A-Z' 'a-z'), or does not say a mixed-case key is untested");
+    if (!text.includes("%USERPROFILE%\\.codex"))
+      fail(fact, where, "does not name %USERPROFILE%\\.codex as the Codex home on native Windows");
+  }
+  checked.push(fact);
+}
+
+// FACT W12 -- the kit's Node floor is 22 (Node 20 left support in April 2026), in both checks that
+// refuse an older Node and in the doc that states the floor. A check left at 20 lets a task run on a
+// Node nothing supports, and a doc left at 20 tells the owner that is fine.
+{
+  const fact = "FACT W12: the kit requires Node 22 wherever it checks or states the floor";
+  const places = [
+    ["kit/checks/worktree-setup.sh", ["# The repo requires Node >= 22", "if (major < 22) {", "is below the required 22`"]],
+    ["kit/checks/lib/deps.mjs", ["nodeMajor() < 22) {", "is below the required 22`"]],
+    ["kit/docs/worktrees.md", ["Setup checks Node >=22/npm"]],
+  ];
+  for (const [where, needles] of places) {
+    const text = read(`${SKILL}/${where}`);
+    for (const n of needles) if (!text.includes(n)) fail(fact, where, `no longer requires Node 22 (\`${n}\` is missing)`);
+    if (/(?:<|>=?) ?20\b|required 20\b|Node 20\b/.test(text)) fail(fact, where, "still accepts Node 20; the kit requires Node 22");
+  }
   checked.push(fact);
 }
 

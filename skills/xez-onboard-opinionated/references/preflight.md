@@ -105,10 +105,12 @@ file:
   test cannot run until that pull request is merged. **Do not stop: skip to
   `references/verify.md`**, which finishes steps 7 to 10. This is also what `--verify` does.
 - **The run finished** — no pending file. **Stop** and name the migration path. Re-onboarding on
-  top of it would overwrite files the owner has since edited. Migration is future work. Say that
-  plainly — "this project was onboarded with version X; there is no upgrade path yet" — rather
-  than implying a skill that does not exist. `UPGRADE_NOTES.md` in the collection carries the
-  corrections that do exist, keyed by symptom.
+  top of it would overwrite files the owner has since edited. Say "this project was onboarded
+  with version X; upgrade it with the upgrade prompt" and point at `upgrade/UPGRADE-PROMPT.md` in
+  `qodeca/xezar-skills`, run from a verified clone at the release tag as that repository's
+  `upgrade/README.md` describes – never pasted from a web page. It is a prompt the owner runs by
+  hand, not a skill. `UPGRADE_NOTES.md` in the collection carries the same changes for a hand
+  upgrade, keyed by symptom.
 
 The pending file lives under `.local/` and nowhere else. `.xezar/onboarding.json` is read by the
 owner's control skills, so "is the smoke test done" never becomes a key in it.
@@ -207,7 +209,9 @@ preflight report, where the owner can still walk away:
   request cannot merge without a second person or an administrator's merge. Name that now.
 - **One agent account, or none.** The rule "the leader's login never runs tasks" cannot hold
   with a single login. Carry on, and record the warning in the report.
-- **Windows.** The launcher is a shell script and the engine's socket is a Unix socket: WSL only.
+- **Native Windows (Git Bash).** Supported once the engine ships native Windows (qodeca/xezar#963
+  phases 2b and 3; not released yet): until then the leader cannot attach and check steps start
+  WSL's bash. Carry on; say so in the report. WSL stays the fallback.
 - **A monorepo.** Supported via units: with no root manifest, each folder's install is listed in
   `dependencies.units` (analysis §2). A monorepo with a root manifest installs at the root, as
   before.

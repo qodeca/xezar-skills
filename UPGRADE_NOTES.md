@@ -15,7 +15,676 @@ execute against them – not against the copies shipped in this repo:
 | `.xezar/pipeline/overrides/<name>.md` repo-local overrides | you | Never touched by upgrades; review them against new skill behavior |
 
 `/xez-apply-upgrade-notes` walks the entries below, newest first, and applies the ones whose
-symptom matches your repository.
+symptom matches your repository – except in a project onboarded by `xez-onboard-opinionated`
+(it has `.xezar/onboarding.json`). There it handles only the `.xezar/pipeline/` descriptors and
+config keys, and lists every kit entry as not applied. A kit entry is one that says it applies to
+a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block lists a path outside
+`.xezar/pipeline/` – whatever its heading says. Kit entries go through the upgrade prompt
+(`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
+with the verifier that writes the new manifest.
+
+## 2026-10-01 – QA evidence uploads use a fixed `/tmp` file
+
+Applies to any repository with this collection's GitHub tracker descriptor,
+`.xezar/pipeline/trackers/github.md`, whichever setup skill installed it.
+
+**Symptom.** Your descriptor's **attach-image-evidence** writes each image to
+`/tmp/ev-content.b64`. Two uploads running at once on one machine write the same file, so one run
+can post the other's image, and on a shared machine another user can own that file first.
+
+**What to do.** Re-sync the descriptor as "Re-syncing the tracker descriptor" below says, moving
+its recorded digest in an onboarded project. The new **attach-image-evidence** writes to a fresh
+`mktemp` file and removes it after the upload loop; nothing else in the descriptor changed.
+
+**What you lose by skipping it.** Evidence uploads that run at the same time can mix up their
+images.
+
+## 2026-09-27 – upgrading an onboarded project to 3.1.0
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. The easy path is
+the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
+`upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
+block file by file, keeps your local changes, and writes a report. The entries under this heading
+are the same changes for a hand upgrade, which ends – after the last entry, 15 – with the verifier
+writing the new manifest (described in entry 10): **one ordered block – apply them top to bottom, in the
+order below**. Skip an entry only when your repository does not have its symptom **and** no entry
+you apply needs it (**Needs**, below): several entries copy a file that calls a file another entry
+brings. Each entry ends with an `upgrade` block (`upgrade/CONTRACT.md` §5) that lists its files and
+actions for the tool. A project below 3.0.2 (its `.xezar/routing.json` has `defaults.version`
+under 3) first applies the 3.0.2 block and the 3.0.1-era entries, oldest first, or uses the
+upgrade prompt.
+
+**Before.** Stop L3 dispatch (the pacing loop) and let running tasks finish. A task that starts
+mid-upgrade snapshots a mix of old and new kit files. A repair that already wrote `DELIVERED` is
+refused after entry 9; re-dispatch it. Check that every machine that runs tasks has Node 22 or
+later: the 3.1.0 `deps.mjs` (entries 5, 6, 12, 14 and 15) and `worktree-setup.sh` (entry 15) stop
+a task on an older Node at setup.
+
+**Order.** Design-system modules → toolchain-neutral skills → routing author chain and leader
+guide → leader context and settings → workflow timeouts and review runs → install freshness →
+changelog formats → trust boundaries → repair pushes → drift check → DeepSeek routing →
+single-root freshness → leader launcher → native Windows → Node 22. Entries 3 and 11 change the
+same routing files: copy `.xezar/checks/route.mjs` first, once, and merge `.xezar/routing.json`
+once against the defaults version 4, which carries both changes. Several entries copy the same
+3.1.0 file – `route.mjs` (3, 11, 14), `deps.mjs` (5, 6, 12, 14, 15), `lib/common.sh` (5, 12, 14),
+`worktrees.md` (6, 12, 15), `documented-output.mjs` (4, 14), `gh-write.sh` and
+`verdict-write.sh` (5, 14), `worktree-preflight.sh` (9, 14), `scripts/xezar-leader.sh`
+(13, 14), `catalog-check.mjs` (4, 5), `repository-checks.sh` (7, 10), `docs/phase-record.md`
+(8, 9) and `repo-gates.sh` (12, 14 – each time as entry 12 says), and the role skills and
+workflows that entries 1, 2, 5, 7 and 9 share: copy each once.
+
+**Needs.** Applying an entry means applying what it needs too, or the gate breaks on a missing or
+older file:
+
+- Entries 1, 5, 7 and 9 need entry 2: the role skills they copy carry the 3.1.0
+  `## Shared contract` tail, and `catalog-check.mjs` (old and new) refuses a mix of old and new
+  tails across the role skills.
+- Entry 1 needs entry 5: `design-review.yaml` runs the new `review-run.sh`, which only entry 5
+  brings, and an older `catalog-check.mjs` refuses that allowlist entry.
+- Entry 2 needs entries 5 and 9: six of its role skills run `review-run.sh` (entry 5), and
+  `xezar-handoff-draft-pr.md` and `xezar-review-response.md` push through `push-check.sh` (entry 9).
+- Entries 3 and 11 need each other: routing defaults version 4 carries both, and neither can be
+  merged without the other's part of it.
+- Entry 4 needs entry 5: its `catalog-check.mjs` refuses a workflow agent step with no `timeout`
+  and a review step without `review-run.sh`, and only entry 5's workflows carry both.
+- Entry 5 needs entry 9: its `address-review-findings.yaml` pushes through `push-check.sh`. It also
+  needs `.xezar/checks/deps-restore.sh`, which `review-run.sh install` runs: a project onboarded
+  before 3.0.2 that skipped 3.0.2's monorepo entry lacks it, so copy it from the kit. It is not in
+  entry 5's block: it has not changed since 3.0.2. Entry 5 itself brings the new `lib/common.sh`
+  and the 3.1.0 `lib/deps.mjs` it calls (`deps.mjs single-contents`), so it stands alone there.
+- Entry 7 needs entry 10: its `repository-checks.sh` runs `manifest-drift.mjs` on every gate, and
+  only entry 10 installs that file.
+- Entry 9 needs entry 14 on every OS: its `worktree-preflight.sh` calls `worktree_is_listed`,
+  which only the 3.1.0 `lib/common.sh` has (entries 5 and 12 copy the same file).
+- Entry 14 needs entries 3, 4, 5, 9, 11 and 12: it copies the 3.1.0 `route.mjs`,
+  `documented-output.mjs`, `gh-write.sh`, `verdict-write.sh`, `worktree-preflight.sh` and
+  `deps.mjs` they bring, and its `common.sh` carries entry 12's re-stamp.
+- On native Windows, entries 3, 4, 5, 6, 11, 12 and 15 need entry 14 as well: their `route.mjs`,
+  `documented-output.mjs` and `deps.mjs` load `lib/windows-programs.mjs` there, and Node stops
+  on the missing file, naming it.
+
+**After.** Merge, fast-forward the primary checkout (`git pull --ff-only`), restart the engine,
+and restart the leader with `./scripts/xezar-leader.sh`. Then check that the leader lists its
+loops and that `node .xezar/checks/route.mjs --check` passes.
+
+Every `cp` below starts from `K=.claude/skills/xez-onboard-opinionated/kit`.
+
+**Never copy over a local change.** A 3.0.x project has no drift check, and the verifier at the
+end cannot see an edit a copy overwrote: the file then equals the 3.1.0 copy, and the new manifest
+records it as clean. So before each copy (or "copy … from the kit" step), compare the project's
+file with the kit's copy at your installed version, from the verified clone:
+
+```bash
+git -C <verified clone> show v<old>:skills/xez-onboard-opinionated/kit/<kit path> | diff - <project path>
+```
+
+`v<old>` is the version in `.xezar/onboarding.json` (for `<tag>+<commit>`, use the commit);
+`<kit path>` is the path the entry's `cp` reads under `$K` (`.xezar/checks/x.sh` comes from
+`checks/x.sh`, `.xezar/skills/y.md` from `skills/y.md`). An
+adapted file (`.github/` templates, `repo-gates.sh`, a file with a rewritten absolute path) also
+differs by its filled-in values; those are not a local change. In `repo-gates.sh` the filled-in
+values are exactly its three gate assignments – `GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and
+`GATE_APPLICATION_LANES=` – which the verifier and the drift check read as the project's gate
+list, not as a local change. If the file differs otherwise,
+merge by hand instead of copying: take the kit's change, keep yours, and add a
+`.xezar/LOCAL-PATCHES.md` entry for the file (format: `.xezar/docs/local-patches.md`) before you
+run the verifier. If you are not sure – or the manifest names no version – use the upgrade
+prompt, which does this for every file.
+
+### 1. Design-system modules – design roles mix a brand book and an app's design system
+
+**Symptom.** A project with more than one product surface (for example a brand book and an admin
+portal) has one flat design system, so design roles mix the surfaces, or the project carries these
+kit files as a local patch.
+
+**What to do.** Copy the six role skills and five workflows below from the kit. A project that
+wants modules adds `designSystem.modules` to `.xezar/pipeline/config.json` in the same upgrade
+pull request, before it merges: the design roles read the key only from the base branch, so it
+works from that merge on. The upgrade prompt never fills it in – it lists the key on the owner
+checklist, which you answer on the upgrade branch before you push it. A project without the key
+keeps one flat system and needs nothing else.
+
+**What you lose by skipping it.** Design roles cannot tell modules apart; a project that patched
+these files keeps a local patch it must carry by hand.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-design-system.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ui-tests.md; .xezar/skills/xezar-ux-design.md; .xezar/skills/xezar-visual-asset.md; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/visual-asset.yaml
+Actions: config-key=designSystem.modules
+```
+
+### 2. Toolchain-neutral skills – the dependency and testing agents are told to use npm on a Yarn, .NET or multi-root project
+
+**Symptom.** In a project on Yarn, .NET or several install roots, the dependency agent is told to
+use npm, a root `package-lock.json` and four workspaces that do not exist, the testing agent runs
+`npm test`, and every author is told to run `npm run typecheck` – so they run the wrong commands
+or none, or the project rewrote these skills by hand.
+
+**What to do.** Copy the 37 role skills below from the kit. A project that rewrote
+`xezar-testing.md` or `xezar-dependency-maintenance.md` for its toolchain can drop that local
+patch once it has checked that `toolchain.providers`, `dependencies.units` (if it has several
+install roots) and `validation.commands` in `.xezar/pipeline/config.json` name its real
+toolchain and commands. Nothing else changes; no config key is added.
+
+Every copied role skill ends in the 3.1.0 `## Shared contract` tail, and `catalog-check.mjs`
+requires the same tail in every `xezar-*` role skill that has one. A role skill of your own in
+`.xezar/skills/` with a `## Shared contract` section takes the new tail too: replace everything
+from its `## Shared contract` heading to the end with the same part of the kit's
+`skills/xezar-docs-maintenance.md`, keeping your text above the heading. The upgrade prompt lists
+each such file for you (`own-file-kit-contract`).
+
+**What you lose by skipping it.** Installed role skills do not update themselves: the dependency
+and testing agents keep giving npm instructions on a non-npm project, and every author keeps being
+told to run a typecheck command the project may not have. You can skip it only when you apply
+none of entries 1, 5, 7 and 9: each copies role skills with the new tail, and a mix of old and new
+tails fails `catalog-check.mjs`, so the last gate goes red on every task.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-bug-investigation.md; .xezar/skills/xezar-business-analysis.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-dependency-maintenance.md; .xezar/skills/xezar-deploy.md; .xezar/skills/xezar-deprecation-plan.md; .xezar/skills/xezar-design-system.md; .xezar/skills/xezar-docs-maintenance.md; .xezar/skills/xezar-handoff-draft-pr.md; .xezar/skills/xezar-implementation.md; .xezar/skills/xezar-integration-tests.md; .xezar/skills/xezar-integration.md; .xezar/skills/xezar-issue-create.md; .xezar/skills/xezar-issue-triage.md; .xezar/skills/xezar-localisation.md; .xezar/skills/xezar-migration.md; .xezar/skills/xezar-observability.md; .xezar/skills/xezar-performance.md; .xezar/skills/xezar-planning-spec.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-quality-gates.md; .xezar/skills/xezar-refactor.md; .xezar/skills/xezar-regression-suite.md; .xezar/skills/xezar-release-changelog.md; .xezar/skills/xezar-release-prep.md; .xezar/skills/xezar-release-publish.md; .xezar/skills/xezar-research.md; .xezar/skills/xezar-review-response.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-spike.md; .xezar/skills/xezar-testing.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ui-tests.md; .xezar/skills/xezar-ux-design.md; .xezar/skills/xezar-visual-asset.md
+```
+
+### 3. Routing and leader guide – the leader parks lane switches as owner decisions, or loops on update-branch under a merge queue
+
+**Symptom.** The leader parks lane switches as owner decisions because every lane it may use for
+a Claude-written PR is a Claude lane that declines the work; or headroom sits idle until the next
+L3 tick after a verdict; or a task starts on a login that ran out since L2's hourly read; or open
+PRs cycle through update-branch and a full CI run again and again while a merge queue is on.
+
+**What to do.** Copy `.xezar/checks/route.mjs` **first**, before the docs, loops and leader guide:
+an older `route.mjs` reads `--author` as a row id and refuses the call. Then merge
+`.xezar/routing.json` from your file's `defaults.version` to 4, keeping your own edits: compare
+three ways – your file, the stored copy of its version (`references/routing-defaults/<n>.json` in
+`xez-onboard-opinionated`) and `routing-defaults/4.json` – or run
+`/xez-onboard-opinionated --section routing`, which does that comparison. Version 4 carries this
+entry's `vendorExclusions` key **and** entry 11's changes (the `pi/deepseek-api/deepseek-v4-pro`
+lane, its places in the rows, and the three relaxed ban texts), so merge the whole of
+`routing-defaults/4.json` in one go, with entry 11. Never set `defaults.version` to 4 on a file
+that took only part of it: the version then claims changes the file does not have, and a later
+merge starts from the wrong base. Copy the schema, the three docs and `loops.json`,
+and merge the fixed part of the leader guide – the checklist line about the lane, the dispatch
+and quota line under "Standing loops", the merge-queue sentence under "Review discipline", and
+the quota item in the checklist – keeping your "Owner's rules" section as it is. Restart the
+leader so it re-creates the L1 and L3 loops from the new `loops.json`.
+
+**What you lose by skipping it.** The leader keeps working out independence by hand and parks
+lane switches the owner never needed to see; idle headroom after each verdict; dispatches on
+logins read from an old table; and repeated update-branch cycles that cost CI time.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/route.mjs; .xezar/routing.json =merge; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/docs/leader-guide-detail.md; .xezar/docs/close-out.md; .xezar/loops.json; .xezar/docs/leader-guide.md =merge
+Actions: restart-leader
+```
+
+### 4. Leader context and settings – a project hook or a local permission keeps a kit check red
+
+**Symptom.** A project that added its own hook to `.claude/settings.json` fails `fenced-quotes.mjs`
+on `.xezar/docs/leader-context-loading.md`. A Bash rule the owner put in
+`.claude/settings.local.json` keeps `catalog-check.mjs` red on that machine. A busy campaign day
+fills the leader's context with old timeline detail. A leader whose campaign has no readable
+`decisions.md` gets no sign of it.
+
+**What to do.** Copy the files below from the kit. Copy `.xezar/checks/fenced-quotes.mjs` **before
+or with** `.xezar/docs/leader-context-loading.md`: an older `fenced-quotes.mjs` reads the new
+`#entry:` marker as part of a file name and fails. If your `.claude/settings.json` or
+`.claude/settings.local.json` grants a chrome-devtools tool outside the kit's list, or
+`mcp__chrome-devtools` / `mcp__chrome-devtools__*`, replace it with exact allowed tool names (the
+kit's `.claude/settings.local.json` lists them); `emulate`, `evaluate_script` and the other
+review-only tools come from the review and QA workflows' own tool lists only (D13, #82), never a
+settings file. Timelines should keep one `- ` line per event at column 0, with continuation lines
+indented. The leader picks up the new loader at its next session start. Three docs pages in the
+list – `documented-output.md`, `parallel-tasks.md` and `ui-operations.md` – only correct their
+wording (the excluded `.local/` folder, the gate lanes, a dead link, a path only the engine's repository has); copy them with the rest.
+
+**What you lose by skipping it.** A project hook of your own keeps the base branch red; a local
+permission keeps the repository check red on that machine; the leader's context keeps growing with
+the day's timeline; and a missing `decisions.md` still goes unannounced.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/fenced-quotes.mjs; .xezar/checks/leader-context.sh; .xezar/checks/documented-output.mjs; .xezar/checks/catalog-check.mjs; .xezar/docs/fenced-quotes.md; .xezar/docs/leader-context-loading.md; .xezar/docs/campaign-notes.md; .xezar/docs/documented-output.md; .xezar/docs/parallel-tasks.md; .xezar/docs/ui-operations.md; .claude/settings.json =merge
+Actions: per-machine=remove-mcp-permission:mcp__chrome-devtools__*; per-machine=remove-mcp-permission:mcp__chrome-devtools
+```
+
+### 5. Workflow timeouts and review runs – a handoff hangs, or a review stops on a browser-tool denial
+
+**Symptom.** A `handoff` step (or a review step) runs with no time limit and can hang the run
+after its work is sealed; or a review or QA run stops on "Permission to use
+mcp__chrome-devtools__emulate has been denied" (or `evaluate_script`, `lighthouse_audit`), or
+cannot start the app it should test.
+
+**What to do.** Copy the kit's workflows, `catalog-check.mjs`, `gh-write.sh`, `verdict-write.sh`,
+`lib/gate-record.sh`, `lib/common.sh`, `lib/deps.mjs`, the new `review-run.sh`, the seven role skills and the chrome-devtools
+descriptor listed below. `review-run.sh install` runs `.xezar/checks/deps-restore.sh`: a project
+without it (a single-root project onboarded before 3.0.2 that skipped 3.0.2's monorepo entry)
+copies it from the kit too – `cp $K/checks/deps-restore.sh .xezar/checks/`. Every project copies
+the new `lib/common.sh` and `lib/deps.mjs` here, units or not. The review runs `review-run.sh
+install` from the cache below, and an older `common.sh` there cannot find the project root, so the
+review installs and runs the change with whatever node is on `PATH` instead of the pinned one,
+without a word. The new `common.sh` calls `deps.mjs single-contents`, which only the 3.1.0
+`deps.mjs` has: without it, every single-root freshness check fails and every gate reinstalls. The new `lib/bootstrap.mjs` copies the
+kit's scripts to `.local/xezar/cache/kit/checks/` on every kit step, and the review workflows run
+them only from there: checking a pull request out replaces `.xezar/checks/` with that pull
+request's own copies, which on a pull request branched before this upgrade are the old ones. A
+project with **its own** workflows gives each agent step a `timeout` (`15m` for a handoff, `2h`
+for a main step) – the new check refuses one without. A project that kept its own review
+workflows adds `"bash .local/xezar/cache/kit/checks/review-run.sh"` to each review step's
+`bashAllowlist` and changes every other `bash .xezar/checks/` entry there to
+`bash .local/xezar/cache/kit/checks/` (the new check refuses the old form in a review step, in
+its allowlist and in its prompt text alike), grants
+it every `mcp__chrome-devtools__*` tool the kit's `code-review.yaml` lists, and drops
+`--allow-root` from its preflight. The upgrade prompt lists each workflow of your own for you
+(`own-file-kit-contract`) and asks before it adds a grant.
+
+**What you lose by skipping it.** Handoff and review steps keep no time limit on runners that
+apply none; review and QA steps keep stopping on browser-tool denials, cannot start the app they
+test, and QA and design review cannot move their own labels. A copy of `gh-write.sh` or
+`review-run.sh` taken from an earlier 3.1.0 build still lets any review step claim a QA or
+design-review verdict, and still hands the operator's git and gh credentials to what a review runs,
+and its `gh-write.sh` refuses a QA or design-review label given on a Continue (`continue-N`), so
+the PR stays behind the QA gate although the engine accepted the verdict.
+An older `lib/gate-record.sh` looks for the engine's runs index at `.local/xezar/runtime/runs.json`,
+where engine 0.19.0 never writes it, so it records every check-step attempt with no producer as
+the author's, even in a run whose gates step was frozen before the producer flag existed.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/catalog-check.mjs; .xezar/checks/gh-write.sh; .xezar/checks/lib/bootstrap.mjs; .xezar/checks/lib/common.sh; .xezar/checks/lib/deps.mjs; .xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new; .xezar/checks/verdict-write.sh; .xezar/pipeline/browsers/chrome-devtools.md; .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md; .xezar/workflows/acceptance-verification.yaml; .xezar/workflows/address-review-findings.yaml; .xezar/workflows/architecture-review.yaml; .xezar/workflows/architecture.yaml; .xezar/workflows/bug-fix.yaml; .xezar/workflows/business-analysis.yaml; .xezar/workflows/code-review.yaml; .xezar/workflows/dependency-maintenance.yaml; .xezar/workflows/deploy.yaml; .xezar/workflows/deprecation-plan.yaml; .xezar/workflows/design-review.yaml; .xezar/workflows/design-system.yaml; .xezar/workflows/design.yaml; .xezar/workflows/docs-maintenance.yaml; .xezar/workflows/feature-implementation.yaml; .xezar/workflows/hotfix.yaml; .xezar/workflows/integration-tests.yaml; .xezar/workflows/integration.yaml; .xezar/workflows/issue-filing.yaml; .xezar/workflows/issue-triage.yaml; .xezar/workflows/localisation.yaml; .xezar/workflows/migration.yaml; .xezar/workflows/observability.yaml; .xezar/workflows/performance.yaml; .xezar/workflows/plan-and-spec.yaml; .xezar/workflows/qa.yaml; .xezar/workflows/refactor.yaml; .xezar/workflows/regression-suite.yaml; .xezar/workflows/release-prep.yaml; .xezar/workflows/release.yaml; .xezar/workflows/research.yaml; .xezar/workflows/root-sync.yaml; .xezar/workflows/security-review.yaml; .xezar/workflows/spike.yaml; .xezar/workflows/testing-and-verification.yaml; .xezar/workflows/ui-design.yaml; .xezar/workflows/ui-tests.yaml; .xezar/workflows/visual-asset.yaml
+```
+
+### 6. Install freshness – a `node_modules` edited in place still counts as current
+
+Applies to a repository onboarded by `xez-onboard-opinionated` that sets `dependencies.units`
+(3.0.2 or later). The `resume-complete.sh` part applies to every onboarded project.
+
+**Symptom.** The fast gate records `deps-verified-current` although a package inside a unit's
+`node_modules` was replaced or edited after the install; and `resume-complete.sh` reports the
+dependencies as stale yet reuses the sealed evidence without re-running the gates.
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/deps.mjs .xezar/checks/lib/
+cp $K/checks/resume-complete.sh .xezar/checks/
+cp $K/docs/worktrees.md $K/docs/recovery.md .xezar/docs/
+```
+
+Every task's first run after the merge installs once: stamps written before this change carry no
+tree digest, so they no longer count as fresh. On a very large install, check that one
+`deps.mjs fresh --root <task>` finishes well inside 60 s; if not, set
+`XEZ_DEPS_DIGEST_TIMEOUT_MS` on that machine (a slower digest counts as not fresh, so the gates
+install every time, which is safe but slow).
+
+**What you lose by skipping it.** A `node_modules` changed in place after the install is still
+certified by the fast gate, and a resumed run can finish on evidence judged against dependencies
+that are no longer on disk.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/deps.mjs; .xezar/checks/resume-complete.sh; .xezar/docs/worktrees.md; .xezar/docs/recovery.md
+```
+
+### 7. Changelog formats – Keep a Changelog pull requests keep conflicting on `CHANGELOG.md`
+
+**Symptom.** A project that uses Keep a Changelog has pull requests that keep conflicting on
+`CHANGELOG.md`, because the check never saw its `## [Unreleased]` section. Or a project whose base
+branch is not `main` gets a changelog refusal for commits that are already on its base.
+
+**What to do.** Copy the three check files and the release role skill below from the kit. A Keep a
+Changelog project needs nothing else: the format is detected. To pin it, add
+`"changelog": { "format": "keep-a-changelog" }` to `.xezar/pipeline/config.json` in the upgrade
+pull request; the older check never reads the key, and until you add it `auto` applies. The protection
+still needs a `changelog.d/` folder, as before.
+
+**What you lose by skipping it.** A Keep a Changelog project keeps the conflicts and has no fold
+for its fragments; a project whose base is not `main` keeps measuring direct edits from the wrong
+branch; and no release gets the verify step that catches a lost entry.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/changelog-check.sh; .xezar/checks/changelog-fragments.mjs; .xezar/checks/repository-checks.sh; .xezar/skills/xezar-release-changelog.md
+Actions: config-key=changelog.format
+```
+
+`changelog.format` has a documented default (`auto`, detect from the file), so the upgrade may leave
+it unset.
+
+### 8. Trust boundaries – a project's own sensitive paths are routed by memory, not by the scan
+
+**Symptom.** A project's `CODE_REVIEW.md` lists its own sensitive paths (deploy folders, build
+tooling CI trusts, generated files) as "not yet in the scanner's machine-routed list", or the
+project carries a local patch to `.xezar/checks/lib/security-scan.mjs` that adds them.
+
+**What to do.** Copy the files below from the kit. To route paths of your own, add
+`security.trustBoundaries` to `.xezar/pipeline/config.json` – each entry a `pattern` and a
+one-line `why` – **in the same pull request as the new scan, or in a config-only pull request
+merged before it**, never in a follow-up after it. The scan reads the list only from the base
+branch, so the paths are routed from the moment the key is there; a follow-up leaves them
+unrouted between the two merges. The older scan ignores the key, so merging it first is safe. The
+upgrade prompt never fills the key in: it lists it on the owner checklist, which you answer on the
+upgrade branch before you push it. Drop any local patch that added paths to `TRUST_BOUNDARIES`,
+and move those paths into the key in that same pull request. Nothing
+is needed when the project adds no paths: an absent key means no project entries. The security
+stage now reads the pipeline config from `refs/remotes/origin/<baseBranch>`; a checkout where that
+ref does not resolve records `unknown` and requires a reviewer on every non-empty change, so keep
+the base branch fetched. A project that relied on the removed `packages/xezar/src/...` entries adds
+them to the key.
+
+**What you lose by skipping it.** Project paths stay routed by memory, or by a local patch to a
+copied kit file that every later upgrade has to carry by hand.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/security-scan.mjs; .xezar/checks/lib/config-grammar.mjs; .xezar/docs/phase-record.md
+Actions: config-key=security.trustBoundaries
+```
+
+### 9. Repair pushes – a repair pushes its fix to the pull request before any gate runs
+
+**Symptom.** A review or conflict repair pushes its fix to the pull request before any gate runs,
+then its `gates` step passes on an unchanged branch, so the PR carries code nobody checked; or a
+repair run is refused with `branch.has-own-commits` unless it writes a `DELIVERED` record; or the
+project added a local patch to get repairs past readiness.
+
+**What to do.** Copy the files below from the kit (`push-check.sh` is new). Drop any local patch
+that let a repair push before the gates or skip readiness. Nothing to configure: the script reads
+the base branch from `.xezar/config.json` and the PR live through `gh`, which the handoff already
+uses. A repair already in flight that wrote `DELIVERED` is refused at readiness after the upgrade;
+re-dispatch it. A repair of a pull request branched before the base changed `.xezar/checks/` merges
+the base into it first, so its gates and its push run the current kit.
+
+**What you lose by skipping it.** Repairs keep pushing ungated code to pull requests, and nothing
+stops a repair pushing to the wrong PR's branch, a protected branch, or with a bare force.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/push-check.sh =new; .xezar/checks/worktree-preflight.sh; .xezar/workflows/address-review-findings.yaml; .xezar/skills/xezar-review-response.md; .xezar/skills/xezar-handoff-draft-pr.md; .xezar/docs/phase-record.md
+```
+
+### 10. Drift check – a locally edited kit file looks untouched to an upgrade
+
+**Symptom.** A kit file in your project was edited in place, and `.xezar/onboarding.json` still
+records its original digest and origin. Nothing tells an upgrade that the file carries a local
+change, so replacing it as "copied" loses the change.
+
+**What to do.** Copy the check, its format document, the docs index that lists it and the gate
+script, then handle each drifted file instead of refreshing its digest:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/manifest-drift.mjs .xezar/checks/
+cp $K/docs/local-patches.md .xezar/docs/
+cp $K/docs/README.md .xezar/docs/
+cp $K/checks/repository-checks.sh .xezar/checks/
+cp $K/checks/local-tree.sh .xezar/checks/
+```
+
+Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
+prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (15), with the verifier from a
+verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
+manifest version 2 and sets `version` once every kept local change has a register entry. A kit
+file you deleted is a kept local change too: the verifier reports one with no register entry
+(`unregistered-local-change`, `removed with no register entry`) and writes no manifest until you
+add the entry or restore the kit's file. Skip the verifier
+and the drift check stays off (`not-applicable`) and a later upgrade still reads the project as
+its old version. From then on, for every `drift=` line:
+
+- the change is deliberate → add an entry to `.xezar/LOCAL-PATCHES.md` and `"patch": "LP-<n>"` to
+  the file's manifest entry, keeping its `sha256` and `origin` (they are the upgrade's base);
+- the change is not wanted → restore the kit's file;
+- a kit file you deleted on purpose (`reason=missing`) → the same register entry and `patch` key;
+  the file's manifest entry stays, and the check then accepts the absence.
+
+Your own configuration – `.xezar/config.json`, `.xezar/pipeline/config.json`,
+`.xezar/pipeline/labels.json` and `.xezar/routing.json` – is not tracked: edit it as before,
+including the config keys the upgrade's owner checklist asks you to add on the upgrade branch.
+
+Never "refresh the digest" of a drifted file: that erases the only sign that the file differs from
+the kit. The only digest refreshed in place is the leader guide's, by `xez-add-rule`.
+
+The new `local-tree.sh` also accepts the engine's run state (`runs.json`, `runs/`, `tmp/` and the
+rest) at the top of `.local/xezar/` in a project without `.xezar/workspace.json`: engine 0.19.0
+writes it there in every layout, and the older copy calls it loose and fails the gate.
+
+**What you lose by skipping it.** Nothing checks the manifest against the tree, so an upgrade
+cannot tell a patched file from an untouched one and may overwrite a local patch without a word.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/manifest-drift.mjs =new; .xezar/docs/local-patches.md =new; .xezar/docs/README.md; .xezar/checks/repository-checks.sh; .xezar/checks/local-tree.sh
+```
+
+### 11. DeepSeek routing – Claude runs out of budget while DeepSeek sits idle
+
+**Symptom.** Claude runs out of budget within the week while DeepSeek sits idle; reviews, re-checks
+and QA wait for a Claude login to come back; `route.mjs` never offers
+`pi/deepseek-api/deepseek-v4-pro`.
+
+**What to do.** Copy `.xezar/checks/route.mjs` **first**: an older `route.mjs` does not know
+`fullShellReviews`, keeps V4 Pro out of the review rows by the old tool-limits ban, and so refuses
+the whole new routing file. Then copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`,
+and merge `.xezar/routing.json` with the defaults version 4: the new lane, the new row orders and
+never entries, the three ban texts and the notes, keeping your own edits. On a routing clash – a
+row you reordered by hand that the new defaults also reorder – stop and ask the owner. On each
+machine that should use V4 Pro, add `deepseek-api/deepseek-v4-pro` to pi's model config; a machine
+without it simply gets no V4 Pro lane.
+
+**What you lose by skipping it.** Every review still waits for a Claude or Astra login, simple and
+mid-size work keeps spending Claude and Codex budget, and the lane the owner added to pi gets no
+work.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge
+Actions: per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro
+```
+
+### 12. Single-root freshness – a root `node_modules` edited in place still counts as current
+
+Applies to every project onboarded by `xez-onboard-opinionated` that has a single npm root (no
+`dependencies.units`). The `repo-gates.sh` part applies to every onboarded project.
+
+**Symptom.** The fast gate records `deps-verified-current` although a package inside the root
+`node_modules` was replaced or edited after the install. Or, once 3.1.0's digest is in: every
+`--fast` gate run and every resume reinstalls, without saying why, in a project whose gates write
+into `node_modules` (`prisma generate`, Vite's dependency optimizer).
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/deps.mjs $K/checks/lib/common.sh .xezar/checks/lib/
+cp $K/docs/worktrees.md .xezar/docs/
+```
+
+`.xezar/checks/repo-gates.sh` holds your gate list: save it, copy the kit's, put your
+`GATE_NAMES=(…)`, `GATE_COMMANDS=(…)` and `GATE_APPLICATION_LANES=` lines back, and check that
+`git diff` shows only the kit's re-stamp after a passed run. Those three assignments are your
+filled-in values, not a local change: no `.xezar/LOCAL-PATCHES.md` entry, and the verifier
+records them in the file's `renderInputs`, so neither it nor the drift check reports them. Any
+other line of yours in the file is a local change and needs one. The upgrade prompt carries the
+three over for you. The new `repo-gates.sh` calls functions only this `common.sh` has, so copy
+both or neither.
+
+Every task's first run after the merge installs once: a stamp written before this change has no
+digest, so it reads as not fresh. On a very large install, check that one `--fast` gate run's
+freshness check finishes well inside 60 s; if not, set `XEZ_DEPS_DIGEST_TIMEOUT_MS` on that
+machine (a slower digest counts as not fresh, so the gates install every time: safe but slow).
+
+**What you lose by skipping it.** A single-root project's fast gate keeps certifying a
+`node_modules` changed in place after the install. Skipping only the `repo-gates.sh` part costs a
+reinstall on every `--fast` run in a project whose gates write into `node_modules`.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/deps.mjs; .xezar/checks/lib/common.sh; .xezar/docs/worktrees.md; .xezar/checks/repo-gates.sh
+```
+
+### 13. Leader launcher – "the engine is not running here" while the engine runs
+
+**Symptom.** `./scripts/xezar-leader.sh` prints `the engine is not running here
+(.local/xezar/ipc/<folder>.sock is missing)` and exits, although `xezar --single-project` is
+running in the same folder. It happens when the folder name has capitals, `_`, `.` or other
+characters the engine replaces with `-` (`My_App` → `my-app.sock`), when the name is one the
+engine reserves or already uses (`api` → `api-2.sock`), and on a long path, where the engine
+names the socket by a hash.
+
+**What to do.** Copy the launcher from the kit (compare first, as the preamble says, if you
+changed it):
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/scripts/xezar-leader.sh scripts/
+```
+
+It now accepts any socket in `.local/xezar/ipc/`, which in single-project mode belongs to this
+project alone, instead of rebuilding the engine's name for it.
+
+**What you lose by skipping it.** Nothing, when the leader already starts through the launcher.
+Otherwise the leader starts only by hand
+(`XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar --settings scripts/xezar-leader-settings.json`).
+
+```upgrade
+Applies-to: <3.1.0
+Files: scripts/xezar-leader.sh
+```
+
+### 14. Native Windows (Git Bash) – the gates stop with "requires a POSIX host", a worktree check "cannot resolve this checkout", or the leader launcher finds no engine
+
+Applies to a repository onboarded by `xez-onboard-opinionated` whose gates, kit checks or leader
+launcher run in Git Bash on Windows, and, on every OS, to one onboarded or upgraded from Windows
+(its scripts may not be executable in git). The upgrade tool applies it everywhere; on Linux and
+macOS the kit behaves as before, apart from the Node 22 floor its `deps.mjs` shares with entry 15.
+
+**Symptom.** `gate process-group supervision requires a POSIX host`; `cannot resolve this
+checkout` in a linked worktree; `config-guard: malformed — cannot read origin/<base>:…`;
+`./scripts/xezar-leader.sh` says `the engine is not running here` while an engine runs on
+native Windows, where it listens on a named pipe instead of a socket;
+`deps-restore: npm ci failed in <unit> (spawnSync npm ENOENT)` although npm is installed;
+`PREFLIGHT FAILED` with `[isolation.worktree-listed]` in a worktree git does list;
+`removed=claude/… reason=the claude program is not installed here` from `route.mjs` although
+`claude` runs; `gh-write.sh: refused: "risk-low" is not a label name` for a label that exists.
+An MCP server that never starts, with `spawn npx ENOENT`, is the agent, not the project: Claude
+Code 2.1.286 and Codex 0.157.1 were tested and start the plain `npx` in `.mcp.json` on Windows, so
+update the agent. On a Linux or macOS clone, or in CI, of a project onboarded or upgraded from
+Windows: `Permission denied` on `.xezar/checks/*.sh` or `scripts/xezar-leader.sh`.
+
+**What to do.** One PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/lib/gate-parallel.mjs $K/checks/lib/windows-process.mjs $K/checks/lib/windows-programs.mjs .xezar/checks/lib/
+cp $K/checks/lib/common.sh $K/checks/lib/deps.mjs .xezar/checks/lib/
+cp $K/checks/route.mjs $K/checks/documented-output.mjs $K/checks/worktree-preflight.sh .xezar/checks/
+cp $K/checks/gh-write.sh $K/checks/verdict-write.sh .xezar/checks/
+cp $K/scripts/xezar-leader.sh scripts/
+```
+
+Then copy `.xezar/checks/repo-gates.sh` the way entry 12 says: keep your three gate assignments.
+Last, on any OS, make the kit's scripts executable in git – a copy made on Windows, or with
+`core.filemode=false`, records them as `100644`. In this order: `chmod +x` (a POSIX working file
+then matches; in Git Bash it changes nothing), `git add`, `git update-index --chmod=+x`, then
+commit. The loop skips a script your project does not have:
+
+```bash
+set -- \
+  .xezar/checks/bootstrap.sh \
+  .xezar/checks/changelog-check.sh \
+  .xezar/checks/ci-watch.sh \
+  .xezar/checks/config-guard.sh \
+  .xezar/checks/deploy-guard.sh \
+  .xezar/checks/deps-restore.sh \
+  .xezar/checks/gh-write.sh \
+  .xezar/checks/git-read.sh \
+  .xezar/checks/integration-preflight.sh \
+  .xezar/checks/leader-context.sh \
+  .xezar/checks/lib/common.sh \
+  .xezar/checks/lib/gate-record.sh \
+  .xezar/checks/local-tree.sh \
+  .xezar/checks/merge-recovery.sh \
+  .xezar/checks/phase-record.sh \
+  .xezar/checks/push-check.sh \
+  .xezar/checks/repo-gates.sh \
+  .xezar/checks/repository-checks.sh \
+  .xezar/checks/resume-complete.sh \
+  .xezar/checks/review-run.sh \
+  .xezar/checks/root-sync-preflight.sh \
+  .xezar/checks/route.mjs \
+  .xezar/checks/security-scan.sh \
+  .xezar/checks/verdict-write.sh \
+  .xezar/checks/verify-evidence.sh \
+  .xezar/checks/worktree-git.sh \
+  .xezar/checks/worktree-preflight.sh \
+  .xezar/checks/worktree-setup.sh \
+  scripts/xezar-leader.sh
+for f in "$@"; do
+  if [ -f "$f" ]; then chmod +x -- "$f" && git add -- "$f" && git update-index --chmod=+x -- "$f"; fi
+done
+```
+
+Under Git Bash a stop now reaches the gates through a file the scheduler watches, because a TERM
+from bash never reaches it there. The gate scheduler on Windows needs the full Git for Windows
+install (its `ps.exe`), not MinGit. The launcher now also takes a live pipe the engine names in
+`.local/xezar/ipc/<id>.pipe`; that marker is the engine's draft Windows contract, so a later
+engine may need a later launcher. On Linux and macOS it finds the socket exactly as before. A Node
+pinned by `.nvmrc` now goes on Git Bash's `PATH` in bash's own path form, so it is found from any
+drive, and a Node that nvm-windows installed (under `%NVM_HOME%`) is found too. The new
+`lib/windows-programs.mjs` finds a program by its Windows extension (`claude.exe`, `npm.cmd`),
+starts a `.cmd` through `cmd.exe` with checked text only, and finds Git Bash rather than WSL's
+`bash`; `route.mjs`, `deps.mjs` and `documented-output.mjs` load it on Windows only. The worktree
+check reads Git Bash's `/c/…` and git's `C:/…` as one path; `gh-write.sh` and `verdict-write.sh`
+drop the CR a Windows jq adds; the kit's digests use `sha256sum` where `shasum` is missing.
+
+**What you lose by skipping it.** On Linux or macOS, nothing on its own – but entry 9 needs it
+(**Needs**), and a project onboarded or upgraded from Windows keeps scripts that are not
+executable. On native Windows the gates cannot run, the launcher does not find an engine that
+listens on a pipe, and the installs, routing, worktree checks and label writes fail as the
+symptom says.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/gate-parallel.mjs; .xezar/checks/lib/windows-process.mjs =new; .xezar/checks/lib/windows-programs.mjs =new; .xezar/checks/lib/common.sh; .xezar/checks/repo-gates.sh; scripts/xezar-leader.sh; .xezar/checks/worktree-preflight.sh; .xezar/checks/lib/deps.mjs; .xezar/checks/route.mjs; .xezar/checks/gh-write.sh; .xezar/checks/verdict-write.sh; .xezar/checks/documented-output.mjs
+```
+
+### 15. Node 22 – a task stops with `node v20.… is below the required 22`
+
+Applies to every repository onboarded by `xez-onboard-opinionated`, on every OS.
+
+**Symptom.** After the upgrade a task stops at setup with `node v20.… is below the required 22`,
+from `worktree-setup.sh`, or from `deps.mjs tools` in a project with `dependencies.units`. Node 20
+reached its end of life in April 2026, and the kit's floor is now 22.
+
+**What to do.** Install Node 22 or later on every machine that runs tasks (with nvm or
+nvm-windows: `nvm install 22`). Then one PR:
+
+```bash
+K=.claude/skills/xez-onboard-opinionated/kit
+cp $K/checks/worktree-setup.sh .xezar/checks/
+cp $K/checks/lib/deps.mjs .xezar/checks/lib/
+cp $K/docs/worktrees.md .xezar/docs/
+```
+
+With `dependencies.units`, a numeric `.nvmrc` that pins a major keeps working as before: that Node
+is used, and the floor is not checked.
+
+**What you lose by skipping it.** Nothing stops, and tasks keep running on a Node that gets no
+security fixes. Entries 5, 6, 12 and 14 copy the same `deps.mjs`, so with `dependencies.units` the
+floor arrives with them anyway.
+
+**Rollback.** Revert the PR.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/worktree-setup.sh; .xezar/checks/lib/deps.mjs; .xezar/docs/worktrees.md
+```
 
 ## 2026-09-24 – a monorepo's install counts as current after `node_modules` was replaced, or after its `.sln` changed
 
@@ -41,6 +710,11 @@ once: stamps written before this change carry no tree identity, so they no longe
 
 **What you lose by skipping it.** Local install evidence can certify a tree the task did not
 install, or a solution it did not restore.
+
+```upgrade
+Applies-to: <3.0.3
+Files: .xezar/checks/lib/deps.mjs
+```
 
 ## 2026-09-24 – upgrading an onboarded project to 3.0.2
 
@@ -81,6 +755,10 @@ Digests: `.xezar/checks/lib/bootstrap.mjs`, `.xezar/docs/worktrees.md`.
 **What you lose by skipping it.** Every kit PR blocks new tasks until someone pulls the primary
 checkout by hand.
 
+```upgrade
+Applies-to: <3.0.2
+```
+
 ### 2. Verdict – reviewers' verdicts are refused or missing
 
 **Symptom – either of two.** A review task ends with no comment on the PR, and its log shows
@@ -104,6 +782,10 @@ Digests: every `.xezar/skills/xezar-*.md`, `.xezar/checks/verdict-write.sh`,
 **What you lose by skipping it.** Claude reviewers' verdicts stay unposted or unrecorded; the
 leader posts them by hand or waits.
 
+```upgrade
+Applies-to: <3.0.2
+```
+
 ### 3. Merge deny – the leader's merge is "denied by the Claude Code auto mode classifier"
 
 **Symptom.** `gh pr merge` is denied with `[Merge Without Review]` or no reason, even with an allow
@@ -122,6 +804,11 @@ If you added `--allowedTools "Bash(gh pr merge *)"` to the launcher yourself, th
 it. Digests: `scripts/xezar-leader.sh`, and a new one for `scripts/xezar-leader-settings.json`.
 
 **What you lose by skipping it.** The leader cannot merge; every merge waits for you.
+
+```upgrade
+Applies-to: <3.0.2
+Actions: restart-leader
+```
 
 ### 4. Browser config – Codex browser QA fails with "Permission denied (1100)", or agents have no browser
 
@@ -162,7 +849,13 @@ wires `chrome-devtools-mcp`, which runs outside every sandbox, for Claude and fo
    ```
 
    Codex reads the project's `.codex/` only for a trusted project. Trust also loads the project's
-   Codex hooks and rules, not only its MCP servers.
+   Codex hooks and rules, not only its MCP servers. On native Windows the Codex home is
+   `%USERPROFILE%\.codex` unless `CODEX_HOME` is set, and the key is the project's Windows path in
+   lower case, the way Codex writes it when you accept its trust prompt
+   (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a TOML literal-string key, in single
+   quotes: `[projects.'c:\users\me\app']`. A mixed-case key is untested. In double quotes TOML
+   reads `\u` and `\m` as escapes; a path that holds a `'` takes the double-quoted form with every
+   `\` doubled.
 
 Two user-level settings undo this. A `[mcp_servers.chrome-devtools]` table in that Codex home
 config can make the engine drop the project's server for Codex runs. A user-level
@@ -178,6 +871,11 @@ Digests: `.mcp.json`, the seven workflows, `.xezar/checks/config-guard.sh`,
 
 **What you lose by skipping it.** Agents cannot look at a page; Codex browser QA keeps failing,
 and design and QA verdicts rest on no screenshot.
+
+```upgrade
+Applies-to: <3.0.2
+Actions: per-machine=trust-codex-project:<absolute-project-path>; per-machine=enable-mcp-server:chrome-devtools; per-machine=add-mcp-permission:mcp__chrome-devtools__navigate_page; per-machine=add-mcp-permission:mcp__chrome-devtools__new_page; per-machine=add-mcp-permission:mcp__chrome-devtools__list_pages; per-machine=add-mcp-permission:mcp__chrome-devtools__select_page; per-machine=add-mcp-permission:mcp__chrome-devtools__close_page; per-machine=add-mcp-permission:mcp__chrome-devtools__take_snapshot; per-machine=add-mcp-permission:mcp__chrome-devtools__take_screenshot; per-machine=add-mcp-permission:mcp__chrome-devtools__list_console_messages; per-machine=add-mcp-permission:mcp__chrome-devtools__get_console_message; per-machine=add-mcp-permission:mcp__chrome-devtools__list_network_requests; per-machine=add-mcp-permission:mcp__chrome-devtools__get_network_request; per-machine=add-mcp-permission:mcp__chrome-devtools__click; per-machine=add-mcp-permission:mcp__chrome-devtools__fill; per-machine=add-mcp-permission:mcp__chrome-devtools__fill_form; per-machine=add-mcp-permission:mcp__chrome-devtools__hover; per-machine=add-mcp-permission:mcp__chrome-devtools__press_key; per-machine=add-mcp-permission:mcp__chrome-devtools__type_text; per-machine=add-mcp-permission:mcp__chrome-devtools__wait_for; per-machine=add-mcp-permission:mcp__chrome-devtools__handle_dialog; per-machine=add-mcp-permission:mcp__chrome-devtools__resize_page; per-machine=add-mcp-permission:mcp__chrome-devtools__get_css_styles; restart-leader
+```
 
 ### 5. Routing v3 – filing, browser QA, conflict repair and security review route wrongly
 
@@ -201,6 +899,10 @@ cp $K/docs/ui-operations.md .xezar/docs/
 
 **What you lose by skipping it.** Nothing breaks. The leader keeps filing issues itself, browser
 QA keeps failing on Codex first, and a browser-config change skips security review.
+
+```upgrade
+Applies-to: <3.0.2
+```
 
 ### 6. Workflow dispatch – the leader starts tasks from `xez-auto-*` skills, not the project's workflows
 
@@ -233,6 +935,11 @@ the quota before choosing a lane.
 **What you lose by skipping it.** The budget table goes stale, and dispatch keeps spending a turn
 on logins that are out.
 
+```upgrade
+Applies-to: <3.0.2
+Actions: restart-leader
+```
+
 ### 8. Owner's rules – my owner rules are spread across the leader guide
 
 **Symptom.** No `## Owner's rules` section in `.xezar/docs/leader-guide.md`. `xez-add-rule` now
@@ -242,6 +949,10 @@ writes every rule there, and creates the section the first time it runs (entry 6
 `## Owner's rules` yourself, word for word, with their dates.
 
 **What you lose by skipping it.** Nothing. Old rules keep working where they are.
+
+```upgrade
+Applies-to: <3.0.2
+```
 
 ### 9. Skills text – a security review loops round after round
 
@@ -1484,6 +2195,34 @@ cp <path-to-skills>/xez-setup-agent-pipeline/references/trackers/github.md .xeza
 `~/.claude/skills`, `~/.codex/skills`, or a vendored checkout inside your repo.
 Re-running `/xez-setup-agent-pipeline` also refreshes the descriptor, but plain-copies it –
 prefer the diff-and-merge route when you have customized operations.
+
+**An onboarded project (`.xezar/onboarding.json` with `manifestVersion` 2 or higher) records the
+descriptor's digest**, and the drift check fails every gate with `reason=hash-mismatch` after a
+plain copy. Hash the file before you touch it: when it matches the `sha256` of its entry under
+`files` (and that entry has no `patch`), copy or merge as above, then write the new file's digest
+into that `sha256` – and into `descriptors` when the manifest has that map – and commit both files
+together:
+
+```bash
+# 3. Onboarded project only: move the recorded digest with the file
+p=.xezar/pipeline/trackers/github.md
+new=$(node -e 'const c=require("crypto"),f=require("fs");process.stdout.write(c.createHash("sha256").update(f.readFileSync(process.argv[1])).digest("hex"))' "$p")
+node -e 'const f=require("fs"),[p,h]=process.argv.slice(1),m=JSON.parse(f.readFileSync(".xezar/onboarding.json","utf8"));m.files[p].sha256=h;if(m.descriptors&&p in m.descriptors)m.descriptors[p]=h;f.writeFileSync(".xezar/onboarding.json",JSON.stringify(m,null,2)+"\n")' "$p" "$new"
+node .xezar/checks/manifest-drift.mjs .   # drift-status=pass
+```
+
+When the file did not match before you started, it already carries an unrecorded edit: leave the
+digest alone and record that edit in `.xezar/LOCAL-PATCHES.md` first. `/xez-apply-upgrade-notes`
+does all of this for you: it updates the tracker descriptor and its digest in the same change,
+and skips the digest refresh when the file did not match.
+
+**A project onboarded by `xez-onboard-opinionated` at 3.1.0 or later** (`.xezar/onboarding.json`
+with `manifestVersion` 2 or higher) records its descriptors in that manifest, and the drift check
+fails the next gate with `reason=hash-mismatch` on a descriptor copied or merged by hand. Refresh
+them there through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
+manifest entry together, not through the steps in this section, `/xez-apply-upgrade-notes` or a
+re-run of `/xez-setup-agent-pipeline`. A deliberate local change to one goes in
+`.xezar/LOCAL-PATCHES.md` (`.xezar/docs/local-patches.md`).
 
 For the shipped `linear` or `jira` split provider, substitute its filename in the commands
 above and repeat the diff for the companion `.xezar/pipeline/trackers/github.md`. The primary descriptor owns

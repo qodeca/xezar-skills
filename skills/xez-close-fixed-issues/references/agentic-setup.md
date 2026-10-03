@@ -44,7 +44,7 @@ Run variables to fill after the preflight:
   ```bash
   # Built-ins always apply; closeKeywords extends them, never replaces them.
   CLOSE_KEYWORDS="fix fixes fixed close closes closed resolve resolves resolved"
-  EXTRA_KEYWORDS=$(jq -r '.closeKeywords // [] | .[] | select(type == "string" and length > 0 and (test("\\s") | not))' .xezar/pipeline/config.json)
+  EXTRA_KEYWORDS=$(jq -r '.closeKeywords // [] | .[] | select(type == "string" and length > 0 and (test("\\s") | not))' .xezar/pipeline/config.json | tr -d '\r')
   CLOSE_KEYWORDS="$CLOSE_KEYWORDS $EXTRA_KEYWORDS"
   ```
 

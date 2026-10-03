@@ -23,6 +23,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath, toLF } from "./lib/platform.mjs";
+import { prepareTestPlatform } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -50,18 +54,18 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 let failures = 0;
 let asserts = 0;
 
-function run(command, args) {
+function run(command, args, options = {}) {
   try {
     return {
       code: 0,
-      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }),
+      out: execFileSync(command, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options }),
     };
   } catch (err) {
     return { code: err.status ?? -1, out: (err.stdout ?? "") + (err.stderr ?? "") };
   }
 }
 
-const lint = () => run("bash", ["scripts/lint.sh"]);
+const lint = () => run(bashPath(), ["scripts/lint.sh"]);
 const script = (name) => run("node", [`scripts/${name}`]);
 
 // Snapshot the working tree before anything is broken, so the final assertion compares
@@ -74,19 +78,33 @@ const statusBefore = run("git", ["status", "--porcelain"]).out;
  * not just "it failed", because a guard failing for an unrelated reason would otherwise
  * count as a pass.
  */
+const KIT_INDEX_PKG = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+const KIT_INDEX_PKG_IS_NEWEST =
+  JSON.parse(readFileSync(join(root, "upgrade/kit-index/index.json"), "utf8")).versions.at(-1)?.version === KIT_INDEX_PKG;
+
 function breaks(name, file, mutate, gate, expect) {
   asserts += 1;
   const path = join(root, file);
-  const original = readFileSync(path, "utf8");
+  const original = readFileSync(path, "utf8"); // the restore stays byte-exact
+  // #122: every search string below is written with LF line endings, so a CRLF checkout is
+  // mutated as LF and written back with CRLF. A file mixing both cannot be written back without
+  // changing more than the mutation, so it is refused rather than broken for the wrong reason.
+  const crlf = original.includes("\r\n");
+  if (crlf && /(^|[^\r])\n/.test(original)) {
+    failures += 1;
+    console.error(`FAIL  ${name}\n      ${file} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`);
+    return;
+  }
+  const lf = toLF(original);
   let result;
   try {
-    const broken = mutate(original);
-    if (broken === original) {
+    const broken = mutate(lf);
+    if (broken === lf) {
       failures += 1;
       console.error(`FAIL  ${name}\n      the mutation changed nothing -- this test is testing nothing`);
       return;
     }
-    writeFileSync(path, broken);
+    writeFileSync(path, crlf ? broken.replace(/\n/g, "\r\n") : broken);
     result = gate();
   } finally {
     writeFileSync(path, original);
@@ -710,9 +728,9 @@ breaks(
 breaks(
   "a reading workflow given the Write tool is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, Write]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Write,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -750,9 +768,9 @@ breaks(
 breaks(
   "a reading workflow given a writing tool with another name is rejected",
   CR,
-  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash]", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit]"),
+  (s) => s.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, NotebookEdit,"),
   () => script("test-kit-catalog.mjs"),
-  '"code-review" is a reading workflow',
+  '"code-review" is a review workflow',
 );
 
 breaks(
@@ -766,7 +784,7 @@ breaks(
 breaks(
   "a role doc that pipes into a write script with arguments is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
-  (s) => s.replace("| bash .xezar/checks/verdict-write.sh`: one JSON request", "| bash .xezar/checks/verdict-write.sh packet`: one JSON request"),
+  (s) => s.replace("| bash .local/xezar/cache/kit/checks/verdict-write.sh`: one JSON request", "| bash .local/xezar/cache/kit/checks/verdict-write.sh packet`: one JSON request"),
   () => script("test-kit-catalog.mjs"),
   "the engine's lock refuses a pipe into a script with arguments",
 );
@@ -1303,6 +1321,1668 @@ breaks(
   () => script("test-kit-facts.mjs"),
   "conflict-repair routes to integration.yaml",
 );
+
+// --- 3.1.0 stream anchors -------------------------------------------------------
+// Each 3.1.0 stream adds its cases between its own start and end lines, never elsewhere,
+// so parallel PRs do not touch the same lines. The release PR removes the markers.
+// 3.1.0-stream-A:start
+// #59: kit role skills name no package manager, root lockfile or workspace count.
+const ROLE = "skills/xez-onboard-opinionated/kit/skills";
+const NO_PM = "names a package manager, a root lockfile or a workspace count";
+
+breaks(
+  "a role skill body that runs tests through npm is rejected",
+  `${ROLE}/xezar-testing.md`,
+  (s) => s.replace("through the project's test command", "through npm test -- <filter>"),
+  lint,
+  `xezar-testing.md:8 ${NO_PM} in a kit role skill's body`,
+);
+
+breaks(
+  "a role skill body that names the root package-lock.json is rejected",
+  `${ROLE}/xezar-dependency-maintenance.md`,
+  (s) => s.replace("use that unit's own lockfile", "use package-lock.json"),
+  lint,
+  `xezar-dependency-maintenance.md:8 ${NO_PM}`,
+);
+
+breaks(
+  "a role skill body that counts the workspaces is rejected",
+  `${ROLE}/xezar-dependency-maintenance.md`,
+  (s) => s.replace("the unit that imports it.", "the four real workspaces."),
+  lint,
+  `xezar-dependency-maintenance.md:10 ${NO_PM}`,
+);
+
+breaks(
+  "an allowlisted body does not excuse npm in the shared contract tail",
+  `${ROLE}/xezar-release-publish.md`,
+  (s) => s.replace(/^(Writing-stage ownership: .*?)the typecheck command [^,]*,/m, "$1`npm run typecheck`,"),
+  lint,
+  `${NO_PM} in a kit role skill's tail`,
+);
+
+breaks(
+  "an npm literal exemption that is not the allowlisted one is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace('npm_allow=" skills/', 'npm_allow=" skills/xez-onboard-opinionated/kit/skills/xezar-testing.md skills/'),
+  () => script("check-allowlists.mjs"),
+  "npm_allow does not match",
+);
+// 3.1.0-stream-A:end
+
+// 3.1.0-stream-B:start
+// #50: the author chain. Each way route.mjs or the routing file could let a dependent lane through,
+// or change what the leader already parses, is a break of its own.
+breaks(
+  "route that ignores the author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (!chain) return null;\n    const lane = file.lanes[id];", "    return null;\n    const lane = file.lanes[id];"),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
+
+breaks(
+  "route output without --author that changes by one word is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('out.push(`${line("escalation", lid)} by=hand`)', 'out.push(`${line("escalation", lid)} by=leader`)'),
+  () => script("test-kit-catalog.mjs"),
+  "no longer prints byte-identical output",
+);
+
+breaks(
+  "route that prints an author-chain line that is not NAME=value is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("`escalation-eligible=${lid}`", "`escalation-eligible ${lid}`"),
+  () => script("test-kit-catalog.mjs"),
+  "does not parse as NAME=value",
+);
+
+breaks(
+  "a vendor exclusion naming a vendor no lane has is rejected",
+  ROUTING,
+  routingEdit((f) => { f.vendorExclusions = [{ vendor: "nobody" }]; }),
+  () => script("test-kit-catalog.mjs"),
+  "is the vendor of no lane",
+);
+
+breaks(
+  "the shipped Claude vendor exclusion dropped from routing.json is rejected",
+  ROUTING,
+  routingEdit((f) => { delete f.vendorExclusions; }),
+  () => script("test-kit-catalog.mjs"),
+  "still offers a Claude lane",
+);
+
+// #65: the leader guide's dispatch, quota and merge-queue rules (FACT B1).
+breaks(
+  "dispatch at once made a second dispatcher, not an L3 run, is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("that turn – never an L1 or L2 tick, which wakes L3 instead – counts as an L3 run", "any turn may dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "does not say that dispatching at once is an L3 run",
+);
+
+breaks(
+  "the read-quota item dropped from the checklist is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("- [ ] Quota read from `read_quota` before this dispatch; every login verified", "- [ ] Every login verified before dispatch"),
+  () => script("test-kit-facts.mjs"),
+  "checklist has no",
+);
+
+breaks(
+  "an L1 prompt that lets its own tick dispatch at once is rejected",
+  "skills/xez-onboard-opinionated/kit/loops.json",
+  (s) => s.replace("counts as a pacing run, and this tick is never one.", "counts as a pacing run."),
+  () => script("test-kit-facts.mjs"),
+  "L1's prompt does not say",
+);
+
+breaks(
+  "close-out that loses the merge-queue path is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => s.replace("`gh pr merge <number> --auto`", "update the branch and merge"),
+  () => script("test-kit-facts.mjs"),
+  "does not describe both merge paths",
+);
+// 3.1.0-stream-B:end
+
+// 3.1.0-stream-C:start
+// #64: the timeline is cut by entries, and a decisions.md the loader cannot read is announced.
+breaks(
+  "a leader loader that keeps 400 timeline entries instead of 40 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace("TIMELINE_ENTRIES_DEFAULT=40", "TIMELINE_ENTRIES_DEFAULT=400"),
+  () => script("test-kit-facts.mjs"),
+  "the timeline is not cut to its newest 40 entries",
+);
+
+breaks(
+  "a leader loader that drops the timeline pointer line is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace("printf '\\n[timeline cut: showing", "printf '\\n[timeline: showing"),
+  () => script("test-kit-facts.mjs"),
+  "no pointer line naming the full timeline file",
+);
+
+breaks(
+  "a leader loader that skips a missing decisions.md in silence is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/leader-context.sh",
+  (s) => s.replace('  if [ -n "$decisions_problem" ]; then\n    printf \'WARNING', '  if false; then\n    printf \'WARNING'),
+  () => script("test-kit-facts.mjs"),
+  "no WARNING with the nonce, before the guide, for a missing decisions.md",
+);
+
+breaks(
+  "a settings check whose browser tool list drifts from the kit's grants is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('"resize_page", "get_css_styles",\n]);', '"resize_page", "get_css_styles", "emulate",\n]);'),
+  () => script("test-kit-facts.mjs"),
+  "SETTINGS_BROWSER_TOOLS is",
+);
+
+// #69: the kit's own hook entry is still guarded, and the settings check keeps its teeth.
+breaks(
+  "a changed kit SessionStart hook entry still fails the quote check",
+  "skills/xez-onboard-opinionated/kit/claude/settings.json",
+  (s) => s.replace('"timeout": 15', '"timeout": 30'),
+  () => script("test-kit-catalog.mjs"),
+  "fenced quote differs from .claude/settings.json#entry:hooks.SessionStart",
+);
+
+breaks(
+  "a widening Bash rule in committed .claude/settings.json that only warns is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const committed = name === "settings.json";', 'const committed = false;'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a widening Bash rule in committed .claude/settings.json",
+);
+
+breaks(
+  "a widening rule in the untracked settings.local.json that fails the repository check is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const committed = name === "settings.json";', 'const committed = true;'),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check fails the repository check on a widening rule in settings.local.json",
+);
+
+breaks(
+  "a browser grant outside the kit's tool list is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (!tool || !SETTINGS_BROWSER_TOOLS.has(tool)) {", "if (!tool) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts browser grant mcp__chrome-devtools__emulate",
+);
+// 3.1.0-stream-C:end
+
+// 3.1.0-stream-D:start
+// #52: the timeout rule, and the shipped timeouts it protects.
+breaks(
+  "a catalog check that no longer asks an agent step for a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("      checkStepTimeout(at, step);\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a handoff step with no timeout",
+);
+
+breaks(
+  "a kit handoff step without a timeout is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/bug-fix.yaml",
+  (s) => s.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n"),
+  () => script("test-kit-catalog.mjs"),
+  'step "handoff": an agent step has no timeout',
+);
+
+// D13: every review and QA step runs the change and holds every browser tool; nothing else gets
+// the review-only tools; a review's verdict needs an unchanged tree.
+breaks(
+  "a catalog check that lets review-only browser tools into any workflow is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (step.allowedTools.includes(tool)) err(at,", "if (false && step.allowedTools.includes(tool)) err(at,"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts evaluate_script in the design workflow",
+);
+
+breaks(
+  "a catalog check that no longer asks a review step for review-run.sh is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (!list.includes(REVIEW_RUN_PREFIX)) {", "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a qa.yaml review step without review-run.sh",
+);
+
+breaks(
+  "a catalog check that no longer reads a review step's prompt for the tracked checks path is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('if (typeof step.prompt === "string" && step.prompt.includes(".xezar/checks/")) {', "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "catalog-check accepts a security-review prompt that names the tracked .xezar/checks/git-read.sh",
+);
+
+breaks(
+  "a review workflow without the full browser tool set is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/code-review.yaml",
+  (s) => s.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
+  () => script("test-kit-facts.mjs"),
+  "FACT 23",
+);
+
+breaks(
+  "a design-review preflight back on --allow-root is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/design-review.yaml",
+  (s) => s.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
+  () => script("test-kit-catalog.mjs"),
+  "runs worktree-preflight.sh with --allow-root",
+);
+
+breaks(
+  "a verdict-write that no longer checks the reviewed tree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('bash "$SCRIPT_DIR/review-run.sh" finish >&2 ||', 'true ||'),
+  () => script("test-kit-catalog.mjs"),
+  "no longer runs review-run.sh finish before a verdict packet",
+);
+
+breaks(
+  "a gh-write.sh that takes a verdict's role from the request is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('[ "$declared" = "$verdict_role" ] ||', "true ||"),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh lets a qa step claim a design-review verdict",
+);
+
+// A Continue settles under `continue-N`, which no definition step names: the role comes from the
+// step that owns its session, as the engine's takeStepVerdict resolves it.
+breaks(
+  "a gh-write.sh that reads no role for a Continue's continue-N step is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("step = defSteps.find((s) => s.id === owner?.id) ?? [...defSteps].reverse().find((s) => !s.command);", "step = undefined;"),
+  () => script("test-kit-catalog.mjs"),
+  "gh-write.sh refuses a qa verdict on a Continue (continue-1)",
+);
+
+breaks(
+  "a gh-write.sh that lifts a gate label without its approval label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('[ -z "$verdict_removed" ] || [ -n "$verdict_added" ] ||', "true ||"),
+  () => script("test-kit-catalog.mjs"),
+  "remove needs-qa without adding qa-approved",
+);
+
+breaks(
+  "a review-run.sh that hands the operator's credentials to what it runs is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('    no_credentials\n    "$@"', '    "$@"'),
+  () => script("test-kit-catalog.mjs"),
+  "a child of review-run.sh run still sees the operator's git or gh credentials",
+);
+
+breaks(
+  "a review-run.sh that trusts a rewritten head record is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(`if ! printf '%s\\n' "$known" | grep -Fqx -- "$recorded"; then`, "if false; then"),
+  () => script("test-kit-catalog.mjs"),
+  "whose head record was rewritten to match it",
+);
+
+breaks(
+  "a review-run.sh checkout that stops probing whether its sandbox can write git is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('      if [ -z "$probe" ]; then\n        echo "review-run=confined"', '      if false; then\n        echo "review-run=confined"'),
+  () => script("test-kit-catalog.mjs"),
+  "does not exit 3 with review-run=confined",
+);
+
+// A checkout replaces the tracked .xezar/checks/ with the PR head's own copies, so a review runs
+// the kit step's copy outside the tracked tree. Each half breaks on its own: the kit step stops
+// writing the copy, a review allowlist may name the tracked copy again, or a head that tracks a
+// file where the copy lives is kept.
+breaks(
+  "a kit step that no longer copies the review's own scripts is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/bootstrap.mjs",
+  (s) => s.replace("fs.renameSync(stage,trusted);", "fs.rmSync(stage,{recursive:true,force:true});"),
+  () => script("test-kit-catalog.mjs"),
+  "the kit step does not copy the primary's checks/",
+);
+
+breaks(
+  "a catalog check that lets a review step run a kit script from the tracked tree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace("if (review && /^bash \\.xezar\\/checks\\//.test(entry)", "if (false && /^bash \\.xezar\\/checks\\//.test(entry)"),
+  () => script("test-kit-catalog.mjs"),
+  "running verdict-write.sh from the tracked tree",
+);
+
+breaks(
+  "a review-run.sh checkout that keeps a head replacing the review's own scripts is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('if [ -n "$(git ls-files -- .local/xezar/cache/kit | head -1)" ]; then', "if false; then"),
+  () => script("test-kit-catalog.mjs"),
+  "keeps a PR head that replaced the review's own scripts",
+);
+
+breaks(
+  "a browser descriptor that stops saying where the review tools are granted is rejected",
+  "skills/xez-onboard-opinionated/kit/pipeline/browsers/chrome-devtools.md",
+  (s) => s.replace("granted by their own tool lists only", "granted anywhere"),
+  () => script("test-kit-catalog.mjs"),
+  "no longer says the review and QA workflows hold every tool",
+);
+// 3.1.0-stream-D:end
+
+// 3.1.0-stream-E:start
+// #53 install freshness: the tree digest in deps.mjs and the fail-closed resume. Each property
+// breaks on its own; the gate runs only the #53 block of test-deps-units.mjs to keep the suite short.
+const depsOnly53 = () => run("node", ["scripts/test-deps-units.mjs"], { env: { ...process.env, XEZ_DEPS_TEST_ONLY: "53" } });
+const DEPS_MJS = "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs";
+
+breaks(
+  "a fresh check that ignores the tree digest is rejected",
+  DEPS_MJS,
+  (s) => s.replace('if (digest.line === "unavailable" || stamp !== stampContent(root, u, fp, digest.line)) return 1;', 'if (digest.line === "unavailable") return 1;'),
+  depsOnly53,
+  "one package folder replaced inside node_modules",
+);
+
+breaks(
+  "a build cache skipped while it holds a package, a .bin or a link is rejected",
+  DEPS_MJS,
+  (s) => s.replace('if (e.isSymbolicLink() || e.name === ".bin" || e.name === "package.json") return false;', "void e;"),
+  depsOnly53,
+  "a build cache that holds a package.json",
+);
+
+breaks(
+  "a link into a skipped build cache that is accepted is rejected",
+  DEPS_MJS,
+  (s) => s.replace("if (hit) throw new Unavailable(", "if (false) throw new Unavailable("),
+  depsOnly53,
+  "a link into a build cache the digest leaves out",
+);
+
+breaks(
+  "an unreadable folder skipped by the digest is rejected",
+  DEPS_MJS,
+  (s) => s.replace("try { names = readdirSync(dir); } catch (e) { throw new Unavailable(`${dir} cannot be read (${e.code})`); }", "try { names = readdirSync(dir); } catch { names = []; }"),
+  depsOnly53,
+  "a tree the digest cannot read is not fresh",
+);
+
+breaks(
+  "a digest with no timeout is rejected",
+  DEPS_MJS,
+  (s) => s.replace("return raw !== undefined && /^\\d{1,9}$/.test(raw) ? Number(raw) : 60000;", "return 60000;"),
+  depsOnly53,
+  "a digest that times out is not fresh",
+);
+
+breaks(
+  "a resume that reuses sealed evidence over stale dependencies is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/resume-complete.sh",
+  (s) => s.replace('[ "$FORCE_GATES" -eq 0 ] && [ "$DEPS_FRESH" -eq 1 ]; then NEED_GATES=0; fi', '[ "$FORCE_GATES" -eq 0 ]; then NEED_GATES=0; fi'),
+  depsOnly53,
+  "eligible evidence with stale dependencies plans a gate re-run",
+);
+// 3.1.0-stream-E:end
+
+// 3.1.0-stream-F:start
+// #57: the changelog check and fold, broken one rule at a time; test-kit-catalog.mjs runs them
+// on throwaway repositories whose base branch is `develop`.
+breaks(
+  "changelog --diff-base auto falls back to main instead of the configured base",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-check.sh",
+  (s) => s.replace('branch_candidates="origin/$configured $configured"', 'branch_candidates="main"'),
+  () => script("test-kit-catalog.mjs"),
+  "a fragment-only branch is accepted against the configured base",
+);
+
+breaks(
+  "changelog check no longer sees a Keep a Changelog Unreleased section",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-check.sh",
+  (s) => s.replace("UNRELEASED_RE='^## \\[?Unreleased", "UNRELEASED_RE='^## \\[?Pending"),
+  () => script("test-kit-catalog.mjs"),
+  "a direct `## [Unreleased]` edit is refused",
+);
+
+breaks(
+  "changelog verify step no longer checks the fragment lines",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("if ((have.get(line) ?? 0) < files.length)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "the verify step catches a lost fragment entry",
+);
+
+breaks(
+  "changelog fold maps a house heading onto the wrong Keep a Changelog group",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("'## ✨ Features': 'Added',", "'## ✨ Features': 'Changed',"),
+  () => script("test-kit-catalog.mjs"),
+  "the keep-a-changelog fold wrote an unexpected file",
+);
+
+breaks(
+  "changelog format accepts an unknown changelog.format value",
+  "skills/xez-onboard-opinionated/kit/checks/changelog-fragments.mjs",
+  (s) => s.replace("if (!FORMATS.includes(value)) {", "if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "an unknown changelog.format is refused",
+);
+// 3.1.0-stream-F:end
+
+// 3.1.0-stream-G:start
+// Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
+// edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.
+const SCAN_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs";
+const GRAMMAR_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs";
+
+breaks(
+  "a project trust-boundary list read from the branch under review instead of the base tip is rejected",
+  SCAN_LIB,
+  (s) => s.replace("const ref = `refs/remotes/origin/${baseBranch}`;", 'const ref = "HEAD";'),
+  () => script("test-kit-facts.mjs"),
+  "a branch that drops its own path from security.trustBoundaries is no longer routed",
+);
+
+breaks(
+  "an unresolvable base branch read as no project entries is rejected",
+  SCAN_LIB,
+  (s) => s.replace('return { status: "unreadable", detail: `${ref} does not resolve here', 'return { status: "absent", detail: `${ref} does not resolve here'),
+  () => script("test-kit-facts.mjs"),
+  "an unresolvable base branch ref did not route to review",
+);
+
+breaks(
+  "a trust-boundary pattern grammar that lets braces and classes through is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace("const TRUST_PATTERN_REFUSED = /[!{}()[\\]^$|\\\\+]/;", "const TRUST_PATTERN_REFUSED = /[!]/;"),
+  () => script("test-kit-facts.mjs"),
+  "must be refused",
+);
+
+breaks(
+  "a trust-boundary list with its caps lifted is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace("export const TRUST_BOUNDARY_LIMITS = { entries: 64, length: 256 };", "export const TRUST_BOUNDARY_LIMITS = { entries: 640, length: 2560 };"),
+  () => script("test-kit-facts.mjs"),
+  "with 65 entries was ok, expected malformed",
+);
+
+breaks(
+  "a project trust-boundary entry with no why is rejected",
+  GRAMMAR_LIB,
+  (s) => s.replace('if (typeof why !== "string" || why.trim() === "" ||', 'if (typeof why === "number" ||'),
+  () => script("test-kit-facts.mjs"),
+  "with an entry with no why was",
+);
+
+breaks(
+  "an invalid project list left out of the stage status is rejected",
+  SCAN_LIB,
+  (s) => s.replace('  else if (configUnknown) status = "unknown";\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "did not make the stage status unknown",
+);
+
+breaks(
+  "an invalid project list that does not require a reviewer is rejected",
+  SCAN_LIB,
+  (s) => s.replace("reviewerRequired: trustBoundaries.length > 0 || configUnknown,", "reviewerRequired: trustBoundaries.length > 0,"),
+  () => script("test-kit-facts.mjs"),
+  "did not make the stage status unknown with reviewerRequired",
+);
+
+breaks(
+  "a project match that does not name its list is rejected",
+  SCAN_LIB,
+  (s) => s.replace('touched.push({ file, why: entry.why, list: "project" });', 'touched.push({ file, why: entry.why, list: "kit" });'),
+  () => script("test-kit-facts.mjs"),
+  "did not set reviewerRequired with its reason and list",
+);
+
+breaks(
+  "the engine repository's own paths shipped in the kit's trust boundaries again is rejected",
+  SCAN_LIB,
+  (s) => s.replace("const TRUST_BOUNDARIES = [\n", 'const TRUST_BOUNDARIES = [\n  { pattern: /^packages\\/xezar\\/src\\/server\\//, why: "the HTTP surface" },\n'),
+  () => script("test-kit-facts.mjs"),
+  "still ships the engine repository's packages/xezar/src entries",
+);
+
+breaks(
+  "a phase record that stops describing the project trust-boundary list is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/phase-record.md",
+  (s) => s.replace(/^A project adds paths of its own in `security\.trustBoundaries`.*\n/m, ""),
+  () => script("test-kit-facts.mjs"),
+  "does not describe the project's security.trustBoundaries list",
+);
+// 3.1.0-stream-G:end
+
+// 3.1.0-stream-H:start
+// #54: every refusal rule of push-check.sh, broken one at a time. test-kit-facts.mjs FACT H1 runs
+// the script against a stand-in gh and a local bare origin; test-kit-catalog.mjs pins the wiring.
+{
+  const PUSH_CHECK = "skills/xez-onboard-opinionated/kit/checks/push-check.sh";
+  const facts = () => script("test-kit-facts.mjs");
+  const pushBreak = (name, from, to, expect) => breaks(name, PUSH_CHECK, (s) => s.replace(from, to), facts, expect);
+
+  pushBreak("push-check that ignores an ineligible seal is rejected",
+    'if [ "$evidence_rc" -ne 0 ] || [ "$eligibility" != "ELIGIBLE" ]; then', "if false; then",
+    "does not refuse an unsealed HEAD");
+  pushBreak("push-check that pushes a HEAD other than the sealed commit is rejected",
+    'if [ -z "$sealed_sha" ] || [ "$sealed_sha" != "$HEAD_SHA" ]; then', 'if [ -z "$sealed_sha" ]; then',
+    "does not refuse a HEAD that changed after the seal");
+  pushBreak("push-check that pushes to a closed PR is rejected",
+    '[ "$pr_state" = "OPEN" ] || refuse', "true || refuse",
+    "does not refuse a closed PR");
+  pushBreak("push-check that pushes to a fork PR is rejected",
+    "  refuse push.pr-same-repo \"PR #$PR's head is not in", "  : push.pr-same-repo \"PR #$PR's head is not in",
+    "does not refuse a fork PR");
+  pushBreak("push-check that pushes to a branch other than the PR head is rejected",
+    '[ "$pr_head" = "$TARGET" ] || refuse', "true || refuse",
+    "does not refuse a branch other than the PR head");
+  pushBreak("push-check that lets main, master or release/* through is rejected",
+    "HEAD | main | master | release/*) return 0 ;;", "HEAD) return 0 ;;",
+    "does not refuse the protected branch master");
+  pushBreak("push-check that lets the project's base branch through is rejected",
+    '[ -n "${BASE_BRANCH:-}" ] && [ "$1" = "$BASE_BRANCH" ] && return 0', ":",
+    "does not refuse the protected branch develop");
+  pushBreak("push-check that lets the PR's own base branch through is rejected",
+    'if [ -n "$pr_base" ] && [ "$TARGET" = "$pr_base" ]; then', "if false; then",
+    "does not refuse the PR's own base branch");
+  pushBreak("push-check that accepts a bare --force is rejected",
+    "--force | -f | --force-with-lease | --force-if-includes", "--force-if-includes",
+    "does not refuse the bare force push --force with [push.no-bare-force]");
+  pushBreak("push-check that accepts a lease on a short ref is rejected",
+    'if [ "$lease_ref" = "$LEASE" ] || [ "$lease_ref" != "refs/heads/$TARGET" ] ||', 'if [ "$lease_ref" = "$LEASE" ] ||',
+    "does not refuse the bare force push --force-with-lease=feature/fix:");
+
+  const catalog = () => script("test-kit-catalog.mjs");
+  breaks("readiness that accepts a DELIVERED record again is rejected",
+    "skills/xez-onboard-opinionated/kit/checks/worktree-preflight.sh",
+    (s) => s.replace("That path is retired (#54): a repair", "Accepted: a repair"),
+    catalog, "readiness no longer refuses a DELIVERED record");
+  breaks("a repair handoff that pushes without push-check is rejected",
+    "skills/xez-onboard-opinionated/kit/workflows/address-review-findings.yaml",
+    (s) => s.replace("Push the sealed fix to the PR's own branch only through .xezar/checks/push-check.sh, then", "Push the fixes, then"),
+    catalog, "the handoff step does not push through .xezar/checks/push-check.sh");
+  breaks("a review-response skill that records DELIVERED again is rejected",
+    "skills/xez-onboard-opinionated/kit/skills/xezar-review-response.md",
+    (s) => s.replace("never write a `DELIVERED` record: readiness refuses it", "record the push as `DELIVERED`"),
+    catalog, "still tells a repair to push early and record DELIVERED");
+}
+// 3.1.0-stream-H:end
+
+// 3.1.0-stream-U:start
+// U1 (#55): the manifest drift check and its place in the gate.
+breaks(
+  "a drift check that no longer compares digests is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("else if (seen.sha256 !== entry.sha256)", "else if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a silent edit exits 0, not 1",
+);
+
+// A project's own gate list is a filled-in value (lib/rewrites.mjs RENDERED_REGIONS); nothing else is.
+breaks(
+  "a drift check whose gate-list allowance accepts any edit to the gate runner is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('return restored ? createHash("sha256").update(text, "utf8").digest("hex") : null;', "return entry.sha256;"),
+  () => script("test-upgrade.mjs"),
+  "own-gates: the drift check accepts an edit outside the gate list",
+);
+
+breaks(
+  "a drift check whose gate regions drift from the upgrade tool's is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('{ key: "GATE_APPLICATION_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m }', '{ key: "GATE_LANES", re: /^(GATE_APPLICATION_LANES=)(.*)()$/m }'),
+  () => script("test-upgrade.mjs"),
+  "RENDERED_REGIONS disagree on GATE_APPLICATION_LANES",
+);
+
+breaks(
+  "an upgrade tool that reads a project's own gate list as a local change is rejected",
+  "upgrade/tools/lib/rewrites.mjs",
+  (s) => s.replace("const hasRegions = (text) => /^GATE_NAMES=\\(/m.test(text)", "const hasRegions = (text) => false && /^GATE_NAMES=\\(/m.test(text)"),
+  () => script("test-upgrade.mjs"),
+  "own-gates: a project's own gate list makes .xezar/checks/repo-gates.sh",
+);
+
+// The project's own role skills and workflows reach the plan as own-file-kit-contract reviews.
+breaks(
+  "a planner that no longer lists the project's own role skills and workflows is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("for (const own of ownFiles(ctx)) {", "for (const own of []) {"),
+  () => script("test-upgrade.mjs"),
+  "own-files: .xezar/skills/xezar-mobile-release.md is",
+);
+
+breaks(
+  "an upgrade prompt that does not say what to do with an own-file-kit-contract review is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("   - `own-file-kit-contract` – a role skill", "   - own-file review – a role skill"),
+  () => script("test-kit-facts.mjs"),
+  "review reason `own-file-kit-contract`",
+);
+
+breaks(
+  "a drift check that accepts an unconfirmed register entry is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("} else if (!lp.confirmed) {", "} else if (false) {"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a patch with Confirmed: no exits 0, not 1",
+);
+
+breaks(
+  "a drift check that ignores register entries with no manifest patch is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace("if (!entry || entry.patch !== id)", "if (false)"),
+  () => script("test-kit-catalog.mjs"),
+  "manifest-drift: a register entry with no manifest patch exits 0, not 1",
+);
+
+// The verifier lets a register entry name an absent file only when it is a kit file the
+// manifest can record as removed, never any absent path.
+breaks(
+  "a verifier that accepts a register entry naming any absent path is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace('if (!recordableRemoval(ctx, f)) problem("register-binding"', 'if (!ctx.readMine(f).missing) problem("register-binding"'),
+  () => script("test-upgrade.mjs"),
+  "removed: a register entry naming a path the kit never shipped is accepted",
+);
+
+breaks(
+  "a gate that no longer runs the drift check is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('node "$SCRIPT_DIR/manifest-drift.mjs" "$REPO_ROOT" || drift_rc=$?\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "no longer runs manifest-drift.mjs",
+);
+
+breaks(
+  "a gate that records a drift failure and then exits 0 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('  exit "$drift_rc"\n', ""),
+  () => script("test-upgrade.mjs"),
+  "a drift failure alone does not fail the script at the end",
+);
+
+// A kept local change with no register entry must stop verify before the manifest records it.
+breaks(
+  "a verifier that lets a kept local change through without a register entry is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace("if (unchangedFromKit(ctx, p, e, mine, detectedByPath.get(p))) continue;", "continue;"),
+  () => script("test-upgrade.mjs"),
+  "unregistered: verify accepts a kept edit",
+);
+
+// A kit file the project had and removed with no register entry must stop verify too: the
+// manifest leaves it out, and the next upgrade would write it back as new in the kit.
+breaks(
+  "a verifier that lets a kit file removed with no register entry through is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace("if (ctx.readMine(p).missing && had) {", "if (false) {"),
+  () => script("test-upgrade.mjs"),
+  "removed: verify accepts a kit file removed with no register entry",
+);
+
+// The drift check runs in projects and keeps its own copy of lib/policy.mjs's NOT_RECORDED.
+breaks(
+  "a drift check whose not-recorded list drifts from the upgrade tool's is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('  "AGENTS.md",\n', ""),
+  () => script("test-upgrade.mjs"),
+  "not-recorded: manifest-drift.mjs's NOT_RECORDED",
+);
+
+breaks(
+  "a drift check that ignores an owner-file-appended kit block is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('  origin !== "owner-file-appended" &&\n', ""),
+  () => script("test-upgrade.mjs"),
+  "not-recorded: an owner-file-appended CLAUDE.md whose kit block changed passes",
+);
+
+// The planner drafts the register entry the verifier will require for a tracked owner-shaped file.
+breaks(
+  "a planner that drafts no register entry for a kept change in .claude/settings.json is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("          if (!item.registerConfirmed) item.unexplained = true;\n", ""),
+  () => script("test-upgrade.mjs"),
+  "owner-hook: a tracked owner-shaped file with a kept local change is not listed as unexplained",
+);
+
+// A manifest with no version: the files' sure bases pick the entry range.
+breaks(
+  "a planner that lists every upgrade entry when the files show the project's version is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const evidence = projectVersion ? null : versionEvidence(ctx, detection);", "const evidence = null;"),
+  () => script("test-upgrade.mjs"),
+  "range: a 3.0.3 install whose manifest names no version shows",
+);
+
+breaks(
+  "a plan whose upgrade entries name no heading is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const unit = units.filter((u) => u.line <= b.line).pop() ?? null;", "const unit = null;"),
+  () => script("test-upgrade.mjs"),
+  "entries: an upgrade entry's line",
+);
+
+// Every 3.1.0 entry that copies role skills needs entry 2 (the shared-contract tail).
+breaks(
+  "a 3.1.0 entry that copies role skills without needing entry 2 is rejected",
+  "UPGRADE_NOTES.md",
+  (s) => s.replace("- Entries 1, 5, 7 and 9 need entry 2:", "- Entries 1, 5 and 7 need entry 2:"),
+  () => script("test-upgrade.mjs"),
+  "needs: 3.1.0 entry 9 copies role skills",
+);
+
+// Round-10 review: a gate list changed after a version-2 manifest is read from the file, and
+// the tracker descriptor's recorded digest moves with it in xez-apply-upgrade-notes.
+breaks(
+  "an adapted file's recorded values taken over its own on the next upgrade is rejected",
+  "upgrade/tools/detect.mjs",
+  (s) => s.replace("return m?.match ? result(v, \"high\", via, { text: t, inputs: { ...(hint.renderInputs ?? {}), ...m.inputs } }) : result(v, \"high\", via);", "return result(v, \"high\", via);"),
+  () => script("test-upgrade.mjs"),
+  "own-gates next:",
+);
+
+breaks(
+  "xez-apply-upgrade-notes that no longer moves the tracker descriptor's digest is rejected",
+  "skills/xez-apply-upgrade-notes/SKILL.md",
+  (s) => s.replace("then write the SHA-256 of the updated file into that entry's", "then leave the manifest entry's"),
+  () => script("test-upgrade.mjs"),
+  "no longer moves the tracker descriptor's recorded digest",
+);
+
+// scripts/test-upgrade.mjs (plan §7 break cases). U1's drift break cases above cover a silent
+// one-byte edit; these cover the upgrade tool's own checks.
+// A new installed path that no fragment's upgrade block lists. Aimed at the copy table rather
+// than at one fragment, so it holds however many streams list the same file.
+breaks(
+  "a changed kit file no 3.1.0 upgrade block lists is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/^(\| `kit\/loops\.json` \| `\.xezar\/loops\.json` \|\n)/m, "$1| `kit/loops.json` | `.xezar/loops-copy.json` |\n"),
+  () => script("test-upgrade.mjs"),
+  ".xezar/loops-copy.json changed since",
+);
+
+// Truncating the index list at package.json's version makes that version the newest indexed
+// one, so the release check compares it with the tree and must find it stale. Once the release
+// PR indexes its own version last, this mutation changes nothing and must be re-aimed.
+// A changed kit file dropped from the one 3.1.0 block that lists it. The base of this check is
+// the last release OLDER than the target: once the release indexes the target itself, a base of
+// "the newest tagged entry" diffs the target with itself and this case passes silently.
+breaks(
+  "a changed kit file dropped from its 3.1.0 upgrade block's Files: line is rejected",
+  "UPGRADE_NOTES.md",
+  (s) => s.replace(".xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new;", ".xezar/checks/review-run.sh =new;"),
+  () => script("test-upgrade.mjs"),
+  ".xezar/checks/lib/gate-record.sh changed since 3.0.3 but no 3.1.0 upgrade block lists it",
+);
+
+breaks(
+  "a stale kit index for the package version is rejected",
+  // Between releases the package version is not the newest entry, so the index is cut back
+  // to it. On a release commit it already is, so one file is dropped from its own index.
+  KIT_INDEX_PKG_IS_NEWEST ? `upgrade/kit-index/${KIT_INDEX_PKG}.json` : "upgrade/kit-index/index.json",
+  (s) => {
+    if (KIT_INDEX_PKG_IS_NEWEST) {
+      const data = JSON.parse(s);
+      const [first] = Object.keys(data.files);
+      delete data.files[first];
+      return `${JSON.stringify(data, null, 2)}\n`;
+    }
+    const list = JSON.parse(s);
+    const at = list.versions.findIndex((v) => v.version === KIT_INDEX_PKG);
+    return at < 0 ? s : `${JSON.stringify({ versions: list.versions.slice(0, at + 1) }, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "is stale: re-run scripts/build-kit-index.mjs",
+);
+
+breaks(
+  "a customised upgrade fixture with a customisation removed is rejected",
+  "scripts/fixtures/upgrade/customised/customisations.json",
+  (s) => {
+    const spec = JSON.parse(s);
+    spec.customisations = spec.customisations.filter((c) => c.id !== "leader-rule");
+    return `${JSON.stringify(spec, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "which customisations.json no longer makes",
+);
+
+breaks(
+  "a manifest digest one byte off no longer gives a high-confidence base",
+  "scripts/fixtures/upgrade/3.0.3/fixture.json",
+  (s) => {
+    const fx = JSON.parse(s);
+    const p = ".xezar/docs/routing.md";
+    const d = fx.manifest.files[p].sha256;
+    fx.manifest.files[p].sha256 = `${d.slice(0, -1)}${d.endsWith("0") ? "1" : "0"}`;
+    return `${JSON.stringify(fx, null, 2)}\n`;
+  },
+  () => script("test-upgrade.mjs"),
+  "3.0.3: .xezar/docs/routing.md base confidence medium, expected high",
+);
+
+// U4: the upgrade prompt names a helper script that does not exist.
+breaks(
+  "an upgrade prompt that names a missing helper script is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("node <clone>/upgrade/tools/detect.mjs", "node <clone>/upgrade/tools/detect-files.mjs"),
+  () => script("test-kit-facts.mjs"),
+  "names upgrade/tools/detect-files.mjs, which does not exist",
+);
+
+// U4: an unreconciled command mark left in the upgrade prompt.
+breaks(
+  "an upgrade prompt with a verify-cli mark left in is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("## Step 2 – Detect\n", "## Step 2 – Detect\n\n<!-- verify-cli -->\n"),
+  () => script("test-kit-facts.mjs"),
+  "still carries a verify-cli mark",
+);
+
+// U-evals: an eval grader that passes every stop invariant would score a run that never stopped
+// on a weakened safety check as a pass.
+breaks(
+  "an upgrade eval grader that accepts a run with no stop is rejected",
+  "upgrade/evals/check.mjs",
+  (s) => s.replace("return [Boolean(hit), `stop on", "return [true, `stop on"),
+  () => script("test-kit-facts.mjs"),
+  "accepts a run that did not stop on a weakened safety check",
+);
+
+// Run from the clone, repository-checks.sh without an argument checks the clone's skill folder.
+breaks(
+  "a verify that runs the repository check without the project root is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace('[join(kit, "repository-checks.sh"), ctx.project]', '[join(kit, "repository-checks.sh")]'),
+  () => script("test-upgrade.mjs"),
+  "verify: the repository check did not run in the project",
+);
+
+// The prompt eval findings (upgrade/evals/RESULTS.md F1–F7), one break per planner guard.
+breaks(
+  "an upgrade that offers the target's unreleased development commits as bases is rejected",
+  "upgrade/tools/lib/context.mjs",
+  (s) => s.replace("return before.slice(0, Math.max(lastRelease, installed) + 1);", "return before;"),
+  () => script("test-upgrade.mjs"),
+  "dev-line: a pre-release copy of a new file is",
+);
+
+breaks(
+  "an upgrade that keeps a file on an inferred base equal to the target is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('} else if (baseEqTheirs && f.base.confidence === "low") {', "} else if (false) {"),
+  () => script("test-upgrade.mjs"),
+  "low-base: a low-confidence base equal to the target gives",
+);
+
+breaks(
+  "an upgrade line test that misses a dropped exit \"$rc\" is rejected",
+  "upgrade/tools/lib/policy.mjs",
+  (s) => s.replace('|\\bexit\\s+"?\\$(\\?|\\{?[A-Za-z_])', ""),
+  () => script("test-upgrade.mjs"),
+  "weaken-rc: a dropped exit",
+);
+
+breaks(
+  "an upgrade that misses an added || true in a check is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const added = isCheckLike(p) && kept ? addedWeakeningLines(baseText, mine) : [];", "const added = [];"),
+  () => script("test-upgrade.mjs"),
+  "weaken-true: an added",
+);
+
+breaks(
+  "an upgrade that does not flag a kept local change to a safety file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (item.safety && ["local-only", "unexplained-local-change"].includes(item.class)) review("safety-local-change");', ""),
+  () => script("test-upgrade.mjs"),
+  "weaken-rc: a kept local change to a safety file is not on the read-and-judge list",
+);
+
+breaks(
+  "an upgrade that does not flag a both-changed safety file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (item.safety && item.class === "both-changed") review("safety-both-changed");', ""),
+  () => script("test-upgrade.mjs"),
+  "semantic: a both-changed safety file",
+);
+
+breaks(
+  "an upgrade that does not stop on a routing field both sides changed is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('if (c.both.length) stop("routing-clash");', ""),
+  () => script("test-upgrade.mjs"),
+  "routing-clash: both sides setting vendorExclusions",
+);
+
+breaks(
+  "an upgrade that drafts a second register entry for a covered file is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('.filter((i) => (i.class === "unexplained-local-change" || i.unexplained) && !i.register.length)', '.filter((i) => i.class === "unexplained-local-change" || i.unexplained)'),
+  () => script("test-upgrade.mjs"),
+  "draft-dup: a second register entry is drafted",
+);
+
+breaks(
+  "an upgrade prompt that does not name a planner stop reason is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("(`routing-clash`; the plan", "(the plan"),
+  () => script("test-kit-facts.mjs"),
+  "does not name the planner's stop reason `routing-clash`",
+);
+// 3.1.0-stream-U:end
+
+// 3.1.0-stream-R:start
+// #89: three bans relax for the DeepSeek V4 Pro reviewer, and no further. Each way the relaxation
+// could be widened – in the script, in the file, or in a ban's text – is a break of its own, and so
+// is a V4 Pro lane in a screen row and softening a ban #89 keeps.
+const V4 = "pi/deepseek-api/deepseek-v4-pro";
+breaks(
+  "a cheap lane marked fullShellReviews is rejected",
+  ROUTING,
+  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].fullShellReviews = true; }),
+  () => script("test-kit-catalog.mjs"),
+  "a lane with tier: cheap never reviews with a full shell",
+);
+
+breaks(
+  "the full-shell reviewer in a reading row that is not a review is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("business-analysis").lanes.push(V4); }),
+  () => script("test-kit-catalog.mjs"),
+  `"${V4}" does not enforce a step's tool limits, and this row only reads`,
+);
+
+breaks(
+  "the full-shell reviewer in a security row that writes is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("release").lanes.push(V4); }),
+  () => script("test-kit-catalog.mjs"),
+  `"${V4}" does not enforce a step's tool limits, and this row is security and release`,
+);
+
+breaks(
+  "route that lets a full-shell lane into every reading row is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("!(lane.fullShellReviews === true && judgesOnly)", "!(lane.fullShellReviews === true)"),
+  () => script("test-kit-catalog.mjs"),
+  "route check accepts V4 Pro in a reading row that is not a review",
+);
+
+breaks(
+  "route that lets a cheap lane review with a full shell is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('const FULL_SHELL_FORBIDDEN = [["tier", "cheap"], ', "const FULL_SHELL_FORBIDDEN = ["),
+  () => script("test-kit-catalog.mjs"),
+  "route check accepts fullShellReviews on a cheap lane",
+);
+
+breaks(
+  "V4 Pro, which has no vision, in a screen row is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("diagrams").lanes.splice(1, 0, V4); }),
+  () => script("test-kit-catalog.mjs"),
+  "screen row diagrams lists",
+);
+
+breaks(
+  "pi-written work cleared by any lane is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "pi-write-claude-review").rule = "What a pi lane wrote merges after a review on any other lane."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban pi-write-claude-review is relaxed further",
+);
+
+breaks(
+  "V4 Pro on risk-high work while Claude has budget is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "high-risk-other-vendor").rule = "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. pi/deepseek-api/deepseek-v4-pro may always be that reviewer."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban high-risk-other-vendor is relaxed further",
+);
+
+breaks(
+  "the tool-limits exception widened to every reading row is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "tool-limits").rule = "A lane with enforcesToolLimits: false is in no reading row (writes: false and not runsCode) and in no security-and-release row. One exception: a lane with fullShellReviews: true may be in any row."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban tool-limits is relaxed further",
+);
+
+breaks(
+  "no-self-review softened along with the three relaxed bans is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "no-self-review").rule = "A review, re-check or QA prefers a different model from the one that wrote the work."; }),
+  () => script("test-kit-facts.mjs"),
+  "ban no-self-review is no longer word for word",
+);
+
+breaks(
+  "a SECURITY.md accepted-risk entry that pre-accepts V4 Pro in a QA row it is not in is rejected",
+  "SECURITY.md",
+  (s) => s.replace("`verify-strong-claim`. It may also", "`verify-strong-claim`, `browser-qa`. It may also"),
+  () => script("test-kit-facts.mjs"),
+  "the accepted-risk entry lists the full-shell reviewer in reading rows",
+);
+
+breaks(
+  "a SECURITY.md accepted-risk entry that says V4 Pro is absent from a row it is in is rejected",
+  "SECURITY.md",
+  (s) => s.replace("not in the `release`, `deploy` or", "not in the `security-review`, `release`, `deploy` or"),
+  () => script("test-kit-facts.mjs"),
+  "as one the full-shell reviewer is not in",
+);
+// 3.1.0-stream-R:end
+
+// 3.1.0-stream-OC:start
+// The owner's 3.1.0 confirmations. (1) A same-vendor reviewer on another model is allowed on every
+// row, security and release included, unless vendorExclusions names the vendor. (2) A single npm
+// root's stamp carries the #53 tree digest. (3) Onboarding never writes `version: "unknown"`.
+breaks(
+  "route that removes a same-vendor lane on a security row again is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("if (file.lanes[cid].vendor === lane.vendor && excluded.has(lane.vendor))", "if (file.lanes[cid].vendor === lane.vendor && (isSecurityRow(rowById, row) || excluded.has(lane.vendor)))"),
+  () => script("test-kit-catalog.mjs"),
+  "a same-vendor lane on another model is allowed on a security row",
+);
+
+breaks(
+  "the neverAuthor description that bans the author's vendor again is rejected",
+  "skills/xez-onboard-opinionated/kit/routing.schema.json",
+  (s) => s.replace("The lane, model and login that wrote or repaired the work are banned, on every row; its vendor is banned only where vendorExclusions names it. Checked at dispatch.", "The lane, login and vendor that wrote the work are banned; checked at dispatch."),
+  () => script("test-kit-facts.mjs"),
+  "neverAuthor does not say the author's model is banned",
+);
+
+breaks(
+  "a single-root freshness check that ignores the tree digest is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(`  [ "$(cat "$stamp" 2>/dev/null)" = "$(printf '%s\\ncontents=%s' "$fp" "$digest")" ] || return 1\n`, ""),
+  depsOnly53,
+  "single root stale: one package folder replaced inside node_modules",
+);
+
+breaks(
+  "a single-root digest that counts its own stamp file is rejected",
+  DEPS_MJS,
+  (s) => s.replace("      if (!rel && name === skipTop) continue;\n", ""),
+  depsOnly53,
+  "single root digest: installed and stamped is fresh",
+);
+
+breaks(
+  "onboarding that writes version unknown again is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("for an install between releases – never `unknown`:", "for an install between releases, or `unknown` when the install names neither:"),
+  () => script("test-kit-facts.mjs"),
+  "still allows version",
+);
+
+breaks(
+  "an onboarding version literal that differs from package.json is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/then `version` — the collection release the kit came from \(`[^`]+`/, "then `version` — the collection release the kit came from (`0.0.1`"),
+  () => script("test-kit-facts.mjs"),
+  "the manifest version literal an installer copy writes is \"0.0.1\"",
+);
+// 3.1.0-stream-OC:end
+
+// --- #122: the gate on native Windows -----------------------------------------
+// Each guard below was written for Windows, and each break reproduces a defect that is not
+// Windows-only, so it fires on the Linux nightly too.
+// 122-windows:start
+breaks(
+  "a link check whose skills scan matches nothing is rejected",
+  "scripts/check-links.mjs",
+  (s) => s.replace('rel.startsWith("skills/")', 'rel.startsWith("skills\\\\")'),
+  () => script("check-links.mjs"),
+  "proved nothing",
+);
+
+breaks(
+  "a review-run.sh that runs bash.exe or a Windows path to bash is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(
+    "  base=\"$(printf '%s' \"$program\" | LC_ALL=C tr '\\134A-Z' '/a-z')\"\n  base=\"${base##*/}\"\n  case \"$base\" in *.exe | *.cmd | *.bat | *.com) base=\"${base%.*}\" ;; esac\n",
+    "  base=\"${program##*/}\"\n",
+  ),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs "bash.exe',
+);
+
+breaks(
+  "a Git Bash resolver that takes bash.exe from PATH is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace(
+    "  const root = findGitRoot({ env, exists });\n",
+    '  const fromPath = pathEntries(env).map((dir) => win.join(dir, "bash.exe")).find((file) => exists(file));\n  if (fromPath) return fromPath;\n  const root = findGitRoot({ env, exists });\n',
+  ),
+  () => script("test-platform.mjs"),
+  "picked WSL's bash.exe",
+);
+
+breaks(
+  "a lint that counts description bytes is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace('desc_len=$(desc_chars "$fm_desc")', "desc_len=${#fm_desc}"),
+  () => script("test-onboarding-content.mjs"),
+  "a 500-character description in a multibyte script is rejected in the C locale",
+);
+
+// #123: lint finds in bulk – one stream of every file, each hit mapped back to its file by line
+// counts – and reports per file. A join that hands a file's last line to the next file loses a
+// hit on that line whenever the file has no final newline.
+breaks(
+  "a bulk pass that gives a file's last line to the next file is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("while (p <= n && !(ln <= last[p])) p++", "while (p <= n && !(ln < last[p])) p++"),
+  () => script("test-onboarding-content.mjs"),
+  "bulk pass lost the last line of",
+);
+
+// The frontmatter check reads a skill twice over: the bulk pass, and the per-skill reads it hands a
+// skill with a CR to. Per-skill reads that drift – here, a body counted in lines – change the
+// report of such a skill only, so only twin skills that differ by a CR can show it.
+breaks(
+  "per-skill frontmatter reads that drift from the bulk pass are rejected",
+  "scripts/lint.sh",
+  (s) => s.replace(
+    `body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -c)`,
+    `body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -l)`,
+  ),
+  () => script("test-onboarding-content.mjs"),
+  "per-skill frontmatter reads disagree with the bulk pass",
+);
+
+// The role-skills bulk pass and role_part split a role skill at one marker. A bulk split that
+// misses it never flags a tail, so a hit there goes unreported.
+breaks(
+  "a role-skills bulk pass that splits a role skill apart from role_part is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("if (line == marker) tail = 1", 'if (line == marker " ") tail = 1'),
+  () => script("test-onboarding-content.mjs"),
+  "role-skills bulk pass lost the tail hit",
+);
+
+// lint.sh's targeted mode (`--only`, `--files`) is what test-onboarding-content runs on. Each break
+// puts a defect in a listed file and asks for the check that owns it, so a targeted run that skips
+// the check, drops the file, or reads a typo as "run nothing" passes the defect and fails here.
+const lintTargeted = (...args) => () => run(bashPath(), ["scripts/lint.sh", ...args]);
+
+breaks(
+  "a targeted lint that skips the per-file check it was asked for is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKILL.md"),
+  "forbidden pattern",
+);
+
+breaks(
+  "a targeted lint that leaves out the skill owning a listed file is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => s.replace(/^name: xez-fix$/m, "name: xez-repair"),
+  lintTargeted("--only", "frontmatter", "--files", "skills/xez-fix/references/rules.md"),
+  "does not match directory",
+);
+
+breaks(
+  "a targeted lint that greps none of the listed files is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nWhen the change is large, hand it to the xez-mega-refactor skill.\n`,
+  lintTargeted("--only", "names", "--files", "skills/xez-fix/SKILL.md"),
+  "which is not a skill in this collection",
+);
+
+breaks(
+  "a targeted lint that reads an unknown check as nothing to run is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portabilty", "--files", "skills/xez-fix/SKILL.md"),
+  "unknown check 'portabilty'",
+);
+
+breaks(
+  "a targeted lint that skips a listed file it cannot find is rejected",
+  "skills/xez-fix/SKILL.md",
+  (s) => `${s}\n\nBranch from develop before you start.\n`,
+  lintTargeted("--only", "portability", "--files", "skills/xez-fix/SKIL.md"),
+  "not a file in this repository",
+);
+
+breaks(
+  "a catalog check that reads CRLF files as they are is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const readText = (path) => readFileSync(path, "utf8").replace(/\\r\\n/g, "\\n");', 'const readText = (path) => readFileSync(path, "utf8");'),
+  () => script("test-kit-catalog.mjs"),
+  "checked out with CRLF line endings",
+);
+
+breaks(
+  "a shared-block sync that reads CRLF files as they are is rejected",
+  "scripts/sync-shared-blocks.mjs",
+  (s) => s.replace('const readText = (path) => toLF(readFileSync(path, "utf8"));', 'const readText = (path) => readFileSync(path, "utf8");'),
+  () => script("test-shared-blocks.mjs"),
+  "a CRLF copy",
+);
+
+breaks(
+  "a kit index that hashes CRLF bytes is rejected",
+  "upgrade/tools/lib/hash.mjs",
+  (s) => s.replace("  if (buf.subarray(0, 8000).includes(0) || !buf.includes(13)) return buf;\n", "  return buf;\n"),
+  () => script("test-upgrade.mjs"),
+  "a CRLF copy of an unchanged kit file",
+);
+
+breaks(
+  "a drift check that hashes CRLF bytes is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/manifest-drift.mjs",
+  (s) => s.replace('const lf = raw.subarray(0, 8000).includes(0) ? raw : Buffer.from(raw.toString("latin1").replaceAll("\\r\\n", "\\n"), "latin1");', "const lf = raw;"),
+  () => script("test-kit-catalog.mjs"),
+  "a CRLF checkout of an unchanged file",
+);
+
+breaks(
+  "a kit path check that reads a Git for Windows path as relative is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('    msys* | cygwin*) case "$1" in [A-Za-z]:/*) return 0 ;; esac ;;\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "reads a Git for Windows path",
+);
+
+breaks(
+  "a kit path check that reads C:/ as absolute outside Git Bash is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(
+    '  case "${OSTYPE:-}" in\n    msys* | cygwin*) case "$1" in [A-Za-z]:/*) return 0 ;; esac ;;\n  esac\n',
+    '  case "$1" in [A-Za-z]:/*) return 0 ;; esac\n',
+  ),
+  () => script("test-kit-facts.mjs"),
+  "as absolute outside Git Bash",
+);
+
+breaks(
+  "a kit that lets Git Bash rewrite a base-branch file argument is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('      *) export MSYS2_ARG_CONV_EXCL="origin/;refs/${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}" ;;\n', ""),
+  () => script("test-kit-facts.mjs"),
+  "lets Git Bash rewrite",
+);
+
+breaks(
+  "a kit Git Bash resolver that takes bash.exe from PATH is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace(
+    "return candidates.find(isGitBashRoot) ?? null;",
+    "return pathEntries(env).find((dir) => exists(win.join(dir, 'bash.exe'))) ?? candidates.find(isGitBashRoot) ?? null;",
+  ),
+  () => script("test-platform.mjs"),
+  "the kit's Git Bash resolver disagrees",
+);
+
+breaks(
+  "a Windows tree stop that ignores start times is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("row.startedAt !== undefined && row.startedAt >= root.spawnedAt - SPAWN_CLOCK_SLACK_MS && row.startedAt <= root.stoppedAt", "row.startedAt !== undefined"),
+  () => script("test-kit-facts.mjs"),
+  "reused the pid",
+);
+
+breaks(
+  "a Windows tree stop that ignores the MSYS process group is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("row.pgid === msysPid", "false"),
+  () => script("test-kit-facts.mjs"),
+  "whose parent already exited",
+);
+
+breaks(
+  "a gate scheduler that never reaps a finished gate is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
+  (s) => s.replace("if (pid) { await reap(pid); groups.delete(pid); }", "if (pid) { groups.delete(pid); }"),
+  () => script("test-kit-facts.mjs"),
+  "left a finished gate's processes running",
+);
+
+breaks(
+  "a gate scheduler that stops nothing on an interrupt is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
+  (s) => s.replace("function signal(pid, kind) {", "function signal(pid, kind) { return;"),
+  () => script("test-kit-facts.mjs"),
+  "did not stop its gates on an interrupt",
+);
+
+breaks(
+  "a leader launcher that takes any pipe a marker names is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("    return PIPE_NAME.test(name) ? { file, name, mtime: stat.mtimeMs } : null;\n", "    return { file, name, mtime: stat.mtimeMs };\n"),
+  () => script("test-kit-catalog.mjs"),
+  "accepts a marker that names another program's pipe",
+);
+
+breaks(
+  "a leader launcher that takes a stale pipe marker for a running engine is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace('    client.once("error", () => settle(false));\n', '    client.once("error", () => settle(true));\n'),
+  () => script("test-kit-catalog.mjs"),
+  "accepts a stale pipe marker",
+);
+
+breaks(
+  "a cross-platform CI job that no longer runs the whole gate is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("        run: node scripts/run-gate.mjs\n", "        run: node scripts/test-kit-catalog.mjs\n"),
+  () => script("test-browser-providers.mjs"),
+  "the cross-platform job must run the whole gate",
+);
+
+breaks(
+  "a required lint job moved off ubuntu is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("  lint:\n    runs-on: ubuntu-latest\n", "  lint:\n    runs-on: windows-latest\n"),
+  () => script("test-browser-providers.mjs"),
+  "the `lint` job must run on ubuntu-latest",
+);
+
+breaks(
+  "a Git tools env that leaves Git's Perl script folders (shasum) off PATH is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace('  if (perlDirs.length) next = envSet(next, "PATH", [envGet(next, "PATH", platform), ...perlDirs].join(";"), platform);\n', ""),
+  () => script("test-platform.mjs"),
+  "withGitTools leaves Git's Perl script folders (shasum) off PATH",
+);
+
+breaks(
+  "a review-run.sh that runs a Windows shell or launcher is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' nice cmd powershell pwsh wsl winpty git-bash ', ' nice '),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "',
+);
+
+breaks(
+  "a review-run.sh that runs start, mintty or git-cmd is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(' git-bash start mintty git-cmd"\n', ' git-bash"\n'),
+  () => script("test-kit-catalog.mjs"),
+  'review-run.sh runs the Windows launcher "C:/no-such-dir/START"',
+);
+
+breaks(
+  "a Windows reap that reads an empty ps as the end of a worker whose MSYS pid is unknown is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("if (!killRoot && knowsGroup && psText !== null", "if (!killRoot && psText !== null"),
+  () => script("test-kit-facts.mjs"),
+  "a reap whose worker left no MSYS pid",
+);
+
+breaks(
+  "a gate worker env that takes a bare program name from the working folder is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("  next.NoDefaultCurrentDirectoryInExePath = '1';\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "the gate workers' env lets a bare program name resolve from the working folder",
+);
+
+breaks(
+  "a kit noglob env that drifts from scripts/lib/platform.mjs is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("? `${msys} noglob` :", "? msys :"),
+  () => script("test-platform.mjs"),
+  "the kit's MSYS quoting, noglob env and Git Bash message agree",
+);
+
+breaks(
+  "a leader launcher that reads pipe markers outside Git Bash is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace("    msys* | cygwin*)\n", "    *)\n"),
+  () => script("test-kit-catalog.mjs"),
+  "reads a pipe marker outside Windows",
+);
+
+breaks(
+  "a Git Bash start that leaves its command line to libuv's quoting is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => s.replace("  return [file, args.map(msysQuote), { ...options, env, windowsVerbatimArguments: true, argv0: msysQuote(file) }];\n", "  return [file, args, { ...options, env }];\n"),
+  () => script("test-platform.mjs"),
+  "msysSpawnArgs quotes every argument for MSYS on win32",
+);
+
+breaks(
+  "a run-bash.mjs that loses the script's exit code is rejected",
+  "scripts/run-bash.mjs",
+  (s) => s.replace("process.exit(result.status ?? 1);", "process.exit(result.status === 0 ? 0 : 1);"),
+  () => script("test-platform.mjs"),
+  "run-bash.mjs passes a script's arguments and exit code through",
+);
+
+breaks(
+  "a run-gate.mjs that stops at the first failing command is rejected",
+  "scripts/run-gate.mjs",
+  (s) => s.replace("  rows.push({ number: index + 1, command, exit, seconds });\n", "  rows.push({ number: index + 1, command, exit, seconds });\n  if (exit !== 0) break;\n"),
+  () => script("test-platform.mjs"),
+  "run-gate.mjs runs every command, reports each exit code",
+);
+
+breaks(
+  "an upgrade planner that reads UPGRADE_NOTES.md with CRLF line endings as it is is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace('sources.push(["UPGRADE_NOTES.md", lfText(readFileSync(notes)).toString("utf8")]);', 'sources.push(["UPGRADE_NOTES.md", readFileSync(notes, "utf8")]);'),
+  () => script("test-upgrade.mjs"),
+  "a CRLF UPGRADE_NOTES.md gives",
+);
+
+breaks(
+  "an upgrade planner that ignores a manifest digest of raw CRLF bytes is rejected",
+  "upgrade/tools/detect.mjs",
+  (s) => s.replace("  return recorded === sha256(mine.text) || recorded === mine.rawSha256;\n", "  return recorded === sha256(mine.text);\n"),
+  () => script("test-upgrade.mjs"),
+  "a manifest that recorded the raw CRLF bytes of an unchanged file plans",
+);
+
+// #122 run 2: the kit runtime on native Windows. Each break below fires on Linux too: the Windows
+// rules are pure functions, OSTYPE-injected shell, a CRLF jq emulator, or a fact about the text.
+breaks(
+  "a program finder that ignores PATHEXT is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("const file = win.join(dir, `${name}${ext}`);", "const file = win.join(dir, name);"),
+  () => script("test-platform.mjs"),
+  "claude.exe",
+);
+
+breaks(
+  "a .cmd launch that lets a cmd.exe metacharacter through is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  if (unsafeForCmd(file, args)) throw refusal(", "  if (false) throw refusal("),
+  () => script("test-platform.mjs"),
+  "a .cmd launch with a cmd.exe metacharacter",
+);
+
+breaks(
+  "a .cmd launch that lets cmd.exe search the working folder is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  next.NoDefaultCurrentDirectoryInExePath = '1';\n", ""),
+  () => script("test-platform.mjs"),
+  "searches the working folder",
+);
+
+breaks(
+  "a router that looks for claude without its extension on Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/route.mjs",
+  (s) => s.replace("    if (windows) {\n      if (windows.findProgram(program, { env })) found.add(program);\n      continue;\n    }\n", ""),
+  () => script("test-kit-catalog.mjs"),
+  "the claude program on Windows",
+);
+
+breaks(
+  "a deps.mjs that starts a unit's tool by bare name is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace("    const r = start(plan.tool, plan.args, ", "    const r = spawnSync(plan.tool, plan.args, "),
+  () => script("test-kit-facts.mjs"),
+  "starts a unit's tool without start()",
+);
+
+breaks(
+  "a node pin that ignores nvm-windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/deps.mjs",
+  (s) => s.replace('  ...(process.env.NVM_HOME && isAbsolute(process.env.NVM_HOME) ? [{ dir: process.env.NVM_HOME, bin: "" }] : []),\n', ""),
+  () => script("test-deps-units.mjs"),
+  "nvm-windows",
+);
+
+breaks(
+  "a documented-output that starts a bare bash on Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/documented-output.mjs",
+  (s) => s.replace("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';", "const BASH = WINDOWS ? \"bash\" : 'bash';"),
+  () => script("test-kit-facts.mjs"),
+  "WSL's bash",
+);
+
+breaks(
+  "a digest helper with no sha256sum fallback is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace('else sha256sum "$@"; fi; }', 'else shasum -a 256 "$@"; fi; }'),
+  () => script("test-kit-facts.mjs"),
+  "without shasum",
+);
+
+breaks(
+  "a worktree check that compares /c/… with C:/… as text is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace(
+    "      git -C \"$2\" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree \\(.\\)/\\1/p' |\n        cygpath -m -f - 2>/dev/null | LC_ALL=C tr 'A-Z' 'a-z' | grep -xF -- \"$want\" >/dev/null\n",
+    "      git -C \"$2\" worktree list --porcelain 2>/dev/null | grep -qxF \"worktree $1\"\n",
+  ),
+  () => script("test-kit-facts.mjs"),
+  "/c/… and C:/…",
+);
+
+breaks(
+  "a worktree check that lists a tree cygpath could not convert is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("      want=\"$(cygpath -m -- \"$1\" 2>/dev/null)\" && [ -n \"$want\" ] || return 1\n", "      want=\"$(cygpath -m -- \"$1\" 2>/dev/null)\"\n"),
+  () => script("test-kit-facts.mjs"),
+  "cygpath failed",
+);
+
+breaks(
+  "a gh-write.sh that keeps a CRLF jq's CR in a label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("done < <(jq -r '(.add // [])[]' <<<\"$request\" | drop_jq_cr)", "done < <(jq -r '(.add // [])[]' <<<\"$request\")"),
+  () => script("test-kit-catalog.mjs"),
+  "\"risk-low\" under a CRLF jq",
+);
+
+breaks(
+  "a gh-write.sh body read that loses or adds a CR is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace("json_body=\"$(jq_string_bytes '.body' <<<\"$request\")\"", "json_body=\"$(jq -r '.body' <<<\"$request\")\""),
+  () => script("test-kit-catalog.mjs"),
+  "a comment body with a CR inside",
+);
+
+breaks(
+  "a verdict-write.sh that writes jq's CRLF into evidence is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("evidence \"$(jq -r '.name' <<<\"$request\" | drop_jq_cr)\" < <(jq_string_bytes '.text' <<<\"$request\")", "evidence \"$(jq -r '.name' <<<\"$request\" | drop_jq_cr)\" < <(jq -j '.text' <<<\"$request\")"),
+  () => script("test-kit-catalog.mjs"),
+  "evidence text under a CRLF jq",
+);
+
+breaks(
+  "a skill list read that keeps jq's CR is rejected",
+  "skills/xez-maintain-deps/references/agentic-setup.md",
+  (s) => s.replace("\"$CONFIG\" 2>/dev/null | tr -d '\\r')", "\"$CONFIG\" 2>/dev/null)"),
+  () => script("test-platform.mjs"),
+  "keeps jq's CR in a list read",
+);
+
+breaks(
+  "a descriptor that writes a fixed /tmp file is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/github.md",
+  (s) => s.replace("base64 < \"$img\" | tr -d '\\n' > \"$B64\"", "base64 < \"$img\" | tr -d '\\n' > /tmp/ev-content.b64"),
+  () => script("test-platform.mjs"),
+  "fixed /tmp",
+);
+
+breaks(
+  "an onboarding that leaves a kit script non-executable is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("  .xezar/checks/push-check.sh \\\n", ""),
+  () => script("test-kit-facts.mjs"),
+  "not marked executable",
+);
+
+breaks(
+  "an applier that does not name executable files is rejected",
+  "upgrade/tools/apply.mjs",
+  (s) => s.replace("  for (const p of r.executable ?? []) console.log(`executable=${p}`);\n", ""),
+  () => script("test-upgrade.mjs"),
+  "executable=",
+);
+
+breaks(
+  "a Codex trust line with a basic-string Windows key is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace(/ \*\*On native Windows the\n {2}key is the project's Windows path[\s\S]*?\]`\.\*\*/, ""),
+  () => script("test-kit-facts.mjs"),
+  "literal-string key",
+);
+
+breaks(
+  "a kit that still accepts Node 20 is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-setup.sh",
+  (s) => s.replace("    if (major < 22) {\n", "    if (major < 20) {\n"),
+  () => script("test-kit-facts.mjs"),
+  "Node 22",
+);
+
+// QG-8 fix round (F1, F4, F5, F7, F8).
+breaks(
+  "a Windows start that runs a tool it could not find is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace("  if (!found) return { error: Object.assign(new Error(`spawnSync ${tool} ENOENT`), { code: 'ENOENT' }) };", "  if (!found) return { file: tool, args: [...args], options: {} };"),
+  () => script("test-platform.mjs"),
+  "started by bare name",
+);
+
+breaks(
+  "a cmd.exe path built from a SystemRoot with a metacharacter is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-programs.mjs",
+  (s) => s.replace(" || CMD_UNSAFE_PATH.test(systemRoot) || systemRoot.includes('/')", ""),
+  () => script("test-platform.mjs"),
+  "SystemRoot",
+);
+
+breaks(
+  "a jq CR step that also runs off Windows is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("*) cat ;; esac; }", "*) tr -d '\\r' ;; esac; }"),
+  () => script("test-kit-facts.mjs"),
+  "off Windows",
+);
+
+breaks(
+  "a worktree check that stops reading a long list early is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  (s) => s.replace("| grep -xF -- \"$want\" >/dev/null\n", "| grep -qxF -- \"$want\"\n"),
+  () => script("test-kit-facts.mjs"),
+  "long worktree list",
+);
+
+breaks(
+  "an applier that writes a 0644 kit file as executable is rejected",
+  "upgrade/tools/lib/context.mjs",
+  (s) => s.replace("m[1] === \"100755\" ? 0o755 : 0o644", "m[1] === \"100755\" ? 0o755 : 0o755"),
+  () => script("test-upgrade.mjs"),
+  "records .xezar/checks/lib/windows-programs.mjs as 100755",
+);
+// 122-windows:end
 
 // --- the tree is left exactly as it was found --------------------------------
 // Compared against a snapshot taken at the top of the run, not against a clean tree:

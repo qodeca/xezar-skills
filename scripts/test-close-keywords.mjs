@@ -13,12 +13,17 @@
 // contract is.
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toLF } from "./lib/platform.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const read = (path) => readFileSync(join(root, path), "utf8");
+// Read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) parses the same (#122).
+// `from` is for the CRLF case below, which reads a CRLF copy through this same reader.
+const read = (path, from = root) => toLF(readFileSync(join(from, path), "utf8"));
+const schemaBlockOf = (text) => text.match(/```json\n([\s\S]*?)```/);
 
 const setup = read("skills/xez-setup-agent-pipeline/SKILL.md");
 const skill = read("skills/xez-close-fixed-issues/SKILL.md");
@@ -30,7 +35,7 @@ const configFields = read("skills/xez-setup-agent-pipeline/references/config-fie
 // --- the config schema declares the key, and it is a list ------------------
 // The schema block is what xez-setup-agent-pipeline writes into a repository, so
 // it must stay valid JSON with closeKeywords present as an array.
-const schemaBlock = setup.match(/```json\n([\s\S]*?)```/);
+const schemaBlock = schemaBlockOf(setup);
 assert.ok(schemaBlock, "xez-setup-agent-pipeline: config schema JSON block not found");
 const schema = JSON.parse(schemaBlock[1]);
 assert.ok(
@@ -42,6 +47,24 @@ assert.deepEqual(
   [],
   "xez-setup-agent-pipeline: closeKeywords must default to empty — English repos keep today's behavior",
 );
+// #122 (Windows): a CRLF copy of the skill, written to disk and read by `read`, yields the same schema.
+{
+  const rel = "skills/xez-setup-agent-pipeline/SKILL.md";
+  const dir = mkdtempSync(join(tmpdir(), "close-keywords-crlf-"));
+  try {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), setup.replace(/\n/g, "\r\n"));
+    const crlfBlock = schemaBlockOf(read(rel, dir));
+    assert.ok(crlfBlock, "xez-setup-agent-pipeline: a CRLF copy hides the config schema JSON block");
+    assert.deepEqual(
+      JSON.parse(crlfBlock[1]),
+      schema,
+      "xez-setup-agent-pipeline: a CRLF copy must parse to the same config schema",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 // The field reference lives in references/config-fields.md: the body is a router, and a
 // bullet per config key is exactly the kind of detail that belongs one layer down.
 assert.match(

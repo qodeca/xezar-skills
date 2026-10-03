@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file documents how work flows from ticket to merged PR in this repository. The agent skills configured in `.xezar/pipeline/config.json` enforce the process; humans read it here. PRs target `main`; issues and PRs live in github, with every tracker operation the skills run defined in `.xezar/pipeline/trackers/github.md` (edit that file to extend or override tracker behavior).
+This file documents how work flows from ticket to merged PR in this repository. The agent skills configured in `.xezar/pipeline/config.json` enforce the process; humans read it here. PRs target `develop`, and a release merges `develop` into `main` in one PR – `main` is what projects install from, so it only ever holds released work; issues and PRs live in github, with every tracker operation the skills run defined in `.xezar/pipeline/trackers/github.md` (edit that file to extend or override tracker behavior).
 
 Work enters through two paths: a free-form task brief handed to an agent, or a filed ticket. Both converge on the same review loop, the same validation gate, and the same merge gates.
 
@@ -22,14 +22,14 @@ Before intake, the work is shaped: `xez-discover` establishes the product contex
 |---|---|---|---|
 | Discovery | The product context is established before any idea is weighed — problem and who has it, stakeholders, rules, flows, success criteria, scope — from material that exists, with every claim tagged by its evidence and every decision owned by a person. Then an idea, question, or itch is talked through: the problem is questioned, alternatives (including building nothing) are weighed, and the conversation ends in a routing decision. | `xez-discover` (product level) and `xez-brainstorm` (one idea), or a human | A product brief, or a routed conversation with a brief when the work continues |
 | Intake | A ticket or task brief is filed in github and meets the Definition of Ready below. `xez-prepare-issue` files it with SDLC labels and the ready sections; `xez-auto-manage-issues` reports what an existing ticket still lacks. | Anyone, `xez-prepare-issue`, `xez-auto-manage-issues` | Ticket exists and is ready, or its gaps are named on the ticket |
-| Triage | Confirm the issue is real, still unfixed on `main`, and not already claimed or covered by an open PR. Read-only; stops the chain cleanly when there is nothing to do. | `xez-verify-in-repo` or a human | Confirmed actionable, or closed as no-action |
+| Triage | Confirm the issue is real, still unfixed on `develop`, and not already claimed or covered by an open PR. Read-only; stops the chain cleanly when there is nothing to do. | `xez-verify-in-repo` or a human | Confirmed actionable, or closed as no-action |
 | Claim | The author claims the ticket so concurrent agents back off. See the claim protocol below. | `xez-fix` / `xez-auto-create-pr`, or a human | Claim visible on the ticket |
 | Design | For a user-facing change, the flow and its states are settled before the code exists: what the screen does when empty, loading, in error, and without permission, and what the change deliberately does not do. A ticket that touches no UI skips this stage. | `xez-ux-shape`, or a human designer | The flow and its states are decided, or the ticket is not user-facing |
 | Implement | Locate the minimal change surface (`xez-root-cause`, read-only), then implement the change with regression tests and run the validation gate. Task briefs without a ticket go through `xez-auto-create-pr`, which plans, implements phase by phase in an isolated worktree, and runs the same gate. | `xez-root-cause` + `xez-fix`, `xez-auto-create-pr`, or a human author | Change complete, validation gate green |
-| PR | Commit, push, and open a PR against `main` with normalized labels. On a hand-worked branch, `xez-check-and-commit` runs the gate, fixes obvious drift, and pushes when green. | `xez-open-pr`, `xez-auto-create-pr`, or `xez-check-and-commit` | Open, labeled PR |
+| PR | Commit, push, and open a PR against `develop` with normalized labels. On a hand-worked branch, `xez-check-and-commit` runs the gate, fixes obvious drift, and pushes when green. | `xez-open-pr`, `xez-auto-create-pr`, or `xez-check-and-commit` | Open, labeled PR |
 | Review loop | The reviewer reads the diff against the `xez-code-review` checklist and approves or requests changes. Requested changes are addressed (`xez-auto-continue-pr` resumes agent PRs from the tracking plan) and the PR is re-reviewed until approved. A user-facing change also gets a design pass: `xez-ux-review-pr` walks the changed screens and reports findings ranked by user impact. That pass is advisory — it informs the review, it does not hold the merge. | `xez-auto-review-pr` (single PR), `xez-review-prs` (sweep), `xez-ux-review-pr` (design pass), or a human | Approving review submitted |
 | QA | A PR carrying `needs-qa` waits for QA. The reviewer boots the app once with `xez-prepare-test-env`, walks the change in a real browser with `xez-auto-qa-pr` — which attaches screenshots and a pass/fail report and touches no labels by default — and records the outcome. A flow worth keeping becomes `xez-integration-tests` coverage. See the QA gate below. | QA reviewer, with `xez-prepare-test-env`, `xez-auto-qa-pr`, `xez-integration-tests` | `qa-approved` applied by a person, or `qa-failed` routes it back |
-| Merge | `xez-merge-buddy` reports, read-only, which PRs can merge now and which are close but blocked. `xez-approve-merge-pr` re-checks every gate, approves, and squash-merges. | `xez-merge-buddy` + `xez-approve-merge-pr`, or a human | PR squash-merged into `main` |
+| Merge | `xez-merge-buddy` reports, read-only, which PRs can merge now and which are close but blocked. `xez-approve-merge-pr` re-checks every gate, approves, and squash-merges. | `xez-merge-buddy` + `xez-approve-merge-pr`, or a human | PR squash-merged into `develop` (a release PR merges into `main`) |
 | Post-merge housekeeping | Close issues the merged PR fixes; comment on issues whose PRs were closed without merging; turn leftover asks or review comments into tracked follow-up issues. | `xez-close-fixed-issues`, `xez-followup-issue-from-pr` | Tracker reconciled, follow-ups filed |
 
 ## Definition of Ready
@@ -192,11 +192,11 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-deps-units.mjs`
 - `node scripts/test-compat-pins.mjs`
 - `node scripts/check-allowlists.mjs`
-- `node scripts/test-guards.mjs`
+- `node scripts/test-upgrade.mjs`
 - `npm run check:generic-instructions`
 - `npm run test:generic-instructions`
 
-Any non-zero exit fails the gate and blocks the PR. The implementing skills run the gate before opening a PR, and `xez-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.xezar/pipeline/config.json`; when it changes, update it there and in this section together.
+Any non-zero exit fails the gate and blocks the PR. The guard suite (`npm run test:guards`), which breaks every gate on purpose to prove it still fires, is not in this list: it takes about seventy minutes on GitHub's Linux runner, so it runs nightly on `develop` from `.github/workflows/nightly-guards.yml` and a failure opens one "Nightly guard suite failed" issue. The implementing skills run the gate before opening a PR, and `xez-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.xezar/pipeline/config.json`; when it changes, update it there and in this section together. On Windows, run them from Git Bash or through npm (`npm run gate` runs the whole list); see [CONTRIBUTING.md → Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).
 
 ## Amending this process
 

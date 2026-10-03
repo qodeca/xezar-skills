@@ -5,21 +5,25 @@ is deliberately **not** enforced: a coverage number that must not go down turns 
 written to raise it, and those tests protect the number rather than the behaviour.
 
 Ranked by what breaking it would cost, not by how much code it touches. Counts measured
-2026-09-21; they move whenever a gate gains a case, so re-read them from the gate's own output
+2026-09-28; they move whenever a gate gains a case, so re-read them from the gate's own output
 rather than trusting this table for a precise number.
+
+Every ✅ runs on every PR, except the `test-guards.mjs` break cases: the guard suite runs nightly
+on `develop` (`.github/workflows/nightly-guards.yml`), so a guard that stops firing is found the
+next morning, not before merge. Rows 21 and 25–31 lean on those cases.
 
 | # | Behaviour | Checked by | Runs in CI? |
 |---|---|---|---|
 | 1 | A merge cannot land a commit no gate saw | `test-merge-gate.mjs` — 51 assertions incl. moved head, empty required set, absent label | ✅ |
 | 2 | Missing evidence never reads as a pass | `test-gate-status.mjs` — 51 assertions, ending in a sweep over every shape of missing input | ✅ |
-| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` — 109 deliberate defects | ✅ |
+| 3 | Every guard still catches the defect it was written for | `test-guards.mjs` – 336 deliberate defects in its 2026-10-03 run, and growing; since #123 three of them prove `lint.sh`'s bulk pass still reports what the per-file checks report (a hit on a file's last line, the slow frontmatter path, the role-skill split) | ✅ nightly, not on every PR |
 | 4 | Skills stay portable and free of unsafe commands | `lint.sh` — base branch, package manager, `pkill`, credential-shaped values; inside a vendored `kit/`, paths from the engine's own repository | ✅ |
 | 5 | The chaining lines one skill hands the next still parse | `test-chaining-lines.mjs` — 227 assertions, incl. a renamed-label case | ✅ |
 | 6 | Shared safety text, and the kit role skills' shared contract, have not drifted across their copies | `test-shared-blocks.mjs` + the generator's clause floor | ✅ |
 | 7 | A tracker descriptor implements every operation skills name | `test-tracker-providers.mjs` — 47 operations × 4 providers | ✅ |
-| 8 | A toolchain or security provider degrades where it cannot act | `test-toolchain-providers.mjs` — 12 parity cells | ✅ |
+| 8 | A toolchain or security provider degrades where it cannot act | `test-toolchain-providers.mjs` — 24 parity cells | ✅ |
 | 9 | A browser provider implements every operation, on every platform | `test-browser-providers.mjs` | ✅ |
-| 10 | Every pointer between documents resolves | `check-links.mjs` — 442 documents | ✅ |
+| 10 | Every pointer between documents resolves | `check-links.mjs` — 450 documents | ✅ |
 | 11 | The gate list means the same thing in all four places | `check-gate-list.mjs` | ✅ |
 | 12 | Every gate exception has an owner and an expiry | `check-allowlists.mjs` | ✅ |
 | 13 | Labels mean the same thing in every repository | `check-label-taxonomy.mjs` | ✅ |
@@ -31,13 +35,17 @@ rather than trusting this table for a precise number.
 | 19 | Discovery contracts | `test-discovery-contracts.mjs`, invoked by `lint.sh` | ✅ |
 | 20 | A skill actually works end to end under a real coding agent | `test:agent-browser-codex` | ❌ — needs the `codex` CLI and a full-access sandbox |
 | 21 | Vendored kit payload cannot widen a gate for the rest of the collection | `test-guards.mjs` — two cases proving the `kit/` exclusion is a path exclusion only | ✅ |
-| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 18 pinned facts | ✅ |
+| 22 | Named facts agree between a skill's prose and the kit it vendors | `test-kit-facts.mjs` — 34 pinned facts | ✅ |
 | 23 | One minimum engine version across the bootstrap prompt, the preflight and the skill card; the prompt keeps its ten pinned rules | `test-compat-pins.mjs`, against `compat.json` | ✅ |
 | 24 | The onboarding kit's workflows and role skills load under the kit's own validator, every workflow has a row in `kit/routing.json`, the file passes `route.mjs --check` and matches its schema and stored defaults, on a staged project `route` reads only the remote default branch, drops a missing program or login, and drops a lane the lane cache marks unavailable but distrusts a stale or future-dated cache, the maintained-skill list is the skill directory, and every row and class count in prose is the file's | `test-kit-catalog.mjs` | ✅ — proves a workflow loads and can be selected, and runs `config-guard.sh` and `deploy-guard.sh` for real on a throwaway repository; **not** that a workflow runs on an engine |
 | 25 | The gate lease cannot loop, cannot delay `--list`, probes the engine before it commits, and never resolves through `npx` | `test-kit-facts.mjs` FACT 15, six break cases in `test-guards.mjs` | ✅ — but read the limit below |
-| 26 | A reading step's shell is limited to reading commands and three write helpers, a project's Claude settings and Codex rules cannot widen it, and loosening either is a trust-boundary change | `catalog-check.mjs` reader and settings rules, `test-kit-facts.mjs` FACT 16, the Codex-rule cases and the write-script cases in `test-kit-catalog.mjs` (every documented pipe goes into a bare script, and both scripts accept one JSON request), and break cases in `test-guards.mjs` | ✅ — proves the lists; **not** that a runner honours them. Claude enforces an allowlist; Codex enforces it through a hook on engine 0.19.0 (qodeca/xezar#863 – the engine's live QA passed, this repository's own refusal test runs on release day); pi honours it per command, but the kit does not mark pi as enforcing until that test passes; a task login's own user settings are checked by hand at setup |
+| 26 | A reading step that is not a review or QA step has its shell limited to reading commands and three write helpers (a review or QA step also holds `review-run.sh`: row 30), a project's Claude settings and Codex rules cannot widen it, and loosening either is a trust-boundary change | `catalog-check.mjs` reader and settings rules, `test-kit-facts.mjs` FACT 16, the Codex-rule cases and the write-script cases in `test-kit-catalog.mjs` (every documented pipe goes into a bare script, and both scripts accept one JSON request), and break cases in `test-guards.mjs` | ✅ — proves the lists; **not** that a runner honours them. Claude enforces an allowlist; Codex enforces it through a hook on engine 0.19.0 (qodeca/xezar#863 – the engine's live QA passed, this repository's own refusal test runs on release day); pi honours it per command, but the kit does not mark pi as enforcing until that test passes; a task login's own user settings are checked by hand at setup |
 | 27 | Routing keeps its security minimums and reserved lanes, reads from the base branch, and is a trust boundary | `route.mjs --check` in `test-kit-catalog.mjs`, `test-kit-facts.mjs` FACT 17, twenty-one break cases in `test-guards.mjs` | ✅ — proves the file and the script; **not** which lanes are available on a machine, which only the leader's lane cache knows |
 | 28 | Dependency units install only what the base branch lists, with the Yarn 1 and dotnet flags the kit promises, go stale on every named input, and a project without units keeps its single-root output | `test-deps-units.mjs` — stubs that record argv, cwd and HUSKY; five break cases in `test-guards.mjs` | ✅ — proves the kit against stubs; the real tools run only under `XEZ_DEPS_REAL=1`, on a machine that has them |
+| 29 | The upgrade tool keeps local changes: every committed synthetic install (1.2.0, 2.1.1, 3.0.0, 3.0.3 and one untagged commit) gets the file class and base the kit index says, applies twice with no further change and ends equal to a fresh install; a customised install keeps exactly its customisations; unsafe paths, a weakened safety check and a stale plan are refused; the drift check fails an unrecorded edit | `test-upgrade.mjs`, the drift and upgrade break cases in `test-guards.mjs` | ✅ — proves the scripts against committed fixtures; **not** the merge Claude does for a file both sides changed, which runs by hand against the eval set in `upgrade/evals/` before tagging, and not a real onboarded project until snapshots are added under `scripts/fixtures/upgrade/real/` |
+| 30 | A review or QA step runs the change it judges without being able to publish it (D13): everything `review-run.sh` starts gets no git or gh credentials; a verdict packet or an own approval label is refused when HEAD or a tracked file changed or the recorded head is not a commit of the PR; an approval label moves only for the `verdictRole` the engine froze for that step (a Continue's `continue-N` step resolved to the step that owns its session), and a gate label is lifted only with its approval label; the six review workflows run the kit scripts only from the kit step's copy in `.local/xezar/cache/kit/checks/` | the review-run cases in `test-kit-catalog.mjs` (run for real in a throwaway repository, against a trimmed real runs index), `catalog-check.mjs` reader rules and `test-kit-facts.mjs` FACT 16 for the allowlists, FACT 23 for the review steps' browser tools, and the `review-run.sh`, `verdict-write.sh` and `gh-write.sh` break cases in `test-guards.mjs` | ✅ — proves the scripts and the lists; **not** that the started code is harmless: it is arbitrary code with the operator's user rights, which can read what that user can read, reach the network, or delete the review's state or rewrite the kit step's copy (the accepted residue in `SECURITY.md`); and **not** a review continued after the engine reclaimed its worktree, which has no kit-step copy |
+| 31 | A repair pushes only the sealed, checked HEAD, only to its own open, same-repository PR's head branch, never to a protected branch, never with a bare force, and confirms the remote tip after the push | `test-kit-facts.mjs` FACT H1 (`push-check.sh` run for real against a local bare origin), and the `push-check.sh` break cases in `test-guards.mjs` | ✅ — proves the script against a local origin, a stand-in `gh` and a stubbed seal check; **not** two runs repairing the same PR at once, and **not** a process running as the same user pushing by other means (`SECURITY.md`, D12) |
+| 32 | The gate runs on native Windows: the test helpers find Git Bash and never WSL's `bash.exe`, join `PATH` and write paths the Windows way | `test-platform.mjs`, invoked by `lint.sh` (its pure cases inject `win32`, so they run on Linux too); the whole gate in the Windows and macOS CI jobs | ✅ on ubuntu; the Windows and macOS jobs are informational and never block a merge – and they prove the kit's logic on Windows, **not** the engine or the leader there (qodeca/xezar#963) |
 
 **Row 25 is thinner than it looks, and deliberately so.** What CI checks is the *shape* of the
 lease block: that the re-entry guard exists, that it sits after the `--list` exit, that the engine
@@ -78,8 +86,8 @@ about flaky tests that must keep passing.
 
 ## What this says
 
-**The thin row is 20.** Twenty-six checks read what the skills *say*; one runs a
-skill and watches what it *does*, and that one cannot run in CI — it needs a CLI and a
+**The thin row is 20.** Every other row reads what the skills *say*, or runs their scripts
+against fixtures; row 20 runs a skill and watches what it *does*, and that one cannot run in CI — it needs a CLI and a
 sandbox with full access, and granting a pull request's own code full access is exactly
 what CI must not do.
 
@@ -90,11 +98,11 @@ is not hypothetical, it shipped: one file said campaign folders were committed w
 beside it said they never were, and prose promising `decisions.md` is never cut shipped alongside
 a script that cut it at 8 KB.
 
-`test-kit-facts.mjs` now pins seventeen facts that already caused such a contradiction, asserted in
+`test-kit-facts.mjs` now pins thirty-four facts that already caused such a contradiction, asserted in
 every place that states them. **What it does not do is compare meaning.** Deciding whether two
 English sentences agree is the actual problem, and no grep does it. So a fact nobody pinned is
 still unchecked, and adding a pin is a deliberate act — the check cannot discover the next
-contradiction on its own, only re-catch the kinds it was taught. The honest scope is: these seventeen
+contradiction on its own, only re-catch the kinds it was taught. The honest scope is: these thirty-four
 cannot silently drift again.
 
 So: everything above the line is a check on instructions. That is worth a great deal for a

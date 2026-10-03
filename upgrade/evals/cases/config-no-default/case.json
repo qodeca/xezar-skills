@@ -1,0 +1,47 @@
+{
+  "name": "config-no-default",
+  "situation": "Changed owner config values, and 3.1.0 machine blocks name new config keys, changelog.format among them (documented default auto since F6).",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "validation",
+          "commands"
+        ],
+        "value": [
+          "make lint",
+          "make test",
+          "make e2e"
+        ]
+      }
+    },
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "qa",
+          "enabled"
+        ],
+        "value": false
+      }
+    }
+  ],
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@qodeca/xezar-skills",
-  "version": "3.0.3",
+  "version": "3.1.0",
   "private": true,
   "description": "Agent skills that run a full PR pipeline: plan, implement, review, QA gate, merge.",
   "license": "MIT",
@@ -11,7 +11,8 @@
   "scripts": {
     "install-skills": "node scripts/install-skills.mjs",
     "uninstall-skills": "node scripts/install-skills.mjs --uninstall",
-    "lint": "scripts/lint.sh",
+    "lint": "node scripts/run-bash.mjs scripts/lint.sh",
+    "gate": "node scripts/run-gate.mjs",
     "test:browser-providers": "node scripts/test-browser-providers.mjs",
     "test:tracker-providers": "node scripts/test-tracker-providers.mjs",
     "test:toolchain-providers": "node scripts/test-toolchain-providers.mjs",
@@ -32,8 +33,10 @@
     "test:deps-units": "node scripts/test-deps-units.mjs",
     "test:compat-pins": "node scripts/test-compat-pins.mjs",
     "check:allowlists": "node scripts/check-allowlists.mjs",
+    "test:upgrade": "node scripts/test-upgrade.mjs",
     "test:guards": "node scripts/test-guards.mjs",
     "test:discovery-contracts": "node scripts/test-discovery-contracts.mjs",
+    "test:platform": "node scripts/test-platform.mjs",
     "test:agent-browser-codex": "bash scripts/test-agent-browser-codex.sh",
     "check:generic-instructions": "node scripts/check-generic-instructions.mjs",
     "test:generic-instructions": "node scripts/test-generic-instructions.mjs"
