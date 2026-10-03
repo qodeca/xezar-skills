@@ -19,6 +19,21 @@
 #                      (roster, config, discovery, platform) runs as usual.
 # With no option this is the full gate and its output is unchanged. A bad option, an unknown
 # check or a path that is not a file in the repository stops the run with exit 2.
+#
+# How a per-file check runs (#123): one bulk pass reads every file once and flags the files that
+# could hold a finding; the per-file code then runs for the flagged files only and prints every
+# message. A green run starts a fixed number of programs, so never add a $( ) or a pipeline that
+# runs once per file or per skill on a green path. grep and sed decide every pattern hit; awk
+# copies, splits and counts, and decides only the frontmatter's first-line and override checks. A
+# file the bulk pass cannot read faithfully (binary, encoding error, empty, unreadable, a CR, a
+# byte count that is not its size) is always flagged, and strip_expr must stay line-local (s///
+# commands only – a review rule, nothing checks it). The edges left are in DECISIONS.md ->
+# "lint.sh finds in bulk and reports with its per-file code".
+# To give a check a bulk pass: (1) name it in the temp-folder condition below; (2) write only under
+# $lint_tmp, behind [ -d "${lint_tmp:-}" ]; (3) flag every file on any failure – no temp folder, a
+# file it cannot write or read, an exit status, a line of stderr; (4) keep the per-file code as it
+# is and skip only the files the pass did not flag; (5) add a committed case that a test-guards
+# break fires.
 set -uo pipefail
 
 # Per-run load ceiling (body + always-loaded references). Ratchet: lower only.
@@ -137,21 +152,196 @@ command -v node >/dev/null 2>&1 || { printf 'LINT FAIL: %s\n' "node is required 
 # read as 1000. Node counts code points, which is what `${#var}` counts in a UTF-8 locale (#122).
 desc_chars() { printf '%s' "$1" | node -e 'process.stdout.write(String([...require("fs").readFileSync(0, "utf8")].length))'; }
 
+nl='
+'
+tab=$'\t'
+
+# in_list <newline-separated list> <line>: is the line one of the list's lines?
+in_list() {
+  case "$nl$1$nl" in *"$nl$2$nl"*) return 0 ;; esac
+  return 1
+}
+
+# One temp folder per run holds the bulk passes' lists and streams; lint never writes in the
+# repository. awk reads paths from ENVIRON, never through -v, which would turn a backslash in a
+# TMPDIR path into an escape.
+lint_tmp=""
+if want frontmatter || want packaging || want portability || want role-skills; then
+  if ! lint_tmp=$(mktemp -d "${TMPDIR:-/tmp}/lint.XXXXXX") || [ ! -d "$lint_tmp" ]; then
+    printf 'LINT FAIL: %s\n' "cannot create a temp folder" >&2
+    exit 1
+  fi
+  trap 'rm -rf "$lint_tmp"' EXIT
+  trap 'exit 130' INT TERM
+  export LINT_TMP="$lint_tmp"
+fi
+
+# Frontmatter values come from one awk pass over fm.list (fm_bulk) and one `wc -c`, so the loop
+# below starts no program per skill. Per skill the pass prints k, path, slow, first, name,
+# description and override, one per line. awk reads in binary mode (BINMODE, gawk on Windows; a
+# plain variable elsewhere), so it sees every CR. A CR in a SKILL.md or in a reference's first line
+# (Git Bash's awk and $( ) drop one, head and Linux keep it), a file it cannot read, or a size wc
+# does not print sets slow, and that skill runs the per-skill reads.
+# fm_awk and the per-skill reads in the loop below (fm_slow) are two implementations of the same
+# reads: change both. test-onboarding-content.mjs proves they report the same on twin skills.
+# shellcheck disable=SC2016 # a literal: the backticks are text, not a command
+ov_tpl='**ALWAYS check first:** Apply `.xezar/pipeline/overrides/@NAME@.md` when present; safety rules still win.'
+# shellcheck disable=SC2016 # an awk program: its $ fields are awk's, not the shell's
+fm_awk='
+function trim(v) {
+  while (v != "" && index(ws, substr(v, 1, 1))) v = substr(v, 2)
+  return v
+}
+function skill(k, path,   name, want, body, line, r, nr, c, f, infm, gn, gd) {
+  n++; ks[n] = k; paths[k] = path; first[k] = 0; fname[k] = ""; fdesc[k] = ""; ov[k] = 0
+  name = substr(path, 8, length(path) - 16)
+  want = pre name post
+  body = tmp "/body." k
+  printf "" > body
+  infm = 1
+  while ((r = (getline line < path)) > 0) {
+    nr++
+    if (index(line, "\r")) slow[k] = 1
+    if (nr == 1) first[k] = (line == "---")
+    else if (infm && line == "---") infm = 0
+    else if (infm) {
+      if (!gn && substr(line, 1, 5) == "name:") { fname[k] = trim(substr(line, 6)); gn = 1 }
+      if (!gd && substr(line, 1, 12) == "description:") { fdesc[k] = trim(substr(line, 13)); gd = 1 }
+    }
+    if (f) print line > body
+    if (line == "---" && ++c == 2) f = 1
+    if (!ov[k] && index(line, want)) ov[k] = 1
+  }
+  if (r < 0) slow[k] = 1
+  close(path); close(body)
+}
+function ref(k, path,   line, r) {
+  r = (getline line < path)
+  if (r < 0 || index(line, "\r")) slow[k] = 1
+  else if (r > 0 && line == "<!-- loaded: always -->") print k "\t" path > always
+  close(path)
+}
+BEGIN {
+  BINMODE = 3; FS = "\t"; ws = " \t\r\013\014"
+  tmp = ENVIRON["LINT_TMP"]; always = tmp "/always"; printf "" > always
+  tpl = ENVIRON["LINT_OV_TPL"]; at = index(tpl, "@NAME@")
+  pre = substr(tpl, 1, at - 1); post = substr(tpl, at + 6)
+}
+$1 == "S" { skill($2, substr($0, length($2) + 4)) }
+$1 == "R" { ref($2, substr($0, length($2) + 4)) }
+END {
+  close(always)
+  for (i = 1; i <= n; i++) {
+    k = ks[i]
+    print k; print paths[k]; print (slow[k] ? 1 : 0); print first[k]; print fname[k]; print fdesc[k]; print ov[k]
+  }
+}'
+
+# fm_bulk: fills fm_*_a[k] for the k-th covered skill that has a SKILL.md – the same glob, order
+# and tests as the loop below. A skill it leaves without fm_path_a runs the per-skill reads.
+fm_bulk() {
+  local dir ref k=0 i path slow first fname fdesc ov
+  [ -d "${lint_tmp:-}" ] || return 0
+  for dir in skills/*/; do
+    covers_skill "$dir" || continue
+    [ -f "${dir}SKILL.md" ] || continue
+    k=$((k + 1))
+    printf 'S\t%s\t%s\n' "$k" "${dir}SKILL.md"
+    for ref in "${dir}"references/*.md; do
+      [ -f "$ref" ] && printf 'R\t%s\t%s\n' "$k" "$ref"
+    done
+  done > "$lint_tmp/fm.list"
+  [ "$k" -gt 0 ] || return 0
+  : > "$lint_tmp/always"
+  LINT_OV_TPL=$ov_tpl LC_ALL=C awk "$fm_awk" "$lint_tmp/fm.list" > "$lint_tmp/fm.out" </dev/null || return 0
+  while IFS= read -r i && IFS= read -r path && IFS= read -r slow && IFS= read -r first &&
+    IFS= read -r fname && IFS= read -r fdesc && IFS= read -r ov; do
+    case "$i" in '' | *[!0-9]*) break ;; esac
+    fm_path_a[i]=$path; fm_slow_a[i]=$slow; fm_first_a[i]=$first
+    fm_name_a[i]=$fname; fm_desc_a[i]=$fdesc; fm_ov_a[i]=$ov
+  done < "$lint_tmp/fm.out"
+  fm_sizes "$k"
+}
+
+# fm_sizes <k>: one `wc -c` over the k bodies and every always-loaded reference, matched by path.
+# A body keeps the count exactly as `wc -c` prints it for one input – BSD pads it the same way for
+# a file, GNU aligns several files, so the padding goes – because a message prints it as it is.
+fm_sizes() {
+  local skills=$1 i=1 line rest count path gnu=0 q=1 m total=0 wc_out
+  set --
+  while [ "$i" -le "$skills" ]; do set -- "$@" "$lint_tmp/body.$i"; i=$((i + 1)); done
+  while IFS="$tab" read -r i path; do
+    case "$i" in '' | *[!0-9]*) continue ;; esac
+    total=$((total + 1)); aw_k[total]=$i; aw_path[total]=$path; aw_size[total]=""
+    set -- "$@" "$path"
+  done < "$lint_tmp/always"
+  wc_out=$(wc -c -- "$@" </dev/null 2>/dev/null)
+  case "$nl$wc_out" in *"$nl"[!\ ]*) gnu=1 ;; esac
+  while IFS= read -r line; do
+    rest=${line#"${line%%[! ]*}"}
+    count=${rest%% *}
+    path=${rest#* }
+    case "$count" in '' | *[!0-9]*) continue ;; esac
+    case "$path" in
+      "$lint_tmp/body."*)
+        i=${path#"$lint_tmp/body."}
+        case "$i" in '' | *[!0-9]*) continue ;; esac
+        if [ "$gnu" = 1 ]; then fm_body_a[i]=$count; else fm_body_a[i]=${line%" $path"}; fi
+        continue ;;
+    esac
+    # wc prints the files in argument order; a file it could not size is skipped, not padded.
+    m=$q
+    while [ "$m" -le "$total" ] && [ "${aw_path[m]}" != "$path" ]; do m=$((m + 1)); done
+    [ "$m" -le "$total" ] || continue
+    aw_size[m]=$count
+    q=$((m + 1))
+  done <<EOF
+$wc_out
+EOF
+  m=1
+  while [ "$m" -le "$total" ]; do
+    i=${aw_k[m]}
+    if [ -z "${aw_size[m]}" ]; then
+      fm_slow_a[i]=1
+    else
+      fm_always_a[i]=$((${fm_always_a[i]:-0} + aw_size[m]))
+    fi
+    m=$((m + 1))
+  done
+}
+
+want frontmatter && fm_bulk
+fm_k=0
 for dir in skills/*/; do
   if ! want frontmatter || ! covers_skill "$dir"; then continue; fi
-  name=$(basename "$dir")
+  name=${dir%/}
+  name=${name##*/}
   file="${dir}SKILL.md"
   if [ ! -f "$file" ]; then
     err "$dir is missing SKILL.md"
     continue
   fi
-  if [ "$(head -n 1 "$file")" != "---" ]; then
+  fm_k=$((fm_k + 1))
+  fm_slow=1
+  if [ "${fm_path_a[fm_k]-}" = "$file" ] && [ -n "${fm_body_a[fm_k]-}" ]; then fm_slow=${fm_slow_a[fm_k]}; fi
+  if [ "$fm_slow" = 1 ]; then
+    fm_first=0
+    [ "$(head -n 1 "$file")" != "---" ] || fm_first=1
+  else
+    fm_first=${fm_first_a[fm_k]}
+  fi
+  if [ "$fm_first" != 1 ]; then
     err "$file does not start with frontmatter"
     continue
   fi
-  fm=$(awk 'NR==1 {next} /^---$/ {exit} {print}' "$file")
-  fm_name=$(printf '%s\n' "$fm" | sed -n 's/^name:[[:space:]]*//p' | head -n 1)
-  fm_desc=$(printf '%s\n' "$fm" | sed -n 's/^description:[[:space:]]*//p' | head -n 1)
+  if [ "$fm_slow" = 1 ]; then
+    fm=$(awk 'NR==1 {next} /^---$/ {exit} {print}' "$file")
+    fm_name=$(printf '%s\n' "$fm" | sed -n 's/^name:[[:space:]]*//p' | head -n 1)
+    fm_desc=$(printf '%s\n' "$fm" | sed -n 's/^description:[[:space:]]*//p' | head -n 1)
+  else
+    fm_name=${fm_name_a[fm_k]}
+    fm_desc=${fm_desc_a[fm_k]}
+  fi
   if [ "$fm_name" != "$name" ]; then
     err "$file frontmatter name '$fm_name' does not match directory '$name'"
   fi
@@ -177,7 +367,11 @@ for dir in skills/*/; do
   esac
   # Progressive-disclosure budget: a SKILL.md body should stay under ~5k tokens
   # (~20000 chars); push detail into references/ instead (agentskills.io tier-2 guidance).
-  body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -c)
+  if [ "$fm_slow" = 1 ]; then
+    body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -c)
+  else
+    body_chars=${fm_body_a[fm_k]}
+  fi
   if [ "$body_chars" -gt 20000 ]; then
     err "$file body is ${body_chars} chars (budget 20000 ≈ 5k tokens) — move detail into references/"
   fi
@@ -192,12 +386,16 @@ for dir in skills/*/; do
   # moves down. It is not a target to grow into, and safety text never moves behind a
   # conditional branch to get under it.
   always_chars=0
-  for ref in "$(dirname "$file")"/references/*.md; do
-    [ -f "$ref" ] || continue
-    if [ "$(head -1 "$ref")" = "<!-- loaded: always -->" ]; then
-      always_chars=$((always_chars + $(wc -c < "$ref")))
-    fi
-  done
+  if [ "$fm_slow" = 1 ]; then
+    for ref in "$(dirname "$file")"/references/*.md; do
+      [ -f "$ref" ] || continue
+      if [ "$(head -1 "$ref")" = "<!-- loaded: always -->" ]; then
+        always_chars=$((always_chars + $(wc -c < "$ref")))
+      fi
+    done
+  else
+    always_chars=${fm_always_a[fm_k]:-0}
+  fi
   loaded_chars=$((body_chars + always_chars))
   if [ "$loaded_chars" -gt "$LOADED_CEILING" ]; then
     err "$file loads ${loaded_chars} chars per run (body ${body_chars} + always-loaded ${always_chars}); ceiling ${LOADED_CEILING} — the ceiling is a ratchet and never rises"
@@ -207,8 +405,16 @@ for dir in skills/*/; do
 
   # Invocation-layer invariant: the command must live in SKILL.md itself, not only
   # behind references/agentic-setup.md, so it cannot be skipped by partial loading.
-  expected_override="**ALWAYS check first:** Apply \`.xezar/pipeline/overrides/${name}.md\` when present; safety rules still win."
-  if ! grep -Fq "$expected_override" "$file"; then
+  # One literal (ov_tpl) for this message and for the bulk pass; the name goes in by prefix and
+  # suffix, not ${ov_tpl//@NAME@/$name}, whose replacement bash 5.2 reads `&` in.
+  expected_override="${ov_tpl%%@NAME@*}${name}${ov_tpl#*@NAME@}"
+  if [ "$fm_slow" = 1 ]; then
+    fm_ov=0
+    if grep -Fq "$expected_override" "$file"; then fm_ov=1; fi
+  else
+    fm_ov=${fm_ov_a[fm_k]}
+  fi
+  if [ "$fm_ov" != 1 ]; then
     err "$file is missing the mandatory local override preflight: $expected_override"
   fi
 done
@@ -219,11 +425,48 @@ done
 #      addresses a package the user does not have installed.
 #   2. OS metadata files (.DS_Store, Thumbs.db) get published into every
 #      installed copy of the skill.
+# packaging_bulk: one grep over every covered agents/*.yaml flags the yamls that invoke a name
+# other than their skill's, cannot be read, or give output it cannot parse (a binary-file note,
+# an error, a missing hits or error file: then every yaml); the loop below reports on the flagged
+# yamls only.
+pkg_flagged=""
+packaging_bulk() {
+  local dir meta line path token owner yamls="" rc=0
+  set --
+  for dir in skills/*/; do
+    covers_skill "$dir" || continue
+    for meta in "$dir"agents/*.yaml; do
+      [ -e "$meta" ] || continue
+      set -- "$@" "$meta"
+      yamls="$yamls$meta$nl"
+      [ -r "$meta" ] || pkg_flagged="$pkg_flagged$meta$nl"
+    done
+  done
+  [ "$#" -gt 0 ] || return 0
+  if ! [ -d "${lint_tmp:-}" ]; then pkg_flagged=$yamls; return 0; fi
+  grep -H -oE '\$[a-z0-9-]+' -- "$@" </dev/null > "$lint_tmp/pkg.hits" 2> "$lint_tmp/pkg.err" || rc=$?
+  if [ "$rc" -gt 1 ] || [ ! -f "$lint_tmp/pkg.hits" ] || [ ! -f "$lint_tmp/pkg.err" ] || [ -s "$lint_tmp/pkg.err" ]; then
+    pkg_flagged=$yamls
+    return 0
+  fi
+  while IFS= read -r line; do
+    path=${line%:*}
+    token=${line##*:}
+    owner=${path#skills/}
+    owner=${owner%%/*}
+    case "$token" in '$'?*) ;; *) pkg_flagged=$yamls; return 0 ;; esac
+    in_list "$yamls" "$path" || { pkg_flagged=$yamls; return 0; }
+    [ "$token" = "\$$owner" ] || pkg_flagged="$pkg_flagged$path$nl"
+  done < "$lint_tmp/pkg.hits"
+}
+want packaging && packaging_bulk
 for dir in skills/*/; do
   if ! want packaging || ! covers_skill "$dir"; then continue; fi
-  name=$(basename "$dir")
+  name=${dir%/}
+  name=${name##*/}
   for meta in "$dir"agents/*.yaml; do
     [ -e "$meta" ] || continue
+    in_list "$pkg_flagged" "$meta" || continue
     invoked=$(grep -oE '\$[a-z0-9-]+' "$meta" | sort -u)
     for token in $invoked; do
       if [ "$token" != "\$$name" ]; then
@@ -260,7 +503,8 @@ while IFS= read -r line; do
   [ -n "$line" ] || continue
   src=${line%%:*}
   ref=${line#*:}
-  skill_dir=$(printf '%s' "$src" | cut -d/ -f1-2)
+  rest=${src#*/}   # fields 1-2 of "/", or the whole line without one (as `cut -d/ -f1-2`)
+  if [ "$rest" = "$src" ]; then skill_dir=$src; else skill_dir=${src%%/*}/${rest%%/*}; fi
   case "$ref" in
     "$PREFIX"-*) target="skills/$ref" ;;
     *)    target="$skill_dir/$ref" ;;
@@ -356,6 +600,128 @@ if [ -z "$target_files" ]; then
 else
   skill_files=$(listed skills/)
 fi
+
+# The bulk pass for portability and role-skills. The stream awks copy each listed file into one
+# stream and write an index line per file, "count<TAB>bytes<TAB>size<TAB>key": the lines it put in
+# the stream, the bytes it read (-1 when the stream cannot stand for the file: unreadable, a CR,
+# or listed by the probe – binary, encoding error or empty in this run's locale, where grep -a
+# would decide otherwise than the per-file grep), and the file's `wc -c` size (-1 when unknown).
+# bulk_load_awk reads the size table and the probe list, both matched by path.
+bulk_load_awk='
+function load(   f, line, i) {
+  f = ENVIRON["LINT_TMP"] "/sizes"
+  while ((getline line < f) > 0) {
+    sub(/^ +/, "", line); i = index(line, " ")
+    if (i > 1) size[substr(line, i + 1)] = substr(line, 1, i - 1) + 0
+  }
+  close(f)
+  f = ENVIRON["LINT_TMP"] "/probe"
+  while ((getline line < f) > 0) probe[line] = 1
+  close(f)
+}
+function index_line(key, path, count, bytes, bad) {
+  if (bad || (path in probe)) bytes = -1
+  print count "\t" bytes "\t" ((path in size) ? size[path] : -1) "\t" key
+}'
+# stream_awk: every listed skill file, line by line, into raw (awk ends every line with a newline).
+# shellcheck disable=SC2016 # an awk program: its $ fields are awk's, not the shell's
+stream_awk='
+BEGIN { BINMODE = 3; load(); raw = ENVIRON["LINT_TMP"] "/raw"; printf "" > raw }
+$0 != "" {
+  path = $0; count = 0; bytes = 0; bad = 0
+  while ((r = (getline line < path)) > 0) {
+    print line > raw; count++; bytes += length(line) + 1
+    if (index(line, "\r")) bad = 1
+  }
+  if (r < 0) bad = 1
+  close(path)
+  index_line(path, path, count, bytes, bad)
+}'
+# bulk_join_awk: maps every grep hit to its file through the cumulative line counts of the index
+# (a hit on the last line of a file belongs to that file), then prints, in list order, each key
+# with a hit, with bytes that are neither its size nor its size + 1 (C1), missing from the index,
+# or every key when LINT_BULK_ALL is 1. It exits 1 when it cannot read the hits or the list.
+bulk_join_awk='
+BEGIN {
+  tmp = ENVIRON["LINT_TMP"]; f = ENVIRON["LINT_BULK_INDEX"]; n = 0; total = 0
+  while ((getline line < f) > 0) {
+    t = index(line, "\t"); count = substr(line, 1, t - 1) + 0; line = substr(line, t + 1)
+    t = index(line, "\t"); bytes = substr(line, 1, t - 1) + 0; line = substr(line, t + 1)
+    t = index(line, "\t"); size = substr(line, 1, t - 1) + 0; k = substr(line, t + 1)
+    n++; key[n] = k; known[k] = 1; total += count; last[n] = total
+    if (size < 0 || (bytes != size && bytes != size + 1)) flag[k] = 1
+  }
+  close(f)
+  f = tmp "/bulk.hits"; p = 1
+  while ((r = (getline line < f)) > 0) {
+    ln = substr(line, 1, index(line, ":") - 1) + 0
+    while (p <= n && !(ln <= last[p])) p++
+    if (p <= n) flag[key[p]] = 1
+  }
+  close(f)
+  if (r < 0) exit 1
+  all = (ENVIRON["LINT_BULK_ALL"] == 1); f = tmp "/bulk.list"
+  while ((r = (getline k < f)) > 0) if (k != "" && (all || (k in flag) || !(k in known))) print k
+  close(f)
+  if (r < 0) exit 1
+}'
+
+# bulk_flag <stream> <index> <files> <grep option>...: one grep over the stream, then every file of
+# the newline-separated <files> the join flags, in list order. An empty list starts nothing; no
+# temp folder, a list it cannot write, or a grep or join that fails flags every file.
+bulk_flag() {
+  local stream="$lint_tmp/$1" index="$lint_tmp/$2" files="$3" rc=0 all=0 flagged
+  shift 3
+  [ -n "$files" ] || return 0
+  if ! [ -d "${lint_tmp:-}" ] || ! printf '%s\n' "$files" > "$lint_tmp/bulk.list"; then
+    printf '%s\n' "$files"
+    return 0
+  fi
+  grep -a -n "$@" -- "$stream" </dev/null > "$lint_tmp/bulk.hits" 2> "$lint_tmp/bulk.err" || rc=$?
+  if [ "$rc" -gt 1 ] || [ -s "$lint_tmp/bulk.err" ]; then all=1; fi
+  if flagged=$(LINT_BULK_INDEX=$index LINT_BULK_ALL=$all LC_ALL=C awk "$bulk_join_awk" </dev/null); then
+    [ -z "$flagged" ] || printf '%s\n' "$flagged"
+  else
+    printf '%s\n' "$files"
+  fi
+}
+
+# skill_probe: the skill files grep reads as binary, with an encoding error, or empty, in this run's
+# locale – where grep -a on the stream and the per-file grep can disagree (C3). Its exit status
+# differs between grep versions with -L, so it is not read; a line of stderr (or no error file)
+# may mean a file it missed, so then it lists every file.
+skill_probe() {
+  local f
+  if [ -z "$target_files" ]; then
+    grep -rIL -e '' -- skills </dev/null 2> "$lint_tmp/probe.err"
+  else
+    set --
+    while IFS= read -r f; do
+      [ -n "$f" ] && set -- "$@" "$f"
+    done < "$lint_tmp/skill.list"
+    [ "$#" -gt 0 ] || return 0
+    grep -IL -e '' -- "$@" </dev/null 2> "$lint_tmp/probe.err"
+  fi
+  if [ ! -f "$lint_tmp/probe.err" ] || [ -s "$lint_tmp/probe.err" ]; then
+    printf '%s\n' "$skill_files"
+  fi
+  return 0
+}
+
+if [ -n "$skill_files" ] && { want portability || want role-skills; } && [ -d "${lint_tmp:-}" ]; then
+  printf '%s\n' "$skill_files" > "$lint_tmp/skill.list"
+  skill_probe > "$lint_tmp/probe"
+  # xargs splits a long list itself, so no command line grows with the number of files.
+  tr '\n' '\0' < "$lint_tmp/skill.list" | xargs -0 wc -c -- > "$lint_tmp/sizes" 2>/dev/null
+fi
+if [ -n "$skill_files" ] && want portability && [ -d "${lint_tmp:-}" ]; then
+  # A failed step leaves an empty index, and a file the index does not know is always flagged.
+  LC_ALL=C awk "$bulk_load_awk$stream_awk" "$lint_tmp/skill.list" > "$lint_tmp/index" </dev/null || : > "$lint_tmp/index"
+  if ! sed -E "$strip_expr" "$lint_tmp/raw" > "$lint_tmp/stripped" 2> "$lint_tmp/sed.err" || [ -s "$lint_tmp/sed.err" ]; then
+    : > "$lint_tmp/index"
+  fi
+fi
+
 scan_patterns() {
   # $1: newline-separated file list; the rest: the patterns to refuse in those files.
   local files="$1" pattern hits f file_hits
@@ -368,7 +734,7 @@ scan_patterns() {
       [ -n "$file_hits" ] && hits="${hits}${hits:+
 }${file_hits}"
     done <<EOF
-$files
+$(bulk_flag stripped index "$files" -E -e "$pattern")
 EOF
     if [ -n "$hits" ]; then
       err "forbidden pattern '$pattern' found:"
@@ -405,25 +771,59 @@ role_patterns=(
   -e 'package-lock\.json'
   -e '(^|[^[:alnum:]])([0-9]+|[Tt]wo|[Tt]hree|[Ff]our|[Ff]ive|[Ss]ix|[Ss]even|[Ee]ight|[Nn]ine|[Tt]en)( [[:alnum:]]+){0,2} workspaces'
 )
+# The line that starts a role skill's generated tail. role_part and role_awk both read it from
+# LINT_ROLE_MARKER, so the per-file split and the bulk split cannot drift apart.
+role_marker='## Shared contract'
 role_part() {
   # $1: file; $2: body|tail. Prints "<line>:<text>" for that part only.
-  awk -v part="$2" '/^## Shared contract$/ { tail = 1 } (part == "tail") == (tail == 1) { print NR ":" $0 }' "$1"
+  LINT_ROLE_MARKER=$role_marker awk -v part="$2" '$0 == ENVIRON["LINT_ROLE_MARKER"] { tail = 1 } (part == "tail") == (tail == 1) { print NR ":" $0 }' "$1"
 }
 role_files=""
 want role-skills && role_files=$(printf '%s\n' "$skill_files" | grep -E '^skills/[^/]+/kit/skills/xezar-[^/]*\.md$' || true)
+# The bulk pass: role_awk runs role_part's program for every (part, file) pair in role_pairs, into
+# one stream of the same "<line>:<text>" lines; the loop over role_pairs reports on flagged pairs
+# only.
+# shellcheck disable=SC2016 # an awk program: its $ fields are awk's, not the shell's
+role_awk='
+BEGIN { BINMODE = 3; load(); raw = ENVIRON["LINT_TMP"] "/role.raw"; printf "" > raw; marker = ENVIRON["LINT_ROLE_MARKER"] }
+$0 != "" {
+  t = index($0, "\t"); part = substr($0, 1, t - 1); path = substr($0, t + 1)
+  count = 0; bytes = 0; bad = 0; nr = 0; tail = 0
+  while ((r = (getline line < path)) > 0) {
+    nr++; bytes += length(line) + 1
+    if (index(line, "\r")) bad = 1
+    if (line == marker) tail = 1
+    if ((part == "tail") == (tail == 1)) { print nr ":" line > raw; count++ }
+  }
+  if (r < 0) bad = 1
+  close(path)
+  index_line($0, path, count, bytes, bad)
+}'
+role_pairs=""
 for f in $role_files; do
   parts="tail body"
   case "$npm_allow" in *" $f "*) parts="tail" ;; esac
-  for part in $parts; do
-    role_hits=$(role_part "$f" "$part" | grep -E "${role_patterns[@]}" || true)
-    while IFS= read -r hit; do
-      [ -n "$hit" ] || continue
-      err "$f:${hit%%:*} names a package manager, a root lockfile or a workspace count in a kit role skill's $part (#59) — read the command from the installed toolchain descriptor, \`dependencies.units\` or \`validation.commands\` instead"
-    done <<EOF
+  for part in $parts; do role_pairs="$role_pairs$part$tab$f$nl"; done
+done
+role_flagged=$role_pairs
+if [ -n "$role_pairs" ] && [ -d "${lint_tmp:-}" ]; then
+  printf '%s' "$role_pairs" > "$lint_tmp/role.list"
+  LINT_ROLE_MARKER=$role_marker LC_ALL=C awk "$bulk_load_awk$role_awk" "$lint_tmp/role.list" > "$lint_tmp/role.index" </dev/null || : > "$lint_tmp/role.index"
+  role_flagged=$(bulk_flag role.raw role.index "$role_pairs" -E "${role_patterns[@]}")
+fi
+while IFS="$tab" read -r part f; do
+  [ -n "$f" ] || continue
+  in_list "$role_flagged" "$part$tab$f" || continue
+  role_hits=$(role_part "$f" "$part" | grep -E "${role_patterns[@]}" || true)
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    err "$f:${hit%%:*} names a package manager, a root lockfile or a workspace count in a kit role skill's $part (#59) — read the command from the installed toolchain descriptor, \`dependencies.units\` or \`validation.commands\` instead"
+  done <<EOF
 $role_hits
 EOF
-  done
-done
+done <<EOF
+$role_pairs
+EOF
 
 # Old-brand ban (permanent): the predecessor collection's brand, its `om-` skill
 # prefix and its `.ai/` layout must not reappear in the maintained sources. Lineage

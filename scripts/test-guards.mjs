@@ -2475,6 +2475,41 @@ breaks(
   "a 500-character description in a multibyte script is rejected in the C locale",
 );
 
+// #123: lint finds in bulk – one stream of every file, each hit mapped back to its file by line
+// counts – and reports per file. A join that hands a file's last line to the next file loses a
+// hit on that line whenever the file has no final newline.
+breaks(
+  "a bulk pass that gives a file's last line to the next file is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("while (p <= n && !(ln <= last[p])) p++", "while (p <= n && !(ln < last[p])) p++"),
+  () => script("test-onboarding-content.mjs"),
+  "bulk pass lost the last line of",
+);
+
+// The frontmatter check reads a skill twice over: the bulk pass, and the per-skill reads it hands a
+// skill with a CR to. Per-skill reads that drift – here, a body counted in lines – change the
+// report of such a skill only, so only twin skills that differ by a CR can show it.
+breaks(
+  "per-skill frontmatter reads that drift from the bulk pass are rejected",
+  "scripts/lint.sh",
+  (s) => s.replace(
+    `body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -c)`,
+    `body_chars=$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$file" | wc -l)`,
+  ),
+  () => script("test-onboarding-content.mjs"),
+  "per-skill frontmatter reads disagree with the bulk pass",
+);
+
+// The role-skills bulk pass and role_part split a role skill at one marker. A bulk split that
+// misses it never flags a tail, so a hit there goes unreported.
+breaks(
+  "a role-skills bulk pass that splits a role skill apart from role_part is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("if (line == marker) tail = 1", 'if (line == marker " ") tail = 1'),
+  () => script("test-onboarding-content.mjs"),
+  "role-skills bulk pass lost the tail hit",
+);
+
 // lint.sh's targeted mode (`--only`, `--files`) is what test-onboarding-content runs on. Each break
 // puts a defect in a listed file and asks for the check that owns it, so a targeted run that skips
 // the check, drops the file, or reads a typo as "run nothing" passes the defect and fails here.
