@@ -1,6 +1,6 @@
 # 3.1.0 (2026-09-27)
 
-**Thirteen fixes and features found while running the kit in live projects, design-system modules,
+**Fifteen fixes and features found while running the kit in live projects, design-system modules,
 and an upgrade tool that brings an onboarded project to 3.1.0 and keeps its local changes.** No
 behaviour of an installed project changes until you run the upgrade prompt
 (`upgrade/UPGRADE-PROMPT.md`) or apply the upgrade notes; they are one ordered block for 3.1.0.
@@ -356,7 +356,13 @@ the upgrade verifier start Git Bash. Onboarding and the upgrade mark every kit s
 in git (`chmod +x`, `git add`, `git update-index --chmod=+x`), so a project set up from Windows
 no longer gives a Linux clone `Permission denied`; `apply.mjs` prints an `executable=` line for
 each. The GitHub tracker descriptor's image upload writes a fresh `mktemp` file instead of a fixed
-`/tmp` one. The MCP servers stay a plain `npx`, tested on Windows with Claude Code 2.1.286 and
+`/tmp` one. The gate scheduler runs its workers in Git Bash and stops them through a file it
+watches, because a TERM from bash never reaches it there; it needs the full Git for Windows
+install (its `ps.exe`), not MinGit. The kit's shell library keeps Git Bash from rewriting
+`origin/<base>:<file>` arguments. The leader launcher also finds an engine that listens on a
+named pipe, from the marker it writes in `.local/xezar/ipc/<id>.pipe`; that marker is the
+engine's draft Windows contract, so a later engine may need a later launcher (upgrade note 14).
+The MCP servers stay a plain `npx`, tested on Windows with Claude Code 2.1.286 and
 Codex 0.157.1. The engine, the leader and its tasks still need qodeca/xezar#963 phases 2b and 3,
 not released yet; until then WSL2 stays the fallback. On Linux and macOS the checks behave as
 before apart from the Node floor below; there too, onboarding and the upgrade set the scripts'
@@ -365,6 +371,15 @@ executable bits in git, and the upgrade verifier runs its checks with its own No
 **Node 22 is the minimum.** Node 20 left support in April 2026. The kit's task setup and
 dependency checks refuse a Node below 22, the README and the bootstrap prompt say Node 22, and
 `BACKWARD_COMPATIBILITY.md` and `UPGRADE_NOTES.md` (3.1.0 entry 15) say what to do.
+
+**This repository's gate runs on native Windows (#122).** Every validation command passes from Git
+Bash, or through npm from PowerShell or cmd: `npm run lint` and the new `npm run gate`, which runs
+the whole list one command at a time and ends with a table of exit codes and times.
+`.gitattributes` checks text out with LF on every system, `scripts/lib/platform.mjs` finds Git Bash
+and never WSL's `bash.exe`, and `scripts/test-platform.mjs` (run by `lint.sh`) covers it. Windows
+and macOS CI jobs are informational, and so is a nightly Windows run of the guard suite, which
+does not finish yet (#123). Setup:
+`CONTRIBUTING.md` → Contributing from Windows. Nothing changes for an installed project.
 
 # 3.0.3 (2026-09-24)
 

@@ -1509,7 +1509,8 @@ belongs to the engine:
   need Git Bash and the leader's MCP bridge a named pipe (phase 3); both need an engine release, and
   the pipe contract is still a draft (next entry).
 
-#122 closes when the second run's pull request merges; the engine part stays in qodeca/xezar#963.
+#122 closed when the second run's pull request (#125) merged; the engine part stays in
+qodeca/xezar#963.
 
 ## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
 

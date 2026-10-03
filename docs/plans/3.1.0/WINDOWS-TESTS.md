@@ -6,7 +6,8 @@ Use this guide to test Xezar skills 3.1.0 on Windows. The release waits for thes
 
 - Version 3.1.0 is on the `develop` branch. It has no release and no tag yet.
 - On native Windows, the kit's checks run in Git Bash. Install Git for Windows (the full
-  installer, not MinGit), `jq`, Node 22 or later and the GitHub CLI.
+  installer, not MinGit), `jq`, Node 22 or later and the GitHub CLI. Turn on long paths, as
+  `CONTRIBUTING.md` → Contributing from Windows says: worktrees and `node_modules` nest deep.
 - The xezar engine 0.19.0 does not run on native Windows. Native Windows needs qodeca/xezar#963
   phases 2b and 3, which are not released yet. Until then, run the engine, the leader and the
   workflows in WSL2 (Ubuntu). WSL2 stays the fallback.

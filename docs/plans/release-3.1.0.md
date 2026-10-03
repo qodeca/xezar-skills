@@ -52,8 +52,7 @@ install from.
   but only **after** the v1 and v2 schemas are written in `upgrade/CONTRACT.md`. Freezing an
   undefined format would make every later fix a breaking change.
 - **P6 – focused patches.** Each stream changes only what its issue needs, plus its tests, pins
-  and fragment. No wording sweeps, no clean-ups on the side
-  (`docs/memories/feedback-focused-patches.md`).
+  and fragment. No wording sweeps, no clean-ups on the side.
 - **P7 – no invented config values.** The upgrade adds a new config key only when the key has a
   documented default. Otherwise the key stays unset and goes on the owner checklist, with the
   question onboarding would have asked. A kit role with an unset key names it and stops
@@ -152,7 +151,7 @@ first. The rest of the order just keeps the rebases small.
 
 **Local gate runs.** The `scripts/test-guards.mjs` lock is per checkout, so worktrees can run it
 at the same time. `scripts/test-gate-status.mjs` is known to fail locally on macOS on `main` and
-to pass in CI (`docs/memories/release-302-work.md`). An agent reports that failure and does not
+to pass in CI. An agent reports that failure and does not
 try to fix it. CI is the authority.
 
 ## 5. Stream detail
