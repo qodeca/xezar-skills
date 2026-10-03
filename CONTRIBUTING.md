@@ -39,7 +39,7 @@ the [README](README.md) says. To work on this repository on Windows itself, you 
   `git status` is clean, then re-check everything out with
   `git rm -r --cached -q . && git reset --hard -q`.
 
-Expect a full `lint` run to take about 250 seconds on Windows. `test-onboarding-content` runs
+Expect a full `lint` run to take about 10 seconds on Windows. `test-onboarding-content` runs
 lint only in its targeted mode (`--only`, `--files`), so it takes seconds.
 
 The Windows and macOS CI jobs are informational: they report without blocking a merge. A green

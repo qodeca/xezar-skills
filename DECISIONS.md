@@ -1583,3 +1583,35 @@ and the nvm picker reading `NVM_HOME`.
   path), then in `$NVM_DIR/versions/node`, newest version first. With no `NVM_HOME` it behaves as
   before. `NVM_HOME` is read on every OS so the Linux gate proves the nvm-windows layout; only
   nvm-windows sets it.
+
+## lint.sh finds in bulk and reports with its per-file code
+
+**Owner: Marcin. Decided 2026-10-03 (#123).**
+
+Each per-file check in `scripts/lint.sh` reads all its files in one bulk pass that only flags the
+files that could hold a finding; the per-file code that was there before runs for the flagged
+files alone and prints every message, so stdout, stderr, exit code and line order stay
+byte-identical. A green run starts 62 programs instead of 7,981, still 62 with a hundred more
+files; at about 0.1 s a start on Windows, a full run there went from about 360 to 8 seconds.
+
+In the pattern checks `grep` and `sed` still decide every hit and `awk` only copies, splits and
+counts, so mawk, gawk and BWK awk never decide one. The frontmatter check is the exception: there
+`awk` decides whether the first line is `---` and whether the override line is present, and hands
+a skill it cannot read faithfully (a CR, a file it cannot read or size) to the per-skill reads. A
+twin case in `test-onboarding-content.mjs` keeps the two reporting alike.
+
+Three conditions keep every file with a finding flagged. Two are held at run time: the stream
+holds a file's bytes exactly (awk's byte count against `wc -c`; any CR flags the file, because Git
+Bash's awk, sed, grep and `$( )` each drop one in their own way), and a probe flags the binary,
+encoding-error and empty files on which `grep -a` and the per-file `grep` could disagree. The
+third, a line-local strip expression, is a review rule: the header of `lint.sh` states it and
+nothing checks it. A bulk pass that fails in any way – no temp folder, a file it cannot write or
+read, an exit status, a line of stderr – flags every file.
+
+The proof is a golden comparison of old against new, byte for byte. On Windows (Git Bash, gawk,
+GNU grep and sed, both locale forms) every run was identical. The Linux cells (mawk, gawk and BWK
+awk, each in two locales) and the macOS cells (BSD grep, sed and wc, bash 3.2, two locales) were
+identical too (#123 proof run 37149212138, 2026-10-03). Accepted edges, absent from the tree: non-ASCII
+whitespace after `name:` or `description:`, a NUL or encoding error past grep's first 32 KiB of a
+file, a NUL in a frontmatter or a reference's first line (bash's warning names a line of
+`lint.sh`), and invalid UTF-8 in a frontmatter under BSD sed. A failing file costs its starts.
