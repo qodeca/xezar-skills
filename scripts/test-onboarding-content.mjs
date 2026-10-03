@@ -123,8 +123,9 @@ try {
       /frontmatter name 'xez-onboard-twin' does not match directory 'xez-onboard'/,
       /description is 526 chars \(max 500/,
       /description contains an unquoted ': '/,
-      /body is \d+ chars \(budget 20000/,
-      /loads \d+ chars per run \(body \d+ \+ always-loaded [1-9]\d*\); ceiling 27500/,
+      // BSD wc pads its count with spaces, and lint prints it as is (macOS: "body is    34679 chars").
+      /body is +\d+ chars \(budget 20000/,
+      /loads \d+ chars per run \(body +\d+ \+ always-loaded [1-9]\d*\); ceiling 27500/,
       /is missing the mandatory local override preflight/,
     ];
     for (const pattern of expected) assert.match(bulk.output, pattern, `the frontmatter twin lacks ${pattern}:\n${bulk.output}`);
