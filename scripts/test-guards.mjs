@@ -3165,7 +3165,7 @@ breaks(
 breaks(
   "a gate that passes a narrowing variable to its commands is rejected",
   GATE_RUNNER,
-  (s) => s.replace('const NARROWING = (key) => key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");', 'const NARROWING = (key) => key.startsWith("XEZ_SECTIONS_");'),
+  (s) => s.replace('  return key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");', '  return key.startsWith("XEZ_SECTIONS_");'),
   () => script("test-platform.mjs"),
   "a narrowing variable reached a gate command",
 );
@@ -3251,7 +3251,532 @@ breaks(
   catalog("D-review"),
   "leaves a started command running",
 );
+
+breaks(
+  "a tree removal outside the run's folder is rejected",
+  TREE_COPY,
+  (s) => s.replace("  assertInside(base, dest);\n  try {\n", "  try {\n"),
+  () => script("test-platform.mjs"),
+  "remove-victim, outside",
+);
+
+// test-platform starts this file with a temp folder of its own and a copy beside it, which only
+// the temp-folder clause refuses.
+breaks(
+  "a guard worker that starts outside the temp folder is rejected",
+  "scripts/test-guards.mjs",
+  (s) => s.replace("if (!isInside(tempRoot(), given) || real(given) === real(checkout)", "if (real(given) === real(checkout)"),
+  () => script("test-platform.mjs"),
+  "guards-beside-temp (exit",
+);
 // 123-parallel:end
+
+// 123-gate-map:start
+// #123: the quick local check (T0, npm run gate:changed) selects commands from scripts/gate-map.json;
+// the gate itself (T1) never selects and is never narrowed. One break per rule of
+// scripts/check-gate-map.mjs, and per selection rule it tests.
+const GATE_MAP = "scripts/gate-map.json";
+const GATE_SELECT = "scripts/lib/gate-select.mjs";
+const gateMap = () => script("check-gate-map.mjs");
+
+breaks(
+  "an unmapped gate command is rejected",
+  GATE_MAP,
+  (s) => s
+    .replace('"node scripts/test-kit-catalog.mjs", "node scripts/test-bootstrap.mjs", ', '"node scripts/test-kit-catalog.mjs", ')
+    .replace('    { "paths": ["scripts/test-bootstrap.mjs"], "commands": ["node scripts/test-bootstrap.mjs"] },\n', ""),
+  gateMap,
+  '"node scripts/test-bootstrap.mjs" is not mapped',
+);
+
+breaks(
+  "a map entry that is no gate command is rejected",
+  GATE_MAP,
+  (s) => s.replace('    "npm run test:generic-instructions"\n  ],', '    "npm run test:generic-instructions",\n    "node scripts/test-nope.mjs"\n  ],'),
+  gateMap,
+  "which is not a gate command",
+);
+
+breaks(
+  "a glob that matches nothing is rejected",
+  GATE_MAP,
+  (s) => s.replace('"skills/xez-onboard/**"', '"skills/xez-onbaord/**"'),
+  gateMap,
+  "matches no tracked file",
+);
+
+breaks(
+  "a script whose own change does not select it is rejected",
+  GATE_MAP,
+  (s) => s.replace('    { "paths": ["scripts/test-merge-gate.mjs"], "commands": ["node scripts/test-merge-gate.mjs"] },\n', ""),
+  gateMap,
+  "a change to scripts/test-merge-gate.mjs does not select its own command",
+);
+
+breaks(
+  "a run-gate that imports the selection is rejected",
+  "scripts/run-gate.mjs",
+  (s) => s.replace('import { jobCount, runGate } from "./lib/gate-runner.mjs";\n', 'import { jobCount, runGate } from "./lib/gate-runner.mjs";\nimport { readMap } from "./lib/gate-select.mjs";\n'),
+  gateMap,
+  "T1 must never select: scripts/run-gate.mjs names gate-select",
+);
+
+breaks(
+  "a lint job that runs gate:changed is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("        run: node scripts/check-gate-map.mjs\n", "        run: npm run gate:changed\n"),
+  gateMap,
+  "T1 must never select: the lint job's run: npm run gate:changed",
+);
+
+breaks(
+  "a T0 that skips an unmapped path is rejected",
+  GATE_SELECT,
+  (s) => s.replace("      reasons.push(`no rule maps ${shown(path)}`);\n      everything = true;\n", "      reasons.push(`no rule maps ${shown(path)}`);\n"),
+  gateMap,
+  "T0 selection: an unmapped path",
+);
+
+breaks(
+  "a T0 that trusts a change set it could not compute is rejected",
+  GATE_SELECT,
+  (s) => s.replace(
+    "  if (changes === null) return all([`the changed files could not be computed: ${shown(why)}`]);\n",
+    "  if (changes === null) return { commands: commands.filter((command) => map.always.includes(command)), everything: false, reasons: [] };\n",
+  ),
+  gateMap,
+  "T0 selection: no change set",
+);
+
+breaks(
+  "a map that stops treating shared libraries as everything is rejected",
+  GATE_MAP,
+  (s) => s.replace('    "scripts/lib/**",\n', ""),
+  gateMap,
+  "the map's everything list must include scripts/lib/**",
+);
+
+breaks(
+  "a T0 that lints only the listed files after a deletion is rejected",
+  GATE_SELECT,
+  (s) => s.replace('  if (changes.some((change) => change.status === "D")) return FULL_LINT;\n', ""),
+  gateMap,
+  "T0 selection: a deleted path makes lint full",
+);
+
+breaks(
+  "a T0 lint built as a shell string is rejected",
+  GATE_SELECT,
+  (s) => s.replace(
+    '  return { label, argv: ["scripts/lint.sh", "--files", ...paths] };\n',
+    '  return "bash scripts/lint.sh --files " + paths.join(" ");\n',
+  ),
+  gateMap,
+  "T0 selection: lint gets each path as one argument",
+);
+
+breaks(
+  "a run-gate that reaches the selection through another module is rejected",
+  "scripts/lib/platform.mjs",
+  (s) => `${s}export { readMap } from "./gate-select.mjs";\n`,
+  gateMap,
+  "scripts/lib/platform.mjs names gate-select",
+);
+
+breaks(
+  "a gate command that narrows T1 is rejected",
+  ".xezar/pipeline/config.json",
+  (s) => s.replace('"bash scripts/lint.sh",', '"bash scripts/lint.sh --only frontmatter",'),
+  gateMap,
+  'T1 must run in full: validation.commands entry "bash scripts/lint.sh --only frontmatter" holds --only',
+);
+
+// Every other message of check-gate-map.mjs, and every fail-safe branch of gate-select.mjs its
+// self-tests hold, breaks on its own too.
+breaks(
+  "a glob the kit's grammar refuses is rejected",
+  GATE_MAP,
+  (s) => s.replace('"skills/xez-pipeline-retro/**"', '"skills/xez-pipeline-retro/**/"'),
+  gateMap,
+  "the map's glob skills/xez-pipeline-retro/**/ is not valid",
+);
+
+breaks(
+  "a map that is not JSON is rejected",
+  GATE_MAP,
+  (s) => s.replace('  "always": [\n', '  "always": [,\n'),
+  gateMap,
+  "gate map: scripts/gate-map.json could not be read",
+);
+
+breaks(
+  "a map whose always list holds a non-string is rejected",
+  GATE_MAP,
+  (s) => s.replace('    "bash scripts/lint.sh",\n    "node scripts/test-browser-providers.mjs",\n', '    "bash scripts/lint.sh",\n    7,\n    "node scripts/test-browser-providers.mjs",\n'),
+  gateMap,
+  "always must be a non-empty list of strings",
+);
+
+breaks(
+  "a map whose rules are not a list is rejected",
+  GATE_MAP,
+  (s) => s.replace('  "rules": [\n', '  "rules": "none",\n  "unused": [\n'),
+  gateMap,
+  "rules must be a list",
+);
+
+breaks(
+  "a map rule with no commands is rejected",
+  GATE_MAP,
+  (s) => s.replace('{ "paths": ["compat.json"], "commands": ["node scripts/test-compat-pins.mjs"] }', '{ "paths": ["compat.json"], "commands": [] }'),
+  gateMap,
+  "needs a non-empty list of paths and a non-empty list of commands",
+);
+
+breaks(
+  "a map check that cannot list the tree's files and stays quiet is rejected",
+  "scripts/check-gate-map.mjs",
+  (s) => s.replace('execFileSync("git", ["ls-files", "-z", "--cached"', 'execFileSync("git", ["ls-filez", "-z", "--cached"'),
+  gateMap,
+  "git could not list the files in the tree",
+);
+
+breaks(
+  "a lint job step that narrows its command is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("        run: bash scripts/lint.sh\n", "        run: bash scripts/lint.sh --files SDLC.md\n"),
+  gateMap,
+  "T1 must run in full: the lint job's run: bash scripts/lint.sh --files SDLC.md holds --files",
+);
+
+breaks(
+  "a workflow env entry that narrows the gate is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("    continue-on-error: true\n    strategy:\n", '    continue-on-error: true\n    env:\n      XEZ_DEPS_TEST_ONLY: "53"\n    strategy:\n'),
+  gateMap,
+  "T1 must run in full: lint.yml's env: XEZ_DEPS_TEST_ONLY",
+);
+
+breaks(
+  "a gate command that runs gate:changed is rejected",
+  ".xezar/pipeline/config.json",
+  (s) => s.replace('"npm run test:generic-instructions"', '"npm run gate:changed"'),
+  gateMap,
+  'T1 must never select: validation.commands entry "npm run gate:changed" names gate:changed',
+);
+
+breaks(
+  "a workflow whose T1 job the map check cannot find is rejected",
+  ".github/workflows/lint.yml",
+  (s) => s.replace("  cross-platform:\n", "  cross-platform-gate:\n"),
+  gateMap,
+  "lint.yml has no cross-platform job to check",
+);
+
+breaks(
+  "a map that sends a docs change to a kit test is rejected",
+  GATE_MAP,
+  (s) => s.replace('{ "paths": ["skills/**", "docs/**", "*.md"], "commands": ["bash scripts/lint.sh", "node scripts/check-links.mjs"] }', '{ "paths": ["skills/**", "docs/**", "*.md"], "commands": ["bash scripts/lint.sh", "node scripts/check-links.mjs", "node scripts/test-kit-catalog.mjs"] }'),
+  gateMap,
+  "T0 selection: a docs-only change selects no kit test",
+);
+
+breaks(
+  "a map whose kit rules miss a kit file is rejected",
+  GATE_MAP,
+  (s) => s.replace('"skills/xez-onboard-opinionated/kit/**"', '"skills/xez-onboard-opinionated/kit/*"').replace('"skills/xez-onboard-opinionated/**"', '"skills/xez-onboard-opinionated/*"'),
+  gateMap,
+  "T0 selection: a kit file selects catalog, facts and upgrade",
+);
+
+breaks(
+  "a T0 that runs part of the gate after a shared library changed is rejected",
+  GATE_SELECT,
+  (s) => s.replace("      reasons.push(`${shown(path)} changes how every command runs`);\n      everything = true;\n", "      reasons.push(`${shown(path)} changes how every command runs`);\n"),
+  gateMap,
+  "T0 selection: a shared library selects everything",
+);
+
+breaks(
+  "a T0 that drops a deleted path from the selection is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  for (const { path } of changes) {\n", '  for (const { path } of changes.filter((change) => change.status !== "D")) {\n'),
+  gateMap,
+  "T0 selection: a deleted path still selects its commands",
+);
+
+breaks(
+  "a T0 that runs its commands out of the gate's order is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  const chosen = commands.filter((command) => selected.has(command));\n", "  const chosen = [...selected].filter((command) => commands.includes(command));\n"),
+  gateMap,
+  "T0 selection: the selection keeps the gate's order",
+);
+
+breaks(
+  "a T0 that hands lint more names than a command line holds is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  if (paths.reduce((sum, path) => sum + path.length + 3, 0) > LINT_ARGS_BUDGET) return FULL_LINT;\n", ""),
+  gateMap,
+  "T0 selection: names past the command-line budget give full lint",
+);
+
+breaks(
+  "a T0 that hands lint a path starting with - is rejected",
+  GATE_SELECT,
+  (s) => s.replace('  if (paths.some((path) => path.startsWith("-"))) return FULL_LINT;\n', ""),
+  gateMap,
+  "T0 selection: a path that starts with - gives full lint",
+);
+
+breaks(
+  "a T0 that runs lint on no file is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  if (paths.length === 0) return FULL_LINT;\n", ""),
+  gateMap,
+  "T0 selection: no changed file left gives full lint",
+);
+
+breaks(
+  "a T0 that lints only the changed files when everything runs is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  if (everything || changes === null) return FULL_LINT;\n", "  if (changes === null) return FULL_LINT;\n"),
+  gateMap,
+  "T0 selection: everything selected gives full lint",
+);
+
+breaks(
+  "a T0 that reads a missing base branch as no change is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  } catch {\n    return { changes: null, error: `${base} is not here", "  } catch {\n    return { changes: [], error: null };\n    return { changes: null, error: `${base} is not here"),
+  gateMap,
+  "T0 selection: a base branch git cannot find gives no change set",
+);
+
+// What lint is handed: a plain name, each its own argument, never a link – and inside lint, a name
+// never becomes find's shell words or text in a sed script.
+breaks(
+  "a T0 that hands lint a name with shell metacharacters is rejected",
+  GATE_SELECT,
+  (s) => s.replace("  if (paths.some((path) => !SAFE_NAME.test(path))) return FULL_LINT;\n", ""),
+  gateMap,
+  "T0 selection: a path with shell metacharacters gives full lint",
+);
+
+breaks(
+  "a T0 that hands lint a name with a backslash or a control character is rejected",
+  GATE_SELECT,
+  (s) => s.replace("const SAFE_NAME = /^[A-Za-z0-9._@+/ -]+$/;", "const SAFE_NAME = /^[A-Za-z0-9._@+/ \\s\\\\-]+$/;"),
+  gateMap,
+  "T0 selection: a path with a backslash or a control character gives full lint",
+);
+
+breaks(
+  "a T0 that follows a link out of the tree is rejected",
+  GATE_SELECT,
+  (s) => s
+    .replace('import { lstatSync, readFileSync } from "node:fs";', 'import { lstatSync, readFileSync, statSync } from "node:fs";')
+    .replace("    return lstatSync(join(root, path)).isFile();", "    return statSync(join(root, path)).isFile();"),
+  gateMap,
+  "T0 selection: a link is not a file lint is given",
+);
+
+breaks(
+  "a lint packaging check that splits a folder name into words is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("  find \"$@\" -name '.DS_Store'", "  find $* -name '.DS_Store'"),
+  () => script("test-onboarding-content.mjs"),
+  'the packaging check lost the folder "skills/odd name"',
+);
+
+breaks(
+  "a lint hit prefix built as a sed script is rejected",
+  "scripts/lint.sh",
+  (s) => s.replace("LINT_PREFIX=\"$f\" awk '{ print ENVIRON[\"LINT_PREFIX\"] \":\" $0 }'", "sed \"s#^#$f:#\""),
+  () => script("test-onboarding-content.mjs"),
+  "the portability check lost the hit in skills/xez-onboard/references/a#b.md",
+);
+
+// What T0 prints and what it trusts.
+breaks(
+  "a T0 that runs part of the gate for a path with a control character is rejected",
+  GATE_SELECT,
+  (s) => s.replace("      reasons.push(`a changed path holds a control character: ${shown(path)}`);\n      everything = true;\n      continue;\n", ""),
+  gateMap,
+  "T0 selection: a path with a control character selects everything",
+);
+
+breaks(
+  "a T0 that prints a path's control characters as they are is rejected",
+  GATE_SELECT,
+  (s) => s.replace("export function shown(text) {\n  return String(text)", "export function shown(text) {\n  return String(text);\n  return String(text)"),
+  gateMap,
+  "T0 selection: a printed reason never holds a control character",
+);
+
+breaks(
+  "a T0 that runs part of the gate when the map cannot be used is rejected",
+  GATE_SELECT,
+  (s) => s.replace("    return { commands: [...commands], everything: true, reasons: [`the map could not be used: ${shown(error.message)}`] };", "    return { commands: [], everything: false, reasons: [] };"),
+  gateMap,
+  "T0 selection: an unusable map selects everything",
+);
+
+breaks(
+  "a name-status reader that takes a rename record is rejected",
+  GATE_SELECT,
+  (s) => s.replace("    if (!STATUS.test(fields[i])) throw", "    if (false) throw"),
+  gateMap,
+  "T0 selection: a rename or copy record is refused",
+);
+
+breaks(
+  "a change set that lets git pair a rename is rejected",
+  GATE_SELECT,
+  (s) => s.replace('["diff", "--name-status", "--no-renames", "-z", mergeBase, "--"]', '["diff", "--name-status", "-z", mergeBase, "--"]'),
+  gateMap,
+  "T0 selection: a rename reaches the change set as a delete and an add",
+);
+
+breaks(
+  "a gate:changed that exits 0 when a command failed is rejected",
+  "scripts/gate-changed.mjs",
+  (s) => s.replace("process.exitCode = code;", "process.exitCode = 0;"),
+  () => script("test-platform.mjs"),
+  "FAIL  gate-changed.mjs says it is never a gate result first and last",
+);
+
+breaks(
+  "a gate:changed that ends without saying it is no gate result is rejected",
+  "scripts/gate-changed.mjs",
+  (s) => s.replace("  console.log(LAST_LINE);\n", ""),
+  () => script("test-platform.mjs"),
+  "FAIL  gate-changed.mjs says it is never a gate result first and last",
+);
+
+breaks(
+  "a gate:changed that loses its last line when main() throws is rejected",
+  "scripts/gate-changed.mjs",
+  (s) => s.replace("let code = 1;\ntry {\n  code = await main();\n} catch", "const code = await main();\nconsole.log(LAST_LINE);\nprocess.exitCode = code;\nif (false) try {\n} catch"),
+  () => script("test-platform.mjs"),
+  "a thrown error:",
+);
+
+// T1 never selects, from any gate script, and runs in full.
+breaks(
+  "a gate test that imports the selection is rejected",
+  "scripts/test-close-keywords.mjs",
+  (s) => s.replace('import { toLF } from "./lib/platform.mjs";\n', 'import { toLF } from "./lib/platform.mjs";\nimport { readMap } from "./lib/gate-select.mjs";\n'),
+  gateMap,
+  "T1 must never select: scripts/test-close-keywords.mjs names gate-select",
+);
+
+breaks(
+  "a gate script the module reader cannot read is rejected",
+  "scripts/test-close-keywords.mjs",
+  (s) => s + "\nconst unread = `never closed\n",
+  gateMap,
+  "T1 must never select: scripts/test-close-keywords.mjs could not be read as a module",
+);
+
+breaks(
+  "an npm gate script that runs T0 is rejected",
+  "package.json",
+  (s) => s.replace('"gate": "node scripts/run-gate.mjs"', '"gate": "node scripts/gate-changed.mjs"'),
+  gateMap,
+  "T1 must never select: package.json's gate script is",
+);
+
+breaks(
+  "a lint.sh that names T0 is rejected",
+  "scripts/lint.sh",
+  (s) => `${s}# scripts/gate-changed.mjs\n`,
+  gateMap,
+  "T1 must never select: scripts/lint.sh names gate-changed",
+);
+
+breaks(
+  "a gate command whose script the map check cannot follow is rejected",
+  ".xezar/pipeline/config.json",
+  (s) => s.replace('"node scripts/check-links.mjs"', '"node ./scripts/check-links.mjs"'),
+  gateMap,
+  'the gate command "node ./scripts/check-links.mjs" starts no script this check can follow',
+);
+
+breaks(
+  "a map check that cannot read lint.yml's run: lines and stays quiet is rejected",
+  "scripts/check-gate-map.mjs",
+  (s) => s.replace("new RegExp(String.raw`", "new RegExp(`"),
+  gateMap,
+  "lint.yml's lint job has no run: line this check could read",
+);
+
+breaks(
+  "a narrowing test that also takes a tuning variable is rejected",
+  "scripts/lib/gate-runner.mjs",
+  (s) => s.replace('  return key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");', '  return key.startsWith("XEZ_DEPS_") || key.startsWith("XEZ_SECTIONS_");'),
+  gateMap,
+  "T1 in full: a tuning variable is not a narrowing one",
+);
+
+breaks(
+  "a module reader that reads a comment as code is rejected",
+  "scripts/lib/module-scan.mjs",
+  (s) => s.replace('      if (ch === "/" && next === "/") { pos = source.indexOf("\\n", pos); if (pos === -1) pos = source.length; continue; }\n', ""),
+  gateMap,
+  "T1 scanner: a comment may name anything",
+);
+
+breaks(
+  "a module reader that passes an unterminated string is rejected",
+  "scripts/lib/module-scan.mjs",
+  (s) => s.replace('    if (source[pos] !== quote) fail("string", start);\n', ""),
+  gateMap,
+  "T1 scanner: an unterminated string, template, regex or comment fails closed",
+);
+
+// Every guard case's file selects the gate that catches it.
+breaks(
+  "a map that does not select a guard case's gate is rejected",
+  GATE_MAP,
+  (s) => s.replace('"DECISIONS.md", "SECURITY.md", "docs/bootstrap-prompt.md"', '"DECISIONS.md", "docs/bootstrap-prompt.md"'),
+  gateMap,
+  "breaks SECURITY.md for node scripts/test-kit-facts.mjs, but a change to SECURITY.md does not select it",
+);
+
+breaks(
+  "a guard case whose gate the map check cannot place is rejected",
+  "scripts/test-guards.mjs",
+  (s) => s.replace('() => run("node", ["scripts/sync-shared-blocks.mjs", "--check"]),', '() => run("npm", ["run", "sync:check"]),'),
+  gateMap,
+  "starts 'npm run sync:check', which this check cannot place in the gate",
+);
+
+breaks(
+  "a map check that cannot list the guard cases and stays quiet is rejected",
+  "scripts/check-gate-map.mjs",
+  (s) => s.replace('[join(root, "scripts/test-guards.mjs"), "--list"]', '[join(root, "scripts/test-guards.mjs"), "--lizt"]'),
+  gateMap,
+  "the guard cases could not be listed",
+);
+
+// The gate list follows what a script runs: not a data file's mentions, not a --list read.
+breaks(
+  "a gate-list check that follows a data file's mentions is rejected",
+  "scripts/check-gate-list.mjs",
+  (s) => s.replace("const EXECUTABLE = /\\.(?:mjs|cjs|js|sh)$/;", "const EXECUTABLE = /\\.(?:mjs|cjs|js|sh|json)$/;"),
+  () => script("check-gate-list.mjs"),
+  "test:guards is in the gate AND in the opt-out table",
+);
+
+breaks(
+  "a gate-list check that counts a --list read as a run is rejected",
+  "scripts/check-gate-list.mjs",
+  (s) => s.replace("    if (LIST_ONLY.test(body.slice(m.index + m[0].length, m.index + m[0].length + 16))) continue;\n", ""),
+  () => script("check-gate-list.mjs"),
+  "test:guards is in the gate AND in the opt-out table",
+);
+// 123-gate-map:end
 
 // --- the runner ---------------------------------------------------------------
 // A case's gate called with the recorder in place of `run`: nothing starts and nothing is written.

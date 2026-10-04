@@ -705,6 +705,56 @@ try {
     }
   });
 
+  // gate-changed.mjs (T0, #123) in a fake checkout with no map and no baseBranch: it cannot tell
+  // what changed, so it runs every command. Whatever happens, its first and last lines say it is
+  // never a gate result, and it exits as run-gate does: 0, 1 when a command fails, 2 on a usage error.
+  check("gate-changed.mjs says it is never a gate result first and last, and exits 0, 1 or 2", () => {
+    const changedGate = (name, commands) => {
+      const gate = join(lab, name);
+      const grammar = "skills/xez-onboard-opinionated/kit/checks/lib/config-grammar.mjs";
+      mkdirSync(join(gate, "scripts", "lib"), { recursive: true });
+      mkdirSync(join(gate, dirname(grammar)), { recursive: true });
+      mkdirSync(join(gate, ".xezar", "pipeline"), { recursive: true });
+      for (const file of ["gate-changed.mjs", "lib/platform.mjs", "lib/gate-runner.mjs", "lib/gate-select.mjs"]) writeFileSync(join(gate, "scripts", file), readFileSync(join(root, "scripts", file)));
+      writeFileSync(join(gate, grammar), readFileSync(join(root, grammar)));
+      writeFileSync(join(gate, ".xezar/pipeline/config.json"), JSON.stringify({ validation: { commands } }));
+      return (args) => {
+        const env = { ...process.env };
+        delete env.GITHUB_ACTIONS;
+        delete env.XEZ_GATE_JOBS;
+        return spawnSync(process.execPath, [join(gate, "scripts/gate-changed.mjs"), ...args], { encoding: "utf8", env });
+      };
+    };
+    const FIRST = "gate:changed (T0) – a quick check of what this branch changed. Never a gate result: run npm run gate before you push.";
+    const LAST = "Never a gate result – this ran only what the changes can affect; npm run gate is the gate.";
+    const runs = [
+      ["every command passes", changedGate("changed-pass", ["exit 0", "exit 0"]), [], 0, /^Selected 2 of 2 commands\.$/m],
+      ["a command fails", changedGate("changed-fail", ["exit 0", "exit 3"]), [], 1, /^1 of 2 selected commands passed in \d+ s\.$/m],
+      ["a bad --jobs", changedGate("changed-usage", ["exit 0"]), ["--jobs", "0"], 2, /^gate-changed: --jobs takes a whole number from 1 to 32$/m],
+    ];
+    for (const [label, run, args, status, expected] of runs) {
+      const result = run(args);
+      const shown = `${label}:\n${result.stdout}${result.stderr}`;
+      const lines = result.stdout.trimEnd().split(/\r?\n/);
+      assert.equal(result.status, status, shown);
+      assert.equal(lines[0], FIRST, shown);
+      assert.equal(lines.at(-1), LAST, shown);
+      assert.match(result.stdout + result.stderr, expected, shown);
+      if (status !== 2) assert.match(result.stdout, /^Changed files: unknown\.$/m, shown);
+    }
+    // An error main() does not handle (a config that is JSON null): exit 1, the error on stderr,
+    // and still the last line.
+    const thrower = changedGate("changed-throw", []);
+    writeFileSync(join(lab, "changed-throw", ".xezar/pipeline/config.json"), "null");
+    const thrown = thrower([]);
+    const shown = `a thrown error:\n${thrown.stdout}${thrown.stderr}`;
+    const lines = thrown.stdout.trimEnd().split(/\r?\n/);
+    assert.equal(thrown.status, 1, shown);
+    assert.equal(lines[0], FIRST, shown);
+    assert.equal(lines.at(-1), LAST, shown);
+    assert.match(thrown.stderr, /^gate-changed: TypeError/m, shown);
+  });
+
   // --- scripts/lib/tree-copy.mjs (#123) ---
   // A source repository with every kind of change a contributor's tree can hold, and its copy.
   const git = (cwd, ...args) => {
@@ -870,7 +920,9 @@ try {
   });
 
   // test-guards.mjs in a checkout inside the temp folder, so only the checkout clause can refuse
-  // that checkout, a folder in it or one holding it. Each start must exit 2 before it reads anything.
+  // that checkout, a folder in it or one holding it. The last start gets a temp folder of its own
+  // in the lab and a copy beside it – absolute, existing, apart from the checkout – so only the
+  // temp-folder clause can refuse that one. Each start must exit 2 before it reads anything.
   await check("test-guards.mjs --worker refuses an unforked start, a relative path, the checkout, in it, around it, outside temp", async () => {
     const checkout = join(lab, "guards-checkout");
     mkdirSync(join(checkout, "scripts"), { recursive: true });
@@ -879,8 +931,8 @@ try {
     writeFileSync(suite, readFileSync(join(root, "scripts", "test-guards.mjs")));
     const unforked = spawnSync(process.execPath, [suite, "--worker", join(lab, "write-base")], { encoding: "utf8" });
     assert.equal(unforked.status, 2, `an unforked --worker start was not refused:\n${unforked.stderr}`);
-    const forked = (given) => new Promise((resolve) => {
-      const child = fork(suite, ["--worker", given], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
+    const forked = (given, env = process.env) => new Promise((resolve) => {
+      const child = fork(suite, ["--worker", given], { stdio: ["ignore", "ignore", "pipe", "ipc"], env });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += chunk; });
       const timer = setTimeout(() => child.kill(), 60000);
@@ -890,7 +942,16 @@ try {
         resolve({ given, code: code ?? signal, stderr });
       });
     });
-    const refused = await Promise.all(["relative/copy", checkout, join(checkout, "scripts"), lab, dirname(tempRoot())].map(forked));
+    const ownTemp = join(lab, "guards-temp");
+    const besideTemp = join(lab, "guards-beside-temp");
+    mkdirSync(ownTemp);
+    mkdirSync(besideTemp);
+    const isTempKey = (key) => ["TMPDIR", "TEMP", "TMP"].includes(key.toUpperCase());
+    const tempEnv = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !isTempKey(key))), TMPDIR: ownTemp, TEMP: ownTemp, TMP: ownTemp };
+    const refused = await Promise.all([
+      ...["relative/copy", checkout, join(checkout, "scripts"), lab, dirname(tempRoot())].map((given) => forked(given)),
+      forked(besideTemp, tempEnv),
+    ]);
     for (const { given, code, stderr } of refused) {
       assert.equal(code, 2, `test-guards.mjs did not refuse --worker ${given} (exit ${code}):\n${stderr}`);
       assert.match(stderr, /^test-guards: --worker /m, stderr);

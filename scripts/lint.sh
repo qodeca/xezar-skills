@@ -476,12 +476,26 @@ for dir in skills/*/; do
   done
 done
 
+# find_junk <folders, one per line>: the OS metadata files under them. Each line is one argument
+# to find – never split or globbed – so a folder named in --files with a space, a `;` or a `-exec`
+# in it stays one path.
+find_junk() {
+  local dirs="$1" dir
+  set --
+  while IFS= read -r dir; do
+    [ -n "$dir" ] && set -- "$@" "$dir"
+  done <<EOF
+$dirs
+EOF
+  [ "$#" -gt 0 ] || return 0
+  find "$@" -name '.DS_Store' -o -name 'Thumbs.db' 2>/dev/null
+}
+
 junk_dirs=skills
 [ -z "$target_files" ] || junk_dirs=$(listed skills/ | sed -n 's#^\(skills/[^/]*\)/.*#\1#p' | sort -u)
 junk=""
 if want packaging && [ -n "$junk_dirs" ]; then
-  # shellcheck disable=SC2086 # skill directory names hold no spaces (lint checks each name)
-  junk=$(find $junk_dirs -name '.DS_Store' -o -name 'Thumbs.db' 2>/dev/null)
+  junk=$(find_junk "$junk_dirs")
 fi
 if [ -n "$junk" ]; then
   err "OS metadata files must not ship inside skills: $(printf '%s' "$junk" | tr '\n' ' ')"
@@ -730,7 +744,9 @@ scan_patterns() {
     hits=""
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | sed "s#^#$f:#" || true)
+      # The file name goes in through ENVIRON, never into a sed script, where a `#` would end the
+      # substitution and the text after it run as sed flags.
+      file_hits=$(sed -E "$strip_expr" "$f" | grep -En "$pattern" | LINT_PREFIX="$f" awk '{ print ENVIRON["LINT_PREFIX"] ":" $0 }' || true)
       [ -n "$file_hits" ] && hits="${hits}${hits:+
 }${file_hits}"
     done <<EOF

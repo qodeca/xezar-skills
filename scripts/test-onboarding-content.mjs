@@ -65,6 +65,28 @@ try {
     }
   }
 
+  // #123: a name from --files reaches find and the hit prefix as one string, never as shell words
+  // or as sed script text. A skill folder with a space in its name must still be searched, and a
+  // `#` in a file name must not end a sed substitution and lose the hit.
+  {
+    const odd = 'skills/odd name';
+    mkdirSync(join(fixture, odd), { recursive: true });
+    writeFileSync(join(fixture, odd, 'notes.md'), '# Notes\n');
+    writeFileSync(join(fixture, odd, '.DS_Store'), '');
+    const junk = lint(['--only', 'packaging', '--files', `${odd}/notes.md`]);
+    rmSync(join(fixture, odd), { recursive: true, force: true });
+    if (junk.status !== 1 || !junk.output.includes('OS metadata files must not ship inside skills') || !junk.output.includes(`${odd}/.DS_Store`)) {
+      assert.fail(`the packaging check lost the folder "${odd}" when it split the name:\n${junk.output}`);
+    }
+    const hash = `${ONBOARD}/references/a#b.md`;
+    writeFileSync(join(fixture, hash), '# A\n\nBranch from develop first.\n');
+    const prefixed = lint(['--only', 'portability', '--files', hash]);
+    rmSync(join(fixture, hash), { force: true });
+    if (prefixed.status !== 1 || !prefixed.output.includes(`${hash}:3:`)) {
+      assert.fail(`the portability check lost the hit in ${hash} – its name went into a sed script:\n${prefixed.output}`);
+    }
+  }
+
   for (const [path, injected, check, expected] of cases) {
     const target = join(fixture, path);
     const original = readFileSync(target, 'utf8');
