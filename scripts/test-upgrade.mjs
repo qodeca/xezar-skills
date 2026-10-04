@@ -29,6 +29,11 @@
 // It reads only committed files: no tags, no network.
 //
 // Run: node scripts/test-upgrade.mjs
+//      node scripts/test-upgrade.mjs --only <id> [--only <id>]   (those sections only – never a gate result)
+//      node scripts/test-upgrade.mjs --sections                  (the section ids, as one JSON line)
+// The ids are the header numbers below (1, 2, 3, 4, 4b … 14c), OC for the unnumbered
+// 3.1.0-stream-OC block, and tail for the last two checks. A section that reads §3's synthetic
+// installs needs 3, which then runs first (scripts/lib/sections.mjs).
 
 import { execFileSync } from "node:child_process";
 import {
@@ -68,6 +73,24 @@ import { applyPlan } from "../upgrade/tools/apply.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 import { bashPath } from "./lib/platform.mjs";
 import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+import { sections } from "./lib/sections.mjs";
+
+const S = sections(
+  "test-upgrade.mjs",
+  [
+    "1", "2", "3", "4", "4b", "4c", "4d",
+    "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o",
+    "6", "6b", "7", "8", "9", "OC", "10a", "10b", "10c", "10d", "10e", "10f", "11a", "11b",
+    "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "14a", "14b", "14c", "tail",
+  ],
+  {
+    // The sections that read §3's synthetic installs (through installs()).
+    needs: { "4": ["3"], "7": ["3"], "9": ["3"], "11a": ["3"], "12b": ["3"], "tail": ["3"] },
+    // §7 is not here: the kit ships manifest-drift.mjs, so a §7 that checks nothing has lost it.
+    mayBeEmpty: { "8": "it checks the owner's real-install snapshots, and none may be committed yet" },
+    count: () => checks,
+  },
+);
 
 prepareTestPlatform({ symlinks: true });
 
@@ -86,6 +109,7 @@ let problems = 0;
 let checks = 0;
 const fail = (message) => {
   problems += 1;
+  S.trace(message);
   console.error(`FAIL  ${message}`);
 };
 const expect = (cond, message) => {
@@ -171,7 +195,7 @@ function fresh(p, inputs) {
 // ---------------------------------------------------------------------------------------
 // 1. Building blocks
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("1")) {
   for (const bad of ["../x", "a/../../x", "/etc/passwd", "C:\\x", "a\\b", "./a", "a//b", "", "a/./b"]) {
     let refused = false;
     try {
@@ -215,7 +239,7 @@ function fresh(p, inputs) {
 // ---------------------------------------------------------------------------------------
 // 2. The kit index
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("2")) {
   expect(history.length > 0 && history[0].version === "1.2.0", "the kit index does not start at 1.2.0");
   for (const v of history) {
     expect(v.tag === null ? /\+[0-9a-f]{12}$/.test(v.version) : v.tag === `v${v.version}`, `kit index ${v.version}: tag and version disagree`);
@@ -260,8 +284,6 @@ function fresh(p, inputs) {
 // 3. Synthetic installs
 // ---------------------------------------------------------------------------------------
 const SYNTHETIC = readdirSync(FIX).filter((n) => existsSync(join(FIX, n, "fixture.json"))).sort();
-expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
-expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
 
 /** The class this test expects, derived from the index alone (not from the tool). */
 function expectedClass(fx, p) {
@@ -300,8 +322,20 @@ function answerTrivially(dir, plan, fx) {
   }
 }
 
-const upgraded = new Map(); // version -> dir after upgrade + answers (reused by later sections)
+// version -> dir after upgrade + answers, written by §3 only. The map lives in this closure: later
+// sections reach it through installs(), which throws unless §3 ran in this run, so a section that
+// reads it must list "3" in its needs.
+const { recordInstall, installs } = (() => {
+  const upgraded = new Map();
+  return {
+    recordInstall: (version, dir) => upgraded.set(version, dir),
+    installs: () => { S.require("3"); return upgraded; },
+  };
+})();
 
+if (S.section("3")) {
+expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
+expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
 for (const version of SYNTHETIC) {
   const fx = loadFixture(version);
   const dir = materialize(fx);
@@ -400,13 +434,14 @@ for (const version of SYNTHETIC) {
     if (e.sha256 !== sha256(readFileSync(join(dir, p)))) fail(`${version}: manifest v2 sha256 for ${p} does not match the file`);
   }
   expect(!(".claude/settings.local.json" in m.files), `${version}: a per-machine file is recorded in the manifest`);
-  upgraded.set(version, dir);
+  recordInstall(version, dir);
 }
+} // section 3
 
 // ---------------------------------------------------------------------------------------
 // 4. The customised fixture: the diff from a fresh upgrade is exactly its customisations
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("4")) {
   const spec = JSON.parse(readFileSync(join(FIX, "customised/customisations.json"), "utf8"));
   const want = JSON.parse(readFileSync(join(FIX, "customised/expected.json"), "utf8"));
   const fx = loadFixture(spec.base);
@@ -456,7 +491,7 @@ for (const version of SYNTHETIC) {
   expect(applyPlan(ctx, plan).status === "ok", "customised: apply refused");
   const customised = new Set(spec.customisations.map((c) => resolvePath(c.path)));
   answerTrivially(dir, { files: plan.files.filter((f) => !customised.has(f.path)) }, fx);
-  const clean = upgraded.get(spec.base);
+  const clean = installs().get(spec.base);
   const a = snapshot(clean);
   const b = snapshot(dir);
   const differ = [...new Set([...Object.keys(a), ...Object.keys(b)])]
@@ -473,7 +508,7 @@ for (const version of SYNTHETIC) {
 // ---------------------------------------------------------------------------------------
 // 4b. #122 (Windows): a project checked out with CRLF plans, applies and records like LF
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("4b")) {
   const fx = loadFixture("3.0.3");
   const lfDir = materialize(fx, { name: "crlf-lf-run" });
   const lfPlan = buildPlan(ctxFor(lfDir));
@@ -530,7 +565,7 @@ for (const version of SYNTHETIC) {
 // apply.mjs already writes an executable script with its bit, and a kit file git records as 100644
 // – the new windows-programs.mjs – stays 100644.
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("4c")) {
   const prefix = `${SKILL_DIR}/kit/`;
   const kitExe = new Set();
   for (const line of git(root, "ls-files", "-s", "-z", "--", prefix).split("\0")) {
@@ -595,7 +630,7 @@ for (const version of SYNTHETIC) {
 // 4d. The kit's modes come from git only when the kit is its own clone's
 // skills/xez-onboard-opinionated: a copy git does not track, or an installer copy a project
 // tracks, is read with lstat – never an empty answer, never the project's index.
-{
+if (S.section("4d")) {
   const scratch = lab("exec-kit-copy");
   git(scratch, "init", "-q");
   const own = join(scratch, SKILL_DIR);
@@ -626,7 +661,7 @@ const unchangedChecks = Object.keys(fx303.files)
   .sort();
 
 // 5a. A v1 manifest with drift: files edited after install, nothing recorded (#55: 7 of 172).
-{
+if (S.section("5a")) {
   const drifted = [".xezar/pipeline/config.json", ".claude/settings.json", unchangedChecks[0], ".xezar/docs/routing.md", changedSince303[0]];
   const dir = materialize(fx303, {
     name: "drift",
@@ -651,7 +686,7 @@ const unchangedChecks = Object.keys(fx303.files)
 }
 
 // 5b. A partly applied old upgrade: a 3.0.0 install with some files already at 3.0.3.
-{
+if (S.section("5b")) {
   const fx300 = loadFixture("3.0.0");
   const moved = Object.keys(fx300.files).filter((p) => fx303.files[p] && fx303.files[p] !== fx300.files[p] && !OWNER_SHAPED.has(p) && p !== ".claude/settings.local.json").sort().slice(0, 3);
   expect(moved.length === 3, "partial: the 3.0.0 and 3.0.3 fixtures share too few changed files for this case");
@@ -664,7 +699,7 @@ const unchangedChecks = Object.keys(fx303.files)
 }
 
 // 5c. A renamed kit file: the target moves a doc; the old install merges into the new path.
-{
+if (S.section("5c")) {
   const kitCopy = lab("renamed-kit");
   cpSync(join(KIT_SKILL, "kit"), join(kitCopy, "kit"), { recursive: true });
   mkdirSync(join(kitCopy, "references"));
@@ -684,7 +719,7 @@ const unchangedChecks = Object.keys(fx303.files)
 }
 
 // 5d. Unknown placeholder values are never a clean update (target adds a placeholder).
-{
+if (S.section("5d")) {
   const kitCopy = lab("placeholder-kit");
   cpSync(join(KIT_SKILL, "kit"), join(kitCopy, "kit"), { recursive: true });
   mkdirSync(join(kitCopy, "references"));
@@ -698,7 +733,7 @@ const unchangedChecks = Object.keys(fx303.files)
 }
 
 // 5e. #49's files carried as a local patch, recorded `adapted`: already upstream.
-{
+if (S.section("5e")) {
   const pr49 = changedSince303.filter((p) => /^\.xezar\/(skills|workflows)\//.test(p));
   const dir = materialize(fx303, {
     name: "pr49",
@@ -722,7 +757,7 @@ const lp1 = (files, confirmed) =>
   `# Local patches\n\n## LP-1 – local change\n- Files: ${files}\n- Reason: r\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: ${confirmed}\n`;
 
 // 5f. A project hook in .claude/settings.json (#69) is kept.
-{
+if (S.section("5f")) {
   const dir = materialize(fx303, {
     name: "hook",
     edit: (d) => {
@@ -750,7 +785,7 @@ const lp1 = (files, confirmed) =>
 }
 
 // 5g. Unsafe paths: `../`, absolute, a symlinked kit file and a symlinked folder, all refused.
-{
+if (S.section("5g")) {
   const outside = lab("outside");
   writeFileSync(join(outside, "secret.md"), "outside the project\n");
   mkdirSync(join(outside, "lib"));
@@ -790,7 +825,7 @@ const lp1 = (files, confirmed) =>
 }
 
 // 5h. A local change that weakens a safety check in a file the target did not touch: stop.
-{
+if (S.section("5h")) {
   const check = unchangedChecks.find((p) => /exit 1/.test(pack[fx303.files[p]]));
   const dir = materialize(fx303, {
     name: "weaken",
@@ -808,7 +843,7 @@ const lp1 = (files, confirmed) =>
 }
 
 // 5i. A stale plan is refused cleanly; an interrupted apply resumes.
-{
+if (S.section("5i")) {
   const dir = materialize(loadFixture("3.0.0"), { name: "stale" });
   const ctx = ctxFor(dir);
   const plan = buildPlan(ctx);
@@ -836,7 +871,7 @@ const lp1 = (files, confirmed) =>
 // 5j. F1: the target's own unreleased development line is never a base. A pre-release copy of
 // a file new in the target, matched to a development commit that already has the target's
 // text, was read as "local only" and the stale copy kept.
-{
+if (S.section("5j")) {
   const p = ".xezar/docs/local-patches.md";
   expect(tree.index.files[p] && !base303.files[p], `dev-line: ${p} is no longer new in the target; re-aim this case`);
   const devLine = { version: "3.0.3+00000000de01", commit: null, tag: null, files: tree.index.files };
@@ -860,7 +895,7 @@ const lp1 = (files, confirmed) =>
 
 // 5k. F1: an inferred (low-confidence) base equal to the target is not proof the file is only
 // locally changed: stage theirs and judge, never keep.
-{
+if (S.section("5k")) {
   const p = unchangedChecks[0];
   const dir = materialize(fx303, {
     name: "low-base",
@@ -880,7 +915,7 @@ const lp1 = (files, confirmed) =>
 // 5l. F2: a confirmed local patch that drops `exit "$rc"`, or adds `|| true`, in a file the
 // target did not touch, stops – and every kept local change to a safety file is on the
 // read-and-judge list. (The eval case does both at once: `exit "$rc"` -> `exit 0`.)
-{
+if (S.section("5l")) {
   const p = ".xezar/checks/security-scan.sh";
   expect(unchangedChecks.includes(p) && pack[fx303.files[p]].includes('exit "$rc"\n'), `weaken-rc: ${p} changed in the target or lost its exit "$rc"; re-aim this case`);
   const dir = materialize(fx303, {
@@ -906,7 +941,7 @@ const lp1 = (files, confirmed) =>
 }
 
 // 5m. F3: a safety file both sides changed is on the read-and-judge list, however cleanly it merges.
-{
+if (S.section("5m")) {
   const p = changedSince303.find((x) => x.startsWith(".xezar/checks/") && x.endsWith(".sh"));
   const dir = materialize(fx303, {
     name: "semantic",
@@ -921,7 +956,7 @@ const lp1 = (files, confirmed) =>
 
 // 5n. F4: the owner and the target changed the same routing field: a stop, naming the field. A
 // field only the owner changed is not a clash.
-{
+if (S.section("5n")) {
   const p = ".xezar/routing.json";
   const withRouting = (name, change) =>
     byPath(buildPlan(ctxFor(materialize(fx303, {
@@ -935,7 +970,7 @@ const lp1 = (files, confirmed) =>
 }
 
 // 5o. F7: a local change an existing, unconfirmed register entry already covers gets no second draft.
-{
+if (S.section("5o")) {
   const p = ".github/ISSUE_TEMPLATE/config.yml";
   const dir = materialize(fx303, {
     name: "draft-dup",
@@ -952,7 +987,7 @@ const lp1 = (files, confirmed) =>
 // ---------------------------------------------------------------------------------------
 // 6. Each 3.1.0 machine block's Files: matches the kit-index diff
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("6")) {
   // The base is the last release OLDER than the target. Once the release PR indexes the target
   // itself (tag v3.1.0), "the last tagged entry" is the target, and the diff against the tree is
   // empty: neither direction below could ever fire.
@@ -984,7 +1019,7 @@ const lp1 = (files, confirmed) =>
 
 // 6b. Every 3.1.0 entry that copies role skills needs entry 2, which carries the new
 // `## Shared contract` tail to all of them: catalog-check refuses a mix of old and new tails.
-{
+if (S.section("6b")) {
   const text = readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8");
   const start = text.indexOf("## 2026-09-27 – upgrading an onboarded project to 3.1.0");
   const section = start < 0 ? "" : text.slice(start, text.indexOf("\n## ", start + 1));
@@ -1011,6 +1046,7 @@ function drift(dir) {
     return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
   }
 }
+if (S.section("7")) {
 if (!HAS_DRIFT) {
   console.log("skip  drift-check cases: the kit does not ship checks/manifest-drift.mjs yet (stream U1)");
 } else {
@@ -1020,7 +1056,7 @@ if (!HAS_DRIFT) {
   const r1 = drift(v1);
   expect(r1.code === 0 && status(r1) === "not-applicable", `drift: a v1 manifest is not not-applicable (exit ${r1.code}): ${r1.out.trim()}`);
   // Fresh v2 install passes
-  const fresh2 = upgraded.get("3.0.3");
+  const fresh2 = installs().get("3.0.3");
   const ok = drift(fresh2);
   expect(ok.code === 0 && status(ok) === "pass", `drift: a freshly upgraded install does not pass: ${ok.out.trim()}`);
   const withEdit = (name, fn) => {
@@ -1092,16 +1128,17 @@ if (!HAS_DRIFT) {
     write(d, "CLAUDE.md", `# Owner text, edited by the owner\n\n${block}\n`);
   });
   expect(appended.code === 0 && status(appended) === "pass", `drift: an owner edit outside the appended block fails: ${appended.out.trim()}`);
-  for (const [version, dir] of upgraded) {
+  for (const [version, dir] of installs()) {
     const r = drift(dir);
     expect(r.code === 0 && status(r) === "pass", `drift: the upgraded ${version} fixture does not pass: ${r.out.trim()}`);
   }
 }
+} // section 7
 
 // ---------------------------------------------------------------------------------------
 // 8. Real-install snapshots (added by the owner; see scripts/fixtures/upgrade/README.md)
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("8")) {
   const realDir = join(FIX, "real");
   const reals = existsSync(realDir) ? readdirSync(realDir).filter((n) => existsSync(join(realDir, n, "expected.json"))) : [];
   if (!reals.length) console.log("note  no real-install snapshots under scripts/fixtures/upgrade/real/ yet");
@@ -1125,11 +1162,11 @@ if (!HAS_DRIFT) {
 // ---------------------------------------------------------------------------------------
 // 9. The repository check runs in the project; --help; engine-min
 // ---------------------------------------------------------------------------------------
-{
+if (S.section("9")) {
   // Run from the clone, repository-checks.sh once took two folders up from itself – the clone's
   // skill folder – as the repository. A loose file in the PROJECT's .local/xezar/ must now fail
   // the check and be named; the same project without it must not be reported for one.
-  const base = upgraded.get("3.0.3");
+  const base = installs().get("3.0.3");
   const loose = lab("verify-repo-loose");
   cpSync(base, loose, { recursive: true });
   write(loose, ".local/xezar/verify-probe-loose.txt", "loose\n");
@@ -1210,7 +1247,7 @@ if (!HAS_DRIFT) {
 // Onboarding no longer writes `version: "unknown"` (owner decision): it stops instead. A manifest an
 // older kit wrote with "unknown" must still upgrade: no version means every upgrade entry applies,
 // and the manifest the upgrade writes names the target, never "unknown".
-{
+if (S.section("OC")) {
   const dir = materialize({ ...fx303, manifest: { ...fx303.manifest, version: "unknown" } }, { name: "unknown-version" });
   const ctx = ctxFor(dir);
   const plan = buildPlan(ctx);
@@ -1226,7 +1263,7 @@ if (!HAS_DRIFT) {
 // ---------------------------------------------------------------------------------------
 // 10a. A file the manifest records but no kit version ever shipped is not "removed from the
 // kit" (that class needs the base index): it is the project's own, kept as it is.
-{
+if (S.section("10a")) {
   const own = { "SECURITY.md": "# Security\n\nReport to us.\n", ".gitignore": null, "checks/repair-target.sh": "#!/bin/sh\necho repair\n" };
   const dir = materialize(fx303, {
     name: "not-kit",
@@ -1255,7 +1292,7 @@ if (!HAS_DRIFT) {
 }
 
 // 10b. Campaign notes are never touched: not planned, not recorded in the v2 manifest.
-{
+if (S.section("10b")) {
   const p = ".xezar/campaigns/launch.md";
   const block = "<!-- xezar:kit:start -->\nnotes\n<!-- xezar:kit:end -->";
   const dir = materialize(fx303, {
@@ -1275,7 +1312,7 @@ if (!HAS_DRIFT) {
 }
 
 // 10c. A write held back by a stop is reported and staged, never written.
-{
+if (S.section("10c")) {
   const dir = materialize(fx303, { name: "held" });
   const ctx = ctxFor(dir);
   const plan = buildPlan(ctx);
@@ -1301,7 +1338,7 @@ if (!HAS_DRIFT) {
 }
 
 // 10d. The printed plan shows what step 3 of the prompt tells the agent to show.
-{
+if (S.section("10d")) {
   const plan = buildPlan(ctxFor(materialize(fx303, { name: "summary" })));
   const md = summary({ ...plan, perMachine: [".claude/settings.local.json"], errors: [], engine: { version: "0.19.0", source: "xezar", checks: [{ min: "0.19.0", status: "met" }] } });
   expect(/^## Engine minimum$/m.test(md) && md.includes("0.19.0: met"), `summary: plan.md does not show the engine minimum:\n${md}`);
@@ -1312,7 +1349,7 @@ if (!HAS_DRIFT) {
 }
 
 // 10e. Upgrade entries come from UPGRADE_NOTES.md only, never from a release's working folder.
-{
+if (S.section("10e")) {
   const fake = lab("notes-root");
   const block = "```upgrade\nApplies-to: <3.1.0\nActions: restart-leader\n```\n";
   write(fake, "UPGRADE_NOTES.md", `# Notes\n\n${block}`);
@@ -1322,7 +1359,7 @@ if (!HAS_DRIFT) {
 }
 
 // 10f. #122: a clone checked out with CRLF finds the same entries in UPGRADE_NOTES.md as an LF one.
-{
+if (S.section("10f")) {
   const crlfRoot = lab("notes-crlf");
   write(crlfRoot, "UPGRADE_NOTES.md", read(root, "UPGRADE_NOTES.md").replace(/\r?\n/g, "\r\n"));
   const lf = upgradeEntries(root, "3.0.3");
@@ -1340,8 +1377,8 @@ if (!HAS_DRIFT) {
 // manifest tracks"): recording them turned every ordinary edit – a routing pull request, a
 // config key the upgrade checklist asks for, a label – into drift. The tracker descriptor and
 // the leader guide stay recorded: an edit to either must show.
-{
-  const dir = upgraded.get("3.0.3");
+if (S.section("11a")) {
+  const dir = installs().get("3.0.3");
   const m = JSON.parse(read(dir, ".xezar/onboarding.json"));
   const owner = ["SDLC.md", "CODE_REVIEW.md", ".mcp.json", ".codex/config.toml", ".gitignore", ...OWNER_CONFIG];
   for (const p of owner) {
@@ -1410,7 +1447,7 @@ if (!HAS_DRIFT) {
 
 // 11b. Each entry records the kit copy the file actually sits on – the base the next upgrade
 // merges from – not the target's copy for every file.
-{
+if (S.section("11b")) {
   const p = ".xezar/checks/changelog-check.sh";
   const oldE = base303.files[p];
   const newE = tree.index.files[p];
@@ -1446,7 +1483,7 @@ if (!HAS_DRIFT) {
 // ---------------------------------------------------------------------------------------
 // 12a. A deleted adapted file, whose v1 digest is of the rendered text and so names no base, is
 // a local removal, not "new in kit": it was once written back without a word.
-{
+if (S.section("12a")) {
   const p = ".github/ISSUE_TEMPLATE/config.yml";
   const dir = materialize(fx303, { name: "removed-adapted", edit: (d) => unlinkSync(join(d, p)) });
   const plan = buildPlan(ctxFor(dir));
@@ -1460,7 +1497,7 @@ if (!HAS_DRIFT) {
 // 12b. A removal the register records is kept through the upgrade: the plan keeps it removed
 // with no stop, verify accepts the entry, manifest v2 keeps the file's entry with its patch, and
 // the drift check passes. Without the entry the drift check still fails the missing file.
-{
+if (S.section("12b")) {
   const p = ".xezar/workflows/localisation.yaml";
   const removedWith = (name, confirmed) =>
     materialize(fx303, {
@@ -1506,7 +1543,7 @@ if (!HAS_DRIFT) {
   expect(!trackedBinding.length, `register-tracked: verify refuses a register entry for the recorded kit file ${kitFile}: ${JSON.stringify(trackedBinding)}`);
   if (HAS_DRIFT) {
     const up = lab("removed-drift");
-    cpSync(upgraded.get("3.0.3"), up, { recursive: true });
+    cpSync(installs().get("3.0.3"), up, { recursive: true });
     unlinkSync(join(up, p));
     const miss = drift(up);
     expect(miss.code === 1 && miss.out.includes(`drift=${p} origin=copied reason=missing`), `removed: an unrecorded deletion does not fail the drift check: ${miss.out.trim()}`);
@@ -1523,7 +1560,7 @@ if (!HAS_DRIFT) {
 // check the kit did not change is kept by the plan (unexplained-local-change); if the register
 // draft is dropped, verify must fail unregistered-local-change and write no manifest, or the
 // edit becomes the recorded installed state and no drift check sees it again.
-{
+if (S.section("12b2")) {
   const p = unchangedChecks[0];
   const edited = (name, register) =>
     materialize(fx303, {
@@ -1554,7 +1591,7 @@ if (!HAS_DRIFT) {
 // placeholder, so they are rendered regions (lib/rewrites.mjs, RENDERED_REGIONS): masked for
 // comparison, recovered as renderInputs, and put back into the new kit text. The kit's drift check
 // reads the same regions from renderInputs, so a later change to the gate list is not drift either.
-{
+if (S.section("12b3")) {
   const p = ".xezar/checks/repo-gates.sh";
   const list = '(\n  "yarn install --immutable"\n  ".xezar/checks/security-scan.sh"\n  "yarn typecheck"\n  "yarn test"\n  ".xezar/checks/repository-checks.sh"\n)';
   const ownGates = (text) =>
@@ -1639,7 +1676,7 @@ if (!HAS_DRIFT) {
 // 12b4. The project's own role skills and workflows reach the plan (round-9 review). No kit
 // version ships them, so detection never saw them, yet the target's catalog check judges them:
 // each is a local-only item with the own-file-kit-contract review, and apply leaves it alone.
-{
+if (S.section("12b4")) {
   const skill = ".xezar/skills/xezar-mobile-release.md";
   const current = ".xezar/skills/xezar-mobile-current.md";
   const plain = ".xezar/skills/xezar-mobile-notes.md";
@@ -1677,7 +1714,7 @@ if (!HAS_DRIFT) {
 
 // 12c. The leader guide is generated from a kit template: its plan item points at that template,
 // so the merge has a theirs to read, and says whether it changed since the project's version.
-{
+if (S.section("12c")) {
   const p = ".xezar/docs/leader-guide.md";
   const f = byPath(buildPlan(ctxFor(materialize(fx303, { name: "leader-template" }), { blobRepo: root }))).get(p);
   expect(f?.class === "owner-shaped" && f.theirs?.kitSource === "leader-guide.template.md", `leader-template: the leader guide's plan item names no kit template (${JSON.stringify(f?.theirs)})`);
@@ -1697,7 +1734,7 @@ if (!HAS_DRIFT) {
 // ---------------------------------------------------------------------------------------
 // 13a. 3.1.0 entries 4 and 11 name their per-machine steps as actions, so a 3.0.3 project's
 // owner checklist carries them.
-{
+if (S.section("13a")) {
   const plan = buildPlan(ctxFor(materialize(fx303, { name: "per-machine-310" })));
   for (const a of [
     "per-machine=remove-mcp-permission:mcp__chrome-devtools__*",
@@ -1713,7 +1750,7 @@ if (!HAS_DRIFT) {
 // 13b. A 3.0.0 project: 3.0.2's per-machine steps are actions; an in-range entry with no block is
 // listed for reading, never dropped; and a new owner-shaped permission file (.codex/config.toml,
 // first shipped at 3.0.2) stops for the owner like every other permission change.
-{
+if (S.section("13b")) {
   const plan = buildPlan(ctxFor(materialize(loadFixture("3.0.0"), { name: "per-machine-300" })));
   for (const a of [
     "per-machine=trust-codex-project:<absolute-project-path>",
@@ -1736,7 +1773,7 @@ if (!HAS_DRIFT) {
 
 // 13c. The range: a 3.0.3 project is not sent back to 3.0.2's entries, and a dated entry older
 // than the project's version is left out once that version's date is known.
-{
+if (S.section("13c")) {
   const plan = buildPlan(ctxFor(materialize(fx303, { name: "unblocked-303" })));
   const listed = (plan.unblockedEntries ?? []).map((e) => e.heading);
   expect(Array.isArray(plan.unblockedEntries), "plan: no unblockedEntries list");
@@ -1748,7 +1785,7 @@ if (!HAS_DRIFT) {
 // 14a. A tracked owner-shaped file (.claude/settings.json) whose kept content differs from the
 // kit's copy at its base and at the target: the verifier requires a register entry for it, so
 // the plan drafts one and lists it as unexplained and for reading (cmplus dry run).
-{
+if (S.section("14a")) {
   const p = ".claude/settings.json";
   const dir = materialize(fx303, {
     name: "owner-shaped-hook",
@@ -1773,7 +1810,7 @@ if (!HAS_DRIFT) {
 // 14b. A manifest that names no kit version (`version: 1`): the entry range comes from the
 // files' sure bases, not from every entry back to the first. With no such evidence it stays
 // "every entry", and plan.md says which.
-{
+if (S.section("14b")) {
   const withVersion = buildPlan(ctxFor(materialize(fx303, { name: "range-known" })));
   const unnamed = buildPlan(
     ctxFor(materialize(fx303, { name: "range-evidence", edit: (d) => write(d, ".xezar/onboarding.json", `${JSON.stringify({ ...fx303.manifest, version: 1 }, null, 2)}\n`) })),
@@ -1795,7 +1832,7 @@ if (!HAS_DRIFT) {
 
 // 14c. Each upgrade entry in the plan names its UPGRADE_NOTES.md heading and line, and plan.md
 // lists each entry's actions under that heading.
-{
+if (S.section("14c")) {
   const plan = buildPlan(ctxFor(materialize(fx303, { name: "entry-headings" })));
   const notes = readFileSync(join(root, "UPGRADE_NOTES.md"), "utf8").split("\n");
   for (const e of plan.upgradeEntries) {
@@ -1808,12 +1845,16 @@ if (!HAS_DRIFT) {
   expect(design && md.includes(`- ${design.source}:${design.line} ${design.heading}\n  - config-key=designSystem.modules`), "entries: plan.md does not list an entry's actions under its heading");
 }
 
-// detect() is exercised through buildPlan; keep one direct call so its export stays honest.
-expect(Array.isArray(detect(ctxFor(upgraded.get("3.0.3"))).files), "detect() no longer returns a file list");
+// tail. detect() is exercised through buildPlan; keep one direct call so its export stays honest.
+if (S.section("tail")) {
+expect(Array.isArray(detect(ctxFor(installs().get("3.0.3"))).files), "detect() no longer returns a file list");
 expect(typeof manifestV2 === "function", "verify.mjs no longer exports manifestV2");
+} // section tail
 
+for (const p of S.finish()) fail(p);
 if (problems) {
   console.error(`\nupgrade: ${problems} problem(s) in ${checks} checks`);
   process.exit(1);
 }
-console.log(`Upgrade tool OK (${checks} checks; ${SYNTHETIC.length} synthetic installs${HAS_DRIFT ? "" : "; drift cases skipped until stream U1 lands"}).`);
+if (S.targeted) console.log(S.targetedLine("Upgrade tool"));
+else console.log(`Upgrade tool OK (${checks} checks; ${SYNTHETIC.length} synthetic installs${HAS_DRIFT ? "" : "; drift cases skipped until stream U1 lands"}).`);
