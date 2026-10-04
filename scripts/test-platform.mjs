@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Unit and integration test for scripts/lib/platform.mjs and scripts/lib/test-harness.mjs (#122), and
-// unit cases for scripts/lib/sections.mjs (#123).
+// unit cases for scripts/lib/sections.mjs, scripts/lib/gate-runner.mjs and scripts/lib/tree-copy.mjs
+// (#123).
 //
 // The pure cases inject platform "win32" and a fake file system, so the Windows logic – above
 // all "never start WSL's bash.exe" – is proven on the Linux CI runner too. The integration cases
@@ -11,8 +12,8 @@
 // Run: node scripts/test-platform.mjs (scripts/lint.sh runs it too)
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { fork, spawn, spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -39,6 +40,8 @@ import {
   writeStub,
 } from "./lib/test-harness.mjs";
 import { parseOnly, sections } from "./lib/sections.mjs";
+import { gateEnv, runPool } from "./lib/gate-runner.mjs";
+import { assertInside, copyTree, removeStaleCopies, removeTree, writeInside } from "./lib/tree-copy.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const win32 = process.platform === "win32";
@@ -47,13 +50,18 @@ const win = path.win32;
 let cases = 0;
 let failures = 0;
 
+/** One case. An async case returns its promise; await it. */
 function check(name, fn) {
   cases += 1;
-  try {
-    fn();
-  } catch (error) {
+  const fail = (error) => {
     failures += 1;
     console.error(`FAIL  ${name}\n      ${String(error.message).split("\n").join("\n      ")}`);
+  };
+  try {
+    const result = fn();
+    if (result instanceof Promise) return result.catch(fail);
+  } catch (error) {
+    fail(error);
   }
 }
 
@@ -511,6 +519,41 @@ check("sections: XEZ_SECTIONS_TRACE records each failure's section and each sect
   }
 });
 
+// --- scripts/lib/gate-runner.mjs (#123) ---------------------------------------------------
+
+await check("runPool runs an exclusive task alone, after the others, and every task once", async () => {
+  const running = new Set();
+  const overlapped = [];
+  const started = [];
+  const tasks = [0, 1, 2, 3, 4, 5].map((id) => ({ id, exclusive: id === 1 || id === 4 }));
+  const results = await runPool(tasks, {
+    jobs: 3,
+    exclusive: (task) => task.exclusive,
+    start: async (task) => {
+      if ((task.exclusive && running.size > 0) || [...running].some((other) => other.exclusive)) overlapped.push(task.id);
+      running.add(task);
+      started.push(task.id);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      running.delete(task);
+      return task.id * 10;
+    },
+  });
+  assert.deepEqual(overlapped, [], `an exclusive task overlapped another (tasks ${overlapped.join(", ")})`);
+  assert.deepEqual(results, [0, 10, 20, 30, 40, 50], "runPool returns one result per task, in task order");
+  assert.deepEqual([...started].sort(), [0, 1, 2, 3, 4, 5], "a task ran twice or never");
+  assert.deepEqual(started.slice(-2), [1, 4], "the exclusive tasks run last, in task order");
+  for (const jobs of [0, 1.5, undefined]) {
+    await assert.rejects(runPool([{ id: 0 }], { jobs, start: async () => 0 }), /whole number of at least 1/, `runPool accepted jobs ${jobs}`);
+  }
+});
+
+check("gateEnv removes every narrowing variable, in any case, and keeps the rest", () => {
+  const env = gateEnv({ PATH: process.env.PATH ?? "", XEZ_DEPS_TEST_ONLY: "53", XEZ_SECTIONS_TRACE: "x", xez_sections_trace: "y", XEZ_KEEP: "1" });
+  const leaked = Object.keys(env).filter((key) => /^(XEZ_DEPS_TEST_ONLY$|XEZ_SECTIONS_)/i.test(key));
+  assert.deepEqual(leaked, [], `a narrowing variable reached a gate command: ${leaked.join(", ")}`);
+  assert.equal(env.XEZ_KEEP, "1");
+});
+
 // --- integration: this machine ------------------------------------------------------------
 
 check("Git Bash starts and, on Windows, sets up its own tools", () => {
@@ -580,20 +623,278 @@ try {
     assert.deepEqual(result.stdout.split("\n").slice(0, -1), ['a"b', "c d"]);
   });
 
-  check("run-gate.mjs runs every command, reports each exit code and fails when one fails", () => {
-    const gate = join(lab, "gate");
+  // run-gate.mjs and its libraries in a fake checkout whose gate is `commands`; returns a runner.
+  const fakeGate = (name, commands) => {
+    const gate = join(lab, name);
     mkdirSync(join(gate, "scripts", "lib"), { recursive: true });
     mkdirSync(join(gate, ".xezar", "pipeline"), { recursive: true });
-    for (const file of ["run-gate.mjs", "lib/platform.mjs"]) writeFileSync(join(gate, "scripts", file), readFileSync(join(root, "scripts", file)));
-    const commands = ["exit 0", "exit 3", `test "$(printf '%s' 'a"b')" = 'a"b'`];
+    for (const file of ["run-gate.mjs", "lib/platform.mjs", "lib/gate-runner.mjs"]) writeFileSync(join(gate, "scripts", file), readFileSync(join(root, "scripts", file)));
     writeFileSync(join(gate, ".xezar/pipeline/config.json"), JSON.stringify({ validation: { commands } }));
-    const env = { ...process.env };
-    delete env.GITHUB_ACTIONS;
-    const result = spawnSync(process.execPath, [join(gate, "scripts/run-gate.mjs")], { encoding: "utf8", env });
-    const exits = [...result.stdout.matchAll(/^\| (\d+) \| .* \| (\S+) \| \d+ \|$/gm)].map((m) => [Number(m[1]), m[2]]);
-    assert.equal(result.status, 1, result.stdout + result.stderr);
-    assert.deepEqual(exits, [[1, "0"], [2, "3"], [3, "0"]], result.stdout + result.stderr);
-    assert.match(result.stdout, /^2 of 3 gate commands passed in \d+ s\.$/m);
+    return (args, extraEnv = {}) => {
+      const env = { ...process.env };
+      delete env.GITHUB_ACTIONS;
+      delete env.XEZ_GATE_JOBS;
+      return spawnSync(process.execPath, [join(gate, "scripts/run-gate.mjs"), ...args], { encoding: "utf8", env: { ...env, ...extraEnv } });
+    };
+  };
+  const tableRows = (result) => [...result.stdout.matchAll(/^\| (\d+) \| .* \| (\S+) \| \d+ \|$/gm)].map((m) => [Number(m[1]), m[2]]);
+
+  // The failing command comes first, so a scheduler that starts nothing after a failure is caught
+  // in both modes. With --jobs 2, B starts once C has failed and must finish before A: A waits
+  // (P1_WAIT) until B has written its marker – up to 30 s by the clock, so a saturated machine cannot
+  // outlast the wait – and the order never depends on timing. The last command proves a quote in a
+  // command survives the start of Git Bash.
+  const P1 = [
+    "echo C >&2; exit 3",
+    'if [ -n "${P1_WAIT-}" ]; then until [ -e "$P1_WAIT/b" ] || [ "$SECONDS" -ge 30 ]; do sleep 0.1; done; sleep 0.3; fi; echo A',
+    'echo B; if [ -n "${P1_WAIT-}" ]; then : > "$P1_WAIT/b"; fi',
+    `test "$(printf '%s' 'a"b')" = 'a"b'`,
+  ];
+  let p1;
+  const runP1 = () => {
+    if (!p1) {
+      const run = fakeGate("gate-p1", P1);
+      const wait = join(lab, "p1-wait");
+      mkdirSync(wait);
+      p1 = { "--jobs 1": run(["--jobs", "1"]), "--jobs 2": run(["--jobs", "2"], { P1_WAIT: toPosixPath(wait) }) };
+    }
+    return p1;
+  };
+
+  check("run-gate.mjs runs every command, reports each exit code and fails when one fails, with --jobs 1 and --jobs 2", () => {
+    for (const [mode, result] of Object.entries(runP1())) {
+      const shown = `${mode}:\n${result.stdout}${result.stderr}`;
+      assert.equal(result.status, 1, shown);
+      assert.deepEqual(tableRows(result), [[1, "3"], [2, "0"], [3, "0"], [4, "0"]], shown);
+      assert.match(result.stdout, /^3 of 4 gate commands passed in \d+ s\.$/m, shown);
+    }
+  });
+
+  check("run-gate.mjs --jobs 2 prints each command's output in config order, then its wall time", () => {
+    const result = runP1()["--jobs 2"];
+    const lines = result.stdout.split(/\r?\n/);
+    assert.ok(lines.includes("A") && lines.indexOf("A") < lines.indexOf("B"), `B, which finished first, was printed before A:\n${result.stdout}`);
+    assert.match(result.stderr, /^C$/m, result.stderr);
+    assert.match(result.stdout, /^Ran with 2 jobs; wall time \d+ s\.$/m, result.stdout);
+  });
+
+  check("run-gate.mjs --jobs 1 prints as a serial run always has, with no wall-time line", () => {
+    const result = runP1()["--jobs 1"];
+    const lines = result.stdout.split(/\r?\n/);
+    assert.ok(lines.includes("A") && lines.indexOf("A") < lines.indexOf("B"), result.stdout);
+    assert.doesNotMatch(result.stdout, /^Ran with/m, result.stdout);
+  });
+
+  check("run-gate.mjs starts its commands without a narrowing variable it was given", () => {
+    const result = fakeGate("gate-p7", ['test -z "${XEZ_DEPS_TEST_ONLY-}"'])([], { XEZ_DEPS_TEST_ONLY: "53" });
+    assert.equal(result.status, 0, `XEZ_DEPS_TEST_ONLY reached a gate command run-gate.mjs started:\n${result.stdout}${result.stderr}`);
+  });
+
+  check("run-gate.mjs refuses a bad --jobs, XEZ_GATE_JOBS or option with exit 2", () => {
+    const run = fakeGate("gate-p3", ["exit 0"]);
+    const range = "takes a whole number from 1 to 32";
+    for (const [args, env, message] of [
+      [["--jobs", "0"], {}, `run-gate: --jobs ${range}`],
+      [["--jobs", "x"], {}, `run-gate: --jobs ${range}`],
+      [["--bogus"], {}, "run-gate: unknown option '--bogus'"],
+      [[], { XEZ_GATE_JOBS: "33" }, `run-gate: XEZ_GATE_JOBS ${range}`],
+    ]) {
+      const result = run(args, env);
+      assert.equal(result.status, 2, `${args.join(" ")}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr.trim(), message);
+    }
+  });
+
+  // --- scripts/lib/tree-copy.mjs (#123) ---
+  // A source repository with every kind of change a contributor's tree can hold, and its copy.
+  const git = (cwd, ...args) => {
+    const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
+    return result.stdout;
+  };
+  let tree;
+  const treeCopy = () => {
+    if (tree) return tree;
+    const base = join(lab, "tree");
+    const source = join(base, "source");
+    git(lab, "-c", "init.defaultBranch=main", "init", "-q", source);
+    for (const [key, value] of [["core.autocrlf", "false"], ["user.email", "t@example.com"], ["user.name", "t"]]) git(source, "config", key, value);
+    const files = { "kept.txt": "kept\n", "staged.txt": "staged 1\n", "unstaged.txt": "unstaged 1\n", "deleted.txt": "deleted\n", "run.sh": "#!/bin/sh\necho run\n", ".gitignore": "*.log\n" };
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(source, name), text);
+    git(source, "add", ".");
+    git(source, "update-index", "--chmod=+x", "run.sh");
+    git(source, "commit", "-q", "-m", "base");
+    writeFileSync(join(source, "staged.txt"), "staged 2\n");
+    git(source, "add", "staged.txt");
+    writeFileSync(join(source, "unstaged.txt"), "unstaged 2\n");
+    writeFileSync(join(source, "ita.txt"), "intent to add\n");
+    git(source, "add", "-N", "ita.txt");
+    mkdirSync(join(source, "dir"));
+    writeFileSync(join(source, "dir", "untracked.txt"), "untracked\n");
+    writeFileSync(join(source, "ignored.log"), "ignored\n");
+    rmSync(join(source, "deleted.txt"));
+    // A nested repository: `git ls-files -o` lists it as one entry, "inner/".
+    const inner = join(source, "inner");
+    git(source, "-c", "init.defaultBranch=main", "init", "-q", inner);
+    writeFileSync(join(inner, "nested.txt"), "nested\n");
+    git(inner, "add", ".");
+    git(inner, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "inner");
+    // Another worktree whose folder is gone: a global `git worktree prune` would drop its entry.
+    git(source, "worktree", "add", "-q", "--detach", join(base, "side"), "HEAD");
+    renameSync(join(base, "side"), join(base, "side-moved"));
+    const before = { status: git(source, "status", "--porcelain"), index: git(source, "ls-files", "-s") };
+    const copy = copyTree(source, join(base, "copy"));
+    // Read before any `git status` in the copy, which would refresh its index itself.
+    const unrefreshed = { copy: git(copy, "diff-files", "--name-only"), source: git(source, "diff-files", "--name-only") };
+    tree = { base, source, before, copy, unrefreshed };
+    return tree;
+  };
+
+  check("copyTree: the copy's index is the user's – staged changes, an executable file, intent-to-add", () => {
+    const { copy, before, unrefreshed } = treeCopy();
+    assert.equal(git(copy, "ls-files", "-s"), before.index, "the copy's index differs from the user's");
+    assert.equal(unrefreshed.copy, unrefreshed.source, "the copy's index was left unrefreshed: diff-files lists files the user never changed");
+    assert.match(before.index, /^100755 \S+ 0\trun\.sh$/m);
+  });
+
+  check("copyTree: the copy holds the user's untracked files and none of the ignored ones", () => {
+    const { copy } = treeCopy();
+    for (const path of ["dir/untracked.txt", "ita.txt", "inner/nested.txt", "inner/.git"]) assert.ok(existsSync(join(copy, path)), `the copy lacks an untracked file: ${path}`);
+    assert.ok(!existsSync(join(copy, "ignored.log")), "the copy holds an ignored file");
+  });
+
+  check("copyTree: the copy has the user's status, bytes and unstaged diff", () => {
+    const { copy, source, before } = treeCopy();
+    assert.equal(git(copy, "status", "--porcelain"), before.status, "the copy's git status differs from the user's");
+    for (const path of git(source, "ls-files", "-co", "--exclude-standard").split("\n").filter((line) => line && !line.endsWith("/"))) {
+      const there = existsSync(join(source, path));
+      assert.equal(existsSync(join(copy, path)), there, `${path}: present in one tree only`);
+      if (there) assert.ok(readFileSync(join(copy, path)).equals(readFileSync(join(source, path))), `${path}: the copy's bytes differ`);
+    }
+    const quiet = (cwd) => spawnSync("git", ["-C", cwd, "diff", "--quiet"]).status;
+    assert.equal(quiet(copy), quiet(source));
+  });
+
+  check("copyTree: writing in the copy leaves the source alone; removeTree prunes nothing else", () => {
+    const { base, copy, source, before } = treeCopy();
+    writeFileSync(join(copy, "kept.txt"), "changed in the copy\n");
+    writeFileSync(join(copy, "new-in-copy.txt"), "new\n");
+    assert.equal(git(source, "status", "--porcelain"), before.status, "a write in the copy changed the source");
+    removeTree(source, base, copy);
+    // Matched by the last two segments: git may print the temp folder resolved (macOS: /private/var).
+    const listed = toPosixPath(git(source, "worktree", "list", "--porcelain"));
+    assert.ok(!existsSync(copy) && !/^worktree .*\/tree\/copy$/m.test(listed), `removeTree left the copy or its entry:\n${listed}`);
+    assert.match(listed, /^worktree .*\/tree\/side$/m, `removeTree pruned another worktree's entry:\n${listed}`);
+  });
+
+  check("removeTree refuses a link and a path outside its base, and removes nothing", () => {
+    const { base, source } = treeCopy();
+    const victim = join(lab, "remove-victim");
+    mkdirSync(victim);
+    writeFileSync(join(victim, "keep.txt"), "keep\n");
+    const link = join(base, "link-copy");
+    symlinkSync(victim, link, "junction"); // a junction on Windows; a directory link elsewhere
+    const refusal = (path) => {
+      try {
+        removeTree(source, base, path);
+        return "";
+      } catch (error) {
+        return error.message;
+      }
+    };
+    assert.match(refusal(link), /is a link/, `removeTree did not refuse the link ${link}`);
+    assert.match(refusal(victim), /is not inside/, `removeTree did not refuse ${victim}, outside ${base}`);
+    assert.ok(existsSync(join(victim, "keep.txt")), "removeTree removed what a link points at");
+    rmSync(link);
+  });
+
+  // A crashed run's copies sit in its private folder <base>/guards-<pid>-XXXXXX/guards-<pid>-<k>.
+  check("removeStaleCopies removes a dead run's copies and leftover folders, and keeps a live run's", () => {
+    const { base, source } = treeCopy();
+    const temp = join(base, "temp");
+    const elsewhere = join(base, "elsewhere");
+    const sleeper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], { stdio: "ignore" });
+    try {
+      const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+      const live = sleeper.pid;
+      const places = {
+        dead: join(temp, `guards-${dead}-AbC123`, `guards-${dead}-0`),
+        live: join(temp, `guards-${live}-DeF456`, `guards-${live}-0`),
+        outside: join(elsewhere, `guards-${dead}-GhI789`, `guards-${dead}-0`),
+      };
+      for (const place of Object.values(places)) git(source, "worktree", "add", "-q", "--detach", place, "HEAD");
+      const leftover = join(temp, `guards-${dead}-JkL012`);
+      mkdirSync(join(leftover, `guards-${dead}-1`), { recursive: true }); // a copy whose entry is gone
+      mkdirSync(join(temp, "guards-notes"));
+      removeStaleCopies(source, temp, "guards-");
+      const listed = toPosixPath(git(source, "worktree", "list", "--porcelain"));
+      const has = (place) => listed.includes(`/${toPosixPath(path.relative(base, place))}\n`);
+      assert.ok(!existsSync(dirname(places.dead)) && !has(places.dead), `removeStaleCopies kept a dead run's copy:\n${listed}`);
+      assert.ok(!existsSync(leftover), "removeStaleCopies kept a dead run's leftover folder");
+      assert.ok(existsSync(places.live) && has(places.live), "removeStaleCopies removed a copy whose run is still alive");
+      assert.ok(existsSync(places.outside) && has(places.outside), "removeStaleCopies removed a copy outside its base");
+      assert.ok(existsSync(join(temp, "guards-notes")), "removeStaleCopies removed a folder whose name only starts like a copy's");
+      assert.match(listed, /^worktree .*\/tree\/side$/m, `removeStaleCopies pruned another worktree's entry:\n${listed}`);
+      for (const place of [places.live, places.outside]) removeTree(source, base, place);
+    } finally {
+      sleeper.kill();
+    }
+  });
+
+  check("writeInside writes inside its base and refuses ../ and another path, unwritten", () => {
+    const base = join(lab, "write-base");
+    mkdirSync(base);
+    writeInside(base, join(base, "in.txt"), "in\n");
+    assert.equal(readFileSync(join(base, "in.txt"), "utf8"), "in\n");
+    for (const path of [join(base, "..", "write-escape.txt"), join(lab, "write-other.txt")]) {
+      let refused = false;
+      try {
+        writeInside(base, path, "x\n");
+      } catch {
+        refused = true;
+      }
+      assert.ok(refused && !existsSync(path), `writeInside wrote outside ${base}: ${path}`);
+    }
+  });
+
+  check("assertInside accepts a path inside its base and refuses ../, another path and a link out", () => {
+    const base = join(lab, "inside-base");
+    const outside = join(lab, "outside");
+    mkdirSync(join(base, "sub"), { recursive: true });
+    mkdirSync(outside);
+    assertInside(base, join(base, "sub", "not-yet-written.txt"));
+    symlinkSync(outside, join(base, "link-out"), "junction"); // a junction on Windows; a directory link elsewhere
+    for (const path of [join(base, "..", "x"), outside, base, join(base, "link-out", "f")]) {
+      assert.throws(() => assertInside(base, path), /is not inside/, `assertInside accepted a path outside ${base}: ${path}`);
+    }
+  });
+
+  // test-guards.mjs in a checkout inside the temp folder, so only the checkout clause can refuse
+  // that checkout, a folder in it or one holding it. Each start must exit 2 before it reads anything.
+  await check("test-guards.mjs --worker refuses an unforked start, a relative path, the checkout, in it, around it, outside temp", async () => {
+    const checkout = join(lab, "guards-checkout");
+    mkdirSync(join(checkout, "scripts"), { recursive: true });
+    cpSync(join(root, "scripts", "lib"), join(checkout, "scripts", "lib"), { recursive: true });
+    const suite = join(checkout, "scripts", "test-guards.mjs");
+    writeFileSync(suite, readFileSync(join(root, "scripts", "test-guards.mjs")));
+    const unforked = spawnSync(process.execPath, [suite, "--worker", join(lab, "write-base")], { encoding: "utf8" });
+    assert.equal(unforked.status, 2, `an unforked --worker start was not refused:\n${unforked.stderr}`);
+    const forked = (given) => new Promise((resolve) => {
+      const child = fork(suite, ["--worker", given], { stdio: ["ignore", "ignore", "pipe", "ipc"] });
+      let stderr = "";
+      child.stderr.on("data", (chunk) => { stderr += chunk; });
+      const timer = setTimeout(() => child.kill(), 60000);
+      child.on("message", () => child.kill()); // it started as a worker: stop it before it runs anything
+      child.on("close", (code, signal) => {
+        clearTimeout(timer);
+        resolve({ given, code: code ?? signal, stderr });
+      });
+    });
+    const refused = await Promise.all(["relative/copy", checkout, join(checkout, "scripts"), lab, dirname(tempRoot())].map(forked));
+    for (const { given, code, stderr } of refused) {
+      assert.equal(code, 2, `test-guards.mjs did not refuse --worker ${given} (exit ${code}):\n${stderr}`);
+      assert.match(stderr, /^test-guards: --worker /m, stderr);
+    }
   });
 
   check("after prepareTestPlatform() a direct Git Bash spawn keeps quotes and globs as they are", () => {
@@ -635,7 +936,15 @@ try {
   });
 
   check("restrict refuses a path outside the temp root and a link inside it", () => {
-    assert.throws(() => restrict(root, "no-write"), /is not inside/);
+    // The temp root itself is outside it; so is the checkout – except when this run is in a
+    // private copy under the temp root, as every gate in the guard suite is (#123).
+    const insideTemp = (p) => {
+      const rel = path.relative(realpathSync.native(tempRoot()), realpathSync.native(p));
+      return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+    };
+    for (const outside of [tempRoot(), root].filter((p) => !insideTemp(p))) {
+      assert.throws(() => restrict(outside, "no-write"), /is not inside/, `restrict accepted ${outside}`);
+    }
     const target = join(lab, "link-target");
     mkdirSync(target);
     const link = join(lab, "link");

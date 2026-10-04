@@ -1,7 +1,8 @@
 # The guard suite (scripts/test-guards.mjs) breaks every gate on purpose to prove it still
 # fires. It runs here once a night instead of on every PR (owner decision 2026-09-27; see
 # DECISIONS.md -> "The guard suite runs nightly"); since #123 each case re-runs only the part of a
-# test it breaks, and the suite takes about seven minutes on GitHub's Linux runner. A second job
+# test it breaks, on several workers in private copies of the tree, and the suite takes about
+# four minutes on GitHub's Linux runner. A second job
 # runs the same suite on native Windows (#122); it is informational and never opens the issue.
 #
 # When this starts firing: GitHub runs scheduled workflows only from the repository's

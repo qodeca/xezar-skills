@@ -1078,9 +1078,12 @@ if (S.section("G1")) {
       fail(fact, "kit/checks/lib/config-grammar.mjs", `the trust-boundary pattern ${JSON.stringify(pattern)} was accepted; negation, braces, extglobs, character classes and regex characters must be refused`);
   }
   {
-    const started = Date.now();
+    // CPU time, not wall time (#123): an unbounded matcher burns CPU and still fails, while a gate
+    // running other commands beside this one no longer does.
+    const started = process.cpuUsage();
     grammar.matchTrustPattern(grammar.parseTrustPattern("a*".repeat(128)).tokens, `${"a".repeat(4000)}b`);
-    if (Date.now() - started > 3000) fail(fact, "kit/checks/lib/config-grammar.mjs", "a 256-character pattern took over 3s against a 4001-character path; the matcher is not bounded");
+    const used = process.cpuUsage(started);
+    if ((used.user + used.system) / 1000 > 3000) fail(fact, "kit/checks/lib/config-grammar.mjs", "a 256-character pattern took over 3s against a 4001-character path; the matcher is not bounded");
   }
   const judged = (list) => {
     try { return grammar.judgeTrustBoundaries({ security: { trustBoundaries: list } }); } catch (error) { return { status: `threw ${error.message}` }; }

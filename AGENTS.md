@@ -151,7 +151,8 @@ node scripts/test-merge-gate.mjs
 jq -r '.validation.commands[]' .xezar/pipeline/config.json
 ```
 
-`npm run gate` (`scripts/run-gate.mjs`) runs the whole list that way and ends with a table of exit
+`npm run gate` (`scripts/run-gate.mjs`) runs the whole list that way – each command on its own, up
+to four at once, output in list order (`--jobs 1` for one at a time) – and ends with a table of exit
 codes. On Windows, run the commands in Git Bash; in PowerShell or cmd use `npm run lint` and
 `npm run gate`, because a bare `bash` there starts WSL (`CONTRIBUTING.md` → Contributing from
 Windows).
@@ -164,8 +165,8 @@ Two scripts are worth knowing about before you run them. `scripts/test-guards.mj
 gate, but still yours to run by hand when you add or change a guard — breaks each guard on
 purpose to prove it still fires, so it re-runs a gate once per defect – for the facts, catalog,
 upgrade and deps-units tests only the sections that own the defect's message (`--list` shows each
-case's command) – and takes about seven minutes on GitHub's Linux runner — and it edits tracked files in place, so it takes a lock and only one copy
-may run at a time. `scripts/sync-shared-blocks.mjs` is a **generator**: when a shared block
+case's command) – and takes about four minutes on GitHub's Linux runner — and it works in
+private copies of the tree, one per worker, so it never edits your checkout and two runs may overlap. `scripts/sync-shared-blocks.mjs` is a **generator**: when a shared block
 drifts — in a skill's `agentic-setup.md` or `rules.md`, or in the `## Shared contract` tail of a kit
 role skill — edit the canonical copy and run it rather than editing one copy per file by hand.
 

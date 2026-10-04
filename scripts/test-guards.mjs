@@ -8,84 +8,113 @@
 // suite introduces one named, realistic defect at a time, runs the real gate, and asserts
 // the real error message comes back.
 //
-// Method: mutate a real tracked file, run the gate, restore the file in a `finally`. The
-// restore is unconditional; a crashed assertion still puts the tree back, and the last
-// assertion checks that nothing was left modified.
+// Method: mutate a tracked file, run the gate, restore the file in a `finally`. The restore is
+// unconditional; a crashed assertion still puts the tree back, and the last assertion checks
+// that nothing was left modified.
 //
-// Because it edits the checkout in place, only one run at a time may hold it. Two
-// concurrent runs trample each other's mutations, and each then reports the other's
-// defect as "the wrong guard fired" -- which reads exactly like a broken guard. A lock
-// makes that impossible rather than confusing.
+// Private copies (#123). The suite never writes the checkout. It makes one private copy of the
+// tree per worker (scripts/lib/tree-copy.mjs: the same index, tracked files and untracked files
+// that are not ignored) in a folder of its own under the temp folder – `guards-<pid>-XXXXXX/`,
+// made by mkdtemp, one copy `guards-<pid>-<k>` in it per worker – and forks one worker per copy. A
+// worker takes its copy's path from argv only, refuses to start unless it was forked with a path
+// inside the temp folder and apart from the checkout, and checks every write against its copy.
+// Your work in progress at the start is copied, so it is tested too; a change to the checkout's
+// `git status` while the suite runs fails the run. Two runs can share a checkout, and a run can go
+// beside the gate: no file is shared, and there is no lock. The copies are removed at the end, on
+// Ctrl+C (each worker stopped with every gate it started), and – for a crashed run – at the next
+// start, which also removes a leftover folder.
+//
+// Workers: `--workers N` (1–32), else XEZ_GUARD_WORKERS, else the smaller of 4 and the CPU count.
+// Cases run in case order on every worker. A case whose gate runs a section its script declares
+// exclusive (facts W-scheduler, catalog 10: real processes, pid reuse, pipes and a socket) runs
+// in a last phase, alone, with every other worker idle. Failures are printed after the run, in
+// case order, whichever worker ran them; then the timing tables, the exclusive cases with their
+// reasons, and the wall time.
 //
 // Cases are data (#123). Each `breaks(...)` call below registers one case; the runner at the end
-// of this file runs them in order, timed, and every run ends with two tables: seconds per gate
-// and the ten slowest cases. `--list` is a dry run: no lock, no writes, no gate started – each
-// gate is called with a recorder in place of `run`, and one line per case is printed:
-// `<index> <gate argv> <env keys the gate sets> <file> <name>`, tab-separated.
+// of this file runs them, timed, and every run ends with two tables: seconds per gate and the ten
+// slowest cases. `--list` is a dry run: no copies, no writes, no gate started (it only reads each
+// sectioned test's `--sections`) – each gate is called with a recorder in place of `run`, and one
+// line per case is printed:
+// `<index> <gate argv> <env keys the gate sets> <file> <name> <exclusive>`, tab-separated, where
+// <exclusive> names the exclusive sections the gate runs, or is `-`.
 // A case aimed at test-kit-facts.mjs, test-kit-catalog.mjs, test-upgrade.mjs or
 // test-deps-units.mjs names the sections that own its message – `facts("H1")`,
 // `catalog("D-review")`, `upgrade("12b")`, `deps("53-tree")` – so it re-runs seconds of work
 // instead of the whole script; a wrong id fails the case ("not for this reason"), never quietly.
+// Such a case starts the script as `scripts/<name>` (the helpers do): any other form – a ./ prefix,
+// an absolute path, a shell line – fails `--list` and the run, since its exclusive sections would go
+// unseen.
 // To find the id for a new case, read the ids in that script's header, or run the whole script
 // with the defect in place and XEZ_SECTIONS_TRACE=<file>: each failure is appended to the file as
 // one JSON line naming its section. The variable is a mapping aid only and never changes a result
 // (scripts/lib/sections.mjs).
 //
-// Run: node scripts/test-guards.mjs
+// Run: node scripts/test-guards.mjs [--workers N]
 //      node scripts/test-guards.mjs --list
 
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { execFileSync, fork } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { fileURLToPath } from "node:url";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { bashPath, toLF } from "./lib/platform.mjs";
-import { prepareTestPlatform } from "./lib/test-harness.mjs";
+import { bashPath, requireGitBash, toLF } from "./lib/platform.mjs";
+import { killTree, prepareTestPlatform, tempRoot, TREE_SPAWN } from "./lib/test-harness.mjs";
+import { parseOnly } from "./lib/sections.mjs";
+import { runPool } from "./lib/gate-runner.mjs";
+import { assertInside, copyTree, removeStaleCopies, removeTree, writeInside } from "./lib/tree-copy.mjs";
+
+const THIS_FILE = fileURLToPath(import.meta.url);
+const checkout = join(dirname(THIS_FILE), "..");
+const COUNT_RANGE = "a whole number from 1 to 32";
+const validCount = (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 32;
+const usage = (message) => {
+  console.error(`test-guards: ${message}`);
+  process.exit(2);
+};
 
 const ARGS = process.argv.slice(2);
-const LIST = ARGS.length === 1 && ARGS[0] === "--list";
-if (ARGS.length && !LIST) {
-  console.error(`test-guards: unknown arguments '${ARGS.join(" ")}'; the only option is --list`);
-  process.exit(2);
-}
+let LIST = false;
+let workersFlag = null;
+let workerRoot = null; // set in a worker only: the private copy it runs cases in
+if (ARGS.length === 1 && ARGS[0] === "--list") LIST = true;
+else if (ARGS.length === 2 && ARGS[0] === "--workers") {
+  if (!validCount(ARGS[1])) usage(`--workers takes ${COUNT_RANGE}`);
+  workersFlag = Number(ARGS[1]);
+} else if (ARGS.length === 2 && ARGS[0] === "--worker") workerRoot = ARGS[1];
+else if (ARGS.length) usage(`unknown arguments '${ARGS.join(" ")}'; the options are --list and --workers <n>`);
 
-prepareTestPlatform();
-
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-// This suite mutates real tracked files. Two copies running at once trample each other's
-// mutations and each one then "fails" on the other's defect -- which looks exactly like a
-// broken guard and is not. `mkdir` is atomic, so it makes a usable lock with no dependency.
-// Taken by the runner only: `--list` writes nothing.
-function takeLock() {
-  const LOCK = join(root, ".local", "test-guards.lock");
+const isInside = (base, path) => {
   try {
-    mkdirSync(join(root, ".local"), { recursive: true });
-    mkdirSync(LOCK);
+    assertInside(base, path);
+    return true;
   } catch {
-    console.error(
-      "test-guards: another run holds the lock at .local/test-guards.lock.\n" +
-      "This suite edits tracked files in place, so two runs cannot share a checkout.\n" +
-      "Wait for the other run, or remove the directory if no run is active.",
-    );
-    process.exit(1);
+    return false;
   }
-  const releaseLock = () => { try { rmSync(LOCK, { recursive: true, force: true }); } catch {} };
-  process.on("exit", releaseLock);
-  for (const signal of ["SIGINT", "SIGTERM"]) {
-    process.on(signal, () => { releaseLock(); process.exit(130); });
+};
+
+/** A worker's copy, checked before anything reads it: forked, absolute, in the temp folder, apart from the checkout. */
+function checkedWorkerRoot(given) {
+  if (typeof process.send !== "function") usage("--worker is for the suite's own workers, which it forks; run node scripts/test-guards.mjs");
+  if (!isAbsolute(given) || !existsSync(given)) usage(`--worker needs the absolute path of an existing copy, not '${given}'`);
+  const real = (path) => realpathSync.native(path);
+  if (!isInside(tempRoot(), given) || real(given) === real(checkout) || isInside(checkout, given) || isInside(given, checkout)) {
+    usage(`--worker ${given} must be a folder inside ${tempRoot()} and apart from the checkout`);
   }
+  return given;
 }
 
-let failures = 0;
-let asserts = 0;
+const root = workerRoot === null ? checkout : checkedWorkerRoot(workerRoot);
+if (workerRoot !== null) prepareTestPlatform();
+else requireGitBash(); // the parent starts no gate, but its workers and --list's recorder need Git Bash
 
-let recorder = null; // --list: called instead of starting a command
+let recorder = null; // --list and the exclusive lookup: called instead of starting a command
 let gateCommands = null; // the commands the current case's gate started, for the timing table
 
 function run(command, args, options = {}) {
   const argv = [basename(command).replace(/\.exe$/i, ""), ...args].join(" ");
-  if (recorder) return recorder(argv, options);
+  if (recorder) return recorder({ argv, args, options });
   gateCommands?.push(argv);
   try {
     return {
@@ -100,6 +129,7 @@ function run(command, args, options = {}) {
 const lint = () => run(bashPath(), ["scripts/lint.sh"]);
 const script = (name, ...args) => run("node", [`scripts/${name}`, ...args]);
 // The four sectioned scripts, run for the named sections only; no ids runs the whole script.
+const SECTIONED = ["test-kit-facts.mjs", "test-kit-catalog.mjs", "test-upgrade.mjs", "test-deps-units.mjs"];
 const only = (ids) => ids.flatMap((id) => ["--only", id]);
 const facts = (...ids) => () => script("test-kit-facts.mjs", ...only(ids));
 const catalog = (...ids) => () => script("test-kit-catalog.mjs", ...only(ids));
@@ -122,8 +152,8 @@ function breaks(name, file, mutate, gate, expect) {
   CASES.push({ name, file, mutate, gate, expect });
 }
 
-function runCase({ name, file, mutate, gate, expect }) {
-  asserts += 1;
+/** Runs one case in this worker's copy. Returns null when the guard caught its defect, else why not. */
+function runCase({ file, mutate, gate, expect }) {
   const path = join(root, file);
   const original = readFileSync(path, "utf8"); // the restore stays byte-exact
   // #122: every search string below is written with LF line endings, so a CRLF checkout is
@@ -131,36 +161,24 @@ function runCase({ name, file, mutate, gate, expect }) {
   // changing more than the mutation, so it is refused rather than broken for the wrong reason.
   const crlf = original.includes("\r\n");
   if (crlf && /(^|[^\r])\n/.test(original)) {
-    failures += 1;
-    console.error(`FAIL  ${name}\n      ${file} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`);
-    return;
+    return `${file} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`;
   }
   const lf = toLF(original);
   let result;
   try {
     const broken = mutate(lf);
-    if (broken === lf) {
-      failures += 1;
-      console.error(`FAIL  ${name}\n      the mutation changed nothing -- this test is testing nothing`);
-      return;
-    }
-    writeFileSync(path, crlf ? broken.replace(/\n/g, "\r\n") : broken);
+    if (broken === lf) return "the mutation changed nothing -- this test is testing nothing";
+    writeInside(root, path, crlf ? broken.replace(/\n/g, "\r\n") : broken); // refuses a path outside the copy
     result = gate();
   } finally {
-    writeFileSync(path, original);
+    writeInside(root, path, original);
   }
-  if (result.code === 0) {
-    failures += 1;
-    console.error(`FAIL  ${name}\n      the gate PASSED with the defect in place`);
-    return;
-  }
+  if (result.code === 0) return "the gate PASSED with the defect in place";
   if (!result.out.includes(expect)) {
-    failures += 1;
-    console.error(
-      `FAIL  ${name}\n      the gate failed, but not for this reason.\n` +
-      `      expected to see: ${expect}\n      got: ${result.out.trim().split("\n").slice(0, 4).join("\n           ")}`,
-    );
+    return "the gate failed, but not for this reason.\n" +
+      `      expected to see: ${expect}\n      got: ${result.out.trim().split("\n").slice(0, 4).join("\n           ")}`;
   }
+  return null;
 }
 
 // --- scripts/lint.sh ---------------------------------------------------------
@@ -2802,8 +2820,8 @@ breaks(
 
 breaks(
   "a run-gate.mjs that stops at the first failing command is rejected",
-  "scripts/run-gate.mjs",
-  (s) => s.replace("  rows.push({ number: index + 1, command, exit, seconds });\n", "  rows.push({ number: index + 1, command, exit, seconds });\n  if (exit !== 0) break;\n"),
+  "scripts/lib/gate-runner.mjs",
+  (s) => s.replace("      results[index] = await start(tasks[index], laneIndex);\n", "      results[index] = await start(tasks[index], laneIndex);\n      if (results[index].exit !== 0) next = shared.length;\n"),
   () => script("test-platform.mjs"),
   "run-gate.mjs runs every command, reports each exit code",
 );
@@ -3121,59 +3139,310 @@ breaks(
 );
 // 123-sections:end
 
+// 123-parallel:start
+// #123: the gate runs its commands in parallel (scripts/lib/gate-runner.mjs), and this suite runs
+// its cases in private copies of the tree (scripts/lib/tree-copy.mjs). One break per rule that
+// keeps either honest; the run-gate case above breaks the shared scheduler for both job counts.
+const GATE_RUNNER = "scripts/lib/gate-runner.mjs";
+const TREE_COPY = "scripts/lib/tree-copy.mjs";
+
+breaks(
+  "a parallel gate that prints output as commands finish is rejected",
+  GATE_RUNNER,
+  (s) => s.replace("      slot.done = true;\n      flush();\n", "      slot.done = true;\n      printSlot(slot, grouped);\n"),
+  () => script("test-platform.mjs"),
+  "prints each command's output in config order",
+);
+
+breaks(
+  "a pool that runs an exclusive task beside another is rejected",
+  GATE_RUNNER,
+  (s) => s.replace("(exclusive(task) ? alone : shared).push(index)", "shared.push(index)"),
+  () => script("test-platform.mjs"),
+  "an exclusive task overlapped",
+);
+
+breaks(
+  "a gate that passes a narrowing variable to its commands is rejected",
+  GATE_RUNNER,
+  (s) => s.replace('const NARROWING = (key) => key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");', 'const NARROWING = (key) => key.startsWith("XEZ_SECTIONS_");'),
+  () => script("test-platform.mjs"),
+  "a narrowing variable reached a gate command",
+);
+
+breaks(
+  "a tree copy that drops untracked files is rejected",
+  TREE_COPY,
+  (s) => s.replace('["ls-files", "-m", "-o", "--exclude-standard", "-z"]', '["ls-files", "-m", "--exclude-standard", "-z"]'),
+  () => script("test-platform.mjs"),
+  "the copy lacks an untracked file",
+);
+
+breaks(
+  "a tree copy that keeps HEAD's index instead of the user's is rejected",
+  TREE_COPY,
+  (s) => s.replace('"--detach", "--no-checkout", dest', '"--detach", dest').replace('  if (entries.length) git(dest, ["update-index"', '  if (false) git(dest, ["update-index"'),
+  () => script("test-platform.mjs"),
+  "the copy's index differs",
+);
+
+breaks(
+  "a containment check that lets a path out is rejected",
+  TREE_COPY,
+  (s) => s.replace("export function assertInside(base, path) {\n", "export function assertInside(base, path) {\n  return;\n"),
+  () => script("test-platform.mjs"),
+  "accepted a path outside",
+);
+
+breaks(
+  "a shared-block test that edits the checkout is rejected",
+  "scripts/test-shared-blocks.mjs",
+  (s) => s.replace('const VICTIM = join(work, "skills"', 'const VICTIM = join(root, "skills"'),
+  () => script("test-shared-blocks.mjs"),
+  "would edit the checkout",
+);
+
+breaks(
+  "a tree copy that writes outside its base is rejected",
+  TREE_COPY,
+  (s) => s.replace("  assertInside(base, path);\n  writeFileSync(path, data);\n", "  writeFileSync(path, data);\n"),
+  () => script("test-platform.mjs"),
+  "writeInside wrote outside",
+);
+
+breaks(
+  "a tree removal that follows a link is rejected",
+  TREE_COPY,
+  (s) => s.replace("  if (isLink(dest)) throw new Error(", "  if (false) throw new Error("),
+  () => script("test-platform.mjs"),
+  "removeTree did not refuse the link",
+);
+
+breaks(
+  "a stale-copy sweep that removes a live run's copies is rejected",
+  TREE_COPY,
+  (s) => s.replace("const isStale = (pid) => pid === process.pid || !isAlive(pid);", "const isStale = () => true;"),
+  () => script("test-platform.mjs"),
+  "removed a copy whose run is still alive",
+);
+
+breaks(
+  "a guard worker that starts in the checkout is rejected",
+  "scripts/test-guards.mjs",
+  (s) => s.replace("real(given) === real(checkout) || isInside(checkout, given) || isInside(given, checkout)", "false"),
+  () => script("test-platform.mjs"),
+  "test-guards.mjs did not refuse --worker",
+);
+
+// A case must reach a sectioned script as scripts/<name>, or the lookup of its exclusive sections
+// misses it and the case runs beside the others.
+breaks(
+  "a case that reaches a sectioned script another way is rejected",
+  "scripts/test-guards.mjs",
+  (s) => s.replace('const catalog = (...ids) => () => script("test-kit-catalog.mjs", ...only(ids));', 'const catalog = (...ids) => () => run("node", ["./scripts/test-kit-catalog.mjs", ...only(ids)]);'),
+  () => script("test-guards.mjs", "--list"),
+  "or its exclusive sections go unseen",
+);
+
+breaks(
+  "a review-run.sh finish that stops nothing it started is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('    [ $# -eq 0 ] || usage\n    for pidfile in "$state"/*.pid; do [ -e "$pidfile" ] && stop_one "$pidfile"; done\n    verify_unchanged', '    [ $# -eq 0 ] || usage\n    verify_unchanged'),
+  catalog("D-review"),
+  "leaves a started command running",
+);
+// 123-parallel:end
+
 // --- the runner ---------------------------------------------------------------
-// `--list`: every gate is called once with the recorder in place of `run`, so nothing starts and
-// nothing is written; each case prints the command its gate would start.
-if (LIST) {
-  CASES.forEach((c, index) => {
-    const commands = [];
-    const envKeys = new Set();
-    recorder = (argv, options) => {
-      commands.push(argv);
-      for (const [key, value] of Object.entries(options.env ?? {})) if (process.env[key] !== value) envKeys.add(key);
-      return { code: 0, out: "" };
-    };
+// A case's gate called with the recorder in place of `run`: nothing starts and nothing is written.
+function recordGate(c) {
+  const calls = [];
+  recorder = (call) => {
+    calls.push(call);
+    return { code: 0, out: "" };
+  };
+  try {
     c.gate();
-    console.log([index + 1, commands.join(" && "), [...envKeys].sort().join(",") || "-", c.file, c.name].join("\t"));
+  } finally {
+    recorder = null;
+  }
+  return calls;
+}
+
+/** Each sectioned script's declarations, from `node <script> --sections`, which runs no section. */
+function readSections() {
+  return Object.fromEntries(SECTIONED.map((name) => {
+    const out = execFileSync("node", [join(checkout, "scripts", name), "--sections"], { cwd: checkout, encoding: "utf8" });
+    return [`scripts/${name}`, JSON.parse(out)];
+  }));
+}
+
+/**
+ * The exclusive sections a case's recorded gate runs, as "<script> <id>: <reason>"; none → [].
+ * Throws when the gate reaches a sectioned script in any form but `node scripts/<name>` (a
+ * ./ prefix, an absolute path, a shell line): the lookup would miss its exclusive sections.
+ */
+function exclusiveOf(calls, declared) {
+  const found = [];
+  for (const { argv, args } of calls) {
+    const words = [argv.split(" ")[0], ...args.map(String)];
+    for (const name of SECTIONED) {
+      const other = words.find((word, i) => word.includes(name) && !(i === 1 && words[0] === "node" && word === `scripts/${name}`));
+      if (other !== undefined) {
+        throw new Error(`its gate reaches ${name} as '${other}'; start it as scripts/${name} (script() or a section helper), or its exclusive sections go unseen`);
+      }
+    }
+    const decl = declared[args[0]];
+    if (!decl) continue;
+    const { selected, error } = parseOnly(args.slice(1), decl.ids, decl.needs ?? {});
+    if (error) continue; // the gate refuses it with exit 2: nothing of it runs
+    for (const id of selected ?? decl.ids) {
+      if (Object.hasOwn(decl.exclusive ?? {}, id)) found.push(`${decl.script} ${id}: ${decl.exclusive[id]}`);
+    }
+  }
+  return found;
+}
+
+/** Each case's recorded gate calls and exclusive sections; exits 1 naming every case whose gate cannot be read. */
+function readCases(declared) {
+  const refused = [];
+  const read = CASES.map((c, index) => {
+    const calls = recordGate(c);
+    try {
+      return { calls, exclusive: exclusiveOf(calls, declared) };
+    } catch (error) {
+      refused.push(`test-guards: case #${index + 1} (${c.name}): ${error.message}`);
+      return null;
+    }
+  });
+  if (refused.length) {
+    for (const line of refused) console.error(line);
+    process.exit(1);
+  }
+  return read;
+}
+
+if (LIST) {
+  const read = readCases(readSections());
+  CASES.forEach((c, index) => {
+    const { calls, exclusive: sections } = read[index];
+    const envKeys = new Set();
+    for (const { options } of calls) {
+      for (const [key, value] of Object.entries(options.env ?? {})) if (process.env[key] !== value) envKeys.add(key);
+    }
+    const exclusive = sections.map((line) => line.split(":")[0]);
+    const columns = [index + 1, calls.map((call) => call.argv).join(" && "), [...envKeys].sort().join(",") || "-", c.file, c.name];
+    console.log([...columns, exclusive.join(", ") || "-"].join("\t"));
   });
   process.exit(0);
 }
 
-takeLock();
-// Snapshot the working tree before anything is broken, so the final assertion compares
-// like with like instead of demanding a clean checkout.
-const statusBefore = run("git", ["status", "--porcelain"]).out;
+const gitStatus = (cwd) => execFileSync("git", ["--no-optional-locks", "-C", cwd, "status", "--porcelain"], { encoding: "utf8" });
 
-const timings = [];
-CASES.forEach((c, index) => {
-  gateCommands = [];
-  const started = performance.now();
-  runCase(c);
-  timings.push({ index: index + 1, name: c.name, gate: gateCommands.join(" && ") || "(no command)", seconds: (performance.now() - started) / 1000 });
-  gateCommands = null;
-});
-
-// --- the tree is left exactly as it was found --------------------------------
-// Compared against a snapshot taken at the top of the run, not against a clean tree:
-// a contributor runs this with their own work in progress, and their uncommitted edits
-// are none of this suite's business. What must match is BEFORE and AFTER.
-{
-  asserts += 1;
-  if (run("git", ["status", "--porcelain"]).out !== statusBefore) {
-    failures += 1;
-    console.error(
-      "FAIL  the suite changed the working tree.\n" +
-      "      Run `git status` and `git diff` -- a mutation was not restored.",
-    );
-  }
+// --- worker: runs the cases the parent sends, one at a time, in its own copy ---------------------
+if (workerRoot !== null) {
+  const statusAtStart = gitStatus(root);
+  process.on("message", (message) => {
+    if (message.done) {
+      const status = gitStatus(root);
+      process.send({ tree: status === statusAtStart, status }, () => process.disconnect());
+      return;
+    }
+    gateCommands = [];
+    const started = performance.now();
+    let failure;
+    try {
+      failure = runCase(CASES[message.index]);
+    } catch (error) {
+      failure = `the case could not run: ${error.message}`;
+    }
+    const gate = gateCommands.join(" && ") || "(no command)";
+    gateCommands = null;
+    process.send({ index: message.index, failure, gate, seconds: (performance.now() - started) / 1000 });
+  });
+  process.send({ ready: true });
 }
 
-// Where the time went: per gate command (cases, total seconds) and the ten slowest cases.
-{
+/**
+ * Forks the worker for one copy. request(index) runs a case; finish() returns its tree report.
+ * A worker is lost when its channel closes or the process ends without answering: both come only
+ * after every message it sent has arrived, so a last answer is never mistaken for a death.
+ */
+function startWorker(copy, number) {
+  const child = fork(THIS_FILE, ["--worker", copy], { stdio: ["ignore", "inherit", "inherit", "ipc"], ...TREE_SPAWN });
+  let pending = null;
+  let lost = null;
+  let markReady;
+  const ready = new Promise((resolve, reject) => { markReady = { resolve, reject }; });
+  const exited = new Promise((resolve) => child.once("close", resolve));
+  const fail = (error) => {
+    lost ??= error;
+    markReady.reject(error);
+    const waiting = pending;
+    pending = null;
+    waiting?.reject(new Error(`${error.message} while running ${waiting.what}`));
+  };
+  child.on("message", (message) => {
+    if (message.ready) return markReady.resolve();
+    const waiting = pending;
+    pending = null;
+    waiting?.resolve(message);
+  });
+  child.on("error", fail);
+  child.once("disconnect", () => fail(new Error(`worker ${number} closed its channel`)));
+  child.once("close", (code, signal) => fail(new Error(`worker ${number} exited (${signal ?? `code ${code}`})`)));
+  const ask = (message, what) => new Promise((resolve, reject) => {
+    if (lost) return reject(new Error(`${lost.message} before running ${what}`));
+    pending = { resolve, reject, what };
+    child.send(message);
+  });
+  return { child, ready, exited, request: (index) => ask({ index }, `case #${index + 1}`), finish: () => ask({ done: true }, "its tree check") };
+}
+
+/** The worker count: `--workers N`, else XEZ_GUARD_WORKERS, else min(4, CPUs). */
+function workerCount() {
+  if (workersFlag !== null) return workersFlag;
+  const fromEnv = process.env.XEZ_GUARD_WORKERS ?? "";
+  if (fromEnv === "") return Math.min(4, availableParallelism());
+  if (!validCount(fromEnv)) usage(`XEZ_GUARD_WORKERS takes ${COUNT_RANGE}`);
+  return Number(fromEnv);
+}
+
+/** Runs every case on the workers; resolves { results, trees } – results in case order. */
+async function runOnWorkers(pool, tasks) {
+  await Promise.all(pool.map((worker) => worker.ready));
+  const results = await runPool(tasks, {
+    jobs: pool.length,
+    start: (task, lane) => pool[lane].request(task.index),
+    exclusive: (task) => task.exclusive.length > 0,
+  });
+  const trees = [];
+  for (const worker of pool) trees.push(await worker.finish());
+  await Promise.all(pool.map((worker) => worker.exited));
+  return { results, trees };
+}
+
+/** The tree assertion: every copy as it started, and the checkout as it was. Returns the failures. */
+function treeFailures(trees, statusBefore) {
+  const failed = [];
+  trees.forEach((tree, k) => {
+    if (!tree.tree) failed.push(`FAIL  a mutation was not restored in the copy of worker ${k + 1}; its \`git status --porcelain\` ended as:\n${tree.status}`);
+  });
+  if (gitStatus(checkout) !== statusBefore) {
+    failed.push(
+      "FAIL  the checkout's `git status` changed during the run.\n" +
+      "      The suite never writes there: either a gate wrote outside its copy, or the checkout was edited while the suite ran.",
+    );
+  }
+  return failed;
+}
+
+/** Where the time went: per gate command (cases, total seconds), the ten slowest cases, the exclusive ones. */
+function printTimings(results, tasks) {
   const perGate = new Map();
-  for (const t of timings) {
-    const g = perGate.get(t.gate) ?? { cases: 0, seconds: 0 };
-    perGate.set(t.gate, { cases: g.cases + 1, seconds: g.seconds + t.seconds });
+  for (const r of results) {
+    const g = perGate.get(r.gate) ?? { cases: 0, seconds: 0 };
+    perGate.set(r.gate, { cases: g.cases + 1, seconds: g.seconds + r.seconds });
   }
   const s = (seconds) => seconds.toFixed(1).padStart(8);
   console.log("Seconds per gate (total s, cases, gate):");
@@ -3181,13 +3450,78 @@ CASES.forEach((c, index) => {
     console.log(`  ${s(g.seconds)}  ${String(g.cases).padStart(4)}  ${gate}`);
   }
   console.log("Slowest cases (s, index, name):");
-  for (const t of [...timings].sort((a, b) => b.seconds - a.seconds).slice(0, 10)) {
-    console.log(`  ${s(t.seconds)}  #${String(t.index).padEnd(4)} ${t.name}`);
+  for (const r of [...results].sort((a, b) => b.seconds - a.seconds).slice(0, 10)) {
+    console.log(`  ${s(r.seconds)}  #${String(r.index + 1).padEnd(4)} ${CASES[r.index].name}`);
   }
+  const alone = tasks.filter((task) => task.exclusive.length);
+  console.log(`Exclusive cases (${alone.length}; run last, one at a time, every other worker idle):`);
+  for (const task of alone) console.log(`  #${String(task.index + 1).padEnd(4)} ${CASES[task.index].name} – ${task.exclusive.join("; ")}`);
 }
 
-if (failures) {
-  console.error(`\nguards: ${failures} of ${asserts} guards did not catch their defect`);
-  process.exit(1);
+/** The parent: copies, workers, the run, the report. */
+async function runSuite() {
+  const workers = workerCount();
+  const declared = readSections();
+  const tasks = readCases(declared).map(({ exclusive }, index) => ({ index, exclusive }));
+  const statusBefore = gitStatus(checkout);
+  let home = null; // this run's private folder: every copy is made inside it
+  const copies = [];
+  const pool = [];
+  const cleanUp = () => {
+    for (const worker of pool) killTree(worker.child); // with every gate it started; a no-op once it has exited
+    for (const copy of copies) {
+      try {
+        removeTree(checkout, home, copy);
+      } catch (error) {
+        console.error(`test-guards: could not remove the copy ${copy} (${error.message}); the next run removes it`);
+      }
+    }
+    copies.length = 0;
+    if (!home) return;
+    try {
+      rmSync(home, { recursive: true, force: true, maxRetries: 3 });
+    } catch (error) {
+      console.error(`test-guards: could not remove ${home} (${error.message}); the next run removes it`);
+    }
+    home = null;
+  };
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { cleanUp(); process.exit(130); });
+  const began = performance.now();
+  let outcome;
+  try {
+    removeStaleCopies(checkout, tempRoot(), "guards-");
+    home = mkdtempSync(join(tempRoot(), `guards-${process.pid}-`));
+    for (let k = 0; k < workers; k += 1) {
+      const copy = join(home, `guards-${process.pid}-${k}`);
+      copies.push(copy); // before it exists: a copy that fails half-made is still removed
+      copyTree(checkout, copy);
+      pool.push(startWorker(copy, k + 1));
+    }
+    console.log(`test-guards: ${CASES.length} cases on ${workers} worker(s), each in a private copy; ${tasks.filter((t) => t.exclusive.length).length} exclusive cases run last, alone.`);
+    outcome = await runOnWorkers(pool, tasks);
+  } catch (error) {
+    cleanUp();
+    console.error(`test-guards: ${error.message} – the run stopped`);
+    process.exit(1);
+  }
+  cleanUp();
+  const wall = (performance.now() - began) / 1000;
+  return { ...outcome, tasks, workers, wall, treeFailed: treeFailures(outcome.trees, statusBefore) };
 }
-console.log(`Guard suite OK (${asserts} deliberate defects, each caught by the guard that owns it).`);
+
+if (workerRoot === null) {
+  const { results, tasks, workers, wall, treeFailed } = await runSuite();
+  const asserts = CASES.length + 1; // one per case, plus the tree assertion (copies and checkout)
+  const caseFailures = results.filter((r) => r.failure);
+  for (const r of caseFailures) console.error(`FAIL  ${CASES[r.index].name}\n      ${r.failure}`);
+  for (const line of treeFailed) console.error(line);
+  printTimings(results, tasks);
+  console.log(`Ran ${CASES.length} cases on ${workers} worker(s); wall time ${wall.toFixed(0)} s.`);
+  const failures = caseFailures.length + (treeFailed.length ? 1 : 0);
+  if (failures) {
+    console.error(`\nguards: ${failures} of ${asserts} guards did not catch their defect`);
+    process.exitCode = 1;
+  } else {
+    console.log(`Guard suite OK (${asserts} deliberate defects, each caught by the guard that owns it).`);
+  }
+}
