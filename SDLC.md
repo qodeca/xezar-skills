@@ -185,6 +185,7 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `node scripts/test-onboarding-content.mjs`
 - `node scripts/check-links.mjs`
 - `node scripts/check-gate-list.mjs`
+- `node scripts/check-gate-map.mjs`
 - `node scripts/check-label-taxonomy.mjs`
 - `node scripts/test-kit-facts.mjs`
 - `node scripts/test-kit-catalog.mjs`
@@ -197,6 +198,8 @@ Every PR passes the full validation gate before review sign-off, in this order:
 - `npm run test:generic-instructions`
 
 Any non-zero exit fails the gate and blocks the PR. The guard suite (`npm run test:guards`), which breaks every gate on purpose to prove it still fires, is not in this list: it runs nightly on `develop` from `.github/workflows/nightly-guards.yml`, where it takes about four minutes on GitHub's Linux runner (each case re-runs only the part of a test it breaks, on several workers in private copies of the tree, so it takes no lock), and a failure opens one "Nightly guard suite failed" issue. The implementing skills run the gate before opening a PR, and `xez-check-and-commit` runs it before pushing a hand-worked branch. The command list lives in `.xezar/pipeline/config.json`; when it changes, update it there and in this section together. On Windows, run them from Git Bash or through npm (`npm run gate` runs the whole list, up to four commands at once, each in full; `--jobs 1` runs one at a time); see [CONTRIBUTING.md → Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).
+
+The gate has two tiers. **T1** is the list above: `npm run gate` and the CI `lint` and cross-platform jobs run every command in full, read no map and take no narrowing flag or variable – it is the only gate result. **T0**, `npm run gate:changed`, is a quick local check while you work: it runs the cheap commands, lint on the changed files and the commands `scripts/gate-map.json` maps from the changed paths, and everything when it cannot tell (a path no rule maps, a shared library, `lint.sh`, no `origin/develop`); it says in its first and last line that it is never a gate result. `node scripts/check-gate-map.mjs` keeps every command mapped and holds T1 whole ([DECISIONS.md → Tiered gate: T0 selects, T1 never does](DECISIONS.md#tiered-gate-t0-selects-t1-never-does)).
 
 ## Amending this process
 

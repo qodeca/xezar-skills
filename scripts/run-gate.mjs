@@ -18,35 +18,16 @@
 // Run: node scripts/run-gate.mjs [--jobs N]
 
 import { readFileSync } from "node:fs";
-import { availableParallelism } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireGitBash } from "./lib/platform.mjs";
-import { runGate } from "./lib/gate-runner.mjs";
+import { jobCount, runGate } from "./lib/gate-runner.mjs";
 
-const JOBS_RANGE = "a whole number from 1 to 32";
-
-/** The job count: `--jobs N`, else XEZ_GATE_JOBS, else min(4, CPUs). A usage error exits 2. */
-function jobCount(argv, env) {
-  const usage = (message) => {
-    console.error(`run-gate: ${message}`);
-    process.exit(2);
-  };
-  const valid = (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 32;
-  let flag = null;
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] !== "--jobs") usage(`unknown option '${argv[i]}'`);
-    flag = argv[(i += 1)] ?? "";
-    if (!valid(flag)) usage(`--jobs takes ${JOBS_RANGE}`);
-  }
-  if (flag !== null) return Number(flag);
-  const fromEnv = env.XEZ_GATE_JOBS ?? "";
-  if (fromEnv === "") return Math.min(4, availableParallelism());
-  if (!valid(fromEnv)) usage(`XEZ_GATE_JOBS takes ${JOBS_RANGE}`);
-  return Number(fromEnv);
+const { jobs, error: usageError } = jobCount(process.argv.slice(2), process.env);
+if (usageError) {
+  console.error(`run-gate: ${usageError}`);
+  process.exit(2);
 }
-
-const jobs = jobCount(process.argv.slice(2), process.env);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const config = JSON.parse(readFileSync(join(root, ".xezar/pipeline/config.json"), "utf8"));
 const commands = config.validation?.commands ?? [];

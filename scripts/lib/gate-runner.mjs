@@ -1,6 +1,8 @@
 /**
- * Runs gate commands and returns one row each (#122, #123). Users: run-gate.mjs (runGate),
- * test-guards.mjs (runPool).
+ * Runs gate commands and returns one row each (#122, #123). Users: run-gate.mjs (runGate,
+ * jobCount), gate-changed.mjs (runGate, jobCount: the quick local check, T0, which only chooses
+ * which tasks to pass in – nothing here reads its map), test-guards.mjs (runPool),
+ * check-gate-map.mjs (isNarrowingVariable: no committed gate command or CI job may set one).
  *
  * One scheduler, `runPool`, serves every job count, so "every command runs, even after one fails"
  * lives in one place. `runGate` has two output modes on it: with one job each command writes
@@ -13,10 +15,39 @@
  * node:* imports and ./platform.mjs only.
  */
 import { spawn } from "node:child_process";
+import { availableParallelism } from "node:os";
 import { msysSpawnArgs, requireGitBash, withGitTools } from "./platform.mjs";
 
-// Variables that make a test run part of itself (scripts/lib/sections.mjs, test-deps-units.mjs).
-const NARROWING = (key) => key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");
+/**
+ * Whether an environment variable makes a test run part of itself (scripts/lib/sections.mjs,
+ * test-deps-units.mjs), in any letter case. A variable that only tunes a run – a timeout, say – does
+ * not narrow it.
+ */
+export function isNarrowingVariable(name) {
+  const key = String(name).toUpperCase();
+  return key === "XEZ_DEPS_TEST_ONLY" || key.startsWith("XEZ_SECTIONS_");
+}
+const JOBS_RANGE = "a whole number from 1 to 32";
+
+/**
+ * The job count of a gate run: `--jobs N` (its only option), else XEZ_GATE_JOBS, else the smaller
+ * of 4 and this machine's CPU count. Returns { jobs }, or { error } for a usage error, which the
+ * caller prints after its own name and exits 2 on.
+ */
+export function jobCount(argv, env) {
+  const valid = (value) => /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 32;
+  let flag = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] !== "--jobs") return { error: `unknown option '${argv[i]}'` };
+    flag = argv[(i += 1)] ?? "";
+    if (!valid(flag)) return { error: `--jobs takes ${JOBS_RANGE}` };
+  }
+  if (flag !== null) return { jobs: Number(flag) };
+  const fromEnv = env.XEZ_GATE_JOBS ?? "";
+  if (fromEnv === "") return { jobs: Math.min(4, availableParallelism()) };
+  if (!valid(fromEnv)) return { error: `XEZ_GATE_JOBS takes ${JOBS_RANGE}` };
+  return { jobs: Number(fromEnv) };
+}
 
 /**
  * Starts `tasks` in order on up to `jobs` lanes and resolves with their results in task order.
@@ -48,7 +79,7 @@ export async function runPool(tasks, { jobs, start, exclusive = () => false }) {
 /** A NEW env for a gate command: withGitTools(env) without any narrowing variable (any case). */
 export function gateEnv(env = process.env) {
   const next = withGitTools(env);
-  for (const key of Object.keys(next)) if (NARROWING(key.toUpperCase())) delete next[key];
+  for (const key of Object.keys(next)) if (isNarrowingVariable(key)) delete next[key];
   return next;
 }
 

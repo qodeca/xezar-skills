@@ -8,6 +8,14 @@ process – branches, labels, reviews – is in [SDLC.md](SDLC.md), and its
 runs up to four commands at once and prints each command's output in list order; every command
 still runs in full. `npm run gate -- --jobs 1` runs them one at a time, each writing straight to the
 terminal. It reads the list from `.xezar/pipeline/config.json`, so it is always the current gate.
+
+While you work, `npm run gate:changed` is quicker: it runs only what your branch's changes can
+affect – the cheap checks, lint on the files you changed, and the tests `scripts/gate-map.json` maps
+from those paths – and everything when it cannot tell (a file no rule maps, a shared library,
+`lint.sh`, or no `origin/develop` to compare with: `git fetch origin develop`). It is never a gate
+result and says so; run `npm run gate` before you push. A new gate command needs a line in that map
+too, or `check-gate-map.mjs` fails.
+
 The guard suite (`npm run test:guards`) is separate: it breaks every gate on purpose and runs
 nightly. It works in private copies of the tree under your temp folder, so you can run it beside
 the gate. Your edits made before it starts are tested with it; changing the checkout's

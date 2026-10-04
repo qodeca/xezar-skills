@@ -18,6 +18,7 @@
       "node scripts/test-onboarding-content.mjs",
     "node scripts/check-links.mjs",
     "node scripts/check-gate-list.mjs",
+    "node scripts/check-gate-map.mjs",
     "node scripts/check-label-taxonomy.mjs",
     "node scripts/test-kit-facts.mjs",
     "node scripts/test-kit-catalog.mjs",

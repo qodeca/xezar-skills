@@ -1682,11 +1682,12 @@ day-long sleep (it was 30 s, which a loaded machine could outlast, passing the p
 started command's pid is an MSYS pid that Node's `process.kill` cannot see, so until #123 the
 probe passed there whatever `finish` did. Failures print after the run in case order, whichever
 worker ran them, and one tree assertion covers every copy and the checkout, so the count stays
-cases + 1. Thirteen break cases hold these rules – the ordered printer, the exclusive phase, the
+cases + 1. Fifteen break cases hold these rules – the ordered printer, the exclusive phase, the
 narrowing variables, untracked files and the user's index in the copy, the containment check, a
-write outside the copy, a removal through a link, a stale-copy sweep that spares a live run, a
-worker that refuses the checkout, a case that reaches a sectioned script only as
-`scripts/<name>`, a `finish` that stops what `start` started, and the shared-block test's copy –
+write outside the copy, a removal through a link or outside the run's folder, a stale-copy sweep
+that spares a live run, a worker that refuses the checkout and a folder outside the temp folder, a
+case that reaches a sectioned script only as `scripts/<name>`, a `finish` that stops what `start`
+started, and the shared-block test's copy –
 and the case that breaks "every command runs" now breaks the one scheduler both the gate and this
 suite use.
 
@@ -1736,3 +1737,56 @@ jobs (median of five runs, 757–773 s, each equal to the serial run) against 1,
 the serial run; #123 proof run 37210372022). On the #122 PC that is not yet the 10 minutes #123 asks for: under four-way load each command runs
 slower (the deps-units test, the longest, went from 483 to about 690 s), and it alone sets the wall
 time.
+
+## Tiered gate: T0 selects, T1 never does
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+There are two ways to run the gate, and only one gives a gate result. **T1** – `npm run gate`, the
+required `lint` job and the cross-platform job – runs every `validation.commands` entry in full: it
+reads no map, takes no narrowing flag or variable, and its runner (`scripts/run-gate.mjs`,
+`scripts/lib/gate-runner.mjs`) never imports the selection. **T0** – `npm run gate:changed`
+(`scripts/gate-changed.mjs`) – is a local shortcut. It takes the files changed since the merge-base
+with `origin/<baseBranch>` – committed, staged, unstaged and untracked; a rename counts both paths –
+and runs the cheap commands (`always` in `scripts/gate-map.json`), the commands the map's rules name
+for those paths, and lint on the changed files. It runs everything when it cannot tell: a path no
+rule maps, a path in the map's `everything` list (`lint.sh`, `scripts/lib/**`, the runner, the map,
+`package.json`, the pipeline config, the workflows, `.gitattributes`), a path with a control
+character, a map it cannot use, or a change set it could not compute, as on a fresh clone without
+`origin/develop`. A path is printed with its control characters escaped, so a file name cannot write
+to the terminal or the CI log as itself. After a deletion lint runs whole: with
+`--files`, the references and names checks read only the listed files, so a pointer left to the
+deleted file would go unseen. A changed file reaches lint as its own argument, never as shell text, and only a plain
+name does – letters, digits, `. _ @ + / -` and space, never a link; any other name, or more names than
+a Windows command line holds, runs lint whole. Inside lint a listed name stays one string too: it
+reaches `find` as one argument and a hit's prefix through awk's `ENVIRON`, never through a sed script.
+T0's first and last lines say it is never a gate result.
+
+The rules are derived, not guessed: every (file → gate) pair the guard suite's breaks name must
+select its gate – checked on every run – and every path a command's script and the modules it
+imports read through the repository root must select that command – a one-off check kept in the PR. Globs are the kit's own
+trust patterns, matched by the kit's matcher, so there is no third glob dialect.
+`scripts/check-gate-map.mjs`, a gate command, holds both tiers: every gate command is mapped and
+every command the map names is a gate command; every glob is valid and matches a file; a script's
+own change selects its command; `everything` holds `lint.sh` and `scripts/lib/**`; `package.json`'s
+`gate` runs `run-gate.mjs`; nothing `run-gate.mjs` or any gate command's script reaches through its
+imports – a re-export through another module included – names the map or the selection in a string
+(comments are free; a module the reader cannot read fails the check rather than passing), and
+`lint.sh` does not name them at all; no gate command, CI `run:` line or `env:` entry holds `--only`,
+`--files` or a variable the runner strips (one predicate in `gate-runner.mjs` for both, so a tuning
+variable such as `XEZ_DEPS_DIGEST_TIMEOUT_MS` stays allowed); and every guard case's file selects the
+gate that catches it. It also tests the selection on the real map and the module reader on the shapes
+it must not misread. Sixty break cases hold these rules – one per message of the checker, per
+fail-safe branch of the selection, and per place a file name could leave its one argument.
+
+**Why.** Fast local feedback without making CI depend on a selection that can be wrong. A wrong or
+missing rule can only make T0 miss what T1 then finds; it cannot weaken T1.
+
+**What it costs.** T0 can miss a dependency the map does not know – that is what T1 is for, and why
+T0 never calls itself a gate result. The map is one more place a new gate command must land
+(`check-gate-map.mjs` fails until it does), and a new script or top-level file runs everything under
+T0 until a rule maps it. Two root files no gate command reads, `.env.example` and `LICENSE`, are left
+unmapped on purpose, so a change to either runs everything. A kit change selects the five kit tests,
+the slowest in the gate. Measured on the #122 PC (wall time, four jobs): a docs-only change 13 s (15 of
+24 commands), a deleted reference file 10 s, a kit change 456 s (20 of 24; the deps-units test sets
+it), a `lint.sh` change 825 s (all 24). On GitHub's runners all four situations, one after another, took about 2.5 minutes on Linux and 10 to 13 on Windows (#123 proof runs 37226374879 and 37226771741).

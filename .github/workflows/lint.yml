@@ -62,6 +62,8 @@ jobs:
         run: node scripts/check-links.mjs
       - name: Gate-list binding (config, workflow, SDLC, package scripts)
         run: node scripts/check-gate-list.mjs
+      - name: Changed-files map for the quick local check (T0)
+        run: node scripts/check-gate-map.mjs
       - name: Label taxonomy recorded as data
         run: node scripts/check-label-taxonomy.mjs
       - name: Kit facts
