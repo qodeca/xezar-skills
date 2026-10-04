@@ -3112,8 +3112,8 @@ breaks(
   "XEZ_DEPS_TEST_ONLY must be empty or",
 );
 
-// The skip group would catch this defect; asked for beside XEZ_DEPS_TEST_ONLY=53, it would never
-// run (the #53 filter ends the run first), so the pair is refused instead of passing in silence.
+// The skip group would catch this defect, but asked for beside XEZ_DEPS_TEST_ONLY=53 the run could
+// not say which filter it honoured, so the pair is refused before any group runs.
 breaks(
   "XEZ_DEPS_TEST_ONLY beside --only is refused, one filter at a time",
   "skills/xez-onboard-opinionated/kit/checks/lib/gate-results.mjs",
@@ -3133,7 +3133,7 @@ breaks(
 breaks(
   "a deps-units freshness group that runs without the units group is refused",
   DEPS_UNITS_MJS,
-  (s) => s.replace('needs: { freshness: ["units"] },', "needs: {},"),
+  (s) => s.replace('const GROUP_NEEDS = { freshness: ["units"] };', "const GROUP_NEEDS = {};"),
   deps("freshness"),
   "needs section 'units', which did not run",
 );
@@ -3149,7 +3149,7 @@ const TREE_COPY = "scripts/lib/tree-copy.mjs";
 breaks(
   "a parallel gate that prints output as commands finish is rejected",
   GATE_RUNNER,
-  (s) => s.replace("      slot.done = true;\n      flush();\n", "      slot.done = true;\n      printSlot(slot, grouped);\n"),
+  (s) => s.replace("      slots[index].done = true;\n      flush();\n", "      slots[index].done = true;\n      printSlot(slots[index], grouped);\n"),
   () => script("test-platform.mjs"),
   "prints each command's output in config order",
 );
@@ -3777,6 +3777,43 @@ breaks(
   "test:guards is in the gate AND in the opt-out table",
 );
 // 123-gate-map:end
+
+// 123-cheaper:start
+// #123: test-deps-units.mjs runs the groups a run selects in a small pool, each group a child of
+// the script that copies its fixtures from one template. Two cheap groups make a pool: one break
+// per rule that keeps the summed result honest.
+breaks(
+  "a pooled deps run that loses a group's result is rejected",
+  DEPS_UNITS_MJS,
+  (s) => s.replace("  if (POOL_CHILD) writeFileSync(POOL_CHILD.result,", '  if (POOL_CHILD && !S.selected.includes("skip")) writeFileSync(POOL_CHILD.result,'),
+  deps("yarn2", "skip"),
+  "1 of 2 groups reported (no result from skip)",
+);
+
+breaks(
+  "a pooled deps run whose groups exit non-zero with no failure recorded is rejected",
+  DEPS_UNITS_MJS,
+  (s) => s.replace("process.exitCode = POOL_CHILD ? Number(failures > 0) :", "process.exitCode = POOL_CHILD ? Number(failures > 0) || 3 :"),
+  deps("yarn2", "skip"),
+  "0 of 2 groups reported",
+);
+
+breaks(
+  "a pooled deps run whose template a group wrote into is rejected",
+  DEPS_UNITS_MJS,
+  (s) => s.replace('  if (config) write(join(dir, ".xezar/pipeline/config.json"),', '  if (config) write(join(templateDir(), ".xezar/pipeline/config.json"),'),
+  deps("yarn2", "skip"),
+  "the template changed during the run",
+);
+
+breaks(
+  "a deps pool that would run a group twice is refused",
+  DEPS_UNITS_MJS,
+  (s) => s.replace('const GROUP_NEEDS = { freshness: ["units"] };', 'const GROUP_NEEDS = { freshness: ["units"], "base-branch": ["units"] };'),
+  deps("freshness", "base-branch"),
+  "two selected groups need units",
+);
+// 123-cheaper:end
 
 // --- the runner ---------------------------------------------------------------
 // A case's gate called with the recorder in place of `run`: nothing starts and nothing is written.

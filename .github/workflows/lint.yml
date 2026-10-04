@@ -23,11 +23,13 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    # Every check here is offline and the whole list runs in a few minutes. The guard suite
-    # (scripts/test-guards.mjs) is not here: it runs nightly from nightly-guards.yml. A job
-    # still running after twenty minutes is hung, not slow, and should fail rather than hold
-    # a runner.
-    timeout-minutes: 20
+    # Every check here is offline and the whole list runs in about three minutes. The guard suite
+    # (scripts/test-guards.mjs) is not here: it runs nightly from nightly-guards.yml. The timeout
+    # is twice the slowest of the last five PR runs, rounded up to 5 minutes and at least 10
+    # (#123): 178 s (run 37236704110; the others 175, 176, 138 and 171 s – runs 37218662088,
+    # 37187269751, 37159637632, 37158664926). A job still running after it is hung, not slow, and
+    # should fail rather than hold a runner.
+    timeout-minutes: 10
     steps:
       # Pinned by commit sha, not by tag: a tag is mutable, so `@v4` means "whatever
       # that tag points at when this runs" — a supply-chain decision taken by someone
@@ -89,8 +91,9 @@ jobs:
   # check above by name, so it is not renamed or folded in. Windows and macOS on Node 22 (the
   # floor) and lts/*, informational (continue-on-error, fail-fast off) until the Windows runs are
   # proven stable. One step runs every command in .xezar/pipeline/config.json, so this job cannot
-  # drift from the gate. 90 (Windows) and 30 (macOS) minutes are set before any hosted run, with
-  # room for a slow hosted Windows runner – replace them with measured values after the first runs.
+  # drift from the gate. The timeouts are twice the slowest measured job, rounded up to 5 minutes
+  # (#123): Windows 406 s and macOS 160 s (run 37236704110, the slowest of the parallel-gate PR runs
+  # 37218662088 and 37236704110). TBD(#123 L5 proof: re-take both from the L5 PR's own runs).
   cross-platform:
     name: Cross-platform gate (${{ matrix.os }}, Node ${{ matrix.node }})
     if: github.event_name != 'merge_group'
@@ -101,10 +104,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, node: '22', timeout: 90 }
-          - { os: windows-latest, node: 'lts/*', timeout: 90 }
-          - { os: macos-latest, node: '22', timeout: 30 }
-          - { os: macos-latest, node: 'lts/*', timeout: 30 }
+          - { os: windows-latest, node: '22', timeout: 15 }
+          - { os: windows-latest, node: 'lts/*', timeout: 15 }
+          - { os: macos-latest, node: '22', timeout: 10 }
+          - { os: macos-latest, node: 'lts/*', timeout: 10 }
     defaults:
       run:
         shell: bash

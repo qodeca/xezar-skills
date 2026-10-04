@@ -2,15 +2,16 @@
  * Runs gate commands and returns one row each (#122, #123). Users: run-gate.mjs (runGate,
  * jobCount), gate-changed.mjs (runGate, jobCount: the quick local check, T0, which only chooses
  * which tasks to pass in – nothing here reads its map), test-guards.mjs (runPool),
- * check-gate-map.mjs (isNarrowingVariable: no committed gate command or CI job may set one).
+ * test-deps-units.mjs (runPool, orderedOutput: its groups in a small pool), check-gate-map.mjs
+ * (isNarrowingVariable: no committed gate command or CI job may set one).
  *
  * One scheduler, `runPool`, serves every job count, so "every command runs, even after one fails"
  * lives in one place. `runGate` has two output modes on it: with one job each command writes
  * straight to this terminal, exactly as a serial run always did; with more, each command's
  * stdout and stderr are kept in arrival order and printed once every command before it has
- * finished, so the output reads in config order while later commands still run. The commands get
- * `gateEnv()`: Git's tools first on PATH, and no variable that narrows a test – the gate always
- * runs every command in full.
+ * finished (`orderedOutput`), so the output reads in config order while later commands still
+ * run. The commands get `gateEnv()`: Git's tools first on PATH, and no variable that narrows a
+ * test – the gate always runs every command in full.
  *
  * node:* imports and ./platform.mjs only.
  */
@@ -118,6 +119,29 @@ function printSlot(slot, grouped) {
 }
 
 /**
+ * The ordered printer: one slot per label, in the order output must read. `push(index, stream,
+ * chunk)` keeps a task's stdout and stderr in arrival order; `done(index)` marks it finished and
+ * prints every finished slot no unfinished one stands before, so output reads in slot order
+ * however the tasks finish.
+ */
+export function orderedOutput(labels, { grouped = false } = {}) {
+  const slots = labels.map((label) => ({ label, chunks: [], done: false }));
+  let printed = 0;
+  const flush = () => {
+    while (printed < slots.length && slots[printed].done) printSlot(slots[printed++], grouped);
+  };
+  return {
+    push(index, stream, chunk) {
+      slots[index].chunks.push({ stream, chunk });
+    },
+    done(index) {
+      slots[index].done = true;
+      flush();
+    },
+  };
+}
+
+/**
  * Runs gate tasks – command strings (`bash -c <command>`) or `{ label, argv }` (argv straight to
  * Git Bash, no shell parse) – in `root`, on `jobs` lanes. Resolves { rows, wall }: one row per
  * task in task order, { number, command, exit, seconds }, and the whole run's wall time in seconds.
@@ -125,28 +149,22 @@ function printSlot(slot, grouped) {
 export async function runGate(tasks, { root, jobs = 1, env = process.env, grouped = false }) {
   const childEnv = gateEnv(env);
   const buffered = jobs > 1;
-  const slots = tasks.map((task) => ({ label: describe(task).label, chunks: [], done: false }));
-  let printed = 0;
-  const flush = () => {
-    while (printed < slots.length && slots[printed].done) printSlot(slots[printed++], grouped);
-  };
+  const output = orderedOutput(tasks.map((task) => describe(task).label), { grouped });
   const start = async ({ task, index }) => {
     const { label, args } = describe(task);
-    const slot = slots[index];
     if (grouped && !buffered) console.log(`::group::${label}`);
     const started = Date.now();
     const { exit, error } = await spawnTask(args, {
       root,
       env: childEnv,
       stdio: buffered ? ["ignore", "pipe", "pipe"] : "inherit",
-      onChunk: (stream, chunk) => slot.chunks.push({ stream, chunk }),
+      onChunk: (stream, chunk) => output.push(index, stream, chunk),
     });
     const seconds = Math.round((Date.now() - started) / 1000);
     const failure = error ? `run-gate: ${label}: ${error.message}\n` : null;
     if (buffered) {
-      if (failure) slot.chunks.push({ stream: "stderr", chunk: failure });
-      slot.done = true;
-      flush();
+      if (failure) output.push(index, "stderr", failure);
+      output.done(index);
     } else {
       if (failure) process.stderr.write(failure);
       if (grouped) console.log("::endgroup::");

@@ -27,10 +27,12 @@ concurrency:
 jobs:
   guards:
     runs-on: ubuntu-latest
-    # The suite took 70 minutes here on 2026-09-29 (309 breaks), before #123's targeted re-runs;
-    # #123 sets this timeout from re-measured runs in its last step. Until then a run still going
-    # after 120 minutes is hung, not slow.
-    timeout-minutes: 120
+    # The suite took 70 minutes here on 2026-09-29 (309 breaks), before #123; since #123 it takes
+    # about four. The timeout is twice the slowest Linux proof run of #123's L3–L5, rounded up to
+    # 5 minutes: 248 s (run 37207062084; 37210372022, 37223649980, 37226374879 and 37226771741 were
+    # 179–244 s). TBD(#123 L5 proof: the guards-linux job of L5's proof run). A run still going
+    # after it is hung, not slow.
+    timeout-minutes: 10
     outputs:
       sha: ${{ steps.head.outputs.sha }}
     steps:
@@ -51,11 +53,14 @@ jobs:
 
   # The same suite on native Windows (#122), informational: it never fails the run and never
   # opens the failure issue (`report` needs only `guards`). The owner kept it on (2026-09-29) while
-  # #123 makes the suite faster; it stops at 240 minutes until #123 sets this timeout from
-  # re-measured runs.
+  # #123 made the suite faster: it could not finish within the 240 minutes it had (about 16 hours
+  # projected), and now takes 20–24 on GitHub's Windows runner. The timeout is twice the slowest
+  # proof run, rounded up to 5 minutes: 1,418 s (run 37210372022; 37207062084, 37223649980,
+  # 37226374879 and 37226771741 were 1,199–1,376 s). TBD(#123 L5 proof: the guards-windows job of
+  # L5's proof run).
   guards-windows:
     runs-on: windows-latest
-    timeout-minutes: 240
+    timeout-minutes: 50
     continue-on-error: true
     defaults:
       run:

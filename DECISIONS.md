@@ -170,7 +170,10 @@ out of the gate in `scripts/allowlists.json` with this reason.
 **Why.** The suite had grown to about twenty-five of the roughly thirty minutes every PR spent in
 CI, and it grows with every guard. Sharding it across runners was the alternative; the owner chose
 nightly, because sharding keeps the cost on every PR and adds a matrix to maintain, while the
-suite's findings are rare and not urgent to the minute.
+suite's findings are rare and not urgent to the minute. #123 has since cut the suite from about 70
+minutes to about four on GitHub's Linux runner (239 s, #123 proof run 37226771741, 421 cases) and
+about 23 on its Windows runner ("The guard suite runs fast"); it stays nightly by the owner's
+decision for #123.
 
 **What it costs.** A PR can now land a guard that no longer fires – or break an existing one – and
 nobody learns it until the next morning's run, after the merge rather than before it. The rule
@@ -1701,6 +1704,52 @@ about twice as slow beside three others, because starting processes is what Wind
 3 to 4 minutes on GitHub's Linux runner (four runs, #123 proof runs 37207062084 and 37210372022) and
 about 23 minutes on its Windows runner (run 37210372022, 360 defects; #89 and #335 miss there, as before).
 
+**Part 3 – cheaper heavy tests (#123).** Each change was timed before it was kept; one was timed
+and dropped, one was dropped on its measurement alone.
+
+- **The deps-units groups run in a small pool.** Every fixture repository in
+  `test-deps-units.mjs` now starts as a copy of one template – `git init` and the kit's files, not
+  yet committed – built once per run. A run that selects more than one group is the pool's
+  parent: it builds a fresh template, runs each group as a child of the script on up to three
+  lanes (`runPool`, the scheduler the gate and this suite use), the slowest group first, and
+  prints their output in the groups' order through the gate's own ordered printer. A child learns
+  its template and result file from its parent's command line only, never from the environment,
+  so a value left in a shell cannot make a run trust another folder, and it has its own lab, stubs,
+  call log and `HOME`. The parent sums the children's counts – still 181 assertions – and fails
+  the run when a group reported no result or exited non-zero with no failure recorded, or when the
+  template changed during the run. A group that needs another runs in the same child as it, and
+  two groups that need the same group are refused, since it would run, and count, twice. Four
+  break cases hold these rules.
+- **The facts test no longer waits after its last line.** The scheduler fact raced its gate against
+  a 60-second and a 20-second limit and never cleared them, so a green run stayed open until the
+  minute was up: that fact alone took 60 s, 50 of them after its last line, on the #122 PC, and
+  60 s of the facts test's 63 s on GitHub's Linux runner (#123 proof run 37173550029). A failing run
+  left through `process.exit` and never paid it. The limits are now cleared once the race is
+  decided.
+- **Dropped after timing: one committed base per upgrade fixture.** `materialize()` in
+  `test-upgrade.mjs` wrote each fixture and ran `git init`, `add` and `commit` – 64 calls, about
+  40 s of a 145 s run on the #122 PC. Copying one committed base per fixture instead made those
+  calls faster (40 → 29 s) but the whole test slower (144 → 165 s, two runs each): a copied index
+  no longer matches its files' timestamps, so – inferred – every later git command in the fixture
+  re-reads them.
+- **Dropped on measurement: staging the kit once in the catalog test.** Its 13 copies of the kit
+  took 0.44 s in all of a 403 s run on the #122 PC; nothing a stage could save is measurable.
+
+Measured on the #122 PC, two runs each, before and after, one after the other: the deps-units test
+322 s → 176 s (every group alone green; the `gates-write` group alone takes 149 s and now sets
+the time), the facts test 93 s → 55 s, and the #53 run (`XEZ_DEPS_TEST_ONLY=53`) 72 s → 51 s;
+the output is the same line for line. The whole default gate there now takes 313 s (median of
+three, 309–314 s, each equal to a `--jobs 1` run of 627 s; 485–497 s before), inside the 10
+minutes #123 asked for; the catalog test, about 290 s under four-way load, now sets its wall
+time. On GitHub's Linux runner the deps-units test took 52 s and its `gates-write` group alone
+27 s (proof run 37173550029): TBD(#123 L5 proof: Linux and macOS before and after,
+deps-before-after job).
+
+**What it costs.** The deps-units test now starts up to three copies of itself at once, and a
+group's failure shows only once the groups before it have finished; `--only <group>` still runs
+one group in one process, for the plain terminal view. The pool's order is the one measured on
+the #122 PC; a group that grows past `gates-write` sets the time until the order is updated.
+
 ## The gate runs in parallel by default
 
 **Owner: Marcin. Decided 2026-10-04 (#123).**
@@ -1736,7 +1785,8 @@ jobs (median of five runs, 757–773 s, each equal to the serial run) against 1,
 `--jobs 1`; on GitHub's Windows runner (4 CPUs) about 355 s against 723 s (median of five, each equal to
 the serial run; #123 proof run 37210372022). On the #122 PC that is not yet the 10 minutes #123 asks for: under four-way load each command runs
 slower (the deps-units test, the longest, went from 483 to about 690 s), and it alone sets the wall
-time.
+time. #123's last lever brought the default run there to 313 s ("The guard suite runs fast",
+part 3).
 
 ## Tiered gate: T0 selects, T1 never does
 

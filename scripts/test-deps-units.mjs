@@ -22,16 +22,29 @@
 // XEZ_DEPS_TEST_ONLY=53 is --only 53-tree --only 53-single. Unset or empty runs everything; any
 // other value exits 2, and so does setting it beside --only: one filter at a time
 // (scripts/lib/sections.mjs).
+//
+// The pool (#123). Every fixture repository starts as a copy of one template – git init and the
+// kit's files, uncommitted – built once per run. A run that selects more than one group is the
+// pool's parent: it builds a fresh template, runs each group as a child of this script on up to
+// three lanes (runPool, scripts/lib/gate-runner.mjs), slowest first, and prints their output in the
+// groups' order. A child is `--only <group> --pool-child <template> <result>`: its parent names the
+// template and the result file on the command line, never through the environment, so nothing
+// left in a shell can make a run trust another folder. Each child has its own lab, stubs, call log
+// and HOME; it writes { asserts, failures } to its result file and prints no summary line. The
+// parent fails a run in which a group reported no result, or the template changed; otherwise it
+// prints the summed counts in the lines a single process prints. A group that needs another (its
+// fixtures) runs in the same child as it.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
+import { availableParallelism, homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { delimiter, dirname, join } from "node:path";
 import { bashPath, posixToolDirs, prependPath, toPosixPath } from "./lib/platform.mjs";
 import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeCmdShim, writeStub } from "./lib/test-harness.mjs";
-import { sections } from "./lib/sections.mjs";
+import { parseOnly, sections } from "./lib/sections.mjs";
+import { orderedOutput, runPool } from "./lib/gate-runner.mjs";
 
 // A value the script does not know is refused: a typo used to run everything, silently.
 const ONLY = process.env.XEZ_DEPS_TEST_ONLY ?? "";
@@ -39,22 +52,42 @@ if (ONLY !== "" && ONLY !== "53") {
   console.error(`test-deps-units: XEZ_DEPS_TEST_ONLY must be empty or "53", not "${ONLY}"`);
   process.exit(2);
 }
-const argv = process.argv.slice(2);
+// A pool child's template and result file come from its parent's command line, and only there.
+const given = process.argv.slice(2);
+const childAt = given.indexOf("--pool-child");
+const POOL_CHILD = childAt === -1 ? null : { template: given[childAt + 1], result: given[childAt + 2] };
+if (POOL_CHILD && !(POOL_CHILD.template && POOL_CHILD.result)) {
+  console.error("test-deps-units: --pool-child needs the template folder and the result file its parent made");
+  process.exit(2);
+}
+const argv = POOL_CHILD ? given.filter((_, i) => i < childAt || i > childAt + 2) : given;
 if (ONLY !== "" && argv.includes("--only")) {
   console.error("test-deps-units: XEZ_DEPS_TEST_ONLY and --only both select groups; use one filter at a time");
   process.exit(2);
 }
+const GROUPS = ["53-tree", "53-single", "single-root", "units", "freshness", "base-branch", "refusals", "yarn2", "solution",
+  "node-pin", "odd-folder", "skip", "gates-write", "real-tools"];
+const GROUP_NEEDS = { freshness: ["units"] };
 const S = sections(
   "test-deps-units.mjs",
-  ["53-tree", "53-single", "single-root", "units", "freshness", "base-branch", "refusals", "yarn2", "solution",
-    "node-pin", "odd-folder", "skip", "gates-write", "real-tools"],
+  GROUPS,
   {
-    needs: { freshness: ["units"] },
+    needs: GROUP_NEEDS,
     mayBeEmpty: { "real-tools": "it runs only with XEZ_DEPS_REAL=1, on a machine that has the real tools" },
     count: () => asserts,
     argv: ONLY === "53" ? [...argv, "--only", "53-tree", "--only", "53-single"] : argv,
   },
 );
+
+// The pool's tasks: each selected group that no other selected group needs, with the groups it
+// needs. Two tasks may not share a group, or it would run, and count, twice.
+const groupsOf = (id) => parseOnly(["--only", id], GROUPS, GROUP_NEEDS).selected;
+const pulledIn = new Set(S.selected.flatMap((id) => groupsOf(id).filter((group) => group !== id)));
+const TASKS = S.selected.filter((id) => !pulledIn.has(id)).map((id) => ({ id, groups: groupsOf(id) }));
+const tasked = TASKS.flatMap((task) => task.groups);
+const twice = tasked.find((group, i) => tasked.indexOf(group) !== i);
+if (twice) throw new Error(`test-deps-units: two selected groups need ${twice}, so the pool would run it, and count it, twice`);
+const POOL_PARENT = POOL_CHILD === null && TASKS.length > 1;
 
 prepareTestPlatform({ symlinks: true });
 
@@ -62,7 +95,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(root, "skills", "xez-onboard-opinionated", "kit");
 const RESTORE = ".xezar/checks/deps-restore.sh";
 
-const ONLY_53_DONE = Symbol("only the #53 cases were asked for");
 let failures = 0;
 let asserts = 0;
 const expect = (name, ok, detail = "") => {
@@ -131,9 +163,9 @@ const UNITS = [
   { dir: "svc", provider: "dotnet", entry: "Svc.sln" },
 ];
 
-// A primary checkout with an origin whose default branch carries `config`, and the kit installed.
-function repo({ config, files = {}, extra = () => {} } = {}) {
-  const dir = join(lab, `repo-${++seq}`);
+// What every fixture starts as: a new repository holding the kit, nothing committed yet. Built
+// once per run; a pool child is handed its parent's (#123).
+function buildTemplate(dir) {
   mkdirSync(dir, { recursive: true });
   git(dir, "init", "--quiet");
   for (const f of ["lib/deps.mjs", "lib/windows-programs.mjs", "lib/windows-process.mjs", "lib/common.sh", "deps-restore.sh", "local-tree.sh", "repo-gates.sh", "lib/gate-record.sh", "lib/gate-results.mjs"]) {
@@ -142,6 +174,15 @@ function repo({ config, files = {}, extra = () => {} } = {}) {
   }
   write(join(dir, ".xezar/config.json"), '{"baseBranch":"main"}\n');
   write(join(dir, ".gitignore"), ".local/\nnode_modules/\nobj/\n");
+  return dir;
+}
+let template = POOL_CHILD?.template ?? null;
+const templateDir = () => (template ??= buildTemplate(join(lab, "template")));
+
+// A primary checkout with an origin whose default branch carries `config`, and the kit installed.
+function repo({ config, files = {}, extra = () => {} } = {}) {
+  const dir = join(lab, `repo-${++seq}`);
+  cpSync(templateDir(), dir, { recursive: true });
   if (config) write(join(dir, ".xezar/pipeline/config.json"), `${JSON.stringify(config, null, 2)}\n`);
   for (const [path, text] of Object.entries(files)) write(join(dir, path), text);
   extra(dir);
@@ -169,7 +210,118 @@ const unitFiles = {
 };
 const unitsConfig = (units = UNITS, first = RESTORE) => ({ validation: { commands: [first, "npm test"] }, dependencies: { units } });
 
-try {
+// --- the pool (#123) ----------------------------------------------------------------------------
+// The groups by their seconds alone, slowest first (#123, measured on the #122 Windows PC; on
+// GitHub's Linux runner only near-equal neighbours swap): the pool starts them in this order, so
+// the longest group, not a queue behind it, sets the wall time. A group not listed starts last.
+const SLOWEST_FIRST = ["gates-write", "53-tree", "freshness", "53-single", "single-root", "solution", "yarn2", "refusals",
+  "node-pin", "base-branch", "odd-folder", "skip", "real-tools"];
+const POOL_LANES = 3;
+
+/** One hash of every path under dir with its size and SHA-256, in sorted order. */
+function treeHash(dir) {
+  const lines = [];
+  const walk = (rel) => {
+    for (const name of readdirSync(join(dir, rel)).sort()) {
+      const path = rel ? `${rel}/${name}` : name;
+      if (lstatSync(join(dir, path)).isDirectory()) {
+        lines.push(`${path}/`);
+        walk(path);
+      } else {
+        const data = readFileSync(join(dir, path));
+        lines.push(`${path} ${data.length} ${sha(data)}`);
+      }
+    }
+  };
+  walk("");
+  return sha(lines.join("\n"));
+}
+
+/** A child's { asserts, failures }, or null: no result file, no two counts, or an exit code they do not explain. */
+function readReport(file, code) {
+  let report;
+  try {
+    report = JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+  const counted = Number.isInteger(report?.asserts) && Number.isInteger(report?.failures);
+  return counted && code === (report.failures > 0 ? 1 : 0) ? report : null;
+}
+
+/** Runs one task as a child of this script, its output kept in its slot; resolves { task, report }. */
+function runChild({ task, slot }, { template, results, env, output }) {
+  const result = join(results, `${task.id}.json`);
+  return new Promise((resolve) => {
+    let settled = false;
+    const end = (code) => {
+      if (settled) return;
+      settled = true;
+      output.done(slot);
+      resolve({ task, report: readReport(result, code) });
+    };
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--only", task.id, "--pool-child", template, result], { env, stdio: ["ignore", "pipe", "pipe"] });
+    child.stdout.on("data", (chunk) => output.push(slot, "stdout", chunk));
+    child.stderr.on("data", (chunk) => output.push(slot, "stderr", chunk));
+    child.on("error", (error) => {
+      output.push(slot, "stderr", `test-deps-units: group ${task.id}: ${error.message}\n`);
+      if (child.pid === undefined) end(null);
+    });
+    child.on("close", end);
+  });
+}
+
+/**
+ * The pool's parent: a fresh template and result folder, every task as a child on up to
+ * POOL_LANES lanes, the output in the groups' order, then the lines a single process prints, with
+ * the summed counts. Returns the exit code.
+ */
+async function runPoolParent(tasks) {
+  try {
+    const template = buildTemplate(join(lab, "template"));
+    const before = treeHash(template);
+    const results = mkdtempSync(join(lab, "results-"));
+    const env = { ...process.env };
+    for (const key of Object.keys(env)) if (key.toUpperCase() === "XEZ_DEPS_TEST_ONLY") delete env[key];
+    const output = orderedOutput(tasks.map((task) => task.id));
+    const rank = ({ task }) => (SLOWEST_FIRST.includes(task.id) ? SLOWEST_FIRST.indexOf(task.id) : SLOWEST_FIRST.length);
+    const queue = tasks.map((task, slot) => ({ task, slot })).sort((a, b) => rank(a) - rank(b));
+    const jobs = Math.min(POOL_LANES, availableParallelism());
+    const done = await runPool(queue, { jobs, start: (item) => runChild(item, { template, results, env, output }) });
+    const reported = done.filter((d) => d.report);
+    let failed = reported.reduce((sum, d) => sum + d.report.failures, 0);
+    if (treeHash(template) !== before) {
+      failed += 1;
+      console.error("FAIL  the template changed during the run – a group wrote into the folder every fixture is copied from");
+    }
+    const groups = tasks.flatMap((task) => task.groups).length;
+    const groupsReported = reported.flatMap((d) => d.task.groups).length;
+    if (groupsReported < groups) {
+      const silent = done.filter((d) => !d.report).map((d) => d.task.id);
+      console.error(`\ndeps units: ${groupsReported} of ${groups} groups reported (no result from ${silent.join(", ")})`);
+      return 1;
+    }
+    return summary(reported.reduce((sum, d) => sum + d.report.asserts, 0), failed);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+/** The last lines of a run, from this process's counts or the pool's sums; returns the exit code. */
+function summary(total, failed) {
+  if (failed) {
+    console.error(`\ndeps units: ${failed} of ${total} assertions failed`);
+    return 1;
+  }
+  if (ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${total} assertions).`);
+  else if (S.targeted) console.log(S.targetedLine("Dependency units"));
+  else console.log(`Dependency units OK (${total} assertions: single root with its tree digest, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);
+  return 0;
+}
+
+if (POOL_PARENT) process.exitCode = await runPoolParent(TASKS);
+// Otherwise this process runs the selected groups itself; the pool's parent runs none.
+else try {
   // #53: what is IN the tree. The nonce and the folder's inode catch a node_modules replaced
   // wholesale; a package folder swapped or a file edited inside the same tree needs the digest.
   if (S.section("53-tree")) {
@@ -315,9 +467,6 @@ try {
     expect("single root refused: a stamp with no digest is never fresh, even once the digest is fast again", fresh() !== 0);
     expect("single root digest: a normal stamp afterwards is fresh", restamp());
   }
-
-  // The guard suite breaks the #53 properties one at a time and needs only the block above.
-  if (ONLY === "53") throw ONLY_53_DONE;
 
   // 1. A single npm root: no units, and every output is what it always was.
   if (S.section("single-root")) {
@@ -789,20 +938,16 @@ exec "${join(bin, "npm")}" "$@"
       expect("real dotnet: restore, resolve, stamp and fresh", res.code === 0, res.out + res.err);
     } else console.log("SKIP  real dotnet: the .NET SDK is not installed here");
   }
-} catch (e) {
-  if (e !== ONLY_53_DONE) throw e;
 } finally {
   rmSync(lab, { recursive: true, force: true });
 }
 
-for (const p of S.finish()) {
-  failures += 1;
-  console.error(`FAIL  ${p}`);
+if (!POOL_PARENT) {
+  for (const p of S.finish()) {
+    failures += 1;
+    console.error(`FAIL  ${p}`);
+  }
+  // A pool child reports to its parent only, which sums every group's counts.
+  if (POOL_CHILD) writeFileSync(POOL_CHILD.result, JSON.stringify({ asserts, failures }), { flag: "wx" });
+  process.exitCode = POOL_CHILD ? Number(failures > 0) : summary(asserts, failures);
 }
-if (failures) {
-  console.error(`\ndeps units: ${failures} of ${asserts} assertions failed`);
-  process.exit(1);
-}
-if (ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${asserts} assertions).`);
-else if (S.targeted) console.log(S.targetedLine("Dependency units"));
-else console.log(`Dependency units OK (${asserts} assertions: single root with its tree digest, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);
