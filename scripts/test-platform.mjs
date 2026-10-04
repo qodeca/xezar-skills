@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Unit and integration test for scripts/lib/platform.mjs and scripts/lib/test-harness.mjs (#122).
+// Unit and integration test for scripts/lib/platform.mjs and scripts/lib/test-harness.mjs (#122), and
+// unit cases for scripts/lib/sections.mjs (#123).
 //
 // The pure cases inject platform "win32" and a fake file system, so the Windows logic – above
 // all "never start WSL's bash.exe" – is proven on the Linux CI runner too. The integration cases
@@ -37,6 +38,7 @@ import {
   tempRoot,
   writeStub,
 } from "./lib/test-harness.mjs";
+import { parseOnly, sections } from "./lib/sections.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const win32 = process.platform === "win32";
@@ -419,6 +421,81 @@ check("stubSpawnEnv returns one NODE_OPTIONS fragment and never writes process.e
   assert.deepEqual(Object.keys(fragment), ["NODE_OPTIONS"]);
   assert.match(fragment.NODE_OPTIONS, /^--no-warnings --import file:\S+\/stub-spawn\.mjs$/);
   assert.equal(process.env.NODE_OPTIONS, before);
+});
+
+// --- scripts/lib/sections.mjs (#123) -------------------------------------------------------
+
+const IDS = ["a", "b", "c"];
+const CHECKS = "the checks are: a b c";
+
+check("parseOnly: no arguments is the full run; --only names ids in declaration order; --sections lists", () => {
+  assert.deepEqual(parseOnly([], IDS), { selected: null, list: false, error: null });
+  assert.deepEqual(parseOnly(["--only", "b"], IDS).selected, ["b"]);
+  assert.deepEqual(parseOnly(["--only", "c", "--only", "a", "--only", "c"], IDS).selected, ["a", "c"]);
+  assert.deepEqual(parseOnly(["--sections"], IDS), { selected: null, list: true, error: null });
+});
+
+check("parseOnly: an unknown id, a missing id and another option are usage errors", () => {
+  assert.equal(parseOnly(["--only", "x"], IDS).error, `unknown check 'x'; ${CHECKS}`);
+  assert.equal(parseOnly(["--only", "a", "--only"], IDS).error, `--only needs a check id; ${CHECKS}`);
+  assert.equal(parseOnly(["--files", "a"], IDS).error, "unknown option '--files'; the options are --only <check> and --sections");
+});
+
+check("parseOnly: a selected id brings the ids it needs, transitively, in declaration order", () => {
+  assert.deepEqual(parseOnly(["--only", "c"], IDS, { c: ["b"], b: ["a"] }).selected, ["a", "b", "c"]);
+  assert.deepEqual(parseOnly(["--only", "b"], IDS, { c: ["a"] }).selected, ["b"]);
+});
+
+check("sections: a wrong declaration throws – duplicate ids, undeclared needs or exclusive ids", () => {
+  assert.throws(() => sections("t.mjs", ["a", "a"], { argv: [] }), /t\.mjs: section ids must be unique/);
+  assert.throws(() => sections("t.mjs", IDS, { needs: { a: ["z"] }, argv: [] }), /needs\['a'\] names section 'z', which is not declared/);
+  assert.throws(() => sections("t.mjs", IDS, { needs: { z: ["a"] }, argv: [] }), /needs names section 'z'/);
+  assert.throws(() => sections("t.mjs", IDS, { exclusive: { z: "why" }, argv: [] }), /exclusive names section 'z', which is not declared/);
+  assert.throws(() => sections("t.mjs", IDS, { exclusive: { a: " " }, argv: [] }), /exclusive\['a'\] needs a one-line reason/);
+});
+
+check("sections: an undeclared section id throws; require passes only for a section that ran", () => {
+  const S = sections("t.mjs", IDS, { argv: ["--only", "b"] });
+  assert.throws(() => S.section("z"), /t\.mjs: section 'z' is not declared/);
+  assert.equal(S.section("a"), false);
+  assert.equal(S.section("b"), true);
+  S.require("b");
+  assert.throws(() => S.require("a"), /t\.mjs: this section needs section 'a', which did not run – add it to needs/);
+});
+
+check("sections: finish() names a declared id a full run never entered, and a selected id that ran nothing", () => {
+  const full = sections("t.mjs", IDS, { argv: [] });
+  full.section("a");
+  full.section("c");
+  assert.equal(full.targeted, false);
+  assert.deepEqual(full.finish(), ["section b never ran in a full run – its block is missing or gated by another id"]);
+  const targeted = sections("t.mjs", IDS, { argv: ["--only", "b", "--only", "c"] });
+  targeted.section("c");
+  assert.deepEqual(targeted.finish(), ["the filter selected b, which ran no check – its block is missing or gated by another id"]);
+  assert.equal(targeted.targetedLine("Kit facts"), "Kit facts OK for a targeted run (checks: b, c) – only the full run is a gate result.");
+});
+
+check("sections: XEZ_SECTIONS_TRACE records each failure's section and each section's check count", () => {
+  const dir = mkdtempSync(join(tempRoot(), "test-platform-sections-"));
+  const before = process.env.XEZ_SECTIONS_TRACE;
+  try {
+    process.env.XEZ_SECTIONS_TRACE = join(dir, "trace.ndjson");
+    let count = 0;
+    const S = sections("t.mjs", IDS, { count: () => count, argv: ["--only", "c"] });
+    if (S.section("a")) count += 5;
+    count += 1; // a check outside every section
+    if (S.section("c")) { count += 2; S.trace("c broke"); }
+    assert.deepEqual(S.finish(), []);
+    const lines = readFileSync(join(dir, "trace.ndjson"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.deepEqual(lines, [
+      { script: "t.mjs", section: "c", message: "c broke" },
+      { script: "t.mjs", targeted: true, counts: { "(outside)": 1, c: 2 } },
+    ]);
+  } finally {
+    if (before === undefined) delete process.env.XEZ_SECTIONS_TRACE;
+    else process.env.XEZ_SECTIONS_TRACE = before;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // --- integration: this machine ------------------------------------------------------------

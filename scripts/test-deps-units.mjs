@@ -16,7 +16,12 @@
 // no packages.
 //
 // Run: node scripts/test-deps-units.mjs
+//      node scripts/test-deps-units.mjs --only <group> [--only <group>]   (those case groups only – never a gate result)
+//      node scripts/test-deps-units.mjs --sections                        (the group ids, as one JSON line)
 //      XEZ_DEPS_TEST_ONLY=53 node scripts/test-deps-units.mjs   (the #53 tree-digest and resume cases only)
+// XEZ_DEPS_TEST_ONLY=53 is --only 53-tree --only 53-single. Unset or empty runs everything; any
+// other value exits 2, and so does setting it beside --only: one filter at a time
+// (scripts/lib/sections.mjs).
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -26,6 +31,29 @@ import { fileURLToPath } from "node:url";
 import { delimiter, dirname, join } from "node:path";
 import { bashPath, posixToolDirs, prependPath, toPosixPath } from "./lib/platform.mjs";
 import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeCmdShim, writeStub } from "./lib/test-harness.mjs";
+import { sections } from "./lib/sections.mjs";
+
+// A value the script does not know is refused: a typo used to run everything, silently.
+const ONLY = process.env.XEZ_DEPS_TEST_ONLY ?? "";
+if (ONLY !== "" && ONLY !== "53") {
+  console.error(`test-deps-units: XEZ_DEPS_TEST_ONLY must be empty or "53", not "${ONLY}"`);
+  process.exit(2);
+}
+const argv = process.argv.slice(2);
+if (ONLY !== "" && argv.includes("--only")) {
+  console.error("test-deps-units: XEZ_DEPS_TEST_ONLY and --only both select groups; use one filter at a time");
+  process.exit(2);
+}
+const S = sections(
+  "test-deps-units.mjs",
+  ["53-tree", "53-single", "single-root", "units", "freshness", "base-branch", "refusals", "yarn2", "solution",
+    "node-pin", "odd-folder", "skip", "gates-write", "real-tools"],
+  {
+    needs: { freshness: ["units"] },
+    count: () => asserts,
+    argv: ONLY === "53" ? [...argv, "--only", "53-tree", "--only", "53-single"] : argv,
+  },
+);
 
 prepareTestPlatform({ symlinks: true });
 
@@ -38,7 +66,7 @@ let failures = 0;
 let asserts = 0;
 const expect = (name, ok, detail = "") => {
   asserts += 1;
-  if (!ok) { failures += 1; console.error(`FAIL  ${name}${detail ? `\n      ${detail}` : ""}`); }
+  if (!ok) { failures += 1; S.trace(`${name}\n${detail}`); console.error(`FAIL  ${name}${detail ? `\n      ${detail}` : ""}`); }
 };
 
 const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-deps-units-")));
@@ -143,7 +171,7 @@ const unitsConfig = (units = UNITS, first = RESTORE) => ({ validation: { command
 try {
   // #53: what is IN the tree. The nonce and the folder's inode catch a node_modules replaced
   // wholesale; a package folder swapped or a file edited inside the same tree needs the digest.
-  {
+  if (S.section("53-tree")) {
     const r = repo({ config: unitsConfig([{ dir: "apps/web", provider: "yarn" }]), files: unitFiles });
     run(bashPath(), [join(r, RESTORE)], r);
     const nm = join(r, "apps/web/node_modules");
@@ -252,7 +280,7 @@ try {
   // #53 on a single npm root (owner decision, 3.1.0): the stamp inside node_modules carries the same
   // tree digest, so a package changed after install is stale there too, and a stamp an older kit
   // wrote (the fingerprint alone) reads as not fresh, never as fresh.
-  {
+  if (S.section("53-single")) {
     const r = repo({
       config: { validation: { commands: ["npm ci", "npm test"] } },
       files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n' },
@@ -288,10 +316,10 @@ try {
   }
 
   // The guard suite breaks the #53 properties one at a time and needs only the block above.
-  if (process.env.XEZ_DEPS_TEST_ONLY === "53") throw ONLY_53_DONE;
+  if (ONLY === "53") throw ONLY_53_DONE;
 
   // 1. A single npm root: no units, and every output is what it always was.
-  {
+  if (S.section("single-root")) {
     const r = repo({
       config: { validation: { commands: ["npm ci", "npm test"] } },
       files: { "package.json": '{"name":"one","packageManager":"npm@10.9.0"}\n', "package-lock.json": '{"lockfileVersion":3}\n', ".nvmrc": "22\n" },
@@ -324,8 +352,9 @@ try {
   }
 
   // 2-3. Units: one install set across setup, gates and config; an excluded folder never runs.
-  const u = repo({ config: unitsConfig(), files: unitFiles });
-  {
+  // freshness reuses this fixture and the install the units group makes in it, so it needs "units".
+  const u = S.selected.includes("units") ? repo({ config: unitsConfig(), files: unitFiles }) : null;
+  if (S.section("units")) {
     const listed = JSON.parse(deps(u, "units").out).map((x) => x.dir);
     expect("units: the loader lists exactly the configured units, in order", JSON.stringify(listed) === JSON.stringify(UNITS.map((x) => x.dir)), JSON.stringify(listed));
     clearCalls();
@@ -349,7 +378,8 @@ try {
   }
 
   // Freshness, then about ten ways it goes stale.
-  {
+  if (S.section("freshness")) {
+    S.require("units");
     const fresh = () => sh(u, "deps_are_fresh").code;
     const stamp = sh(u, "deps_resolve_in_task && write_deps_stamp && deps_are_fresh");
     expect("units: installed, resolved and stamped is fresh", stamp.code === 0, stamp.err);
@@ -464,7 +494,7 @@ try {
   }
 
   // 5. Units come from the base branch: a working-tree edit is ignored.
-  {
+  if (S.section("base-branch")) {
     const r = repo({ config: unitsConfig(), files: unitFiles });
     const wt = unitsConfig([...UNITS, { dir: "apps/excluded", provider: "yarn" }]);
     write(join(r, ".xezar/pipeline/config.json"), JSON.stringify(wt));
@@ -486,7 +516,7 @@ try {
   }
 
   // 4. Symlinked folders and bad shapes are refused.
-  {
+  if (S.section("refusals")) {
     const linked = repo({ config: unitsConfig([{ dir: "apps/link", provider: "yarn" }]), files: unitFiles, extra: (d) => symlinkSync("web", join(d, "apps/link"), "dir") });
     const r1 = deps(linked, "mode");
     expect("a symlinked unit folder is refused", r1.code === 2 && r1.err.includes("symlink refused: apps/link"), r1.err);
@@ -508,6 +538,7 @@ try {
   }
 
   // Yarn 2 or later is refused by name, before anything is installed.
+  if (S.section("yarn2")) {
   for (const [name, files, env] of [
     ["packageManager yarn@3", { "apps/web/package.json": '{"name":"web","packageManager":"yarn@3.6.0"}\n' }, {}],
     ["a .yarnrc.yml", { "apps/web/.yarnrc.yml": "nodeLinker: node-modules\n" }, {}],
@@ -523,9 +554,10 @@ try {
     const res = run(bashPath(), [join(r, RESTORE)], r, { STUB_FAIL: "1" });
     expect("a failing install fails deps-restore.sh and names the unit", res.code === 1 && res.err.includes("failed in apps/web"), res.err);
   }
+  }
 
   // .slnx and --locked-mode.
-  {
+  if (S.section("solution")) {
     const r = repo({
       config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.slnx" }]),
       files: { "svc/Svc.slnx": "<Solution/>\n", "svc/Api/Api.csproj": "<Project/>\n", "svc/Api/packages.lock.json": "{}\n" },
@@ -537,7 +569,7 @@ try {
 
   // A solution may build a project outside the unit folder: it is fingerprinted and must be
   // this task's own restore too (#46). One outside the repository is refused.
-  {
+  if (S.section("solution")) {
     const sln = (paths) => `Microsoft Visual Studio Solution File, Format Version 12.00\r\n${paths.map((p, i) => `Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "P${i}", "${p}", "{0000000${i}-0000-0000-0000-000000000000}"\r\nEndProject\r\n`).join("")}Global\r\nEndGlobal\r\n`;
     const r = repo({
       config: unitsConfig([{ dir: "svc", provider: "dotnet", entry: "Svc.sln" }]),
@@ -558,7 +590,7 @@ try {
   }
 
   // Node: a numeric .nvmrc pins, an alias is a note, and the newest version wins numerically.
-  {
+  if (S.section("node-pin")) {
     const major = Number(process.versions.node.split(".")[0]);
     const nvm = join(lab, "nvm");
     const fake = (v) => { mkdirSync(join(nvm, "versions/node", v, "bin"), { recursive: true }); writeStub(join(nvm, "versions/node", v, "bin/node"), `#!/bin/sh\nexec "${process.execPath}" "$@"\n`); };
@@ -608,7 +640,7 @@ try {
   // on its command line, and cmd.exe is told not to search it – a node.cmd and an npm.exe planted
   // there never run. The npm shim used for that names a bare `node` first, as npm's own npm.cmd does
   // when no node.exe sits beside it.
-  {
+  if (S.section("odd-folder")) {
     const odd = "a&b%PATH%^c";
     const r = repo({ config: unitsConfig([{ dir: odd, provider: "npm" }]), files: { [`${odd}/package.json`]: '{"name":"odd"}\n', [`${odd}/package-lock.json`]: '{"lockfileVersion":3}\n' } });
     const sentinel = join(lab, "planted-ran");
@@ -628,7 +660,7 @@ try {
   }
 
   // The permitted skip is named by the caller, never by the record.
-  {
+  if (S.section("skip")) {
     const gr = join(KIT, "checks/lib/gate-results.mjs");
     const complete = (commands, installGate) => {
       const d = join(lab, `attempt-${++seq}`);
@@ -648,7 +680,7 @@ try {
   // after the install, before those gates ran, so every later --fast run and every resume found a
   // changed digest and reinstalled, with no message. Now a passed run re-stamps the tree it proved
   // current, and every refusal of the stamp stays.
-  {
+  if (S.section("gates-write")) {
     const gatesRepo = (files = {}) => repo({
       config: { validation: { commands: ["npm ci", "npm test"] } },
       files: { "package.json": '{"name":"one"}\n', "package-lock.json": '{"lockfileVersion":3}\n', ...files },
@@ -732,7 +764,7 @@ exec "${join(bin, "npm")}" "$@"
   }
 
   // Opt-in: the real tools.
-  if (process.env.XEZ_DEPS_REAL === "1") {
+  if (S.section("real-tools") && process.env.XEZ_DEPS_REAL === "1") {
     const realEnv = { PATH: process.env.PATH, HOME: process.env.HOME ?? homedir(), NVM_DIR: process.env.NVM_DIR ?? "" };
     const yarnV = spawnSync("yarn", ["--version"], { encoding: "utf8" });
     if (yarnV.status === 0 && /^1\./.test(yarnV.stdout)) {
@@ -762,9 +794,14 @@ exec "${join(bin, "npm")}" "$@"
   rmSync(lab, { recursive: true, force: true });
 }
 
+for (const p of S.finish()) {
+  failures += 1;
+  console.error(`FAIL  ${p}`);
+}
 if (failures) {
   console.error(`\ndeps units: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-if (process.env.XEZ_DEPS_TEST_ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${asserts} assertions).`);
+if (ONLY === "53") console.log(`Dependency units OK (#53 cases only, ${asserts} assertions).`);
+else if (S.targeted) console.log(S.targetedLine("Dependency units"));
 else console.log(`Dependency units OK (${asserts} assertions: single root with its tree digest, units from the base branch, Yarn 1 and dotnet flags, stale cases, refusals).`);

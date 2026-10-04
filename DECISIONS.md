@@ -1615,3 +1615,37 @@ identical too (#123 proof run 37149212138, 2026-10-03). Accepted edges, absent f
 whitespace after `name:` or `description:`, a NUL or encoding error past grep's first 32 KiB of a
 file, a NUL in a frontmatter or a reference's first line (bash's warning names a line of
 `lint.sh`), and invalid UTF-8 in a frontmatter under BSD sed. A failing file costs its starts.
+
+## The guard suite runs fast
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+A guard case re-runs only the part of a test that owns its message. `test-kit-facts.mjs`,
+`test-kit-catalog.mjs`, `test-upgrade.mjs` and `test-deps-units.mjs` declare named sections
+(`scripts/lib/sections.mjs`) and take `--only <id>`; the 269 break cases that re-ran one of them
+whole now name their ids (`facts("H1")`, `catalog("D-review")`), found by a one-off mapping and
+proved by the full guard run. `node scripts/test-guards.mjs --list` prints every case's command without running it,
+and every run ends with seconds per gate and the ten slowest cases. A targeted run says it is never
+a gate result: the gate and CI run each test whole, with no flag.
+
+No check can fall out of a filter's reach. `section()` throws on an id that is not declared; a full
+run fails when a declared section never ran; a targeted run fails when a selected section ran
+nothing; and a section that reads another section's state does so through `require()`, which throws
+when that section did not run – so a missing `needs` entry is an error, never a quiet read of
+nothing. A break case that names the wrong section fails ("not for this reason"). Eight break cases
+hold these rules. `XEZ_DEPS_TEST_ONLY=53` is now `--only 53-tree --only 53-single`, and any other
+value exits 2 instead of running everything.
+
+**What it costs.** Sections that share state must say so: the upgrade test's §3 installs feed six
+later sections, and the deps-units freshness group reuses the units group's fixture, so those pay
+for their prerequisite. A check written outside every section runs in every targeted run – slower,
+never skipped – and only review keeps new checks inside one; a source scan was rejected because the
+tests hold shell scripts in template literals. Ids are written by hand in two places, the test and
+the case, and a renamed id fails the cases that name it until they follow.
+
+Measured on the #122 Windows PC, where a case used to re-run its whole test (113 s for the facts,
+292 s for the catalog, 186 s for the upgrade and 461 s for the deps-units test): a case that reads
+text now costs under a second, a routing case about 2 s, an upgrade case that needs §3 about 26 s,
+and the costliest, the catalog's review-run fixture, about 138 s. The serial suite there is
+projected at about 83 minutes, from about 16 hours. On GitHub's Linux runner it took 78 minutes
+before; the figure after this change is pending the #123 proof run.
