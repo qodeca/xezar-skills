@@ -119,5 +119,5 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Tools the kit scripts need
         run: jq --version
-      - name: Every validation command, one at a time
+      - name: Every validation command, up to four at once
         run: node scripts/run-gate.mjs

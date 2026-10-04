@@ -1333,6 +1333,7 @@ if (S.section("D-review")) {
   // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
   // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
   const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
+  let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1477,8 +1478,12 @@ if (S.section("D-review")) {
     if (existsSync(join(wt, ".xezar/checks/review-run.sh")) || !readFileSync(join(wt, ".xezar/checks/verdict-write.sh"), "utf8").includes("tampered"))
       fail("stream D fixture: the checked-out PR head does not carry the old kit (no review-run.sh, a tampered verdict-write.sh)");
     if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");
-    const started = rr("start", "srv", "sleep", "30");
+    // A day, not 30 s (#123): under load the steps up to the probe below can outlast a short sleep,
+    // which would then end by itself and pass the probe even when `finish` stopped nothing.
+    // `finally` stops it whatever happens, so the length costs nothing.
+    const started = rr("start", "srv", "sleep", "86400");
     const pid = (started.out.match(/pid=(\d+)/) ?? [])[1];
+    reviewPid = pid ?? null;
     if (started.status !== 0 || !pid) fail(`review-run.sh start does not start a background command:\n${started.out}`);
 
     writeFileSync(join(wt, "README.md"), "edited by the review\n");
@@ -1543,9 +1548,17 @@ if (S.section("D-review")) {
     const written = packet();
     if (written.status !== 0 || !existsSync(`${handoff}.verdict.json`)) fail(`verdict-write.sh refuses a verdict from an unchanged tree:\n${written.out}`);
     else if (readFileSync(`${handoff}.verdict.json`, "utf8").includes("tampered")) fail("the verdict was written by the PR's own verdict-write.sh, not the kit step's copy");
-    let alive = true;
-    try { process.kill(Number(pid), 0); } catch { alive = false; }
-    if (alive) fail("review-run.sh finish (run by verdict-write.sh) leaves a started command running");
+    // Through bash's kill, as in `finally` (#123): on Windows `$!` is an MSYS pid, which Node's
+    // process.kill cannot see – a probe through it passed even when nothing was stopped.
+    let probeExit = 0;
+    try {
+      execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null', "_", pid], { stdio: "ignore" });
+    } catch (error) {
+      probeExit = error.status ?? -1;
+    }
+    if (probeExit === 0) fail("review-run.sh finish (run by verdict-write.sh) leaves a started command running");
+    else if (probeExit === 1) reviewPid = null; // gone: `finally` must not signal a pid the system may reuse
+    else fail(`the probe for review-run.sh's started command could not run (bash exit ${probeExit})`);
 
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
@@ -1616,6 +1629,11 @@ if (S.section("D-review")) {
   } catch (error) {
     fail(`the review-run fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
   } finally {
+    // A failing run leaves no day-long sleep behind. Through bash's kill: `$!` is a Git Bash
+    // (MSYS) pid on Windows, which Node's process.kill cannot reach; elsewhere it is the real pid.
+    if (reviewPid) {
+      try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", reviewPid], { stdio: "ignore" }); } catch {}
+    }
     rmSync(run, { recursive: true, force: true });
   }
 }

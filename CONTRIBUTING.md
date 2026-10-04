@@ -4,10 +4,14 @@ How work is done here, and which rule wins when two differ, is in [AGENTS.md](AG
 process – branches, labels, reviews – is in [SDLC.md](SDLC.md), and its
 [Validation gate](SDLC.md#validation-gate) section lists every command a change must pass.
 
-`npm run gate` runs that whole list, one command at a time, and ends with a table of each
-command's exit code and time. It reads the list from `.xezar/pipeline/config.json`, so it is always
-the current gate. The guard suite (`npm run test:guards`) is separate: it breaks every gate on
-purpose and runs nightly.
+`npm run gate` runs that whole list and ends with a table of each command's exit code and time. It
+runs up to four commands at once and prints each command's output in list order; every command
+still runs in full. `npm run gate -- --jobs 1` runs them one at a time, each writing straight to the
+terminal. It reads the list from `.xezar/pipeline/config.json`, so it is always the current gate.
+The guard suite (`npm run test:guards`) is separate: it breaks every gate on purpose and runs
+nightly. It works in private copies of the tree under your temp folder, so you can run it beside
+the gate. Your edits made before it starts are tested with it; changing the checkout's
+`git status` while it runs fails the run.
 
 ## Contributing from Windows
 

@@ -215,6 +215,28 @@ function system32(...parts) {
   return win.join(systemRoot, "System32", ...parts);
 }
 
+/**
+ * Spawn options that let killTree() reach every process a child starts: POSIX, a process group of
+ * its own (detached); win32, none – taskkill follows the parent links, and a detached child there
+ * would get a console window of its own.
+ */
+export const TREE_SPAWN = process.platform === "win32" ? {} : { detached: true };
+
+/**
+ * Stops a running `child` and every process it started: POSIX, SIGKILL to its process group (it
+ * must have been started with TREE_SPAWN); win32, `taskkill /T /F`. A child that has ended is left
+ * alone: its pid may name another process by now.
+ */
+export function killTree(child) {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
+  try {
+    if (process.platform === "win32") execFileSync(system32("taskkill.exe"), ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    else process.kill(-child.pid, "SIGKILL");
+  } catch {
+    child.kill("SIGKILL"); // the tree ended meanwhile, or taskkill could not run: the child at least
+  }
+}
+
 // Administrators hold these two. An MSYS program (Git Bash and its tools) enables both when it
 // starts and opens files with backup intent, and a child inherits them enabled – so in an elevated
 // process (GitHub's Windows runners run as an administrator) no deny entry holds: Node's own fs

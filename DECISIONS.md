@@ -176,7 +176,9 @@ suite's findings are rare and not urgent to the minute.
 nobody learns it until the next morning's run, after the merge rather than before it. The rule
 that every guard needs a deliberate-break case stays; only when the case runs has changed.
 Anyone adding or changing a guard can still run the suite by hand (`npm run test:guards`); it
-takes a lock, so only one copy runs per checkout at a time.
+works in private copies of the tree, so it runs beside the gate. Your edits made before it starts
+are tested with it; a change to the checkout's `git status` while it runs fails the run ("The
+guard suite runs fast").
 
 Scheduled workflows fire only from the default branch, so the nightly run starts once this file
 reaches `main` with the 3.1.0 release.
@@ -1653,3 +1655,84 @@ projected at about 83 minutes, from about 16 hours. On GitHub's Linux runner it 
 before and about 7 minutes after (347 defects, #123 proof run 37173550029, 2026-10-04). On GitHub's
 Windows runner it took about 44 minutes (run 37170431172, before the last three cases were added),
 with the two cases known to miss there, #89 and #335.
+
+**Part 2 – workers in private copies (#123).** The suite runs its cases on several workers, each in
+a private copy of the tree. `scripts/lib/tree-copy.mjs` makes the copy a detached git worktree of
+the checkout's HEAD that carries the checkout's own index, unstaged edits and untracked files that
+are not ignored (a nested repository whole), so `git status` reads the same there and the work in
+progress at the start is what gets tested; a change to the checkout's `git status` during the run
+fails it. A run keeps its copies in one folder that mkdtemp makes under the temp folder
+(`guards-<pid>-XXXXXX`), so no other user can predict the path or plant something there first.
+The checkout's files and index are never written; only the suite's own `.git/worktrees/` entries
+are added and removed – never a global `git worktree prune`, which would drop the entries of your
+own worktrees whose folders are offline – and a removal refuses a link and any path outside the
+run's folder. A worker takes its copy's path from argv only, refuses to start unless it was forked
+with a path inside the temp folder and apart from the checkout, and checks every write against its
+copy; on Ctrl+C it is stopped together with every process it started. The lock is gone: two runs
+can share a checkout. The worker count is `--workers N`, else `XEZ_GUARD_WORKERS`, else the
+smaller of 4 and the CPU count.
+
+A case whose gate runs a section its test declares exclusive – the facts test's scheduler fact
+(real processes, pid reuse, long waits) and the catalog's section 10 (named pipes, a socket) – runs
+in a last phase, alone, with every other worker idle; the list is read from the tests' own
+`--sections`, never kept twice. Two checks that raced the clock run in the pool instead: the facts
+test bounds the trust-pattern matcher in CPU time, and the catalog's review-run fixture starts a
+day-long sleep (it was 30 s, which a loaded machine could outlast, passing the probe however
+`finish` behaved) and stops it itself. The fixture's probe asks Git Bash's `kill`: on Windows the
+started command's pid is an MSYS pid that Node's `process.kill` cannot see, so until #123 the
+probe passed there whatever `finish` did. Failures print after the run in case order, whichever
+worker ran them, and one tree assertion covers every copy and the checkout, so the count stays
+cases + 1. Thirteen break cases hold these rules – the ordered printer, the exclusive phase, the
+narrowing variables, untracked files and the user's index in the copy, the containment check, a
+write outside the copy, a removal through a link, a stale-copy sweep that spares a live run, a
+worker that refuses the checkout, a case that reaches a sectioned script only as
+`scripts/<name>`, a `finish` that stops what `start` started, and the shared-block test's copy –
+and the case that breaks "every command runs" now breaks the one scheduler both the gate and this
+suite use.
+
+**What it costs.** A copy per worker: about a second and 13 MB of temp space each on the #122
+PC. A crashed run leaves its copies behind until the next run starts, which removes the copies and
+leftover folders of dead runs only – never a live run's. A test that took the repository for a place
+outside the temp folder no longer may: `test-platform.mjs`'s `restrict` refusal now uses the temp
+folder itself, and the checkout only when it really lies outside. With four workers the suite took
+48 minutes on the #122 PC, from about 83 run one case at a time – four workers, but each case
+about twice as slow beside three others, because starting processes is what Windows does slowly –
+3 to 4 minutes on GitHub's Linux runner (four runs, #123 proof runs 37207062084 and 37210372022) and
+about 23 minutes on its Windows runner (run 37210372022, 360 defects; #89 and #335 miss there, as before).
+
+## The gate runs in parallel by default
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+`npm run gate` (`scripts/run-gate.mjs`) runs up to the smaller of 4 and the machine's CPU count
+commands at once – `--jobs N` (1–32) or `XEZ_GATE_JOBS` sets another number – and every command
+still runs in full: a failing command never stops the others, and a variable that narrows a test
+(`XEZ_DEPS_TEST_ONLY`, `XEZ_SECTIONS_*`) is removed from the commands' environment, so a value left
+in a developer's shell cannot shrink the gate. Each command's output is held back until every
+command before it has finished, then printed, so the log reads in list order; the table, its
+columns and the exit code are a serial run's, and one more line gives the job count and the wall
+time. `--jobs 1` is the serial run, each command writing straight to the terminal. The settings are
+a flag and a variable, never `.xezar/pipeline/config.json`, and no CI `run:` line changed: the
+required `lint` job still runs one named step per command, one after another.
+
+**Why.** The whole gate took about 19 minutes one command after another on the #122 Windows PC,
+against a target of 10 (#123). Most of that time is spent starting and waiting on processes, which
+overlap well. One gate command broke tracked files to prove its check fails –
+`test-shared-blocks.mjs` – so it now works in a temp copy of the generator and `skills/`, and no
+command running beside it can read a broken file.
+
+**What it costs.** A command's output appears only when the commands before it are done, so a slow
+command early in the list holds back the output of quick ones after it; their rows in the table
+are unaffected. Within one command, stdout and stderr keep their arrival order, which can differ
+from a terminal's interleaving – `--jobs 1` gives the exact terminal view. The guard suite's two
+exclusive sections run beside other commands in the gate: repeated beside a full default gate on
+the #122 PC, the facts test's scheduler fact passed 14 times of 14 and the catalog's section 10 14
+of 14 (GitHub's runners, two proof runs: no failure in 3 rounds on Linux and 8 on Windows). On a machine saturated on purpose – a busy
+loop on every CPU – the scheduler fact fails, parallel gate or not: the kit's own Windows
+process-table read gives up after 5 seconds. That is a known limit of the kit, outside #123, and its
+follow-up issue is #128. On GitHub's Windows runner the same saturation passed once and failed the facts test once in two proof runs; Linux passed both. Measured on the #122 PC: 763 s with the default four
+jobs (median of five runs, 757–773 s, each equal to the serial run) against 1,169 s with
+`--jobs 1`; on GitHub's Windows runner (4 CPUs) about 355 s against 723 s (median of five, each equal to
+the serial run; #123 proof run 37210372022). On the #122 PC that is not yet the 10 minutes #123 asks for: under four-way load each command runs
+slower (the deps-units test, the longest, went from 483 to about 690 s), and it alone sets the wall
+time.
