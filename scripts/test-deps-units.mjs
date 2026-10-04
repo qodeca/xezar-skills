@@ -50,6 +50,7 @@ const S = sections(
     "node-pin", "odd-folder", "skip", "gates-write", "real-tools"],
   {
     needs: { freshness: ["units"] },
+    mayBeEmpty: { "real-tools": "it runs only with XEZ_DEPS_REAL=1, on a machine that has the real tools" },
     count: () => asserts,
     argv: ONLY === "53" ? [...argv, "--only", "53-tree", "--only", "53-single"] : argv,
   },
@@ -554,7 +555,7 @@ try {
     const res = run(bashPath(), [join(r, RESTORE)], r, { STUB_FAIL: "1" });
     expect("a failing install fails deps-restore.sh and names the unit", res.code === 1 && res.err.includes("failed in apps/web"), res.err);
   }
-  }
+  } // section yarn2
 
   // .slnx and --locked-mode.
   if (S.section("solution")) {

@@ -49,9 +49,9 @@ jobs:
         run: node scripts/test-guards.mjs
 
   # The same suite on native Windows (#122), informational: it never fails the run and never
-  # opens the failure issue (`report` needs only `guards`). It is known not to finish: a local
-  # Windows run projected about eleven hours, and GitHub stops a hosted job at six. The owner kept
-  # it on (2026-09-29) until the suite gets faster (#123); until then it stops at 240 minutes.
+  # opens the failure issue (`report` needs only `guards`). The owner kept it on (2026-09-29) while
+  # #123 makes the suite faster; it stops at 240 minutes until #123 sets this timeout from
+  # re-measured runs.
   guards-windows:
     runs-on: windows-latest
     timeout-minutes: 240

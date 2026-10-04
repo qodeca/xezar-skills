@@ -86,6 +86,8 @@ const S = sections(
   {
     // The sections that read §3's synthetic installs (through installs()).
     needs: { "4": ["3"], "7": ["3"], "9": ["3"], "11a": ["3"], "12b": ["3"], "tail": ["3"] },
+    // §7 is not here: the kit ships manifest-drift.mjs, so a §7 that checks nothing has lost it.
+    mayBeEmpty: { "8": "it checks the owner's real-install snapshots, and none may be committed yet" },
     count: () => checks,
   },
 );
@@ -282,10 +284,6 @@ if (S.section("2")) {
 // 3. Synthetic installs
 // ---------------------------------------------------------------------------------------
 const SYNTHETIC = readdirSync(FIX).filter((n) => existsSync(join(FIX, n, "fixture.json"))).sort();
-if (S.section("3")) {
-expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
-expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
-}
 
 /** The class this test expects, derived from the index alone (not from the tool). */
 function expectedClass(fx, p) {
@@ -324,12 +322,20 @@ function answerTrivially(dir, plan, fx) {
   }
 }
 
-// version -> dir after upgrade + answers. Later sections read it only through installs(), which
-// throws unless §3 ran in this run, so a section that reads it must list "3" in its needs.
-const upgradedBy3 = new Map();
-const installs = () => { S.require("3"); return upgradedBy3; };
+// version -> dir after upgrade + answers, written by §3 only. The map lives in this closure: later
+// sections reach it through installs(), which throws unless §3 ran in this run, so a section that
+// reads it must list "3" in its needs.
+const { recordInstall, installs } = (() => {
+  const upgraded = new Map();
+  return {
+    recordInstall: (version, dir) => upgraded.set(version, dir),
+    installs: () => { S.require("3"); return upgraded; },
+  };
+})();
 
 if (S.section("3")) {
+expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
+expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
 for (const version of SYNTHETIC) {
   const fx = loadFixture(version);
   const dir = materialize(fx);
@@ -428,9 +434,9 @@ for (const version of SYNTHETIC) {
     if (e.sha256 !== sha256(readFileSync(join(dir, p)))) fail(`${version}: manifest v2 sha256 for ${p} does not match the file`);
   }
   expect(!(".claude/settings.local.json" in m.files), `${version}: a per-machine file is recorded in the manifest`);
-  upgradedBy3.set(version, dir);
+  recordInstall(version, dir);
 }
-}
+} // section 3
 
 // ---------------------------------------------------------------------------------------
 // 4. The customised fixture: the diff from a fresh upgrade is exactly its customisations
@@ -1127,7 +1133,7 @@ if (!HAS_DRIFT) {
     expect(r.code === 0 && status(r) === "pass", `drift: the upgraded ${version} fixture does not pass: ${r.out.trim()}`);
   }
 }
-}
+} // section 7
 
 // ---------------------------------------------------------------------------------------
 // 8. Real-install snapshots (added by the owner; see scripts/fixtures/upgrade/README.md)
@@ -1843,7 +1849,7 @@ if (S.section("14c")) {
 if (S.section("tail")) {
 expect(Array.isArray(detect(ctxFor(installs().get("3.0.3"))).files), "detect() no longer returns a file list");
 expect(typeof manifestV2 === "function", "verify.mjs no longer exports manifestV2");
-}
+} // section tail
 
 for (const p of S.finish()) fail(p);
 if (problems) {

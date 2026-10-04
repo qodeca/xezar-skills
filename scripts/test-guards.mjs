@@ -3063,6 +3063,30 @@ breaks(
 );
 
 breaks(
+  "a catalog filter that selects a section that runs nothing is refused",
+  "scripts/test-kit-catalog.mjs",
+  (s) => s.replace('if (S.section("4")) {', 'if (false && S.section("4")) {'),
+  catalog("4"),
+  "the filter selected 4, which ran no check",
+);
+
+breaks(
+  "a deps-units filter that selects a group that runs nothing is refused",
+  DEPS_UNITS_MJS,
+  (s) => s.replace('if (S.section("skip")) {', 'if (false && S.section("skip")) {'),
+  deps("skip"),
+  "the filter selected skip, which ran no check",
+);
+
+breaks(
+  "a selected section whose checks no longer run is refused, not passed as checked",
+  UPGRADE_MJS,
+  (s) => s.replace("  expect(f?.class === \"local-only\" && f.stops.includes(\"weakens-safety-check\"),", "  false && expect(f?.class === \"local-only\" && f.stops.includes(\"weakens-safety-check\"),"),
+  upgrade("5h"),
+  "the filter selected 5h, which made no check",
+);
+
+breaks(
   "an XEZ_DEPS_TEST_ONLY value it does not know is refused",
   DEPS_UNITS_MJS,
   (s) => s.replace('if (ONLY !== "" && ONLY !== "53") {', 'if (ONLY !== "" && ONLY !== "#53") {'),

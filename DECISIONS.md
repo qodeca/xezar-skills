@@ -1632,8 +1632,10 @@ No check can fall out of a filter's reach. `section()` throws on an id that is n
 run fails when a declared section never ran; a targeted run fails when a selected section ran
 nothing; and a section that reads another section's state does so through `require()`, which throws
 when that section did not run – so a missing `needs` entry is an error, never a quiet read of
-nothing. A break case that names the wrong section fails ("not for this reason"). Eight break cases
-hold these rules. `XEZ_DEPS_TEST_ONLY=53` is now `--only 53-tree --only 53-single`, and any other
+nothing. Where a test counts its checks, a targeted run also fails when a selected section made
+none, unless the test names that section in `mayBeEmpty` with the reason (the upgrade test's
+real-install snapshots, the deps-units real-tool run). A break case that names the wrong section
+fails ("not for this reason"). Eleven break cases hold these rules. `XEZ_DEPS_TEST_ONLY=53` is now `--only 53-tree --only 53-single`, and any other
 value exits 2 instead of running everything.
 
 **What it costs.** Sections that share state must say so: the upgrade test's §3 installs feed six

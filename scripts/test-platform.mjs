@@ -475,6 +475,19 @@ check("sections: finish() names a declared id a full run never entered, and a se
   assert.equal(targeted.targetedLine("Kit facts"), "Kit facts OK for a targeted run (checks: b, c) – only the full run is a gate result.");
 });
 
+check("sections: with a count, a selected section that made no check fails unless mayBeEmpty says why", () => {
+  assert.throws(() => sections("t.mjs", IDS, { mayBeEmpty: { z: "why" }, argv: [] }), /mayBeEmpty names section 'z', which is not declared/);
+  assert.throws(() => sections("t.mjs", IDS, { mayBeEmpty: { a: "" }, argv: [] }), /mayBeEmpty\['a'\] needs a one-line reason/);
+  let count = 0;
+  const strict = sections("t.mjs", IDS, { count: () => count, argv: ["--only", "a", "--only", "b"] });
+  if (strict.section("a")) count += 1;
+  strict.section("b");
+  assert.deepEqual(strict.finish(), ["the filter selected b, which made no check – a section that may check nothing says why in mayBeEmpty"]);
+  const lenient = sections("t.mjs", IDS, { count: () => count, mayBeEmpty: { b: "needs a real tool" }, argv: ["--only", "b"] });
+  lenient.section("b");
+  assert.deepEqual(lenient.finish(), []);
+});
+
 check("sections: XEZ_SECTIONS_TRACE records each failure's section and each section's check count", () => {
   const dir = mkdtempSync(join(tempRoot(), "test-platform-sections-"));
   const before = process.env.XEZ_SECTIONS_TRACE;

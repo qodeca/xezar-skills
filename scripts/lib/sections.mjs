@@ -7,7 +7,9 @@
  * never a gate result: only the full run is. Every check stays reachable by a filter: `section()`
  * throws on an undeclared id, a full run fails when a declared id never ran, a targeted run fails
  * when a selected id ran nothing, and `require()` throws when a section reads the state of a
- * section that did not run (its `needs` entry is missing).
+ * section that did not run (its `needs` entry is missing). A script that gives `count` also fails
+ * a targeted run in which a selected section made no check, unless `mayBeEmpty` names that section
+ * with the reason it may legitimately check nothing.
  *
  * XEZ_SECTIONS_TRACE=<file> is a mapping and proof aid only – it changes no result: each failure
  * the script reports through `trace()` is appended as one JSON line naming its section, and when
@@ -50,7 +52,7 @@ export function parseOnly(argv, ids, needs = {}) {
 }
 
 /** Throws when the declarations themselves are wrong: that is a bug in the script, not a usage error. */
-function checkDeclarations(script, ids, needs, exclusive) {
+function checkDeclarations(script, ids, needs, exclusive, mayBeEmpty) {
   const bug = (what) => { throw new Error(`${script}: ${what}`); };
   if (!Array.isArray(ids) || ids.length === 0) bug("sections() needs a non-empty list of ids");
   for (const id of ids) if (typeof id !== "string" || id === "") bug(`section ids are non-empty strings, not ${JSON.stringify(id)}`);
@@ -61,9 +63,11 @@ function checkDeclarations(script, ids, needs, exclusive) {
     if (!Array.isArray(deps)) bug(`needs['${id}'] must be a list of ids`);
     for (const dep of deps) declared(dep, `needs['${id}']`);
   }
-  for (const [id, why] of Object.entries(exclusive)) {
-    declared(id, "exclusive");
-    if (typeof why !== "string" || why.trim() === "") bug(`exclusive['${id}'] needs a one-line reason`);
+  for (const [where, reasons] of [["exclusive", exclusive], ["mayBeEmpty", mayBeEmpty]]) {
+    for (const [id, why] of Object.entries(reasons)) {
+      declared(id, where);
+      if (typeof why !== "string" || why.trim() === "") bug(`${where}['${id}'] needs a one-line reason`);
+    }
   }
 }
 
@@ -71,10 +75,11 @@ function checkDeclarations(script, ids, needs, exclusive) {
  * Declares a script's sections and reads its argv. Call it right after the imports: a usage error
  * exits 2 and `--sections` exits 0 before anything runs. `needs` maps an id to the ids whose state
  * it reads; `exclusive` maps an id to the reason it must not run beside other work; `count`, when
- * given, returns the script's running check count (used by XEZ_SECTIONS_TRACE only).
+ * given, returns the script's running check count; `mayBeEmpty` maps an id to the reason it may
+ * make no check (only read when `count` is given).
  */
-export function sections(script, ids, { needs = {}, exclusive = {}, count = null, argv = process.argv.slice(2) } = {}) {
-  checkDeclarations(script, ids, needs, exclusive);
+export function sections(script, ids, { needs = {}, exclusive = {}, mayBeEmpty = {}, count = null, argv = process.argv.slice(2) } = {}) {
+  checkDeclarations(script, ids, needs, exclusive, mayBeEmpty);
   const parsed = parseOnly(argv, ids, needs);
   if (parsed.error) {
     console.error(`${script}: ${parsed.error}`);
@@ -122,7 +127,10 @@ export function sections(script, ids, { needs = {}, exclusive = {}, count = null
       settle();
       if (traceFile && count) appendFileSync(traceFile, `${JSON.stringify({ script, targeted, counts })}\n`);
       if (!targeted) return ids.filter((id) => !entered.has(id)).map((id) => `section ${id} never ran in a full run – its block is missing or gated by another id`);
-      return selected.filter((id) => !entered.has(id)).map((id) => `the filter selected ${id}, which ran no check – its block is missing or gated by another id`);
+      const notEntered = selected.filter((id) => !entered.has(id))
+        .map((id) => `the filter selected ${id}, which ran no check – its block is missing or gated by another id`);
+      const empty = count ? selected.filter((id) => entered.has(id) && !(id in mayBeEmpty) && !counts[id]) : [];
+      return [...notEntered, ...empty.map((id) => `the filter selected ${id}, which made no check – a section that may check nothing says why in mayBeEmpty`)];
     },
     targetedLine(what) {
       return `${what} OK for a targeted run (checks: ${selected.join(", ")}) – only the full run is a gate result.`;

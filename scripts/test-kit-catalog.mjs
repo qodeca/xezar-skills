@@ -130,7 +130,7 @@ try {
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
-}
+} // section 1
 
 // --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
 // The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
@@ -268,7 +268,7 @@ if (!listed) {
     if (!skillFiles.includes(name)) fail(`MAINTAINED_SKILLS names "${name}", and kit/skills/ has no such file`);
   }
 }
-}
+} // section 2
 
 // --- 3. Workflows and routing rows name each other ---------------------------------------------
 // The rows live in `kit/routing.json`. A row may name more than one workflow file.
@@ -285,7 +285,7 @@ for (const name of workflowFiles) {
 for (const name of routed) {
   if (!workflowFiles.includes(name)) fail(`${ROUTING} routes to ${name}, and kit/workflows/ has no such file`);
 }
-}
+} // section 3
 
 // --- 3b. The routing file passes its own check, and agrees with the schema and the catalog -------
 if (S.section("3b")) {
@@ -543,7 +543,7 @@ for (const site of COUNT_SITES) {
     }
   });
 }
-}
+} // section 4
 
 // --- 5. The config grammar keeps its four answers apart --------------------------------------------
 // A guarded workflow refuses on an empty list, so "empty" is load-bearing. The failure this pins
@@ -583,7 +583,7 @@ for (const name of workflowFiles) {
     if (!GRAMMAR[match[1]]) fail(`kit/workflows/${name} guards on "${match[1]}", and the grammar has no such key`);
   }
 }
-}
+} // section 5
 
 // --- 6. A guard step sits where it is worth something ------------------------------------------
 // `catalog-check.mjs` orders the six named phases and lets any other check step sit anywhere, so
@@ -631,7 +631,7 @@ for (const name of workflowFiles) {
     fail("kit/workflows/deploy.yaml declares an onFail -- a failed deploy is never dispatched twice by a machine");
   }
 }
-}
+} // section 6
 
 // --- 7. The guard scripts, run -------------------------------------------------------------------
 // A bare remote and a clone, the way a project holds them. The scripts run from the kit with the
