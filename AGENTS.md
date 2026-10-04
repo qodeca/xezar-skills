@@ -162,8 +162,9 @@ the gate runs lint with no options.
 
 Two scripts are worth knowing about before you run them. `scripts/test-guards.mjs` — outside the
 gate, but still yours to run by hand when you add or change a guard — breaks each guard on
-purpose to prove it still fires, so it re-runs the gates once per defect and takes about
-seventy minutes on GitHub's Linux runner — and it edits tracked files in place, so it takes a lock and only one copy
+purpose to prove it still fires, so it re-runs a gate once per defect – for the facts, catalog,
+upgrade and deps-units tests only the sections that own the defect's message (`--list` shows each
+case's command) – and takes about seven minutes on GitHub's Linux runner — and it edits tracked files in place, so it takes a lock and only one copy
 may run at a time. `scripts/sync-shared-blocks.mjs` is a **generator**: when a shared block
 drifts — in a skill's `agentic-setup.md` or `rules.md`, or in the `## Shared contract` tail of a kit
 role skill — edit the canonical copy and run it rather than editing one copy per file by hand.

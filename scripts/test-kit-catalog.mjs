@@ -32,6 +32,10 @@
 //      live pipe an engine marker names, and skips a stale marker or one naming another pipe.
 //
 // Run: node scripts/test-kit-catalog.mjs
+//      node scripts/test-kit-catalog.mjs --only <id> [--only <id>]   (those sections only – never a gate result)
+//      node scripts/test-kit-catalog.mjs --sections                  (the section ids, as one JSON line)
+// The ids are the section numbers above (1, 1b, 2, 3, 3b, 3c, 4 … 10) and the stream letters below
+// (B, C, D-refusals, D-data, D-review, F, H, U, R, 122-route) (scripts/lib/sections.mjs).
 
 import { execFileSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -40,6 +44,14 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { bashPath, prependPath } from "./lib/platform.mjs";
 import { prepareTestPlatform, restrict, tempRoot } from "./lib/test-harness.mjs";
+import { sections } from "./lib/sections.mjs";
+
+const S = sections(
+  "test-kit-catalog.mjs",
+  ["1", "1b", "2", "3", "3b", "3c", "4", "5", "6", "7", "8", "9", "10",
+    "B", "C", "D-refusals", "D-data", "D-review", "F", "H", "U", "R", "122-route"],
+  { exclusive: { "10": "named pipes and a socket" } },
+);
 
 prepareTestPlatform({ symlinks: true });
 
@@ -51,6 +63,7 @@ const ROUTING = `${SKILL}/kit/routing.json`;
 let problems = 0;
 const fail = (message) => {
   problems += 1;
+  S.trace(message);
   console.error(`FAIL  ${message}`);
 };
 
@@ -64,6 +77,7 @@ const withOstype = (env, ostype) => {
 // --- 1. The kit's own validator, on the kit ---------------------------------------------------
 // Staged as `<tmp>/.xezar/{workflows,skills,checks}` because that is the only layout the
 // validator reads. The config is the smallest one it accepts.
+if (S.section("1")) {
 const stage = mkdtempSync(join(tempRoot(), "kit-catalog-"));
 try {
   mkdirSync(join(stage, ".xezar"));
@@ -116,12 +130,13 @@ try {
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
+} // section 1
 
 // --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
 // The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
 // `bash <script>`, so a reader writes by piping ONE JSON request into the bare script. Two halves:
 // every pipe the kit's docs teach has nothing after the script's name, and the JSON form works.
-{
+if (S.section("1b")) {
   const docs = [...readdirSync(join(KIT, "skills")).map((f) => `skills/${f}`), ...readdirSync(join(KIT, "docs")).map((f) => `docs/${f}`)]
     .filter((f) => f.endsWith(".md"));
   for (const rel of docs) {
@@ -241,6 +256,7 @@ const skillFiles = readdirSync(join(KIT, "skills"))
   .filter((name) => /^xezar-.*\.md$/.test(name))
   .map((name) => name.replace(/\.md$/, ""))
   .sort();
+if (S.section("2")) {
 if (!listed) {
   fail("catalog-check.mjs no longer declares MAINTAINED_SKILLS as a Set literal this test can read");
 } else {
@@ -252,6 +268,7 @@ if (!listed) {
     if (!skillFiles.includes(name)) fail(`MAINTAINED_SKILLS names "${name}", and kit/skills/ has no such file`);
   }
 }
+} // section 2
 
 // --- 3. Workflows and routing rows name each other ---------------------------------------------
 // The rows live in `kit/routing.json`. A row may name more than one workflow file.
@@ -260,6 +277,7 @@ const rows = routing.rows.map((row) => ({ id: row.id, workflows: row.workflows, 
 const workflowFiles = readdirSync(join(KIT, "workflows")).filter((name) => name.endsWith(".yaml")).sort();
 const routed = new Set(rows.flatMap((row) => row.workflows));
 
+if (S.section("3")) {
 if (rows.length === 0) fail(`${ROUTING} has no rows`);
 for (const name of workflowFiles) {
   if (!routed.has(name)) fail(`kit/workflows/${name} is named by no routing row -- installed, valid, and unreachable`);
@@ -267,9 +285,10 @@ for (const name of workflowFiles) {
 for (const name of routed) {
   if (!workflowFiles.includes(name)) fail(`${ROUTING} routes to ${name}, and kit/workflows/ has no such file`);
 }
+} // section 3
 
 // --- 3b. The routing file passes its own check, and agrees with the schema and the catalog -------
-{
+if (S.section("3b")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { KNOWN, readingRow, check } = await import(pathToFileURL(ROUTE).href);
   try {
@@ -451,7 +470,7 @@ for (const name of routed) {
 // --- 3c. The kit's node scripts run when reached through a link, or a path with a space ----------
 // A script that asks "am I the main module" by comparing an unresolved path does nothing at all,
 // and exits 0, when `.xezar/checks` is a link -- which reads as a pass.
-{
+if (S.section("3c")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-main-"));
   try {
     const real = join(lab, "with space", "checks");
@@ -510,6 +529,7 @@ const COUNT_SITES = [
   `docs/skills/xez-onboard-opinionated.md`,
 ];
 const EXPECTED = { rows: rows.length, classes: classes.length };
+if (S.section("4")) {
 for (const site of COUNT_SITES) {
   const lines = readFileSync(join(root, site), "utf8").split("\n");
   lines.forEach((line, index) => {
@@ -523,10 +543,12 @@ for (const site of COUNT_SITES) {
     }
   });
 }
+} // section 4
 
 // --- 5. The config grammar keeps its four answers apart --------------------------------------------
 // A guarded workflow refuses on an empty list, so "empty" is load-bearing. The failure this pins
 // is the quiet one: a misspelt key, or a value of the wrong shape, reading as "none configured".
+if (S.section("5")) {
 const { judge, GRAMMAR } = await import(pathToFileURL(join(KIT, "checks/lib/config-grammar.mjs")).href);
 const CASES = [
   ["ok", "deploy.environments", { deploy: { environments: ["staging=deploy.yml"] } }],
@@ -561,6 +583,7 @@ for (const name of workflowFiles) {
     if (!GRAMMAR[match[1]]) fail(`kit/workflows/${name} guards on "${match[1]}", and the grammar has no such key`);
   }
 }
+} // section 5
 
 // --- 6. A guard step sits where it is worth something ------------------------------------------
 // `catalog-check.mjs` orders the six named phases and lets any other check step sit anywhere, so
@@ -572,6 +595,7 @@ const stepsOf = (text) =>
     command: (/^    command: (.*)$/m.exec(block) ?? [])[1] ?? "",
     isAgent: /^    prompt: /m.test(block),
   }));
+if (S.section("6")) {
 for (const name of workflowFiles) {
   const steps = stepsOf(readFileSync(join(KIT, "workflows", name), "utf8"));
   const ids = steps.map((step) => step.id);
@@ -607,13 +631,14 @@ for (const name of workflowFiles) {
     fail("kit/workflows/deploy.yaml declares an onFail -- a failed deploy is never dispatched twice by a machine");
   }
 }
+} // section 6
 
 // --- 7. The guard scripts, run -------------------------------------------------------------------
 // A bare remote and a clone, the way a project holds them. The scripts run from the kit with the
 // clone as the working directory; the run id comes from XEZ_TASK_ID, as it does for an agent step.
 // Every case names the distinctive words of the refusal, not just its exit status: a guard that
 // fails for another reason is not the guard working.
-{
+if (S.section("7")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-guards-"));
   const work = join(lab, "work");
   const TASK = "fixture-task-1";
@@ -787,7 +812,7 @@ for (const name of workflowFiles) {
 // hold every name of the engine's published 0.19.0 list (the fixture is `xezar state-names --json`
 // at that version, byte for byte), and a name only a newer engine prints must pass when that engine
 // is on PATH -- and must still fail, as a stray file, when it is not.
-{
+if (S.section("8")) {
   const tree = readFileSync(join(KIT, "checks/local-tree.sh"), "utf8");
   const words = (name) => (new RegExp(`^  ${name}="([^"]*)"$`, "m").exec(tree)?.[1] ?? "").split(/\s+/).filter(Boolean);
   const dirs = new Set([...words("ENGINE_DIRS"), ...words("ALLOWED")]);
@@ -848,7 +873,7 @@ for (const name of workflowFiles) {
 // The leader loader is silent unless `XEZAR_LEADER=1`, and a gate never runs in the leader's session.
 // Its fixture once ran the loader without the flag, so it failed in every onboarded project's gate
 // and in no test here, because nothing here ran it.
-{
+if (S.section("9")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-documented-output-"));
   try {
     const project = join(lab, "project");
@@ -875,7 +900,7 @@ for (const name of workflowFiles) {
 // not the folder. The launcher once looked only for `<folder>.sock`, so in a folder named
 // `My Proj` it said the engine was not running while the engine ran. Run it with `claude` stubbed
 // on PATH: a socket named by the engine is accepted, no socket stops it with its message.
-{
+if (S.section("10")) {
   const { createServer } = await import("node:net");
   const { randomBytes } = await import("node:crypto");
   const { spawnSync } = await import("node:child_process");
@@ -1015,7 +1040,7 @@ for (const name of workflowFiles) {
 // the chain; without `--author` the output is byte-identical to 3.0.x (the golden hash below was
 // taken from the 3.0.3 script on the frozen defaults copy 3.json, so it changes only when the
 // no-author output does). Every line either form prints parses as NAME=value after the first `=`.
-{
+if (S.section("B")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { KNOWN, check } = await import(pathToFileURL(ROUTE).href);
   const { createHash } = await import("node:crypto");
@@ -1141,7 +1166,7 @@ for (const name of workflowFiles) {
 // its own keeps the quote and documented-output checks green, while a change to the kit's entry
 // still fails the quote check. C2: a widening Bash rule in the untracked settings.local.json warns
 // and a committed one fails; a browser grant outside the kit's tool list fails in either file.
-{
+if (S.section("C")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-claude-settings-"));
   const out = (error) => (error.stdout ?? "") + (error.stderr ?? "");
   try {
@@ -1239,7 +1264,7 @@ for (const name of workflowFiles) {
 // D13 (replaces #63's read-only QA): every review and QA step may run the change through
 // review-run.sh and holds every chrome-devtools tool; the review-only browser tools stay out of
 // every other workflow; review preflights run strict; a verdict needs an unchanged tree.
-{
+if (S.section("D-refusals")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-stream-d-"));
   try {
     mkdirSync(join(lab, ".xezar"));
@@ -1285,7 +1310,8 @@ for (const name of workflowFiles) {
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }
-
+}
+if (S.section("D-data")) {
   // The shipped data, read directly: a validator that passes is only half the claim.
   for (const name of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) {
     const text = readFileSync(join(KIT, "workflows", `${name}.yaml`), "utf8");
@@ -1302,7 +1328,8 @@ for (const name of workflowFiles) {
   if (!/hold every chrome-devtools tool[\s\S]*granted by their own tool lists only/.test(descriptor)) {
     fail("kit/pipeline/browsers/chrome-devtools.md no longer says the review and QA workflows hold every tool, through their own tool lists only");
   }
-
+}
+if (S.section("D-review")) {
   // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
   // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
   const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
@@ -1602,7 +1629,7 @@ for (const name of workflowFiles) {
 // Every fixture is a throwaway repository whose base branch is `develop`, with a `main` that is
 // older than it: a check that still falls back to `main` sees the base's own commits as this
 // branch's edits, and refuses a branch that only wrote a fragment.
-{
+if (S.section("F")) {
   const lab = mkdtempSync(join(tempRoot(), "kit-changelog-"));
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
@@ -1738,7 +1765,7 @@ for (const name of workflowFiles) {
 // #54: a repair reaches GitHub only through push-check.sh, after the seal. The workflow's handoff
 // names the script, both role skills say to push only through it, readiness refuses the retired
 // DELIVERED record, and branch.owned-by-run is untouched. test-kit-facts.mjs FACT H1 runs the script.
-{
+if (S.section("H")) {
   const text = (rel) => readFileSync(join(KIT, rel), "utf8");
   const wf = text("workflows/address-review-findings.yaml");
   const handoff = /\n  - id: handoff\n[\s\S]*$/.exec(wf)?.[0] ?? "";
@@ -1775,7 +1802,7 @@ for (const name of workflowFiles) {
 // fails; a patch with no register entry fails; a register entry with no manifest patch fails;
 // only the kit block of an owner file is hashed; a version-1 manifest is not enforced; a file that
 // cannot be parsed exits 2; and the register example in the kit's own format document parses.
-{
+if (S.section("U")) {
   const { createHash } = await import("node:crypto");
   const sha = (text) => createHash("sha256").update(text).digest("hex");
   const DRIFT = join(KIT, "checks/manifest-drift.mjs");
@@ -1894,7 +1921,7 @@ for (const name of workflowFiles) {
 // The owner's row orders are data, so each group is pinned by its rule rather than by a copy of
 // the table; the one relaxation of tool limits is checked both ways (where it lets V4 Pro in, and
 // where it must not); and a machine without the model gets no V4 Pro lane from `route`.
-{
+if (S.section("R")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { check } = await import(pathToFileURL(ROUTE).href);
   const P = "pi/deepseek-api/deepseek-v4-pro";
@@ -2015,7 +2042,7 @@ for (const name of workflowFiles) {
 // `pi.cmd` and an extensionless `opencode` on Windows, where an extensionless file is no program.
 // node starts by its own path, and with --file route needs neither git nor gh, so nothing else on
 // this machine (an npm-global opencode beside node, say) can answer for the fixture.
-{
+if (S.section("122-route")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { installedPrograms } = await import(pathToFileURL(ROUTE).href);
   const kitPrograms = await import(pathToFileURL(join(KIT, "checks/lib/windows-programs.mjs")).href);
@@ -2061,11 +2088,13 @@ for (const name of workflowFiles) {
   }
 }
 
+for (const p of S.finish()) fail(p);
 if (problems) {
   console.error(`\nkit catalog: ${problems} problem(s)`);
   process.exit(1);
 }
-console.log(
+if (S.targeted) console.log(S.targetedLine("Kit catalog"));
+else console.log(
   `Kit catalog OK (${workflowFiles.length} workflows, ${skillFiles.length} skills, ` +
   `${rows.length} rows over ${classes.length} classes; every workflow routed, every count in step, both guard scripts run).`,
 );

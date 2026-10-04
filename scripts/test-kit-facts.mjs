@@ -24,6 +24,10 @@
 // adding a fact is a deliberate act, not something this file discovers.
 //
 // Run: node scripts/test-kit-facts.mjs
+//      node scripts/test-kit-facts.mjs --only <id> [--only <id>]   (those facts only – never a gate result)
+//      node scripts/test-kit-facts.mjs --sections                  (the fact ids, as one JSON line)
+// The ids are the FACT labels (1, B1, W12 …); the three "FACT W" blocks are W-shell, W-stop and
+// W-scheduler, the two "FACT W6" blocks W6 and W6-run (scripts/lib/sections.mjs).
 
 import { readFileSync, existsSync, readdirSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -31,6 +35,17 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { bashPath, posixToolDirs, prependPath, toLF } from "./lib/platform.mjs";
 import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+import { sections } from "./lib/sections.mjs";
+
+const IDS = [
+  ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
+  "B1", "C1", "C2", "G1", "H1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
+];
+const S = sections("test-kit-facts.mjs", IDS, {
+  exclusive: { "W-scheduler": "real processes, pid reuse and 60/30/20/10 s waits" },
+  count: () => checked.length,
+});
 
 prepareTestPlatform({ symlinks: true });
 
@@ -57,8 +72,11 @@ const SKILL = "skills/xez-onboard-opinionated";
 const problems = [];
 const checked = [];
 
-const fail = (fact, where, detail) =>
-  problems.push(`${fact}\n    in ${where}\n    ${detail}`);
+const fail = (fact, where, detail) => {
+  const problem = `${fact}\n    in ${where}\n    ${detail}`;
+  S.trace(problem);
+  problems.push(problem);
+};
 
 // ---------------------------------------------------------------------------
 // FACT 1 -- campaign folders are COMMITTED.
@@ -68,7 +86,7 @@ const fail = (fact, where, detail) =>
 // are only untrusted because anyone who can open a pull request can write them). A kit doc that
 // still calls them runtime teaches a leader to gitignore the owner's own words.
 // ---------------------------------------------------------------------------
-{
+if (S.section("1")) {
   const fact = "FACT 1: campaign folders are committed";
   const saysCommitted = /campaigns[\s\S]{0,200}?\*\*committed\*\*|\*\*committed\*\*[\s\S]{0,200}?campaigns/i;
   const notes = read(`${SKILL}/kit/docs/campaign-notes.md`);
@@ -103,7 +121,7 @@ const fail = (fact, where, detail) =>
 // that was already wrong in opposite directions. Both are pinned, and so is the exemption:
 // a loader that runs decisions.md through the truncating helper would pass a value check.
 // ---------------------------------------------------------------------------
-{
+if (S.section("2")) {
   const fact = "FACT 2: 64 KB tail for narrative notes, decisions.md never truncated";
   const loader = read(`${SKILL}/kit/checks/leader-context.sh`);
   const m = loader.match(/^NOTE_TAIL_BYTES=(\d+)/m);
@@ -130,7 +148,7 @@ const fail = (fact, where, detail) =>
 // FACT 3 -- the six .local/xezar subfolders, same names in the check and in the prose.
 // The check is the thing that enforces the layout; the prose is what a reader believes.
 // ---------------------------------------------------------------------------
-{
+if (S.section("3")) {
   const fact = "FACT 3: the six .local/xezar subfolders agree";
   const expected = ["runtime", "tasks", "worktrees", "scratch", "cache", "qa"];
   const tree = read(`${SKILL}/kit/checks/local-tree.sh`);
@@ -155,7 +173,7 @@ const fail = (fact, where, detail) =>
 // prompt is what the leader is given), and in the always-loaded guide. Three copies of a
 // tuning knob is three chances to tune one and miss two.
 // ---------------------------------------------------------------------------
-{
+if (S.section("4")) {
   const fact = "FACT 4: the loop ceilings agree everywhere they are stated";
   const loops = JSON.parse(read(`${SKILL}/kit/loops.json`));
   const c = loops.ceilings ?? {};
@@ -189,7 +207,7 @@ const fail = (fact, where, detail) =>
 // A file kind named in the contract and never loaded is a leader that believes it has
 // context it does not have.
 // ---------------------------------------------------------------------------
-{
+if (S.section("5")) {
   const fact = "FACT 5: seven campaign file kinds, four of them injected";
   const kinds = ["README.md", "decisions.md", "parked.md", "merges.md", "plan.md", "timeline-", "archive-"];
   const notes = read(`${SKILL}/kit/docs/campaign-notes.md`);
@@ -209,7 +227,7 @@ const fail = (fact, where, detail) =>
 // xez-add-rule puts every owner rule under "## Owner's rules", found BY NAME. A reworded or
 // missing heading in the template makes every new project create it on the first rule instead.
 // ---------------------------------------------------------------------------
-{
+if (S.section("6")) {
   const fact = "FACT 6: guide carries the Owner's rules section xez-add-rule writes into";
   const sectionsFile = "skills/xez-add-rule/references/sections.md";
   if (!has(sectionsFile)) fail(fact, sectionsFile, "missing -- xez-add-rule cannot place a rule");
@@ -236,7 +254,7 @@ const fail = (fact, where, detail) =>
 // has two halves in two files, and either one alone does nothing: the hook must test the
 // variable, and the launcher must export it. The prose that explains it is the third place.
 // ---------------------------------------------------------------------------
-{
+if (S.section("7")) {
   const fact = "FACT 7: only the launcher's session gets the leader guide";
   const loader = read(`${SKILL}/kit/checks/leader-context.sh`);
   if (!/\[ "\$\{XEZAR_LEADER:-\}" = "1" \] \|\| silent/.test(loader))
@@ -264,7 +282,7 @@ const fail = (fact, where, detail) =>
 // consumer's SECURITY REPORTS to that other project's advisory page. A template names the
 // repository only through {{REPO_SLUG}}, and the write step must say the placeholder is filled.
 // ---------------------------------------------------------------------------
-{
+if (S.section("8")) {
   const fact = "FACT 8: kit tracker templates name no foreign repository";
   for (const file of walk(`${SKILL}/kit/github`, /\.(ya?ml|md)$/)) {
     for (const m of read(file).matchAll(/github\.com\/([^\s)"'>]+)/g)) {
@@ -285,7 +303,7 @@ const fail = (fact, where, detail) =>
 // found one only because another skill happened to be installed globally. A private copy that
 // drifts installs last year's contract into a new project, so the copy is held byte-identical.
 // ---------------------------------------------------------------------------
-{
+if (S.section("9")) {
   const fact = "FACT 9: the skill's tracker descriptor is the canonical one";
   const own = `${SKILL}/references/trackers/github.md`;
   const canonical = "skills/xez-setup-agent-pipeline/references/trackers/github.md";
@@ -353,7 +371,7 @@ const fail = (fact, where, detail) =>
 // them, and the run added the other three by hand. A label the policy reads and the taxonomy
 // never creates is a gate that logs a skip forever.
 // ---------------------------------------------------------------------------
-{
+if (S.section("10")) {
   const fact = "FACT 10: the installed taxonomy carries the design labels the kit reads";
   const taxonomy = JSON.parse(read(`${SKILL}/references/labels.json`));
   for (const name of ["needs-design", "design-approved", "skip-design", "design", "design-failed"]) {
@@ -378,7 +396,7 @@ const fail = (fact, where, detail) =>
 // sealed would be a tree proving itself. Both halves of that are pinned here: it runs, and it
 // cannot certify.
 // ---------------------------------------------------------------------------
-{
+if (S.section("11")) {
   const fact = "FACT 11: the gates run standalone, and a standalone attempt cannot be certified";
   const common = read(`${SKILL}/kit/checks/lib/common.sh`);
   const record = read(`${SKILL}/kit/checks/lib/gate-record.sh`);
@@ -418,7 +436,7 @@ const fail = (fact, where, detail) =>
 // never gave. This is a STATIC pin: it proves the prose agrees. That the engine honours the call
 // is proved on a live engine, and `docs/coverage.md` says so.
 // ---------------------------------------------------------------------------
-{
+if (S.section("12")) {
   const fact = "FACT 12: the OpenCode switch, its disclosure, its undo and its routing ban agree";
   // Each pattern is looked for in the SECTION it is a claim about. Over the whole file, the word
   // `get_capabilities` in an unrelated step, or "OpenCode" in a changelog-style aside, would keep
@@ -496,7 +514,7 @@ function walk(rel, match) {
 // first audited run reported a 227-line guide as a cross it could do nothing about. So the two
 // numbers are added up here: fixed lines of the template + the budgets stated in write.md.
 // ---------------------------------------------------------------------------
-{
+if (S.section("13")) {
   const fact = "FACT 13: the leader guide's fixed lines plus its section budgets fit the stated limit";
   const LIMIT = 200;
   const fixedLines = (text) => {
@@ -543,7 +561,7 @@ function walk(rel, match) {
 // Scope: the vendored kit only. CHANGELOG.md, DECISIONS.md, BACKWARD_COMPATIBILITY.md and
 // UPGRADE_NOTES.md are records of what was true then and MUST keep naming both, or the
 // upgrade note cannot tell a reader what to look for.
-{
+if (S.section("14")) {
   const fact = "FACT 14: the vendored kit carries no dogfooding ledger and no known-flake register";
   const banned = [
     ["dogfood", "the dogfooding ledger -- one project's record-keeping habit"],
@@ -614,7 +632,7 @@ function walk(rel, match) {
 //     THE GATE VERDICT -- zero gates run, exit code indistinguishable from a real failure.
 //     Measured, not assumed: `set -uo pipefail` plus a failed `exec` exits at rc=126 and never
 //     reaches the next line, so `shopt -s execfail` is load-bearing too.
-{
+if (S.section("15")) {
   const fact = "FACT 15: the gate lease re-exec is guarded, skips --list, probes before it commits, and never resolves through npx";
   const where = `${SKILL}/kit/checks/repo-gates.sh`;
   const gates = read(where);
@@ -666,7 +684,7 @@ function walk(rel, match) {
 // carry a bashAllowlist; git-read.sh refuses the flag that makes git write; and the security scan
 // flags a pull request that loosens either, because it would otherwise pass as an ordinary edit.
 // ---------------------------------------------------------------------------
-{
+if (S.section("16")) {
   const fact = "FACT 16: reading steps are limited by their shell, and loosening that is a trust-boundary change";
   for (const wf of ["architecture-review", "business-analysis", "code-review", "issue-triage", "security-review"]) {
     const text = read(`${SKILL}/kit/workflows/${wf}.yaml`);
@@ -700,7 +718,7 @@ function walk(rel, match) {
 // lane stays reserved, the route script enforces the minimums whatever a project's file says, and
 // a pull request that edits the routing file is a trust-boundary change.
 // ---------------------------------------------------------------------------
-{
+if (S.section("17")) {
   const fact = "FACT 17: security rows keep their minimums, reserved lanes stay reserved, and routing is a trust boundary";
   const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
   for (const row of routing.rows.filter((r) => r.class === "security-and-release")) {
@@ -727,7 +745,7 @@ function walk(rel, match) {
 // files beside workspace.json and agent-accounts.json. Ignoring only the files themselves put
 // those siblings -- this machine's paths and accounts -- into the first `git status`.
 // ---------------------------------------------------------------------------
-{
+if (S.section("18")) {
   const fact = "FACT 18: the engine's machine files and their siblings are ignored";
   const ignore = read(`${SKILL}/kit/xezar.gitignore`).split("\n");
   const exclude = read("docs/bootstrap-prompt.md").split("\n").map((l) => l.trim());
@@ -745,7 +763,7 @@ function walk(rel, match) {
 // `$XEZ_TASK_ID` or `$XEZ_STEP_ID` was a skill the reviewer could not follow. `verdict-write.sh` stamps
 // both from the environment and refuses a packet that names another task or step.
 // ---------------------------------------------------------------------------
-{
+if (S.section("19")) {
   const fact = "FACT 19: verdict packets are stamped with taskId and stepId by verdict-write.sh, and no kit skill asks for them";
   for (const f of readdirSync(join(root, SKILL, "kit/skills")).filter((n) => n.endsWith(".md"))) {
     const text = read(`${SKILL}/kit/skills/${f}`);
@@ -763,7 +781,7 @@ function walk(rel, match) {
 // `Bash(gh pr merge *)` also matches `--admin`, which merges over red checks while admin
 // enforcement is off, and `--repo` / `-R`, which merges somewhere else.
 // ---------------------------------------------------------------------------
-{
+if (S.section("20")) {
   const fact = "FACT 20: the leader settings deny gh pr merge with --admin, --repo or -R";
   const deny = JSON.parse(read(`${SKILL}/kit/scripts/xezar-leader-settings.json`)).permissions?.deny ?? [];
   for (const rule of ["Bash(gh pr merge *--admin*)", "Bash(gh pr merge *--repo*)", "Bash(gh pr merge *-R *)"])
@@ -775,7 +793,7 @@ function walk(rel, match) {
 // FACT 21 -- every standing loop is a cron job. A self-paced wake-up is not a job the leader can
 // list, so it cannot be compared against loops.json at session start; a cron job can.
 // ---------------------------------------------------------------------------
-{
+if (S.section("21")) {
   const fact = "FACT 21: every standing loop is cron with a five-field schedule";
   for (const loop of JSON.parse(read(`${SKILL}/kit/loops.json`)).loops)
     if (loop.mechanism !== "cron" || String(loop.schedule).trim().split(/\s+/).length !== 5)
@@ -787,7 +805,7 @@ function walk(rel, match) {
 // FACT 22 -- conflict repair pushes to the PR branch and never merges. Routed to
 // integration.yaml, it ran the merge-and-watch steps on a PR whose conflict it was sent to fix.
 // ---------------------------------------------------------------------------
-{
+if (S.section("22")) {
   const fact = "FACT 22: conflict-repair routes to no workflow that merges or watches the base branch";
   const row = JSON.parse(read(`${SKILL}/kit/routing.json`)).rows.find((r) => r.id === "conflict-repair");
   for (const wf of row?.workflows ?? []) {
@@ -805,7 +823,7 @@ function walk(rel, match) {
 // wildcard, no banned tool, no `@latest`, the same pin for Claude and Codex, and never in the e2e
 // workflows, which keep the project's own tooling.
 // ---------------------------------------------------------------------------
-{
+if (S.section("23")) {
   const fact = "FACT 23: chrome-devtools is pinned, listed by exact tool name, and kept out of e2e";
   const ALLOWED = ["navigate_page", "new_page", "list_pages", "select_page", "close_page", "take_snapshot", "take_screenshot",
     "list_console_messages", "get_console_message", "list_network_requests", "get_network_request", "click", "fill", "fill_form",
@@ -864,7 +882,7 @@ function walk(rel, match) {
 // carries them now, the reasoning lives in the detail page and close-out, and "dispatch at once"
 // is an L3 run, never a second dispatcher and never an L1 or L2 tick.
 // ---------------------------------------------------------------------------
-{
+if (S.section("B1")) {
   const fact = "FACT B1: the leader guide carries dispatch-at-once, read-quota and merge-queue, and L3 stays the only dispatcher";
   const guide = read(`${SKILL}/kit/leader-guide.template.md`);
   const body = guide.split("## One-page checklist")[0];
@@ -903,7 +921,7 @@ function walk(rel, match) {
 // cannot load is announced in the trusted part of the context, never skipped in silence. RUN, on a
 // throwaway primary checkout, because both halves are behaviour a text pin cannot see.
 // ---------------------------------------------------------------------------
-{
+if (S.section("C1")) {
   const fact = "FACT C1: newest timeline entries plus a pointer; a decisions.md the loader cannot read is a WARNING";
   const where = "kit/checks/leader-context.sh";
   const { execFileSync } = await import("node:child_process");
@@ -995,7 +1013,7 @@ function walk(rel, match) {
 // own copy of the chrome-devtools tools must equal the kit's local settings, or it refuses the
 // kit's own grants (or passes one the kit never gives).
 // ---------------------------------------------------------------------------
-{
+if (S.section("C2")) {
   const fact = "FACT C2: catalog-check's browser tool list equals the kit's chrome-devtools grants";
   const check = read(`${SKILL}/kit/checks/catalog-check.mjs`);
   const listed = [...(/^const SETTINGS_BROWSER_TOOLS = new Set\(\[([\s\S]*?)\]\);/m.exec(check)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
@@ -1027,7 +1045,7 @@ function walk(rel, match) {
 // the engine repository's own paths are not shipped. Driven against the real scan, in a
 // throwaway origin and clone.
 // ---------------------------------------------------------------------------
-{
+if (S.section("G1")) {
   const fact = "FACT G1: project trust boundaries add to the kit's, from the base branch, and fail toward review";
   const { execFileSync } = await import("node:child_process");
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
@@ -1174,7 +1192,7 @@ function walk(rel, match) {
 // stand-in `gh`. Its two siblings are stubbed: the strict preflight passes, and verify-evidence
 // answers what the case says. Each refusal leaves origin untouched; one fast-forward push lands.
 // ---------------------------------------------------------------------------
-{
+if (S.section("H1")) {
   const fact = "FACT H1: a repair pushes only the sealed HEAD to its own open PR's head branch";
   const where = "kit/checks/push-check.sh";
   const { execFileSync, spawnSync } = await import("node:child_process");
@@ -1276,7 +1294,7 @@ function walk(rel, match) {
 // U1 (#55): the drift check runs at every gate, and the prose that writes and edits the manifest
 // names the same markers and version the check reads. A gate line removed, or a marker spelled
 // differently in one place, lets a silent edit through or turns a fresh setup red.
-{
+if (S.section("U1")) {
   const fact = "FACT U1: the manifest drift check runs in the gate and agrees with the prose that writes the manifest";
   const checks = read(`${SKILL}/kit/checks/repository-checks.sh`);
   if (!/^node "\$SCRIPT_DIR\/manifest-drift\.mjs" "\$REPO_ROOT" \|\| drift_rc=\$\?$/m.test(checks))
@@ -1297,7 +1315,7 @@ function walk(rel, match) {
 // U4: the upgrade prompt names only helpers that exist, and carries no unreconciled command mark.
 // A renamed helper or a `verify-cli` mark left in would have the owner's session run a command
 // that is not there, mid-upgrade.
-{
+if (S.section("U4")) {
   const fact = "FACT U4: the upgrade prompt names only real helper scripts and has no verify-cli mark left";
   const where = "upgrade/UPGRADE-PROMPT.md";
   const prompt = read(where);
@@ -1312,7 +1330,7 @@ function walk(rel, match) {
 // and its expected invariants, each of a type the grader knows; and the grader passes a known-good
 // result and fails a known-bad one. A case with no expectations, or a grader that passes
 // everything, would turn the release PR's eval table into noise.
-{
+if (S.section("U-evals")) {
   const fact = "FACT U-evals: every upgrade eval case is gradable, and the grader tells a good run from a bad one";
   const casesDir = "upgrade/evals/cases";
   const { INVARIANT_TYPES, grade } = await import("../upgrade/evals/check.mjs");
@@ -1357,7 +1375,7 @@ function walk(rel, match) {
 // U-evals F2–F4: every stop the planner raises is named in the prompt's stop-and-ask list, and
 // every read-and-judge flag it sets is acted on in step 5. A planner reason the prompt never
 // names is a flag nobody reads: the eval runs caught those cases only on the model's initiative.
-{
+if (S.section("U-plan-flags")) {
   const fact = "FACT U-plan-flags: the upgrade prompt acts on every stop and review reason the planner raises";
   const where = "upgrade/UPGRADE-PROMPT.md";
   const prompt = read(where);
@@ -1389,7 +1407,7 @@ function walk(rel, match) {
 // for word what they were; the script still holds the floor under the one relaxation it enforces;
 // and the accepted risk is recorded in SECURITY.md and DECISIONS.md, each pointing at the other.
 // ---------------------------------------------------------------------------
-{
+if (S.section("R1")) {
   const fact = "FACT R1: the relaxed routing bans say what #89 decided, the kept bans are unchanged, and the risk is recorded";
   const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
   const rule = (id) => routing.globalBans.find((b) => b.id === id)?.rule ?? "";
@@ -1445,7 +1463,7 @@ function walk(rel, match) {
 // routing doc, the ban texts and DECISIONS.md all say so, and none still says never-author bans the
 // author's vendor. (2) Onboarding never writes `version: "unknown"`: write.md stops instead.
 // ---------------------------------------------------------------------------
-{
+if (S.section("OC1")) {
   const fact = "FACT OC1: same-vendor reviewers are allowed on every row outside vendorExclusions, and onboarding never writes an unknown version";
   const route = read(`${SKILL}/kit/checks/route.mjs`);
   if (!/if \(file\.lanes\[cid\]\.vendor === lane\.vendor && excluded\.has\(lane\.vendor\)\) return `author-chain: shared vendor with \$\{cid\}`;/.test(route))
@@ -1483,7 +1501,7 @@ function walk(rel, match) {
 // rule is asserted on every OS: the Windows branch is taken by setting OSTYPE, so the Linux
 // nightly proves it too, and the non-Windows branch must stay exactly as it was.
 // ---------------------------------------------------------------------------
-{
+if (S.section("W-shell")) {
   const fact = "FACT W: the kit's shell helpers read Git for Windows paths and refs";
   const { spawnSync } = await import("node:child_process");
   const where = "kit/checks/lib/common.sh";
@@ -1522,7 +1540,7 @@ function walk(rel, match) {
 
 // FACT W, the Windows process layer's rules (kit/checks/lib/windows-process.mjs), as pure functions
 // on recorded tables: they run on every OS, so a rule broken on Linux is caught on Linux.
-{
+if (S.section("W-stop")) {
   const fact = "FACT W: the Windows gate stop picks a gate's processes by identity, never a stranger";
   const where = "kit/checks/lib/windows-process.mjs";
   const { pathToFileURL } = await import("node:url");
@@ -1639,7 +1657,7 @@ function walk(rel, match) {
 // FACT W, the scheduler itself (kit/checks/lib/gate-parallel.mjs), with real processes on every OS:
 // a gate leaves a node behind that has a native child of its own; a gate is stopped mid-run; and a
 // process the gate never started survives both.
-{
+if (S.section("W-scheduler")) {
   const fact = "FACT W: the gate scheduler stops and reaps exactly the processes its gates started";
   const where = "kit/checks/lib/gate-parallel.mjs";
   const { spawn } = await import("node:child_process");
@@ -1744,7 +1762,7 @@ function walk(rel, match) {
 // and never by its bare name, which Windows looks for in the unit's own folder first. A spawnSync
 // outside start() is a tool started without those rules.
 // ---------------------------------------------------------------------------
-{
+if (S.section("W3")) {
   const fact = "FACT W3: deps.mjs starts every unit tool through start()";
   const where = "kit/checks/lib/deps.mjs";
   const text = read(`${SKILL}/${where}`);
@@ -1766,7 +1784,7 @@ function walk(rel, match) {
 // Windows, through gitBash(): a bare `bash` there is WSL's on a stock machine. The upgrade verifier
 // also starts its Node checks with this Node (a bare `node` run in the project is looked for in the
 // project first), and finds Git Bash with this clone's own kit copy of the finder, never scripts/lib.
-{
+if (S.section("W4")) {
   const fact = "FACT W4: documented-output.mjs and the upgrade verifier start Git Bash on Windows, never WSL's bash";
   const docWhere = "kit/checks/documented-output.mjs";
   const docOut = read(`${SKILL}/${docWhere}`);
@@ -1792,7 +1810,7 @@ function walk(rel, match) {
 // every OS: PATH is cut down to a folder holding a node stand-in `sha256sum` (and cut and cat), so
 // no shasum is found, and the lines must be node's own digests. Where shasum exists, the helper's
 // output on the full PATH is also byte-equal to `shasum -a 256`; elsewhere that leg says so.
-{
+if (S.section("W5")) {
   const fact = "FACT W5: the kit's digests work without shasum, with the same lines";
   const where = "kit/checks/lib/common.sh";
   const { spawnSync } = await import("node:child_process");
@@ -1848,7 +1866,7 @@ function walk(rel, match) {
 // Xezar worktree failed [isolation.worktree-listed]. Here `worktree_is_listed` runs with OSTYPE set
 // and `git` and `cygpath` as shell functions (a stand-in cygpath: /c/x -> C:/x, /tmp/x -> C:/Temp/x,
 // and /odd/… -> a blank line, which only an unconverted, empty task path could equal), on every OS.
-{
+if (S.section("W6")) {
   const fact = "FACT W6: the worktree check reads /c/… and C:/… as one path under Git Bash, and nothing more";
   const where = "kit/checks/lib/common.sh";
   const { spawnSync } = await import("node:child_process");
@@ -1935,7 +1953,7 @@ if worktree_is_listed "$want" /main; then echo listed; else echo "unlisted $?"; 
 // Xezar makes it. It passes, with no [isolation.worktree-listed]; once git no longer lists the tree
 // (its registration points elsewhere) it fails with exactly that tag. On Windows this is the Git
 // Bash path case itself: git lists C:/…, the preflight runs in /c/….
-{
+if (S.section("W6-run")) {
   const fact = "FACT W6: the strict preflight accepts a real Xezar worktree and refuses one git does not list";
   const where = "kit/checks/worktree-preflight.sh";
   const { execFileSync, spawnSync } = await import("node:child_process");
@@ -1980,7 +1998,7 @@ if worktree_is_listed "$want" /main; then echo listed; else echo "unlisted $?"; 
 // Off Windows both are today's reads: a CR a label or name really holds is kept, and refused later
 // as it always was. common.sh is sourced with OSTYPE msys and linux-gnu, on every OS (on Windows
 // with the harness's LF jq first on PATH).
-{
+if (S.section("W7")) {
   const fact = "FACT W7: the jq CR helpers strip CRs under Git Bash or Cygwin, and change nothing off Windows";
   const where = "kit/checks/lib/common.sh";
   const { spawnSync } = await import("node:child_process");
@@ -2017,7 +2035,7 @@ for os in msys linux-gnu; do (
 // "Permission denied". The list is derived on every run from git's modes through the kit's own copy
 // map, so a script added later cannot be missed; each block also runs chmod, then git add, then
 // git update-index, in that order (chmod first, or a POSIX working file stays dirty).
-{
+if (S.section("W10")) {
   const fact = "FACT W10: onboarding and upgrade entry 14 make every executable kit file executable in git";
   const { execFileSync } = await import("node:child_process");
   const { indexFromTree } = await import("../upgrade/tools/lib/kit-index.mjs");
@@ -2060,7 +2078,7 @@ for os in msys linux-gnu; do (
 // Codex writes it itself (a mixed-case key is untested), and the Codex home there is
 // %USERPROFILE%\.codex. Stated where the owner is told to add it: onboarding, the upgrade prompt's
 // per-machine action, and the 3.0.2 browser entry.
-{
+if (S.section("W11")) {
   const fact = "FACT W11: the Codex trust line on Windows uses a literal-string key in %USERPROFILE%\\.codex";
   for (const where of [`${SKILL}/references/write.md`, "upgrade/UPGRADE-PROMPT.md", "UPGRADE_NOTES.md"]) {
     const text = read(where).replace(/\n\s*/g, " ");
@@ -2077,7 +2095,7 @@ for os in msys linux-gnu; do (
 // FACT W12 -- the kit's Node floor is 22 (Node 20 left support in April 2026), in both checks that
 // refuse an older Node and in the doc that states the floor. A check left at 20 lets a task run on a
 // Node nothing supports, and a doc left at 20 tells the owner that is fine.
-{
+if (S.section("W12")) {
   const fact = "FACT W12: the kit requires Node 22 wherever it checks or states the floor";
   const places = [
     ["kit/checks/worktree-setup.sh", ["# The repo requires Node >= 22", "if (major < 22) {", "is below the required 22`"]],
@@ -2092,6 +2110,7 @@ for os in msys linux-gnu; do (
   checked.push(fact);
 }
 
+for (const p of S.finish()) problems.push(p);
 if (problems.length) {
   console.error(`Kit facts: ${problems.length} contradiction(s) between a skill's prose and its vendored kit.\n`);
   for (const p of problems) console.error(`  - ${p}\n`);
@@ -2099,4 +2118,5 @@ if (problems.length) {
   console.error("other gate passed. Fix the half that is wrong -- do not relax the pin.");
   process.exit(1);
 }
-console.log(`Kit facts OK (${checked.length} pinned facts, prose and vendored kit agree).`);
+if (S.targeted) console.log(S.targetedLine("Kit facts"));
+else console.log(`Kit facts OK (${checked.length} pinned facts, prose and vendored kit agree).`);
