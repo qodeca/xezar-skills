@@ -8,7 +8,7 @@ Three limits, all stated before anything is touched. **Claude Code only** — th
 
 It analyses the repository read-only (the real branching model, the gate commands, the design signal, which agent tools and accounts this machine actually has), interviews you in five screens — one confirmation of every detected fact, each carrying its evidence, then the gate commands, the task logins, what each model is for and the routing rows for edits — confirms the shipped routing against the lanes that exist here: `.xezar/routing.json` lists every kind of work with the lanes it may use in order, and the leader reads it only through `.xezar/checks/route.mjs`, which removes a lane this machine lacks. A lane is a runner plus a model, and your logins are only the rotation under a runner — and previews every file bound to a content digest before anything is written.
 
-Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch, opens a pull request and – once its checks are green – offers to merge it for you, turns on branch protection and **re-reads it** rather than trusting the call, and finally dispatches one throwaway task end to end — workflow, pull request, gates — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
+Nothing reaches the project until the interview finishes and you approve the preview as a whole — the one file written before that is the saved interview under `.local/xezar/runtime/`, so an interrupted run resumes instead of restarting. Then it writes the setup on a branch, opens a pull request and – once its checks are green – offers to merge it for you, turns on branch protection and **re-reads it** rather than trusting the call, and finally proves it in two tiers — one cheap engine task on an explicit lane, then the real gates and a labelled draft pull request with no agent — before it reports success. Every part of a setup can pass its own check while the whole cannot run a task, and that failure is otherwise found by the first real piece of work, when nobody is watching.
 
 ## What the leader can route afterwards
 
@@ -21,7 +21,7 @@ A workflow for every kind of work a project meets, each with a role skill that s
 | Build | feature implementation · bug fix · **hotfix** · **refactor** · **migration** · **observability** · **localisation** · dependency maintenance · docs maintenance |
 | Test | testing and verification · **UI tests** · **integration tests** · **regression suite** · **performance** · QA · **acceptance verification** |
 | Review | code review · **security review** · address review findings |
-| Ship | integration · root-sync · release prep · release · **deploy and rollback** · issue triage |
+| Ship | integration · root-sync · release prep · release · **deploy and rollback** · issue triage · issue filing |
 
 The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves rollback), performance and localisation — are installed everywhere and run only where you have said something first: a deploy or rollback environment, a budget, a locale. With an empty list they refuse in their first seconds and say why, before any dependency is installed.
 

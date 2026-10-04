@@ -1,0 +1,28 @@
+{
+  "name": "both-changed-compatible",
+  "situation": "Both changed, compatible: the owner added a project rule at the end of a role skill; 3.1.0 changed a different paragraph of the same file. The change is registered and confirmed.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/skills/xezar-research.md",
+      "append": "\n## Project rule (LP-1)\n\nCite the internal research wiki (docs/research/) before any web source, and link the page you used.\n"
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – research cites the internal wiki first\n- Files: .xezar/skills/xezar-research.md\n- Reason: our research lives in docs/research/ and web sources go stale\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n",
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
+}

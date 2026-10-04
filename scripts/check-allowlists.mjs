@@ -82,6 +82,21 @@ if (!yarnLine) {
   }
 }
 
+const npmLine = /^npm_allow="([^"]*)"/m.exec(lint);
+if (!npmLine) {
+  problems.push("scripts/lint.sh no longer defines npm_allow -- this binding needs updating");
+} else {
+  const inShell = npmLine[1].trim().split(/\s+/).filter(Boolean).sort();
+  const inJson = Object.keys(data.npmLiteral?.entries ?? {}).sort();
+  if (JSON.stringify(inShell) !== JSON.stringify(inJson)) {
+    problems.push(
+      "scripts/lint.sh npm_allow does not match allowlists.json npmLiteral.\n" +
+      `  lint.sh:        ${JSON.stringify(inShell)}\n` +
+      `  allowlists.json ${JSON.stringify(inJson)}`,
+    );
+  }
+}
+
 if (problems.length) {
   for (const p of problems) console.error(p);
   console.error(`\nallowlists: ${problems.length} problem(s)`);

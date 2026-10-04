@@ -146,6 +146,10 @@ In order:
 - **Step 9** — `references/control-skills.md`.
 - **The tree and the gates.** The working tree is clean, and the confirmed gate commands pass
   when run here, one at a time. An engine that dirties the tree by starting is a finding.
+- **The manifest still matches the tree.** `node .xezar/checks/manifest-drift.mjs` prints
+  `drift-status=pass`. A `drift=` line after the merge means a tracked file changed after the
+  setup recorded it — report the line as a finding; never re-hash to make it pass
+  (`.xezar/docs/local-patches.md` says how a deliberate change is recorded).
 - **The launcher.** It parses (`bash -n`) and it exports `XEZAR_LEADER=1`. This session may never
   have used it — a session launched by hand with the same flag is just as attached to the engine,
   but it is the leader **only** if it also set `XEZAR_LEADER=1` — so say plainly that
@@ -156,7 +160,7 @@ In order:
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
 on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
-`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · connection state
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 

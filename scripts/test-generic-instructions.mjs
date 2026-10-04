@@ -4,6 +4,9 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, symlinkSyn
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check, inspect, skills } from './check-generic-instructions.mjs';
+import { requireSymlinks } from './lib/test-harness.mjs';
+
+requireSymlinks();
 
 const rejected = [
   'Copy /Users/owner/Projects/xezar/SDLC.md into your project.',

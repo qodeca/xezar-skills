@@ -1,0 +1,27 @@
+{
+  "name": "unexplained-edit",
+  "situation": "Unexplained edit (D11): the owner added a checklist line to the pull-request template (not a safety file) and never registered it.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".github/pull_request_template.md",
+      "append": "- [ ] Screenshots attached for any UI change\n"
+    }
+  ],
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
+}

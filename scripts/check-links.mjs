@@ -24,6 +24,7 @@
 import { readFileSync, existsSync, statSync, globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve, posix } from "node:path";
+import { toPosixPath } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,12 +35,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // checker passes, which is the one thing a vendored copy must not do.
 const isKit = (p) => /^skills\/[^/]+\/kit\//.test(p);
 
+// Every path is written with "/" before anything reads it (#122): on Windows the glob returns
+// "skills\x\SKILL.md", which the `skills/` test below never matched, so no reference path was checked.
 const FILES = [
   ...globSync("*.md", { cwd: root }),
   ...globSync("docs/**/*.md", { cwd: root }),
   ...globSync("skills/**/*.md", { cwd: root }),
   ...globSync(".xezar/**/*.md", { cwd: root }),
-].filter((p) => !isKit(p.split("\\").join("/"))).sort();
+].map((p) => toPosixPath(p)).filter((p) => !isKit(p)).sort();
 
 /** GitHub's heading slug: lowercase, drop punctuation, spaces to hyphens. */
 function slug(heading) {
@@ -145,6 +148,9 @@ for (const rel of FILES) {
     }
   }
 }
+
+// A pass that checked no reference path proved nothing: the skills scan matched no file.
+if (refs === 0) problems.push("no backticked reference path was checked in skills/ – the scan matched no file, so this check proved nothing");
 
 if (problems.length) {
   for (const p of problems) console.error(p);

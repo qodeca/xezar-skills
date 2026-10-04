@@ -2,8 +2,10 @@ name: lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
+  # The develop branch merges through a merge queue, which runs required checks on this event.
+  merge_group:
 
 # Least privilege. This workflow only reads the tree and runs offline checks; it
 # writes nothing back, so nothing beyond `contents: read` is granted. Without this
@@ -21,9 +23,10 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    # Every check here is offline. The guard suite re-runs the gates once per deliberate
-    # defect and takes about ten minutes; a job still running after twenty is hung, not
-    # slow, and should fail rather than hold a runner.
+    # Every check here is offline and the whole list runs in a few minutes. The guard suite
+    # (scripts/test-guards.mjs) is not here: it runs nightly from nightly-guards.yml. A job
+    # still running after twenty minutes is hung, not slow, and should fail rather than hold
+    # a runner.
     timeout-minutes: 20
     steps:
       # Pinned by commit sha, not by tag: a tag is mutable, so `@v4` means "whatever
@@ -59,6 +62,8 @@ jobs:
         run: node scripts/check-links.mjs
       - name: Gate-list binding (config, workflow, SDLC, package scripts)
         run: node scripts/check-gate-list.mjs
+      - name: Changed-files map for the quick local check (T0)
+        run: node scripts/check-gate-map.mjs
       - name: Label taxonomy recorded as data
         run: node scripts/check-label-taxonomy.mjs
       - name: Kit facts
@@ -73,9 +78,48 @@ jobs:
         run: node scripts/test-compat-pins.mjs
       - name: Allowlist shape, owners and expiry dates
         run: node scripts/check-allowlists.mjs
-      - name: Guard suite (every gate broken on purpose)
-        run: node scripts/test-guards.mjs
+      - name: Upgrade tool classifies, applies and verifies the committed fixtures
+        run: node scripts/test-upgrade.mjs
       - name: Generic instruction content (P6 skills and all companions)
         run: npm run check:generic-instructions
       - name: Generic instruction guard rejection and control cases
         run: npm run test:generic-instructions
+
+  # Cross-platform signal (#122). A NEW, non-required job: branch protection reads the `lint`
+  # check above by name, so it is not renamed or folded in. Windows and macOS on Node 22 (the
+  # floor) and lts/*, informational (continue-on-error, fail-fast off) until the Windows runs are
+  # proven stable. One step runs every command in .xezar/pipeline/config.json, so this job cannot
+  # drift from the gate. 90 (Windows) and 30 (macOS) minutes are set before any hosted run, with
+  # room for a slow hosted Windows runner – replace them with measured values after the first runs.
+  cross-platform:
+    name: Cross-platform gate (${{ matrix.os }}, Node ${{ matrix.node }})
+    if: github.event_name != 'merge_group'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, node: '22', timeout: 90 }
+          - { os: windows-latest, node: 'lts/*', timeout: 90 }
+          - { os: macos-latest, node: '22', timeout: 30 }
+          - { os: macos-latest, node: 'lts/*', timeout: 30 }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Worktrees and node_modules nest deep. Set before checkout so the checkout uses it too.
+      - name: Allow long paths in Git (Windows)
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Tools the kit scripts need
+        run: jq --version
+      - name: Every validation command, up to four at once
+        run: node scripts/run-gate.mjs

@@ -154,8 +154,34 @@ a guard failing for an unrelated reason would otherwise count as a pass.
 
 It mutates real tracked files and restores them in a `finally`, then compares `git status`
 against a snapshot taken before the run, so a contributor's own work in progress is not
-mistaken for a mutation the suite failed to undo. The cost is honest: it runs `lint.sh`
-about ten times, so it is the slowest entry in the gate list.
+mistaken for a mutation the suite failed to undo. The cost is honest: it re-runs the gates
+once per deliberate defect, so it is the slowest check in the repository — slow enough that it
+left the per-PR gate (next entry).
+
+## The guard suite runs nightly
+
+**Owner: Marcin. Decided 2026-09-27.**
+
+`scripts/test-guards.mjs` is no longer in `validation.commands` or `lint.yml`. It runs once a
+night on `develop` from `.github/workflows/nightly-guards.yml`, and a failure opens – or comments
+on – one "Nightly guard suite failed" issue. It stays in `package.json` as `test:guards`, opted
+out of the gate in `scripts/allowlists.json` with this reason.
+
+**Why.** The suite had grown to about twenty-five of the roughly thirty minutes every PR spent in
+CI, and it grows with every guard. Sharding it across runners was the alternative; the owner chose
+nightly, because sharding keeps the cost on every PR and adds a matrix to maintain, while the
+suite's findings are rare and not urgent to the minute.
+
+**What it costs.** A PR can now land a guard that no longer fires – or break an existing one – and
+nobody learns it until the next morning's run, after the merge rather than before it. The rule
+that every guard needs a deliberate-break case stays; only when the case runs has changed.
+Anyone adding or changing a guard can still run the suite by hand (`npm run test:guards`); it
+works in private copies of the tree, so it runs beside the gate. Your edits made before it starts
+are tested with it; a change to the checkout's `git status` while it runs fails the run ("The
+guard suite runs fast").
+
+Scheduled workflows fire only from the default branch, so the nightly run starts once this file
+reaches `main` with the 3.1.0 release.
 
 ## The label taxonomy is data, not memory
 
@@ -1172,8 +1198,9 @@ not an e2e tool: `ui-tests` and `regression-suite` keep the project's own runner
 real: an MCP server runs outside every runner sandbox, so the browser reaches the operator's files
 and network, and `take_screenshot` writes wherever it is told, even from a reading step. The limits
 are three. The tool list: exact `mcp__chrome-devtools__<tool>` names in the browser workflows (Codex:
-`enabled_tools`, which applies to every Codex step, not only those), never `upload_file`,
-`evaluate_script` or a wildcard. The pin: one exact version, `--isolated --headless`, never
+`enabled_tools`, which applies to every Codex step, not only those), never a wildcard, and
+`upload_file`, `evaluate_script` and the other review-only tools only in the review and QA
+workflows ("Reviewers run the change" below). The pin: one exact version, `--isolated --headless`, never
 `@latest`. The guard: `config-guard.sh browser --from-base`, run by `repository-checks.sh`, refuses
 any change to an entry the base branch already carries. `test-kit-facts.mjs` FACT 23 pins all three.
 Codex also needs `default_tools_approval_mode = "approve"`: the engine runs it with approvals set to
@@ -1206,3 +1233,560 @@ same trust a branch's scripts already get, not a wider one, and the install runs
 steps (setup and the gates), never in a reading step. Yarn 2 or later is refused by name: its
 flags, lockfile and install layout are a different tool.
 `scripts/test-deps-units.mjs` pins the base-branch read, the flags and the stale cases.
+
+## Reviewers run the change, and a verdict needs the tree they found
+
+Owner decision D13 (3.1.0, replacing #63's read-only QA): every review and QA step – code,
+security, architecture, design review, QA and acceptance – may run the change it judges and holds
+every `chrome-devtools` tool, `evaluate_script` included. A review that can only read the diff
+passes what it cannot see, and a QA step told to test a URL someone else started tests whatever
+happens to be running there.
+
+What it still cannot do: edit or write a file (no Edit, no Write), or run a git or gh command that
+writes – its shell is the reading set plus `review-run.sh`, which refuses git, gh, shells and
+wrappers and runs only in the run's own worktree. What a verdict needs: `verdict-write.sh` runs
+`review-run.sh finish` before a packet, so a review that moved HEAD or changed a tracked file has
+no verdict. QA and design review may move their own labels (`qa-approved`/`needs-qa`,
+`design-approved`/`needs-design`) through `gh-write.sh`, only for the PR's current head, only
+after checking that head out, and only on an unchanged tree. The browser stays `--isolated
+--headless`, so its profile holds no session of the operator's.
+
+Four bindings keep that honest (3.1.0 review):
+
+- **The role is the step's, not the request's.** `gh-write.sh` reads the step's `verdictRole` from
+  the run's frozen workflow definition in the engine's runs index (`.local/xezar/runs.json`, a
+  top-level array the engine owns, by the worktree's run id and `XEZ_STEP_ID`) and refuses a verdict
+  request for any other role. A code-review step declares `code-review`, and security, architecture
+  or acceptance steps declare no qa or design-review role, so they move no approval label; an
+  unreadable index refuses. A gate label is lifted only together with its approval label.
+- **What the review starts gets no git or gh credentials.** The program-name list in
+  `review-run.sh` is a courtesy – `node -e`, `make` or a test suite can start git all the same – so
+  `install`, `run` and `start` replace `GH_TOKEN`/`GITHUB_TOKEN` (and the enterprise pair) with a
+  refused value, point `GH_CONFIG_DIR` at an empty directory, clear every git credential helper
+  (an empty `credential.helper` from the environment), make askpass and prompts fail, and drop the
+  SSH agent and ssh command.
+- **A rewritten head record is caught.** The started code can rewrite `<evidence>/review/head`, so
+  `verify-unchanged` also asks GitHub, with the script's own credentials, whether the recorded
+  head is a commit of the recorded PR; a head the review made locally is not. A removed record
+  after a checkout fails as well.
+- **The review runs its own kit, not the pull request's.** Checking a PR head out replaces the
+  tracked `.xezar/checks/` with that head's copies: missing on a PR branched before the project
+  took 3.1.0, older, or changed by the PR itself – and a changed `gh-write.sh` would run with the
+  step's own gh credentials. So the kit step (`lib/bootstrap.mjs`) writes a fresh copy of the
+  primary checkout's `.xezar/checks/` to `.local/xezar/cache/kit/checks/` in the task worktree,
+  outside the tracked tree, and a review step's `bashAllowlist` names only those copies
+  (`catalog-check.mjs` refuses a `bash .xezar/checks/` entry there). Git overwrites an ignored file
+  on checkout, so `review-run.sh checkout` refuses a head that tracks anything under
+  `.local/xezar/cache/kit/`, returns to where it was and copies the scripts again. Not chosen:
+  calling the primary checkout's scripts directly. An allowlist entry is a literal prefix – the
+  engine's lock refuses a `$` or a substitution – so it would be `../../../../.xezar/checks/…`, and
+  pi's worktree guard refuses a command naming a primary-checkout path outside the worktree.
+
+**Where a reviewer cannot run the change (3.1.0 review).** A checkout writes the worktree's own git
+directory and the primary checkout's shared one, and both lie outside the task worktree. Engine
+0.19.0 runs a Codex step with no Edit and no Write in `workspace-write` whose only writable roots
+are the worktree and `additionalDirectories` (the run's evidence, handoff and temp folders), so
+there `gh pr checkout` fails – seen live under `codex sandbox -P :workspace`: "Operation not
+permitted" on `.git/worktrees/<id>/index.lock` and `FETCH_HEAD`. That reaches every reading row
+with a Codex lane (`security-review`'s `codex/gpt-6-astra`, `acceptance-verification`,
+`browser-qa`, the design rows); Claude and pi lanes are not confined this way. Chosen, as the most
+reversible option: `review-run.sh checkout` probes both git directories first and exits 3 with
+`review-run=confined`, and the review roles judge from the diff and name it as an evidence limit.
+A QA or design-review verdict label needs the checkout, so on such a lane it is refused and the
+role says so. Not chosen yet: a trusted checkout step before the review step, or asking the engine
+to add the git directories and the package-manager cache to a reading step's writable roots –
+either would let a Codex reviewer run the change, and either is a larger change than this review.
+
+The cost, named: running a pull request's code means running whatever it does, with the operator's
+user rights – the tool list is not the boundary once `npm test` runs, and withholding credentials
+from the environment is not a sandbox. A program written for it can still read what that user can
+read, a credential store (the keychain, `~/.config/gh`) included, reach the network, rewrite the
+engine's runs index, or remove the review's own state. What the bindings do guarantee is narrower
+and real: the reviewer agent itself cannot claim a role its step does not declare, and git or gh
+started the ordinary way by the review's commands cannot push, merge or label. That is the trust a
+writing step's gates already give the same code; a reviewer now gives it too. `SECURITY.md` lists
+it as accepted. `scripts/test-kit-catalog.mjs` runs `review-run.sh`, the verdict labels, the role
+binding, the credential withholding, the head-record check, the verdict refusal and a PR head
+whose own `.xezar/checks/` is missing or tampered;
+`test-kit-facts.mjs` FACT 23 pins the tool lists.
+
+## Reviews fall to DeepSeek when Claude has no budget
+
+Owner decision (#89). Several projects run at once, and the Claude and Codex subscription quotas
+run out fast – Claude first. The shipped routing now divides much more work between two DeepSeek
+models on pi: `pi/deepseek-api/deepseek-flash` first in the simple rows, and a new lane,
+`pi/deepseek-api/deepseek-v4-pro`, first in the mid-size writing rows, after the Codex lanes in
+the Opus-first rows, and last in every review row that is not a screen row. V4 Pro has no image
+input (pi lists `images: no`), so it is in no screen row; Flash, which has vision, is the
+no-Claude fallback there. Work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
+`codex/gpt-6-astra`.
+
+Three bans relax, each as far as that needs and no further:
+
+- **`tool-limits`.** It kept every lane whose runner does not hold a reader read-only out of
+  reading and security rows, so a reviewer could not change what it judged. A lane marked
+  `fullShellReviews` may now judge in a review row or a security row that only reads; `route.mjs`
+  refuses the mark on a cheap, local or advisory-only lane and still keeps such a lane out of every
+  other reading row and every security row that writes. Given away: a V4 Pro review runs with a
+  full shell until pi's read-only lock is proven live (qodeca/xezar#935), so it could edit files,
+  commit or push while it reviews.
+- **`pi-write-claude-review`.** It gave pi-written work a Claude review before merge, so a model of
+  another vendor always read it. That work may now be cleared by `codex/gpt-6-astra` when Sonnet
+  has none. Given away: the guarantee that a Claude model read every pi-written change. A DeepSeek
+  lane may review DeepSeek work another model wrote (see the next entry), but that review alone
+  still does not clear the merge.
+- **`high-risk-other-vendor`.** It asked for a reviewer of another vendor than the author's, and with
+  `tool-limits` that meant a Claude lane or Astra. When no Claude lane has budget, V4 Pro may now be
+  that reviewer of a risk-high change. Given away: the other-vendor review of risk-high work may
+  come from a reviewer that could have changed the tree it judged.
+
+Kept on purpose: `no-self-review`, `local-never-writes`, the security minimums, and the refusal of
+a verdict or an own label when the reviewed tree changed – that refusal is what turns a reviewer
+that edits into a review that fails instead of one that passes. Astra's reservation is not
+widened: with `--author`, `route.mjs` already offers it as an escalation-eligible lane after a
+row's own lanes, so only the merge rule had to name it.
+
+The off switch is per machine: remove the model from that machine's pi config. The leader's lane
+cache, written from `list_models`, then marks the lane unavailable and `route.mjs` drops it, so
+work falls back in row order – the same path a DeepSeek outage takes. There is no DeepSeek spend
+limit; step time limits (#52) stop a runaway task. `SECURITY.md` records the accepted risk.
+
+## A same-vendor reviewer is allowed on every row
+
+Owner decision (3.1.0 confirmations, #50, #89). Independence means a different model: `route.mjs
+--author` removes every lane that shares a model with the author chain, on every row, and removes
+lanes of the author's vendor only where `vendorExclusions` names that vendor (shipped: `anthropic`,
+because Claude declines to review Claude's work). Before, it also removed every same-vendor lane on
+security and release rows, and the docs said `never-author` banned the author's vendor. Now, when
+DeepSeek Flash wrote the work and Claude has no budget, DeepSeek V4 Pro may review it on every
+review row, security and release included. Given away: on those rows the second reader may share
+the author's vendor, its training and its blind spots. The off switch is data: name the vendor in
+`vendorExclusions`.
+
+## A widening rule in local settings warns
+
+A Bash rule in `.claude/settings.local.json` that widens a reading step's shell is reported as a
+`WARNING` by `catalog-check.mjs`, on that machine too, and never fails the check. The same rule in
+the committed `.claude/settings.json` still fails, and a browser grant outside the kit's
+chrome-devtools tool list, or one naming the whole server, fails in either file (#69, plan D10).
+
+The repository check has to give the same answer on every machine, and the local file exists on
+one: a project tool the owner allowed there kept the check red until the line was removed, although
+the file is not committed and the rule was the owner's own choice. The message says what to do
+instead – put a rule only the leader needs in `scripts/xezar-leader-settings.json`, which only the
+launcher loads, or narrow it to a reading prefix.
+
+**What is lost, and accepted.** The owner accepted this risk against the review's advice to block on
+that machine: a widened local rule is live for every Claude step there, and in an unattended run
+nobody may read the warning. **Open question:** #63 notes that a read-only step runs with
+`--setting-sources user`, so it may load no project or local settings at all. If the engine confirms
+that, the local-file risk is smaller than assumed; if it shows read-only steps do load
+`settings.local.json`, revisit this decision.
+
+## Repair pushes pass one check
+
+A repair (`address-review-findings`, conflict repair) used to push its fix to the pull request's
+branch from inside the agent step, before any gate, and record the push as `DELIVERED`; the gates
+then checked the run's own, unchanged branch. Now the repair moves its own `xez/<id>` branch onto
+the PR head and commits there, so readiness, the gates and the seal judge the real fix, and the
+handoff pushes it only through `.xezar/checks/push-check.sh`. That script refuses unless HEAD is the
+sealed commit (`verify-evidence.sh --require-current`), the PR is open and in this repository, the
+target is its head branch, the target is not HEAD, `main`, `master`, `release/*`, the configured base
+or the PR's base, and the push is a fast-forward or a lease on the fully qualified ref. Readiness
+refuses a `DELIVERED` record.
+
+The first design (the wave-1 note on #54) added a leader-written repair-target record with a claim,
+a `start-repair` script, a `deliver` workflow step and a branch config key. The owner chose this
+lighter version (D12): one check covers the failures actually seen – ungated code on a PR – with no
+new state, step or key. What it does not cover: two runs repairing the same PR at once (no claim),
+and a process running as the same OS user pushing by other means (the check is an instruction the
+kit follows, not a permission the engine enforces). Closing either needs an engine-issued,
+run-scoped grant. `SECURITY.md` lists the limit; `scripts/test-kit-facts.mjs` FACT H1 runs the
+script and `scripts/test-guards.mjs` breaks each refusal.
+
+Moving onto the PR head also puts the PR's own `.xezar/checks/` in the worktree, and readiness,
+the gates, the seal and the push all run from there. On a PR branched before the base changed
+those scripts, that is an older kit, which the workflow's newer commands and evidence format
+refuse. So when the base changed `.xezar/checks/` after the PR branched, the repair merges the base
+into the PR's branch first, the same merge a conflict repair makes (3.1.0 review). Not chosen:
+running the repair's gates from the kit step's copy as a review does – the gate list names
+`.xezar/checks/` scripts by path and binds its id to them, and the gates are meant to judge the
+tree that will merge.
+
+## Why 3.1.0 is a minor release
+
+Checked against each protected surface in `BACKWARD_COMPATIBILITY.md` rather than assumed, as the
+1.5.0 entry did:
+
+- **Skill names and layout.** No skill is renamed, moved or removed; the release adds and changes
+  files only.
+- **The config file.** Three keys arrive – `designSystem.modules`, `changelog.format` and
+  `security.trustBoundaries` – and each has a meaning when absent that is exactly the old
+  behaviour. No key is removed or renamed and no default flips.
+- **Tracker, toolchain, security and browser contracts.** No operation is added, renamed or
+  changed. The chrome-devtools descriptor changes only its rules text, to say which workflows hold
+  the review-only tools (D13).
+- **Cross-skill file formats.** `.xezar/routing.json` grows additively (`vendorExclusions`,
+  `fullShellReviews`), and `route.mjs` prints new lines only when called with the new `--author`
+  argument; without it the output is byte-identical, pinned by a golden test. The shipped routing
+  defaults move to version 4 and the earlier versions stay under `references/routing-defaults/`.
+  The onboarding manifest version 2 is additive, and a manifest without `manifestVersion` is read as
+  version 1 and never enforced. The kit index, the upgrade plan and the `upgrade` machine block are
+  new formats.
+- **Labels and the installer.** The label taxonomy is unchanged; `package.json` gains three
+  scripts – `test:upgrade`, `test:platform` and `gate` – and loses none, and `lint` keeps its name
+  while it now starts bash through `scripts/run-bash.mjs`, so it also works from PowerShell.
+- **The fifteen ledger rows.** Fourteen are new refusals in kit checks and relaxed routing bans.
+  Kit content is fresh-install scope: an installed check never updates itself, so each refusal
+  reaches a project only when its owner copies the new file or runs the upgrade prompt, and each
+  row says what to do then. The relaxed bans reach a project only when it merges routing defaults
+  version 4. The fifteenth is onboarding's version stop: `xez-onboard-opinionated` now stops
+  where it used to write `version: "unknown"`. It fires only on a new onboarding run from a copy
+  of the skills with neither a release tag nor a commit id (a hand-copied folder); it never
+  touches a project already onboarded, whose manifest is not rewritten, and the saved interview
+  answers resume once the skills are installed from a release or a git checkout.
+
+So nothing here breaks an unmodified consumer repository on upgrade, and the version is 3.1.0,
+not 4.0.0.
+
+## The gate runs on native Windows
+
+**Owner: Marcin. Decided 2026-09-28.**
+
+All the validation commands pass on native Windows from Git Bash, or through npm from PowerShell
+or cmd (#122). Git Bash and jq are the only extra tools; Developer Mode is required, because the
+tests create real symbolic links and never skip them. Text is checked out with LF by
+`.gitattributes`, and the parsers and hashes also read a CRLF copy the same way. The tests find
+Git Bash from `git.exe` on `PATH` and never start WSL's `bash.exe`, which a stock Windows puts
+first. On Windows the tests adapt the environment rather than the kit: Git's tools first on
+`PATH`, `core.autocrlf=false` in the repositories they build, an LF-writing jq, and stubs started
+through Git Bash. That choice means no Windows test runs on an autocrlf checkout of its own
+fixtures; the explicit CRLF cases are what prove the CRLF tolerance. So a green Windows gate
+proves the kit's logic on Windows, not that the whole kit runs natively there. The Windows and
+macOS CI jobs are informational until their runs prove stable; the `lint` job on ubuntu stays the
+required check. How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
+
+The stubs need one patch to Node itself, and its reach is kept narrow. On Windows only,
+`prepareTestPlatform()` (`scripts/lib/test-harness.mjs`) wraps `spawn`, `spawnSync`, `execFile` and
+`execFileSync` of `node:child_process` in the test's own process; a test hands the same wrapper to
+one child at a time through `NODE_OPTIONS` (`stubSpawnEnv()`). It changes two kinds of call and
+passes every other through untouched: an extensionless stub in a folder the test marked
+(`.stub-spawn`) is started through Git Bash, and a start of Git Bash or Git's `sh` gets its command
+line quoted for the MSYS runtime. A call that sets `shell` or `windowsVerbatimArguments` is never
+changed. No kit file, no `upgrade/tools` file and no maintainer entry point loads it: `run-gate.mjs`
+and `run-bash.mjs` quote their own Git Bash start through `spawnGitBash()` in
+`scripts/lib/platform.mjs`. Changing every test's spawn calls instead would have touched far more
+lines, and left each new test to remember the rule.
+
+The permission cases deny access with an ACL entry, and an administrator's backup and restore
+privileges read and write through any such entry: an MSYS program enables both when it starts and
+its children inherit them, so on GitHub's Windows runners, which run as an administrator, Node and
+Git Bash went straight through while `git.exe` was refused. `restrict()` therefore removes those two
+privileges from the test process before its first deny entry, for the rest of that process. An
+account that holds neither is unchanged, and no case is skipped or asserts something else when
+elevated.
+
+Three parts of the kit runtime were made to work natively in the same change: the kit's shell
+library reads Git for Windows paths and keeps Git Bash from rewriting `origin/<base>:<file>`
+arguments; the gate scheduler runs its workers in Git Bash and stops them on Windows the way the
+engine does (the whole process tree, each process checked by its start time before it is killed,
+never `taskkill /T`), plus the processes an MSYS `exec` leaves under a parent that has already
+exited; and the leader launcher finds an engine that listens on a named pipe (next entry).
+
+**Native-runtime gaps left (#122, second run).** The second run fixed the kit's other native gaps
+("The kit's checks run on native Windows, in Git Bash", below). What is left is hardening, or
+belongs to the engine:
+
+- `ghLogin()` in `kit/checks/route.mjs` – `execFileSync("gh")` starts only a `gh.exe`; a `.cmd`
+  shim fails silently, and the login reads as empty.
+- A bare `git` or `gh` in the kit's `.mjs` files is looked for in the working folder first on
+  Windows, so a `git.exe` committed to a project would run there. The class is older than #122 and
+  wider than it: tech debt.
+- The upgrade tool reads a kit file's executable bit from its own clone's git index. A kit copy git
+  does not track falls back to `lstat`, which finds no executable bit on Windows; the prompt
+  requires a verified git clone, so only the tests reach that fallback: tech debt.
+- A `du` fallback and the browser descriptors' URL escaping, which the readiness audit named as
+  hardening, not function.
+- The engine: Codex and pi tasks start through a `.cmd` (qodeca/xezar#963 phase 2b), and check steps
+  need Git Bash and the leader's MCP bridge a named pipe (phase 3); both need an engine release, and
+  the pipe contract is still a draft (next entry).
+
+#122 closed when the second run's pull request (#125) merged; the engine part stays in
+qodeca/xezar#963.
+
+## On native Windows the leader launcher reads the engine's pipe markers – a draft contract
+
+**Owner: Marcin. Decided 2026-09-29.**
+
+On native Windows the engine cannot give the launcher the socket file it looks for in
+`.local/xezar/ipc/`: it will listen on a named pipe, and a pipe is not a file in that folder. The
+contract the launcher follows is a **draft** from the engine's Windows work (xezar #963, phase 3),
+not yet final or built there: the pipe is `\\.\pipe\xezar-mcp-<32 hex digits>`, random for each
+start; the engine names it, alone on one line, in `.local/xezar/ipc/<id>.pipe` and removes that
+marker when it stops cleanly. Under Git Bash or Cygwin (`OSTYPE` starts with `msys` or `cygwin`,
+the one Windows test every kit script uses) and with no socket there, `scripts/xezar-leader.sh`
+reads the markers as data – only a name of that exact shape counts, and nothing in a marker is
+run – and counts a pipe as live when node connects to it within a second (bash cannot open a
+pipe). A stale marker is skipped and never deleted, since the engine replaces its own; with two
+live pipes the newest marker wins and the launcher warns.
+
+The owner chose to build this in 3.1.0 against the draft rather than wait: a consumer on Windows
+gets a launcher that is ready when the engine is, and Linux and macOS keep the socket path
+untouched. The cost is that a different final contract means a new launcher, which every project
+copies again by hand – UPGRADE_NOTES entry 14 says so. `scripts/test-kit-catalog.mjs` §10 runs the
+launcher against real named pipes on Windows and against the same names bound as socket files
+elsewhere, so the rule is checked on every OS; `scripts/test-guards.mjs` breaks the name check and
+the stale-marker skip.
+
+## The kit's checks run on native Windows, in Git Bash
+
+**Owner: Marcin. Decided 2026-10-01.**
+
+The kit's checks now run natively on Windows in Git Bash (#122, second run); the engine part stays
+in qodeca/xezar#963. On Linux and macOS the checks behave as before apart from the Node floor;
+three changes there are deliberate: executable bits set in git, the upgrade verifier's own Node,
+and the nvm picker reading `NVM_HOME`.
+
+- **Two Windows modules.** `kit/checks/lib/windows-process.mjs` keeps its one job, the gate
+  scheduler's process tree, and exports its `PATH` helpers. The new
+  `kit/checks/lib/windows-programs.mjs` finds a program by `PATHEXT`, finds Git Bash, and plans a
+  `.cmd` start. `route.mjs`, `lib/deps.mjs` and `documented-output.mjs` load it with a Windows-only
+  import. Its functions take an injected `exists`, so the Windows rules are tested on every OS.
+- **The upgrade verifier loads the clone's own kit copy of that module.** It already runs the kit's
+  scripts from the same clone, and it still never imports `scripts/lib`. A lazy import would have
+  made `verify()` asynchronous for no gain.
+- **The upgrade verifier starts its Node checks with the Node that runs it, on every OS:** a bare
+  `node` is looked up in the project first on Windows, and everywhere the checks run on the
+  tool's Node.
+- **A `.cmd` starts through `cmd.exe` with checked text only.** Node refuses a `.cmd` without a
+  shell (CVE-2024-27980). `launchPlan` refuses a shim path or an argument holding a `cmd.exe`
+  metacharacter, a UNC working folder and an odd `SystemRoot`, and sets
+  `NoDefaultCurrentDirectoryInExePath=1`, so the bare `node` npm's shim starts is never a
+  `node.cmd` committed to the unit's folder. A program that is not found is an `ENOENT`, never a
+  start by bare name.
+- **jq's CR, jq 1.6 included.** No `--binary`, which jq 1.6 lacks. A token read drops the CR with
+  `tr -d '\r'` (`drop_jq_cr`); free text goes through `@base64` and `base64 --decode`
+  (`jq_string_bytes`), both in `lib/common.sh`, so a CR inside a comment body survives and none is
+  added. Git Bash and Cygwin only; elsewhere both reads are today's. A single `$(jq -r …)` value
+  needs nothing, since Git Bash's command substitution drops jq's trailing CR (probe: Git Bash
+  5.3.15, jq 1.8.2); only reads of several lines keep it.
+- **MCP stays a plain `npx`.** Claude Code 2.1.286 and Codex 0.157.1 start it on Windows. A
+  `cmd /c` wrapper would break the Linux and macOS members of a mixed team, and a question at
+  onboarding to choose between the two forms is no longer needed.
+- **Executable bits are set in git, on every OS:** `chmod +x`, then `git add`, then
+  `git update-index --chmod=+x`. `update-index` alone leaves a POSIX file dirty, and the next
+  `git add` takes the bit away again. Onboarding runs it on a list a gate fact derives from git's
+  modes. The upgrade tool reads the kit's modes from its own clone's index, never a project's, and
+  prints an `executable=` line for each; the kit index format is unchanged.
+- **Node 22 for everyone.** Node 20 left support in April 2026. The kit's two Node checks and its
+  worktree doc say 22, with no `engines` field. The npm toolchain descriptor keeps "Node.js 18",
+  npm's own floor: moving it would move a digest pin for no change in behaviour.
+- **One nvm picker.** `nvmBin` looks in `%NVM_HOME%` (nvm-windows, only when it is an absolute
+  path), then in `$NVM_DIR/versions/node`, newest version first. With no `NVM_HOME` it behaves as
+  before. `NVM_HOME` is read on every OS so the Linux gate proves the nvm-windows layout; only
+  nvm-windows sets it.
+
+## lint.sh finds in bulk and reports with its per-file code
+
+**Owner: Marcin. Decided 2026-10-03 (#123).**
+
+Each per-file check in `scripts/lint.sh` reads all its files in one bulk pass that only flags the
+files that could hold a finding; the per-file code that was there before runs for the flagged
+files alone and prints every message, so stdout, stderr, exit code and line order stay
+byte-identical. A green run starts 62 programs instead of 7,981, still 62 with a hundred more
+files; at about 0.1 s a start on Windows, a full run there went from about 360 to 8 seconds.
+
+In the pattern checks `grep` and `sed` still decide every hit and `awk` only copies, splits and
+counts, so mawk, gawk and BWK awk never decide one. The frontmatter check is the exception: there
+`awk` decides whether the first line is `---` and whether the override line is present, and hands
+a skill it cannot read faithfully (a CR, a file it cannot read or size) to the per-skill reads. A
+twin case in `test-onboarding-content.mjs` keeps the two reporting alike.
+
+Three conditions keep every file with a finding flagged. Two are held at run time: the stream
+holds a file's bytes exactly (awk's byte count against `wc -c`; any CR flags the file, because Git
+Bash's awk, sed, grep and `$( )` each drop one in their own way), and a probe flags the binary,
+encoding-error and empty files on which `grep -a` and the per-file `grep` could disagree. The
+third, a line-local strip expression, is a review rule: the header of `lint.sh` states it and
+nothing checks it. A bulk pass that fails in any way – no temp folder, a file it cannot write or
+read, an exit status, a line of stderr – flags every file.
+
+The proof is a golden comparison of old against new, byte for byte. On Windows (Git Bash, gawk,
+GNU grep and sed, both locale forms) every run was identical. The Linux cells (mawk, gawk and BWK
+awk, each in two locales) and the macOS cells (BSD grep, sed and wc, bash 3.2, two locales) were
+identical too (#123 proof run 37149212138, 2026-10-03). Accepted edges, absent from the tree: non-ASCII
+whitespace after `name:` or `description:`, a NUL or encoding error past grep's first 32 KiB of a
+file, a NUL in a frontmatter or a reference's first line (bash's warning names a line of
+`lint.sh`), and invalid UTF-8 in a frontmatter under BSD sed. A failing file costs its starts.
+
+## The guard suite runs fast
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+A guard case re-runs only the part of a test that owns its message. `test-kit-facts.mjs`,
+`test-kit-catalog.mjs`, `test-upgrade.mjs` and `test-deps-units.mjs` declare named sections
+(`scripts/lib/sections.mjs`) and take `--only <id>`; the 269 break cases that re-ran one of them
+whole now name their ids (`facts("H1")`, `catalog("D-review")`), found by a one-off mapping and
+proved by the full guard run. `node scripts/test-guards.mjs --list` prints every case's command without running it,
+and every run ends with seconds per gate and the ten slowest cases. A targeted run says it is never
+a gate result: the gate and CI run each test whole, with no flag.
+
+No check can fall out of a filter's reach. `section()` throws on an id that is not declared; a full
+run fails when a declared section never ran; a targeted run fails when a selected section ran
+nothing; and a section that reads another section's state does so through `require()`, which throws
+when that section did not run – so a missing `needs` entry is an error, never a quiet read of
+nothing. Where a test counts its checks, a targeted run also fails when a selected section made
+none, unless the test names that section in `mayBeEmpty` with the reason (the upgrade test's
+real-install snapshots, the deps-units real-tool run). A break case that names the wrong section
+fails ("not for this reason"). Eleven break cases hold these rules. `XEZ_DEPS_TEST_ONLY=53` is now `--only 53-tree --only 53-single`, and any other
+value exits 2 instead of running everything.
+
+**What it costs.** Sections that share state must say so: the upgrade test's §3 installs feed six
+later sections, and the deps-units freshness group reuses the units group's fixture, so those pay
+for their prerequisite. A check written outside every section runs in every targeted run – slower,
+never skipped – and only review keeps new checks inside one; a source scan was rejected because the
+tests hold shell scripts in template literals. Ids are written by hand in two places, the test and
+the case, and a renamed id fails the cases that name it until they follow.
+
+Measured on the #122 Windows PC, where a case used to re-run its whole test (113 s for the facts,
+292 s for the catalog, 186 s for the upgrade and 461 s for the deps-units test): a case that reads
+text now costs under a second, a routing case about 2 s, an upgrade case that needs §3 about 26 s,
+and the costliest, the catalog's review-run fixture, about 138 s. The serial suite there is
+projected at about 83 minutes, from about 16 hours. On GitHub's Linux runner it took 78 minutes
+before and about 7 minutes after (347 defects, #123 proof run 37173550029, 2026-10-04). On GitHub's
+Windows runner it took about 44 minutes (run 37170431172, before the last three cases were added),
+with the two cases known to miss there, #89 and #335.
+
+**Part 2 – workers in private copies (#123).** The suite runs its cases on several workers, each in
+a private copy of the tree. `scripts/lib/tree-copy.mjs` makes the copy a detached git worktree of
+the checkout's HEAD that carries the checkout's own index, unstaged edits and untracked files that
+are not ignored (a nested repository whole), so `git status` reads the same there and the work in
+progress at the start is what gets tested; a change to the checkout's `git status` during the run
+fails it. A run keeps its copies in one folder that mkdtemp makes under the temp folder
+(`guards-<pid>-XXXXXX`), so no other user can predict the path or plant something there first.
+The checkout's files and index are never written; only the suite's own `.git/worktrees/` entries
+are added and removed – never a global `git worktree prune`, which would drop the entries of your
+own worktrees whose folders are offline – and a removal refuses a link and any path outside the
+run's folder. A worker takes its copy's path from argv only, refuses to start unless it was forked
+with a path inside the temp folder and apart from the checkout, and checks every write against its
+copy; on Ctrl+C it is stopped together with every process it started. The lock is gone: two runs
+can share a checkout. The worker count is `--workers N`, else `XEZ_GUARD_WORKERS`, else the
+smaller of 4 and the CPU count.
+
+A case whose gate runs a section its test declares exclusive – the facts test's scheduler fact
+(real processes, pid reuse, long waits) and the catalog's section 10 (named pipes, a socket) – runs
+in a last phase, alone, with every other worker idle; the list is read from the tests' own
+`--sections`, never kept twice. Two checks that raced the clock run in the pool instead: the facts
+test bounds the trust-pattern matcher in CPU time, and the catalog's review-run fixture starts a
+day-long sleep (it was 30 s, which a loaded machine could outlast, passing the probe however
+`finish` behaved) and stops it itself. The fixture's probe asks Git Bash's `kill`: on Windows the
+started command's pid is an MSYS pid that Node's `process.kill` cannot see, so until #123 the
+probe passed there whatever `finish` did. Failures print after the run in case order, whichever
+worker ran them, and one tree assertion covers every copy and the checkout, so the count stays
+cases + 1. Fifteen break cases hold these rules – the ordered printer, the exclusive phase, the
+narrowing variables, untracked files and the user's index in the copy, the containment check, a
+write outside the copy, a removal through a link or outside the run's folder, a stale-copy sweep
+that spares a live run, a worker that refuses the checkout and a folder outside the temp folder, a
+case that reaches a sectioned script only as `scripts/<name>`, a `finish` that stops what `start`
+started, and the shared-block test's copy –
+and the case that breaks "every command runs" now breaks the one scheduler both the gate and this
+suite use.
+
+**What it costs.** A copy per worker: about a second and 13 MB of temp space each on the #122
+PC. A crashed run leaves its copies behind until the next run starts, which removes the copies and
+leftover folders of dead runs only – never a live run's. A test that took the repository for a place
+outside the temp folder no longer may: `test-platform.mjs`'s `restrict` refusal now uses the temp
+folder itself, and the checkout only when it really lies outside. With four workers the suite took
+48 minutes on the #122 PC, from about 83 run one case at a time – four workers, but each case
+about twice as slow beside three others, because starting processes is what Windows does slowly –
+3 to 4 minutes on GitHub's Linux runner (four runs, #123 proof runs 37207062084 and 37210372022) and
+about 23 minutes on its Windows runner (run 37210372022, 360 defects; #89 and #335 miss there, as before).
+
+## The gate runs in parallel by default
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+`npm run gate` (`scripts/run-gate.mjs`) runs up to the smaller of 4 and the machine's CPU count
+commands at once – `--jobs N` (1–32) or `XEZ_GATE_JOBS` sets another number – and every command
+still runs in full: a failing command never stops the others, and a variable that narrows a test
+(`XEZ_DEPS_TEST_ONLY`, `XEZ_SECTIONS_*`) is removed from the commands' environment, so a value left
+in a developer's shell cannot shrink the gate. Each command's output is held back until every
+command before it has finished, then printed, so the log reads in list order; the table, its
+columns and the exit code are a serial run's, and one more line gives the job count and the wall
+time. `--jobs 1` is the serial run, each command writing straight to the terminal. The settings are
+a flag and a variable, never `.xezar/pipeline/config.json`, and no CI `run:` line changed: the
+required `lint` job still runs one named step per command, one after another.
+
+**Why.** The whole gate took about 19 minutes one command after another on the #122 Windows PC,
+against a target of 10 (#123). Most of that time is spent starting and waiting on processes, which
+overlap well. One gate command broke tracked files to prove its check fails –
+`test-shared-blocks.mjs` – so it now works in a temp copy of the generator and `skills/`, and no
+command running beside it can read a broken file.
+
+**What it costs.** A command's output appears only when the commands before it are done, so a slow
+command early in the list holds back the output of quick ones after it; their rows in the table
+are unaffected. Within one command, stdout and stderr keep their arrival order, which can differ
+from a terminal's interleaving – `--jobs 1` gives the exact terminal view. The guard suite's two
+exclusive sections run beside other commands in the gate: repeated beside a full default gate on
+the #122 PC, the facts test's scheduler fact passed 14 times of 14 and the catalog's section 10 14
+of 14 (GitHub's runners, two proof runs: no failure in 3 rounds on Linux and 8 on Windows). On a machine saturated on purpose – a busy
+loop on every CPU – the scheduler fact fails, parallel gate or not: the kit's own Windows
+process-table read gives up after 5 seconds. That is a known limit of the kit, outside #123, and its
+follow-up issue is #128. On GitHub's Windows runner the same saturation passed once and failed the facts test once in two proof runs; Linux passed both. Measured on the #122 PC: 763 s with the default four
+jobs (median of five runs, 757–773 s, each equal to the serial run) against 1,169 s with
+`--jobs 1`; on GitHub's Windows runner (4 CPUs) about 355 s against 723 s (median of five, each equal to
+the serial run; #123 proof run 37210372022). On the #122 PC that is not yet the 10 minutes #123 asks for: under four-way load each command runs
+slower (the deps-units test, the longest, went from 483 to about 690 s), and it alone sets the wall
+time.
+
+## Tiered gate: T0 selects, T1 never does
+
+**Owner: Marcin. Decided 2026-10-04 (#123).**
+
+There are two ways to run the gate, and only one gives a gate result. **T1** – `npm run gate`, the
+required `lint` job and the cross-platform job – runs every `validation.commands` entry in full: it
+reads no map, takes no narrowing flag or variable, and its runner (`scripts/run-gate.mjs`,
+`scripts/lib/gate-runner.mjs`) never imports the selection. **T0** – `npm run gate:changed`
+(`scripts/gate-changed.mjs`) – is a local shortcut. It takes the files changed since the merge-base
+with `origin/<baseBranch>` – committed, staged, unstaged and untracked; a rename counts both paths –
+and runs the cheap commands (`always` in `scripts/gate-map.json`), the commands the map's rules name
+for those paths, and lint on the changed files. It runs everything when it cannot tell: a path no
+rule maps, a path in the map's `everything` list (`lint.sh`, `scripts/lib/**`, the runner, the map,
+`package.json`, the pipeline config, the workflows, `.gitattributes`), a path with a control
+character, a map it cannot use, or a change set it could not compute, as on a fresh clone without
+`origin/develop`. A path is printed with its control characters escaped, so a file name cannot write
+to the terminal or the CI log as itself. After a deletion lint runs whole: with
+`--files`, the references and names checks read only the listed files, so a pointer left to the
+deleted file would go unseen. A changed file reaches lint as its own argument, never as shell text, and only a plain
+name does – letters, digits, `. _ @ + / -` and space, never a link; any other name, or more names than
+a Windows command line holds, runs lint whole. Inside lint a listed name stays one string too: it
+reaches `find` as one argument and a hit's prefix through awk's `ENVIRON`, never through a sed script.
+T0's first and last lines say it is never a gate result.
+
+The rules are derived, not guessed: every (file → gate) pair the guard suite's breaks name must
+select its gate – checked on every run – and every path a command's script and the modules it
+imports read through the repository root must select that command – a one-off check kept in the PR. Globs are the kit's own
+trust patterns, matched by the kit's matcher, so there is no third glob dialect.
+`scripts/check-gate-map.mjs`, a gate command, holds both tiers: every gate command is mapped and
+every command the map names is a gate command; every glob is valid and matches a file; a script's
+own change selects its command; `everything` holds `lint.sh` and `scripts/lib/**`; `package.json`'s
+`gate` runs `run-gate.mjs`; nothing `run-gate.mjs` or any gate command's script reaches through its
+imports – a re-export through another module included – names the map or the selection in a string
+(comments are free; a module the reader cannot read fails the check rather than passing), and
+`lint.sh` does not name them at all; no gate command, CI `run:` line or `env:` entry holds `--only`,
+`--files` or a variable the runner strips (one predicate in `gate-runner.mjs` for both, so a tuning
+variable such as `XEZ_DEPS_DIGEST_TIMEOUT_MS` stays allowed); and every guard case's file selects the
+gate that catches it. It also tests the selection on the real map and the module reader on the shapes
+it must not misread. Sixty break cases hold these rules – one per message of the checker, per
+fail-safe branch of the selection, and per place a file name could leave its one argument.
+
+**Why.** Fast local feedback without making CI depend on a selection that can be wrong. A wrong or
+missing rule can only make T0 miss what T1 then finds; it cannot weaken T1.
+
+**What it costs.** T0 can miss a dependency the map does not know – that is what T1 is for, and why
+T0 never calls itself a gate result. The map is one more place a new gate command must land
+(`check-gate-map.mjs` fails until it does), and a new script or top-level file runs everything under
+T0 until a rule maps it. Two root files no gate command reads, `.env.example` and `LICENSE`, are left
+unmapped on purpose, so a change to either runs everything. A kit change selects the five kit tests,
+the slowest in the gate. Measured on the #122 PC (wall time, four jobs): a docs-only change 13 s (15 of
+24 commands), a deleted reference file 10 s, a kit change 456 s (20 of 24; the deps-units test sets
+it), a `lint.sh` change 825 s (all 24). On GitHub's runners all four situations, one after another, took about 2.5 minutes on Linux and 10 to 13 on Windows (#123 proof runs 37226374879 and 37226771741).
