@@ -198,7 +198,8 @@ export function tempRoot() {
   return process.platform === "win32" ? realpathSync.native(tmpdir()) : tmpdir();
 }
 
-function insideTempRoot(real) {
+/** Whether the real path `real` lies inside tempRoot() – never the temp folder itself. */
+export function insideTempRoot(real) {
   // Both sides resolved: on macOS os.tmpdir() is /var/folders/…, whose real path is /private/var/folders/….
   const root = realpathSync.native(tempRoot());
   const fold = (p) => (process.platform === "win32" ? p.toLowerCase() : p);

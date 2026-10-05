@@ -18,7 +18,7 @@ env:
   BEFORE: 46cf9f20131fbffe2b1a30c65310e06f110800e9
 
 jobs:
-  guards-linux:                     # G3, G5: the full suite, N19, N29 and the two other new breaks included
+  guards-linux:                     # G3, G5: the full suite, L5's twelve new breaks (N19, N29 and ten more) included
     if: startsWith(github.ref_name, 'tmp/123-')
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -32,10 +32,12 @@ jobs:
       - run: nproc
       - run: node scripts/test-guards.mjs --list
       - run: node scripts/test-guards.mjs
-# Pass: "test-guards: 425 cases on 4 worker(s) …; 5 exclusive cases run last, alone", the timing
-# tables, "Ran 425 cases on 4 worker(s); wall time <W> s", "Guard suite OK (426 deliberate defects
-# …)". The four new cases are #422–#425 (block 123-cheaper: a lost group result, a group exiting
-# non-zero with no failure, a write into the template, a group two tasks need); #347 (the ordered
+# Pass: "test-guards: 433 cases on 4 worker(s) …; 5 exclusive cases run last, alone", the timing
+# tables, "Ran 433 cases on 4 worker(s); wall time <W> s", "Guard suite OK (434 deliberate defects
+# …)". The twelve new cases are #422–#433 (block 123-cheaper: a lost group result, a group exiting
+# non-zero with no failure, a write into the template, a group two tasks need, a kit defect a pooled
+# group catches, negative counts, a check outside every group, a group missing from the pool order,
+# three --pool-child refusals, run-gate's XEZ_GATE_JOBS); #347 (the ordered
 # printer, now gate-runner's orderedOutput) and #346 (the deps-units needs entry) have new anchors.
 # G3: <W> and the job ≤ 10 minutes. W5.5: the job duration sets the nightly `guards` timeout.
 
@@ -59,7 +61,7 @@ jobs:
       - run: node scripts/test-guards.mjs
 # Expected: #89 and #335 fail "not for this reason" exactly as in the L2–L4 runs (USER is unset
 # under Windows; the core.filemode=true leg runs off Windows only); every other case is caught,
-# #422–#425 included: "guards: 2 of 426 guards did not catch their defect". Record the job
+# #422–#433 included: "guards: 2 of 434 guards did not catch their defect". Record the job
 # duration and the wall line: 2 × the job duration sets the nightly guards-windows timeout.
 
   gate-timing-win:                  # G1 hosted: one --jobs 1 reference, then the default three times
@@ -86,7 +88,8 @@ jobs:
 # Pass: "gate-runs: 3 of 3 runs equal to the reference", exit 0. Record the reference's seconds
 # (--jobs 1), each run's wall line ("Ran with <J> jobs; wall time <W> s.") and the median of the
 # three; the tables give deps-units' own seconds (it ran 690 s in L3's four-way load here on the
-# dev PC; 3 lanes of its own now).
+# dev PC; up to 3 lanes of its own now in a default run, none with --jobs 1: XEZ_GATE_JOBS=1 runs
+# every group in its one process, so the reference is serial again).
 
   deps-before-after:                # L5.1, L5.2, D41 on Linux and macOS: before vs after, every group alone
     if: startsWith(github.ref_name, 'tmp/123-')
@@ -118,7 +121,8 @@ jobs:
           for f in "$RUNNER_TEMP"/ba/*.out; do echo "::group::$(basename "$f")"; cat "$f"; echo "::endgroup::"; done
 # Pass: "before-after: every run passed and every output equals its before-output", exit 0.
 # Record per script the before and after walls (median of 3), and the facts tail: before ≈ 55–60 s
-# (the uncleared 60 s race timer, W5.0), after ≈ 0. deps-units: both sides name 181 assertions;
+# (the uncleared 60 s race timer, W5.0), after ≈ 0. deps-units: both sides name the same count
+# (180 on Linux and macOS, 181 on Windows; proof run 37245584471);
 # after ≈ the gates-write group alone + start-up (Linux before ≈ 52 s, gates-write alone ≈ 27 s,
 # proof run 37173550029). Every group alone exits 0 on both sides; XEZ_DEPS_TEST_ONLY=53 prints the
 # same line before and after (46 assertions).

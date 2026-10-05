@@ -11,7 +11,9 @@
  * stdout and stderr are kept in arrival order and printed once every command before it has
  * finished (`orderedOutput`), so the output reads in config order while later commands still
  * run. The commands get `gateEnv()`: Git's tools first on PATH, and no variable that narrows a
- * test – the gate always runs every command in full.
+ * test – the gate always runs every command in full – plus XEZ_GATE_JOBS set to this run's job
+ * count, so a command that runs a pool of its own (test-deps-units.mjs) stays inside it: one job
+ * keeps it serial. A job count is no narrowing variable; every command still runs in full.
  *
  * node:* imports and ./platform.mjs only.
  */
@@ -148,6 +150,8 @@ export function orderedOutput(labels, { grouped = false } = {}) {
  */
 export async function runGate(tasks, { root, jobs = 1, env = process.env, grouped = false }) {
   const childEnv = gateEnv(env);
+  for (const key of Object.keys(childEnv)) if (key.toUpperCase() === "XEZ_GATE_JOBS") delete childEnv[key];
+  childEnv.XEZ_GATE_JOBS = String(jobs); // the job count a command's own pool may use
   const buffered = jobs > 1;
   const output = orderedOutput(tasks.map((task) => describe(task).label), { grouped });
   const start = async ({ task, index }) => {

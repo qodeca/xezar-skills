@@ -374,11 +374,13 @@ dependency checks refuse a Node below 22, the README and the bootstrap prompt sa
 
 **This repository's gate runs on native Windows (#122).** Every validation command passes from Git
 Bash, or through npm from PowerShell or cmd: `npm run lint` and the new `npm run gate`, which runs
-the whole list one command at a time and ends with a table of exit codes and times.
+the whole list, up to four commands at once (`--jobs 1`: one at a time), and ends with a table of
+exit codes and times; `npm run gate:changed` is a quicker local check of what a branch changed,
+never a gate result.
 `.gitattributes` checks text out with LF on every system, `scripts/lib/platform.mjs` finds Git Bash
 and never WSL's `bash.exe`, and `scripts/test-platform.mjs` (run by `lint.sh`) covers it. Windows
 and macOS CI jobs are informational, and so is a nightly Windows run of the guard suite, which
-does not finish yet (#123). Setup:
+takes about 23 minutes (#123). Setup:
 `CONTRIBUTING.md` → Contributing from Windows. Nothing changes for an installed project.
 
 # 3.0.3 (2026-09-24)

@@ -690,6 +690,16 @@ try {
     assert.equal(result.status, 0, `XEZ_DEPS_TEST_ONLY reached a gate command run-gate.mjs started:\n${result.stdout}${result.stderr}`);
   });
 
+  // A command with a pool of its own (test-deps-units.mjs) reads the gate's job count from
+  // XEZ_GATE_JOBS: --jobs 1 must reach it as 1, whatever the shell held, or the serial gate is not serial.
+  check("run-gate.mjs tells its commands the job count it runs with, in XEZ_GATE_JOBS", () => {
+    const run = fakeGate("gate-p9", ['test "${XEZ_GATE_JOBS-}" = "$P9_WANT"']);
+    for (const [jobs, inherited] of [["1", "7"], ["3", ""]]) {
+      const result = run(["--jobs", jobs], { P9_WANT: jobs, ...(inherited ? { XEZ_GATE_JOBS: inherited } : {}) });
+      assert.equal(result.status, 0, `a command run with --jobs ${jobs} did not see XEZ_GATE_JOBS=${jobs}:\n${result.stdout}${result.stderr}`);
+    }
+  });
+
   check("run-gate.mjs refuses a bad --jobs, XEZ_GATE_JOBS or option with exit 2", () => {
     const run = fakeGate("gate-p3", ["exit 0"]);
     const range = "takes a whole number from 1 to 32";

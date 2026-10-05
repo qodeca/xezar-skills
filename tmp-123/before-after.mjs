@@ -10,7 +10,8 @@
 //
 // Per run: exit code, wall seconds, when the last output arrived and the tail after it (a
 // referenced timer keeps Node running after its last line). Outputs are compared after
-// normalising durations and temp names; the deps-units summary must name 181 assertions. Exit 0
+// normalising durations and temp names; every deps-units run must name as many assertions as the
+// first before-run (181 on Windows, 180 on Linux and macOS, #123 proof run 37245584471). Exit 0
 // when every run passed and every after-output equals its before-output.
 import { spawn } from "node:child_process";
 import { availableParallelism, cpus } from "node:os";
@@ -29,7 +30,9 @@ const SCRIPTS = { facts: "test-kit-facts.mjs", catalog: "test-kit-catalog.mjs", 
 const chosen = opt("--scripts", "facts,catalog,upgrade,deps").split(",");
 const GROUPS = ["53-tree", "53-single", "single-root", "units", "freshness", "base-branch", "refusals", "yarn2", "solution",
   "node-pin", "odd-folder", "skip", "gates-write", "real-tools"];
-const DEPS_COUNT = 181;
+// The deps-units summary's assertion count, or null when the run printed none.
+const assertionsIn = (stdout) => /OK \((\d+) assertions/.exec(stdout)?.[1] ?? null;
+let depsCount = null; // the first before-run's count: the platform's own
 
 function timed(label, cwd, args, env = {}) {
   return new Promise((done) => {
@@ -72,7 +75,12 @@ for (const key of chosen) {
       const row = await timed(`${key}-${side}-${k}`, checkouts[side], [script]);
       let extra = "";
       if (row.code !== 0) { bad += 1; extra += "  FAILED"; }
-      if (key === "deps" && !row.stdout.includes(`OK (${DEPS_COUNT} assertions`)) { bad += 1; extra += `  NOT ${DEPS_COUNT} ASSERTIONS`; }
+      if (key === "deps") {
+        const count = assertionsIn(row.stdout);
+        if (side === "before") depsCount ??= count;
+        if (count === null || count !== depsCount) { bad += 1; extra += `  ${count ?? "NO"} ASSERTIONS, NOT ${depsCount ?? "A COUNT"} AS BEFORE`; }
+        else extra += `  ${count} assertions`;
+      }
       if (side === "before") reference ??= row;
       else if (!compare(reference, row)) { bad += 1; extra += "  OUTPUT DIFFERS"; }
       note(row, extra);

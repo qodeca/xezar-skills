@@ -363,12 +363,14 @@ for (const [prefix, tests] of [["T0 selection", SELF_TESTS], ["T1 in full", T1_T
   }
 }
 
+// process.exitCode, never process.exit(): on Linux and macOS a pipe takes this output asynchronously,
+// and exit() drops what it has not taken yet – a broken map prints about 200 problems, and the last
+// ones were lost (#123).
 if (problems.length) {
   for (const problem of problems) console.error(problem);
   console.error(`\ngate map: ${problems.length} problem(s)`);
-  process.exit(1);
-}
-console.log(
+  process.exitCode = 1;
+} else console.log(
   `Gate map OK (${commands.length} commands mapped, ${map.rules.length} rules, ${globs.length} globs, each matching a file in the tree; ` +
   `${cases.length} guard cases select their gates; T1 reads no map and is never narrowed).`,
 );

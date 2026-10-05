@@ -1712,14 +1712,21 @@ and dropped, one was dropped on its measurement alone.
   yet committed – built once per run. A run that selects more than one group is the pool's
   parent: it builds a fresh template, runs each group as a child of the script on up to three
   lanes (`runPool`, the scheduler the gate and this suite use), the slowest group first, and
-  prints their output in the groups' order through the gate's own ordered printer. A child learns
-  its template and result file from its parent's command line only, never from the environment,
-  so a value left in a shell cannot make a run trust another folder, and it has its own lab, stubs,
-  call log and `HOME`. The parent sums the children's counts – still 181 assertions – and fails
-  the run when a group reported no result or exited non-zero with no failure recorded, or when the
-  template changed during the run. A group that needs another runs in the same child as it, and
-  two groups that need the same group are refused, since it would run, and count, twice. Four
-  break cases hold these rules.
+  prints their output in the groups' order through the gate's own ordered printer. The lanes never
+  outnumber the gate's jobs: `run-gate.mjs` gives its commands the job count it runs with in
+  `XEZ_GATE_JOBS` – a count, not a narrowing variable – and at one job, `--jobs 1`, every group
+  runs in the test's own process, so the serial gate stays serial. A child learns its template and
+  result file from its parent's command line only, never from the environment, so a value left in
+  a shell cannot make a run trust another folder; it refuses paths outside the temp folder and a
+  template without the kit, and has its own lab, stubs, call log and `HOME`. The parent sums the
+  children's counts – the same 181 assertions on Windows, 180 on Linux and macOS, where the
+  one about `cmd.exe` does not apply – and fails the run when a group's checks failed, when a
+  group reported no result (two whole counts of at least zero) or exited non-zero with no failure
+  recorded, and when the template changed during the run (paths, modes, sizes and contents). A
+  check outside every group fails a child, since each child would count it again. A group that
+  needs another runs in the same child as it, two groups that need the same group are refused
+  (it would run, and count, twice), and every group must be ranked in the pool's order. Ctrl+C
+  stops the children and removes the run's temp folder. Twelve break cases hold these rules.
 - **The facts test no longer waits after its last line.** The scheduler fact raced its gate against
   a 60-second and a 20-second limit and never cleared them, so a green run stayed open until the
   minute was up: that fact alone took 60 s, 50 of them after its last line, on the #122 PC, and
@@ -1729,26 +1736,29 @@ and dropped, one was dropped on its measurement alone.
 - **Dropped after timing: one committed base per upgrade fixture.** `materialize()` in
   `test-upgrade.mjs` wrote each fixture and ran `git init`, `add` and `commit` – 64 calls, about
   40 s of a 145 s run on the #122 PC. Copying one committed base per fixture instead made those
-  calls faster (40 → 29 s) but the whole test slower (144 → 165 s, two runs each): a copied index
-  no longer matches its files' timestamps, so – inferred – every later git command in the fixture
-  re-reads them.
-- **Dropped on measurement: staging the kit once in the catalog test.** Its 13 copies of the kit
-  took 0.44 s in all of a 403 s run on the #122 PC; nothing a stage could save is measurable.
+  calls faster (40 → 29 s) but the whole test slower (144 → 165 s, two runs each): the copied
+  index holds the stat data – times, inode, device – of the base's files, not the copies', so –
+  inferred – every later git command in the fixture re-reads them.
+- **Dropped on measurement: staging the kit once in the catalog test.** Its 13 copy sites (21
+  copies) took 0.44 s in all of a 403 s run on the #122 PC; nothing a stage could save is
+  measurable.
 
 Measured on the #122 PC, two runs each, before and after, one after the other: the deps-units test
 322 s → 176 s (every group alone green; the `gates-write` group alone takes 149 s and now sets
 the time), the facts test 93 s → 55 s, and the #53 run (`XEZ_DEPS_TEST_ONLY=53`) 72 s → 51 s;
 the output is the same line for line. The whole default gate there now takes 313 s (median of
-three, 309–314 s, each equal to a `--jobs 1` run of 627 s; 485–497 s before), inside the 10
-minutes #123 asked for; the catalog test, about 290 s under four-way load, now sets its wall
-time. On GitHub's Linux runner the deps-units test took 52 s and its `gates-write` group alone
-27 s (proof run 37173550029): TBD(#123 L5 proof: Linux and macOS before and after,
+three, 309–314 s, each equal to a `--jobs 1` run; 485–497 s before), inside the 10 minutes #123
+asked for; `--jobs 1`, which now runs the deps-units groups one after another as well, takes
+808 s. The catalog test, about 290 s under four-way load, now sets the default run's wall time.
+On GitHub's Linux runner the deps-units test took 52 s and its `gates-write` group alone 27 s
+(proof run 37173550029): TBD(#123 L5 proof: Linux and macOS before and after,
 deps-before-after job).
 
 **What it costs.** The deps-units test now starts up to three copies of itself at once, and a
 group's failure shows only once the groups before it have finished; `--only <group>` still runs
 one group in one process, for the plain terminal view. The pool's order is the one measured on
-the #122 PC; a group that grows past `gates-write` sets the time until the order is updated.
+the #122 PC; a group that grows past `gates-write` sets the time until the order is updated. A
+serial gate gives the pool up: `--jobs 1` took 627 s with it and takes 808 s without.
 
 ## The gate runs in parallel by default
 

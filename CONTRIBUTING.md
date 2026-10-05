@@ -21,9 +21,10 @@ nightly. It works in private copies of the tree under your temp folder, so you c
 the gate. Your edits made before it starts are tested with it; changing the checkout's
 `git status` while it runs fails the run.
 
-What to expect (#123): on GitHub's Linux runner the required `lint` job takes about three minutes
-and the guard suite about four. On a 16-thread Windows laptop `npm run gate` takes about five
-minutes (about ten with `--jobs 1`), and on GitHub's Windows runner the guard suite about 23.
+What to expect (#123): on GitHub's Linux runner the required `lint` job takes
+TBD(#123 L5 proof: lint job) – about three minutes before #123's last step – and the guard suite
+about four. On a 16-thread Windows laptop `npm run gate` takes about five
+minutes (about thirteen with `--jobs 1`), and on GitHub's Windows runner the guard suite about 23.
 
 ## Contributing from Windows
 

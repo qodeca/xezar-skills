@@ -27,24 +27,29 @@
 // kit's files, uncommitted – built once per run. A run that selects more than one group is the
 // pool's parent: it builds a fresh template, runs each group as a child of this script on up to
 // three lanes (runPool, scripts/lib/gate-runner.mjs), slowest first, and prints their output in the
-// groups' order. A child is `--only <group> --pool-child <template> <result>`: its parent names the
-// template and the result file on the command line, never through the environment, so nothing
-// left in a shell can make a run trust another folder. Each child has its own lab, stubs, call log
-// and HOME; it writes { asserts, failures } to its result file and prints no summary line. The
-// parent fails a run in which a group reported no result, or the template changed; otherwise it
-// prints the summed counts in the lines a single process prints. A group that needs another (its
-// fixtures) runs in the same child as it.
+// groups' order. Never more lanes than the gate's job count: run-gate.mjs tells its commands that
+// number in XEZ_GATE_JOBS (unset: the smaller of 4 and the CPU count), and 1 – `npm run gate
+// --jobs 1` – runs every group in this one process, as before the pool. A child is
+// `--only <group> --pool-child <template> <result>`: its parent names the template and the result
+// file on the command line, never through the environment, so nothing left in a shell can make a
+// run trust another folder; a child refuses paths outside the temp folder and a template without
+// the kit. Each child has its own lab, stubs, call log and HOME; it writes { asserts, failures }
+// to its result file and prints no summary line. A check outside every group fails a child: each
+// child would count it again. The parent fails a run in which a group reported no result, or the
+// template changed; otherwise it prints the summed counts in the lines a single process prints. A
+// group that needs another (its fixtures) runs in the same child as it. Ctrl+C stops the children
+// and removes the parent's temp folder.
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from "node:fs";
-import { availableParallelism, homedir } from "node:os";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { delimiter, dirname, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import { bashPath, posixToolDirs, prependPath, toPosixPath } from "./lib/platform.mjs";
-import { prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, writeCmdShim, writeStub } from "./lib/test-harness.mjs";
+import { insideTempRoot, killTree, prepareTestPlatform, restrict, stubSpawnEnv, tempRoot, TREE_SPAWN, writeCmdShim, writeStub } from "./lib/test-harness.mjs";
 import { parseOnly, sections } from "./lib/sections.mjs";
-import { orderedOutput, runPool } from "./lib/gate-runner.mjs";
+import { jobCount, orderedOutput, runPool } from "./lib/gate-runner.mjs";
 
 // A value the script does not know is refused: a typo used to run everything, silently.
 const ONLY = process.env.XEZ_DEPS_TEST_ONLY ?? "";
@@ -56,9 +61,16 @@ if (ONLY !== "" && ONLY !== "53") {
 const given = process.argv.slice(2);
 const childAt = given.indexOf("--pool-child");
 const POOL_CHILD = childAt === -1 ? null : { template: given[childAt + 1], result: given[childAt + 2] };
-if (POOL_CHILD && !(POOL_CHILD.template && POOL_CHILD.result)) {
-  console.error("test-deps-units: --pool-child needs the template folder and the result file its parent made");
-  process.exit(2);
+if (POOL_CHILD) {
+  const refuse = (why) => {
+    console.error(`test-deps-units: --pool-child ${why}; only the pool's parent starts a child`);
+    process.exit(2);
+  };
+  const inTemp = (path) => isAbsolute(path) && existsSync(path) && insideTempRoot(realpathSync.native(path));
+  const { template, result } = POOL_CHILD;
+  if (!template || !result) refuse("needs the template folder and the result file its parent made");
+  if (!inTemp(template) || !inTemp(dirname(result))) refuse(`takes absolute paths inside ${tempRoot()} only, not ${template} and ${result}`);
+  if (!existsSync(join(template, ".xezar/checks/lib/deps.mjs"))) refuse(`template ${template} holds no .xezar/checks/lib/deps.mjs`);
 }
 const argv = POOL_CHILD ? given.filter((_, i) => i < childAt || i > childAt + 2) : given;
 if (ONLY !== "" && argv.includes("--only")) {
@@ -87,7 +99,23 @@ const TASKS = S.selected.filter((id) => !pulledIn.has(id)).map((id) => ({ id, gr
 const tasked = TASKS.flatMap((task) => task.groups);
 const twice = tasked.find((group, i) => tasked.indexOf(group) !== i);
 if (twice) throw new Error(`test-deps-units: two selected groups need ${twice}, so the pool would run it, and count it, twice`);
-const POOL_PARENT = POOL_CHILD === null && TASKS.length > 1;
+// The groups by their seconds alone, slowest first (#123, measured on the #122 Windows PC; on
+// GitHub's Linux runner only near-equal neighbours swap): the pool starts them in this order, so
+// the longest group, not a queue behind it, sets the wall time. Every group is ranked – any group
+// can be a task – and a group left out is a bug in this list.
+const SLOWEST_FIRST = ["gates-write", "53-tree", "freshness", "53-single", "single-root", "solution", "yarn2", "refusals",
+  "units", "node-pin", "base-branch", "odd-folder", "skip", "real-tools"];
+const unranked = GROUPS.filter((group) => !SLOWEST_FIRST.includes(group));
+if (unranked.length) throw new Error(`test-deps-units: SLOWEST_FIRST does not rank ${unranked.join(", ")}`);
+// The gate's job count caps the pool (a usage error exits 2, as run-gate.mjs's does); one job runs
+// every group here.
+const gateJobs = jobCount([], process.env);
+if (gateJobs.error) {
+  console.error(`test-deps-units: ${gateJobs.error}`);
+  process.exit(2);
+}
+const POOL_LANES = Math.min(3, gateJobs.jobs);
+const POOL_PARENT = POOL_CHILD === null && TASKS.length > 1 && POOL_LANES > 1;
 
 prepareTestPlatform({ symlinks: true });
 
@@ -211,25 +239,20 @@ const unitFiles = {
 const unitsConfig = (units = UNITS, first = RESTORE) => ({ validation: { commands: [first, "npm test"] }, dependencies: { units } });
 
 // --- the pool (#123) ----------------------------------------------------------------------------
-// The groups by their seconds alone, slowest first (#123, measured on the #122 Windows PC; on
-// GitHub's Linux runner only near-equal neighbours swap): the pool starts them in this order, so
-// the longest group, not a queue behind it, sets the wall time. A group not listed starts last.
-const SLOWEST_FIRST = ["gates-write", "53-tree", "freshness", "53-single", "single-root", "solution", "yarn2", "refusals",
-  "node-pin", "base-branch", "odd-folder", "skip", "real-tools"];
-const POOL_LANES = 3;
-
-/** One hash of every path under dir with its size and SHA-256, in sorted order. */
+/** One hash of every path under dir with its mode, size and SHA-256, in sorted order. */
 function treeHash(dir) {
   const lines = [];
   const walk = (rel) => {
     for (const name of readdirSync(join(dir, rel)).sort()) {
       const path = rel ? `${rel}/${name}` : name;
-      if (lstatSync(join(dir, path)).isDirectory()) {
-        lines.push(`${path}/`);
+      const stat = lstatSync(join(dir, path));
+      const mode = (stat.mode & 0o777).toString(8);
+      if (stat.isDirectory()) {
+        lines.push(`${path}/ ${mode}`);
         walk(path);
       } else {
         const data = readFileSync(join(dir, path));
-        lines.push(`${path} ${data.length} ${sha(data)}`);
+        lines.push(`${path} ${mode} ${data.length} ${sha(data)}`);
       }
     }
   };
@@ -237,7 +260,7 @@ function treeHash(dir) {
   return sha(lines.join("\n"));
 }
 
-/** A child's { asserts, failures }, or null: no result file, no two counts, or an exit code they do not explain. */
+/** A child's { asserts, failures }, or null: no result file, no two whole counts, or an exit code they do not explain. */
 function readReport(file, code) {
   let report;
   try {
@@ -245,12 +268,12 @@ function readReport(file, code) {
   } catch {
     return null;
   }
-  const counted = Number.isInteger(report?.asserts) && Number.isInteger(report?.failures);
-  return counted && code === (report.failures > 0 ? 1 : 0) ? report : null;
+  const count = (n) => Number.isInteger(n) && n >= 0;
+  return count(report?.asserts) && count(report?.failures) && code === (report.failures > 0 ? 1 : 0) ? report : null;
 }
 
 /** Runs one task as a child of this script, its output kept in its slot; resolves { task, report }. */
-function runChild({ task, slot }, { template, results, env, output }) {
+function runChild({ task, slot }, { template, results, env, output, children }) {
   const result = join(results, `${task.id}.json`);
   return new Promise((resolve) => {
     let settled = false;
@@ -260,7 +283,9 @@ function runChild({ task, slot }, { template, results, env, output }) {
       output.done(slot);
       resolve({ task, report: readReport(result, code) });
     };
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--only", task.id, "--pool-child", template, result], { env, stdio: ["ignore", "pipe", "pipe"] });
+    const args = [fileURLToPath(import.meta.url), "--only", task.id, "--pool-child", template, result];
+    const child = spawn(process.execPath, args, { env, stdio: ["ignore", "pipe", "pipe"], ...TREE_SPAWN });
+    children.push(child);
     child.stdout.on("data", (chunk) => output.push(slot, "stdout", chunk));
     child.stderr.on("data", (chunk) => output.push(slot, "stderr", chunk));
     child.on("error", (error) => {
@@ -274,9 +299,17 @@ function runChild({ task, slot }, { template, results, env, output }) {
 /**
  * The pool's parent: a fresh template and result folder, every task as a child on up to
  * POOL_LANES lanes, the output in the groups' order, then the lines a single process prints, with
- * the summed counts. Returns the exit code.
+ * the summed counts. Returns the exit code. Ctrl+C (or a TERM) stops every child with whatever it
+ * started and removes this run's temp folder.
  */
 async function runPoolParent(tasks) {
+  const children = [];
+  const stop = () => {
+    for (const child of children) killTree(child);
+    rmSync(lab, { recursive: true, force: true, maxRetries: 3 });
+    process.exit(130);
+  };
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, stop);
   try {
     const template = buildTemplate(join(lab, "template"));
     const before = treeHash(template);
@@ -284,10 +317,9 @@ async function runPoolParent(tasks) {
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (key.toUpperCase() === "XEZ_DEPS_TEST_ONLY") delete env[key];
     const output = orderedOutput(tasks.map((task) => task.id));
-    const rank = ({ task }) => (SLOWEST_FIRST.includes(task.id) ? SLOWEST_FIRST.indexOf(task.id) : SLOWEST_FIRST.length);
+    const rank = ({ task }) => SLOWEST_FIRST.indexOf(task.id);
     const queue = tasks.map((task, slot) => ({ task, slot })).sort((a, b) => rank(a) - rank(b));
-    const jobs = Math.min(POOL_LANES, availableParallelism());
-    const done = await runPool(queue, { jobs, start: (item) => runChild(item, { template, results, env, output }) });
+    const done = await runPool(queue, { jobs: POOL_LANES, start: (item) => runChild(item, { template, results, env, output, children }) });
     const reported = done.filter((d) => d.report);
     let failed = reported.reduce((sum, d) => sum + d.report.failures, 0);
     if (treeHash(template) !== before) {
@@ -297,12 +329,13 @@ async function runPoolParent(tasks) {
     const groups = tasks.flatMap((task) => task.groups).length;
     const groupsReported = reported.flatMap((d) => d.task.groups).length;
     if (groupsReported < groups) {
-      const silent = done.filter((d) => !d.report).map((d) => d.task.id);
+      const silent = tasks.filter((task) => !reported.some((d) => d.task === task)).map((task) => task.id);
       console.error(`\ndeps units: ${groupsReported} of ${groups} groups reported (no result from ${silent.join(", ")})`);
       return 1;
     }
     return summary(reported.reduce((sum, d) => sum + d.report.asserts, 0), failed);
   } finally {
+    for (const signal of ["SIGINT", "SIGTERM"]) process.off(signal, stop);
     rmSync(lab, { recursive: true, force: true });
   }
 }
@@ -319,8 +352,8 @@ function summary(total, failed) {
   return 0;
 }
 
+// The pool's parent runs no group itself; any other run runs the selected groups in this process.
 if (POOL_PARENT) process.exitCode = await runPoolParent(TASKS);
-// Otherwise this process runs the selected groups itself; the pool's parent runs none.
 else try {
   // #53: what is IN the tree. The nonce and the folder's inode catch a node_modules replaced
   // wholesale; a package folder swapped or a file edited inside the same tree needs the digest.
@@ -947,7 +980,13 @@ if (!POOL_PARENT) {
     failures += 1;
     console.error(`FAIL  ${p}`);
   }
-  // A pool child reports to its parent only, which sums every group's counts.
+  // A pool child reports to its parent only, which sums every group's counts – so a check outside
+  // every group, which each child would count again, fails it.
+  const outside = POOL_CHILD ? S.outside() : 0;
+  if (outside) {
+    failures += 1;
+    console.error(`FAIL  ${outside} check(s) ran outside every group, and every pool child counts them; move them into a group`);
+  }
   if (POOL_CHILD) writeFileSync(POOL_CHILD.result, JSON.stringify({ asserts, failures }), { flag: "wx" });
   process.exitCode = POOL_CHILD ? Number(failures > 0) : summary(asserts, failures);
 }
