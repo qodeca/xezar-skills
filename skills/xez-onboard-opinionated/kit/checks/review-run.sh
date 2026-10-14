@@ -66,6 +66,10 @@
 # `review-run=confined` instead of failing half-way. Nothing of the PR can run in that step: judge
 # from the diff and report every check that needed running as not run (an evidence limit).
 #
+# `checkout` records its outcome in <evidence>/review/checkout – `ok exit=0 …` or `confined exit=3 …` –
+# and verdict-write.sh refuses a verdict that claims `review-run=confined` without a `confined`
+# record, so a review cannot report an exit 3 it never ran (#151).
+#
 # Exit: the command's own status for `run`; 0 ok, 1 refused or changed, 2 usage, 3 confined
 # (`checkout` only: this step's sandbox cannot write git, so the PR cannot be checked out here).
 set -uo pipefail
@@ -195,6 +199,7 @@ case "$sub" in
       probe=""
       [ -n "$gitdir" ] && probe="$(mktemp "$gitdir/xezar-review-probe.XXXXXX" 2>/dev/null)"
       if [ -z "$probe" ]; then
+        printf 'confined exit=3 pr=%s\n' "$1" >"$state/checkout"
         echo "review-run=confined"
         echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, engine 0.19.0). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
         exit 3
@@ -215,6 +220,7 @@ case "$sub" in
     [ "$head" = "$want" ] || refuse "checked out $head, and the PR's head is ${want:-unknown}"
     printf '%s\n' "$head" >"$state/head"
     printf '%s\n' "$1" >"$state/pr"
+    printf 'ok exit=0 pr=%s head=%s\n' "$1" "$head" >"$state/checkout"
     echo "review-head=$head pr=$1"
     ;;
   install)

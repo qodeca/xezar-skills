@@ -1465,6 +1465,9 @@ if (S.section("D-review")) {
         if (confined.status !== 3 || !confined.out.includes("review-run=confined") || !confined.out.includes("report every check that needed running as not run")
           || git(wt, "rev-parse", "HEAD") === prHead || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
           fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
+        const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
+        if (!existsSync(record) || !readFileSync(record, "utf8").startsWith("confined exit=3 pr=5"))
+          fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not record "confined exit=3" (#151)`);
       }
     }
     // A head that tracks a file where the review's scripts live has just replaced them: refused,
@@ -1478,6 +1481,25 @@ if (S.section("D-review")) {
     if (existsSync(join(wt, ".xezar/checks/review-run.sh")) || !readFileSync(join(wt, ".xezar/checks/verdict-write.sh"), "utf8").includes("tampered"))
       fail("stream D fixture: the checked-out PR head does not carry the old kit (no review-run.sh, a tampered verdict-write.sh)");
     if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");
+    // #151: a verdict that says the checkout was confined must rest on this run's checkout record.
+    const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
+    if (!existsSync(record) || !readFileSync(record, "utf8").startsWith(`ok exit=0 pr=5 head=${prHead}`))
+      fail(`review-run.sh checkout does not record "ok exit=0" for a checkout that worked (#151)`);
+    const claim = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "fail", limits: "checkout 5 exited 3 with review-run=confined" } }));
+    const okClaim = claim();
+    if (okClaim.status !== 1 || !okClaim.out.includes("this run's checkout recorded \"ok exit=0") || existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh writes a verdict that says confined after a checkout that worked (#151):\n${okClaim.status} ${okClaim.out}`);
+    const saved = readFileSync(record);
+    rmSync(record);
+    const noRecord = claim();
+    writeFileSync(record, saved);
+    if (noRecord.status !== 1 || !noRecord.out.includes("this run has no checkout record") || existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh writes a verdict that says confined when this run ran no checkout (#151):\n${noRecord.status} ${noRecord.out}`);
+    // The plain word is not the claim: an honest verdict may say the change is confined to a file.
+    const plain = sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass", summary: "the change is confined to src/store.mjs" } }));
+    if (plain.status !== 0 || !existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh refuses an honest verdict that only uses the word "confined" (#151):\n${plain.status} ${plain.out}`);
+    rmSync(`${handoff}.verdict.json`);
     // A day, not 30 s (#123): under load the steps up to the probe below can outlast a short sleep,
     // which would then end by itself and pass the probe even when `finish` stopped nothing.
     // `finally` stops it whatever happens, so the length costs nothing.

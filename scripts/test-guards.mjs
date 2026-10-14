@@ -1650,6 +1650,39 @@ breaks(
   "gh-write.sh lets a qa step claim a design-review verdict",
 );
 
+// A verdict that says the checkout was confined rests on this run's checkout record (#151).
+breaks(
+  "a verdict-write.sh that takes a confined claim on trust is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace(`if grep -q 'review-run=confined' "$tmp"; then`, "if false; then"),
+  catalog("D-review"),
+  "writes a verdict that says confined after a checkout that worked",
+);
+
+breaks(
+  "a verdict-write.sh that refuses the plain word confined is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace(`if grep -q 'review-run=confined' "$tmp"; then`, `if grep -qi 'confined' "$tmp"; then`),
+  catalog("D-review"),
+  'refuses an honest verdict that only uses the word "confined"',
+);
+
+breaks(
+  "a review-run.sh checkout that records no outcome is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(`printf 'ok exit=0 pr=%s head=%s\\n' "$1" "$head" >"$state/checkout"`, ":"),
+  catalog("D-review"),
+  'does not record "ok exit=0"',
+);
+
+breaks(
+  "a review skill that does not say a confined claim needs a record is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-security-review.md",
+  (s) => s.replace(" `checkout` records its outcome, and `verdict-write.sh` refuses a verdict that says `review-run=confined` when this run recorded no confined checkout.", ""),
+  facts("I3"),
+  "refuses a confined claim this run's checkout never recorded",
+);
+
 // A Continue settles under `continue-N`, which no definition step names: the role comes from the
 // step that owns its session, as the engine's takeStepVerdict resolves it.
 breaks(

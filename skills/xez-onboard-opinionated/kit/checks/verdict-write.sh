@@ -25,6 +25,9 @@
 # <evidence dir> is this run's primary `.local/xezar/tasks/<runId>/`, resolved by lib/common.sh.
 # Phase records (upper-case names) are not written here: `phase-record.sh set` owns them.
 #
+# A packet that says `review-run=confined` is refused unless `review-run.sh checkout` recorded a confined
+# checkout in <evidence dir>/review/checkout in this run (#151).
+#
 # Exit 0 on success, 1 on a refusal, 2 on usage.
 set -uo pipefail
 
@@ -116,6 +119,17 @@ case "$kind" in
     fi
     target="${XEZ_HANDOFF_FILE}.verdict.json"
     tmp="$(atomic_from_stdin "$target" "$PACKET_MAX_BYTES")" || exit 1
+    # A verdict that names a confined checkout must rest on one: `review-run.sh checkout` records
+    # its outcome, and a claim with no `confined` record is an exit 3 nobody ran (#151).
+    if grep -q 'review-run=confined' "$tmp"; then
+      record=""
+      dir="$(evidence_dir 2>/dev/null)" && [ -f "$dir/review/checkout" ] && record="$(head -c 200 "$dir/review/checkout")"
+      case "$record" in
+        confined\ exit=3*) ;;
+        "") rm -f "$tmp"; refuse "the verdict says review-run=confined, but this run has no checkout record: run \`bash .local/xezar/cache/kit/checks/review-run.sh checkout <pr>\` alone, with no pipe, and quote the line it prints" ;;
+        *) rm -f "$tmp"; refuse "the verdict says review-run=confined, but this run's checkout recorded \"${record%%$'\n'*}\"" ;;
+      esac
+    fi
     if ! stamp="$(node -e '
       const fs = require("fs"), [file, taskId, stepId] = process.argv.slice(1);
       let p; try { p = JSON.parse(fs.readFileSync(file, "utf8")); } catch { console.log("the packet is not valid JSON"); process.exit(1); }
