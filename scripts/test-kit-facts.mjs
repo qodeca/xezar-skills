@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1828,6 +1828,25 @@ if (S.section("I1")) {
       if (!write.includes("`" + d + "/`"))
         fail(fact, `${SKILL}/references/write.md`, `never writes \`${d}/\` to the root .gitignore, but worktree-preflight.sh refuses every task until it is ignored`);
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I4 -- the generated SDLC.md says the QA step applies qa-approved (#153). The kit's QA role
+// applies it on PASS through gh-write.sh's verdict check; a generated "automation never applies it"
+// reached the QA launch text through the leader, and a passing QA left the PR unmergeable.
+// ---------------------------------------------------------------------------
+if (S.section("I4")) {
+  const fact = "FACT I4: onboarding writes that the independent QA step applies qa-approved on PASS";
+  const where = `${SKILL}/references/write.md`;
+  const write = read(where).replace(/\n\s+/g, " ");
+  if (!write.includes("the independent QA step applies `qa-approved` on PASS"))
+    fail(fact, where, "no longer tells the SDLC.md writer that the independent QA step applies qa-approved on PASS");
+  if (!write.includes("Never write that automation never applies them"))
+    fail(fact, where, "no longer forbids writing that automation never applies the approval labels");
+  const qa = read(`${SKILL}/kit/skills/xezar-qa.md`);
+  if (!qa.includes("On PASS: add `qa-approved`"))
+    fail(fact, `${SKILL}/kit/skills/xezar-qa.md`, "no longer applies qa-approved on PASS – re-aim FACT I4 and write.md together");
   checked.push(fact);
 }
 

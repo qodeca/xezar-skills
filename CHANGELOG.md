@@ -413,6 +413,13 @@ command lock refuses a compound command. `review-run.sh checkout` records its ou
 checkout. FACT I3 and the run test in `test-kit-catalog.mjs` keep it. Found by the 3.1.0 release
 runs (#132).
 
+**A passing QA applies `qa-approved` again (#153).** Onboarding could write into `SDLC.md` that
+`qa-approved` is something "automation never applies"; the leader passed that into the QA launch
+text, and a QA step that passed the change left it unmergeable. The setup now writes that the
+independent QA step applies `qa-approved` on PASS (and the design review `design-approved`) through
+`gh-write.sh`'s verdict check, and FACT I4 keeps it. An `UPGRADE_NOTES.md` entry fixes the sentence
+in a project already onboarded. Found by the 3.1.0 release runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

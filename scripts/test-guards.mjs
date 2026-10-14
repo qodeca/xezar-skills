@@ -1883,6 +1883,15 @@ breaks(
   "never writes `dist/`",
 );
 
+// The generated SDLC.md says the QA step applies qa-approved (#153, FACT I4).
+breaks(
+  "an onboarding that writes 'automation never applies qa-approved' is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("independent QA step applies `qa-approved` on PASS", "automation never applies `qa-approved`"),
+  facts("I4"),
+  "independent QA step applies qa-approved on PASS",
+);
+
 // A review judges the change against its accepted scope (#146, FACT I2).
 breaks(
   "a design review that blocks on gaps the base already has is rejected",

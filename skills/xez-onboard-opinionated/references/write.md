@@ -320,6 +320,13 @@ Never copied, because each depends on an answer:
   project, that its parts are installed either way, and the one line that flips it
   (`references/analysis.md` §3 has the reason).
 
+  Under **The QA gate** and **The design gate**, say who applies the approval label: the
+  independent QA step applies `qa-approved` on PASS, and the design review `design-approved`,
+  through `gh-write.sh`'s verdict check, which moves them only for the reviewed current head; no
+  authoring step and no leader applies them, and a person may apply them by hand. Never write that
+  automation never applies them: the leader passes `SDLC.md` into the QA launch text, and a QA step
+  that passes the change then leaves the PR unmergeable (#153).
+
   **Two rules go in verbatim in substance**, one in each file. They are not about this project, so
   nothing in the analysis changes them; they are here because both describe a failure that passes
   every gate a new project has.
