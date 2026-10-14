@@ -87,11 +87,11 @@ jobs:
       - name: Generic instruction guard rejection and control cases
         run: npm run test:generic-instructions
 
-  # Cross-platform signal (#122). A NEW, non-required job: branch protection reads the `lint`
-  # check above by name, so it is not renamed or folded in. Windows and macOS on Node 22 (the
-  # floor) and lts/*, informational (continue-on-error, fail-fast off) until the Windows runs are
-  # proven stable. One step runs every command in .xezar/pipeline/config.json, so this job cannot
-  # drift from the gate. The timeouts are twice the slowest measured job, rounded up to 5 minutes
+  # Cross-platform gate (#122, blocking since #132). Its own job beside `lint`, which the develop
+  # ruleset also requires by name, so neither is renamed or folded in. Windows and macOS on Node 22
+  # (the floor) and lts/*, fail-fast off, and required on develop: a random failure gets one
+  # re-run, then an issue and a real fix – never a skip-list or continue-on-error. One step runs
+  # every command in .xezar/pipeline/config.json, so this job cannot drift from the gate. The timeouts are twice the slowest measured job, rounded up to 5 minutes
   # (#123): Windows 406 s and macOS 160 s (run 37236704110, the slowest of the parallel-gate PR runs
   # 37218662088 and 37236704110; the L5 PR's own run 38539297225 took 304 s and 123 s at most).
   cross-platform:
@@ -99,7 +99,6 @@ jobs:
     if: github.event_name != 'merge_group'
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
