@@ -1658,16 +1658,21 @@ if (S.section("W-stop")) {
   const table = `5000 1 ${fileTime(T)}\n7100 9999 ${fileTime(T + 300)}\n`;
   const noMembers = "      PID    PPID    PGID     WINPID\n";
   // `tableAnswer` stands in for the Windows table (null: PowerShell could not read it).
+  // An array answers the table reads in order, for the retry after a read that timed out.
   const round = async (ps, killAnswer, { msysPid = 700, tableAnswer = table, ...options } = {}) => {
     const calls = [];
-    const run = async (file, args) => {
+    const tableTimeouts = [];
+    const answers = Array.isArray(tableAnswer) ? [...tableAnswer] : null;
+    const run = async (file, args, { timeoutMs } = {}) => {
       calls.push(file);
       if (file === "ps.exe") return ps;
       const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
-      return decoded.includes("Get-CimInstance") ? tableAnswer : killAnswer(decoded);
+      if (!decoded.includes("Get-CimInstance")) return killAnswer(decoded);
+      tableTimeouts.push(timeoutMs);
+      return answers ? answers.shift() ?? null : tableAnswer;
     };
     const result = await wp.stopTree({ winpid: 5000, msysPid, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
-    return { result, calls };
+    return { result, calls, tableTimeouts };
   };
   const nothingLeft = await round(noMembers, () => "", { killRoot: false });
   if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
@@ -1684,8 +1689,13 @@ if (S.section("W-stop")) {
   const noPs = await round(null, () => "7100 killed\n", { killRoot: true });
   if (noPs.result.ok) fail(fact, where, "a stop round that could not read Git's ps reported success");
   const noTable = await round(psLive, () => "7100 killed\n", { killRoot: true, tableAnswer: null });
-  if (noTable.result.ok || noTable.result.reason !== "the Windows process table could not be read" || noTable.calls.length !== 2)
+  if (noTable.result.ok || noTable.result.reason !== "the Windows process table could not be read" || noTable.calls.length !== 3)
     fail(fact, where, `a stop round that could not read the Windows process table reported ${JSON.stringify(noTable)}`);
+  // A first read that timed out on a loaded machine gets one more, with a longer limit, before the
+  // round fails: a CI runner with four gates at once took longer than the first limit (FACT W).
+  const slowTable = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false, tableAnswer: [null, table] });
+  if (!slowTable.result.ok || slowTable.result.killed !== 1 || slowTable.tableTimeouts.length !== 2 || !(slowTable.tableTimeouts[1] > slowTable.tableTimeouts[0]))
+    fail(fact, where, `a stop round whose first Windows table read timed out did not read it once more with a longer limit: ${JSON.stringify(slowTable)}`);
   const noKill = await round(psLive, () => null, { killRoot: true });
   if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
     fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
