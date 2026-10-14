@@ -2822,6 +2822,14 @@ breaks(
 );
 
 breaks(
+  "a Windows kill script that keeps the short limit is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace("{ maxBuffer: KILL_MAX_BUFFER, timeoutMs: LOADED_TIMEOUT_MS }", "{ maxBuffer: KILL_MAX_BUFFER, timeoutMs: TOOL_TIMEOUT_MS }"),
+  facts("W-stop"),
+  "a kill script keeps the short limit",
+);
+
+breaks(
   "a gate scheduler that never reaps a finished gate is rejected",
   "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
   (s) => s.replace("if (pid) { await reap(pid); groups.delete(pid); }", "if (pid) { groups.delete(pid); }"),

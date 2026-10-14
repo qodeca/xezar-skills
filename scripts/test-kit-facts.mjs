@@ -1662,17 +1662,18 @@ if (S.section("W-stop")) {
   const round = async (ps, killAnswer, { msysPid = 700, tableAnswer = table, ...options } = {}) => {
     const calls = [];
     const tableTimeouts = [];
+    const killTimeouts = [];
     const answers = Array.isArray(tableAnswer) ? [...tableAnswer] : null;
     const run = async (file, args, { timeoutMs } = {}) => {
       calls.push(file);
       if (file === "ps.exe") return ps;
       const decoded = Buffer.from(args.at(-1), "base64").toString("utf16le");
-      if (!decoded.includes("Get-CimInstance")) return killAnswer(decoded);
+      if (!decoded.includes("Get-CimInstance")) { killTimeouts.push(timeoutMs); return killAnswer(decoded); }
       tableTimeouts.push(timeoutMs);
       return answers ? answers.shift() ?? null : tableAnswer;
     };
     const result = await wp.stopTree({ winpid: 5000, msysPid, spawnedAt: T, stoppedAt: T + 10_000 }, tools, { run, ...options });
-    return { result, calls, tableTimeouts };
+    return { result, calls, tableTimeouts, killTimeouts };
   };
   const nothingLeft = await round(noMembers, () => "", { killRoot: false });
   if (!nothingLeft.result.ok || nothingLeft.calls.length !== 1) fail(fact, where, `a reap with no process of the worker left still read the Windows table: ${JSON.stringify(nothingLeft)}`);
@@ -1696,6 +1697,9 @@ if (S.section("W-stop")) {
   const slowTable = await round(psLive, (s) => (s.includes("$t = @(7100,1790000000300)") ? "7100 killed\n" : "unexpected\n"), { killRoot: false, tableAnswer: [null, table] });
   if (!slowTable.result.ok || slowTable.result.killed !== 1 || slowTable.tableTimeouts.length !== 2 || !(slowTable.tableTimeouts[1] > slowTable.tableTimeouts[0]))
     fail(fact, where, `a stop round whose first Windows table read timed out did not read it once more with a longer limit: ${JSON.stringify(slowTable)}`);
+  // The kill script runs under the same load, so it gets the longer limit as well.
+  if (!(slowTable.killTimeouts[0] >= slowTable.tableTimeouts[1]))
+    fail(fact, where, `a kill script keeps the short limit that a loaded machine overruns: ${JSON.stringify(slowTable)}`);
   const noKill = await round(psLive, () => null, { killRoot: true });
   if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
     fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
