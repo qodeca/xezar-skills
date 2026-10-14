@@ -423,6 +423,12 @@ if (S.section("11")) {
     fail(fact, "references/smoke-test.md", "sends agentProfile, worktree or autonomous with inline steps, which engine 0.19.0 refuses");
   for (const word of ["profileId", "check_account_status", "`connected`"])
     if (!smoke.includes(word)) fail(fact, "references/smoke-test.md", `does not name ${word}, so a login nobody signed in to passes tier 1`);
+  // Tier 1's evidence step is a plain check of the scratch line. The seal step refuses a task with
+  // no phase records and no commit, which every smoke task is, so naming it fails tier 1 (#144).
+  if (!smoke.includes("runs `cat .local/xezar/scratch/smoke.txt`"))
+    fail(fact, "references/smoke-test.md", "does not name tier 1's evidence step as a plain `cat` of the scratch file, so a setup agent may pick the seal step, which always refuses a smoke task");
+  if (!/It is \*\*not\*\* `worktree-preflight\.sh --record-gate-evidence`/.test(smoke))
+    fail(fact, "references/smoke-test.md", "does not rule out --record-gate-evidence as tier 1's evidence step, which refuses a task with no phase records and no commit");
   checked.push(fact);
 }
 
