@@ -444,6 +444,11 @@ not a pass: the leader dispatches the next lane or stops. The setup no longer wr
 automation" into the guide's task lifecycle. FACT I5 keeps both; an `UPGRADE_NOTES.md` entry adds
 the rule to an installed guide. Found by the 3.1.0 release runs (#132).
 
+**The Windows gate scheduler survives a slow process-table read (#162).** With four gates at once,
+PowerShell could take longer than 5 s to read the Windows process table, and the scheduler then
+reported that it could not stop a gate's processes. It now reads the table once more with a 20 s
+limit before it gives up. FACT W-stop checks the retry.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

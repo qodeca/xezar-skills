@@ -212,10 +212,10 @@
       "sha256": "033d4c0e739f4d1fd8f30d5fc1e58d79473eb7f96907e3548ab6ff3db177491c"
     },
     ".xezar/checks/lib/windows-process.mjs": {
-      "kitBlob": "0e9a20561e5b66f52c0df4ae4b4a9070c52d410f",
+      "kitBlob": "d477027eda1a7095d8af5c37691e089bc50f77c7",
       "kitSource": "checks/lib/windows-process.mjs",
       "rewrite": "copied",
-      "sha256": "3a59e39d7b092f5517d5b890d080edd6c13803d8ee66d59d982fbe0e552f2463"
+      "sha256": "78c486e1b68c7565731fed1fb954329e4b7bc5e1f856b55a077dd4dc16576aaa"
     },
     ".xezar/checks/lib/windows-programs.mjs": {
       "kitBlob": "50fbfb487a5c6ab14395874fa7870141e5a72605",

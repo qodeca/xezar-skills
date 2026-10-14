@@ -35,6 +35,11 @@ export const GIT_BASH_MISSING =
 /** A starting process may be dated slightly before `spawnedAt`, which is read after spawn returns. */
 export const SPAWN_CLOCK_SLACK_MS = 1000;
 const TOOL_TIMEOUT_MS = 5000;
+/** PowerShell and CIM can take longer than TOOL_TIMEOUT_MS to start on a loaded machine, as on a CI
+ *  runner with four gates at once: the second read of the Windows table, after a first that returned
+ *  nothing (a timeout or a failed start), and every kill script get this limit instead. A kill
+ *  checks each process identity first, so a slower one cannot kill the wrong process. */
+const LOADED_TIMEOUT_MS = 20000;
 const PS_MAX_BUFFER = 1024 * 1024;
 const TABLE_MAX_BUFFER = 16 * 1024 * 1024;
 const KILL_MAX_BUFFER = 1024 * 1024;
@@ -335,7 +340,8 @@ export async function stopTree(root, tools, { killRoot = false, run = defaultRun
     // Windows table is the one place the worker's processes still show.
     const knowsGroup = Number.isSafeInteger(root.msysPid) && root.msysPid > 0;
     if (!killRoot && knowsGroup && psText !== null && msysMembers(msysRows, root.msysPid).length === 0) return { ok: true, killed: 0 };
-    const tableText = await run(tools.powershell, powershellArgs(TABLE_SCRIPT), { maxBuffer: TABLE_MAX_BUFFER, timeoutMs: TOOL_TIMEOUT_MS });
+    let tableText = await run(tools.powershell, powershellArgs(TABLE_SCRIPT), { maxBuffer: TABLE_MAX_BUFFER, timeoutMs: TOOL_TIMEOUT_MS });
+    if (tableText === null) tableText = await run(tools.powershell, powershellArgs(TABLE_SCRIPT), { maxBuffer: TABLE_MAX_BUFFER, timeoutMs: LOADED_TIMEOUT_MS });
     if (tableText === null) return { ok: false, killed: 0, reason: 'the Windows process table could not be read' };
     const targets = validTargets(treeTargets({ msysRows, winRows: parseWindowsTable(tableText), root }));
     let killed = 0;
@@ -343,7 +349,7 @@ export async function stopTree(root, tools, { killRoot = false, run = defaultRun
     let unran = false;
     for (let from = 0; from < targets.length; from += KILL_BATCH) {
       const batch = targets.slice(from, from + KILL_BATCH);
-      const text = await run(tools.powershell, powershellArgs(killScript(batch)), { maxBuffer: KILL_MAX_BUFFER, timeoutMs: TOOL_TIMEOUT_MS });
+      const text = await run(tools.powershell, powershellArgs(killScript(batch)), { maxBuffer: KILL_MAX_BUFFER, timeoutMs: LOADED_TIMEOUT_MS });
       if (text === null) { unran = true; continue; }
       for (const [pid, outcome] of parseKillOutcomes(text, new Set(batch.map((t) => t.pid)))) {
         if (outcome === 'killed') killed += 1;
