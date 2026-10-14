@@ -1896,7 +1896,7 @@ if (S.section("I2")) {
     ["xezar-ux-design.md", "NB-n follow-up", /A gap the base already has[^.]*are NB-n follow-ups/],
     // #150: the other verdict roles, each in its own verdict words.
     ["xezar-qa.md", "`minor` finding", /A gap the base already has, or a wish beyond the scope, is a `minor` finding[^.]*; on its own it does not make the verdict FAIL/],
-    ["xezar-security-review.md", "`minor` follow-up", /A weakness the base already has and the change does not reach is a `minor` follow-up[^.]*; on its own it never makes the verdict BLOCKING FINDINGS/],
+    ["xezar-security-review.md", "follow-up at its own severity", /A weakness the base already has and the change does not reach is a follow-up at its own severity[^.]*; on its own it never makes the verdict BLOCKING FINDINGS/],
     ["xezar-architecture.md", "NB-n follow-up", /A contradiction the base already has, or a design wish beyond the scope, is NB-n[^.]*; on its own it gives CONFORMS WITH FOLLOW-UPS/],
   ];
   for (const [file, follow, rule] of rules) {
@@ -2288,6 +2288,10 @@ if (S.section("I6")) {
     if (!read(where).includes("In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS."))
       fail(fact, where, "lets a confined checkout end in a PASS judged from the diff");
   }
+  // #150: the scope rule names both kinds of FAIL, so it cannot be read as the whole definition.
+  const qaWhere = `${SKILL}/kit/skills/xezar-qa.md`;
+  if (!read(qaWhere).includes("FAIL is required evidence unavailable (above), or a defect the change itself brings"))
+    fail(fact, qaWhere, "defines FAIL by the scope rule alone, which a reviewer can cite to PASS from the diff");
   checked.push(fact);
 }
 

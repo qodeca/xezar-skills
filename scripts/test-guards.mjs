@@ -1963,6 +1963,13 @@ breaks(
 
 // #150: the other verdict roles judge their accepted scope too.
 breaks(
+  "a QA scope rule that defines FAIL without the evidence rule is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("FAIL is required evidence unavailable (above), or a defect the change itself brings", "FAIL is a defect the change itself brings"),
+  facts("I6"),
+  "defines FAIL by the scope rule alone",
+);
+breaks(
   "a QA that fails a change on gaps the base already has is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
   (s) => s.replace("on its own it does not make the verdict FAIL", "on its own it makes the verdict FAIL"),
@@ -1974,7 +1981,7 @@ breaks(
   "skills/xez-onboard-opinionated/kit/skills/xezar-security-review.md",
   (s) => s.replace("on its own it never makes the verdict BLOCKING FINDINGS", "it makes the verdict BLOCKING FINDINGS"),
   facts("I2"),
-  "no longer makes a gap the base already has a non-blocking minor follow-up",
+  "no longer makes a gap the base already has a non-blocking follow-up at its own severity",
 );
 breaks(
   "an architecture review that blocks on contradictions the base already has is rejected",

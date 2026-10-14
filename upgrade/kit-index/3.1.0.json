@@ -629,10 +629,10 @@
       "sha256": "fe9891c18c0cac9f8db44cba8159422062387ffc52c9c0a01f039adf59b25e92"
     },
     ".xezar/skills/xezar-qa.md": {
-      "kitBlob": "63ae60bbe90442fe17875f998cf19c088a291109",
+      "kitBlob": "4aea9b627bcdcb9399696ed2235e4745954db760",
       "kitSource": "skills/xezar-qa.md",
       "rewrite": "copied",
-      "sha256": "624d6eee663a03c249cf114a2abad8859a1040dcdb3e23d4a0073562f674caa5"
+      "sha256": "ff6739f02ab5b6021e62f5503f1271ddda4cee379beb6e84f751d3d6984f96b6"
     },
     ".xezar/skills/xezar-quality-gates.md": {
       "kitBlob": "967342af0d229ff7c852cfff2ad503269f004501",
@@ -683,10 +683,10 @@
       "sha256": "5a94597bf4b47820afa9b22ff9867d5304affe01156c0799f634444430caaa1c"
     },
     ".xezar/skills/xezar-security-review.md": {
-      "kitBlob": "a15a764c332bfe0324b4773de6b90f822bdba255",
+      "kitBlob": "8f188d01d0c43c734d2f093d1d34b3578f87d438",
       "kitSource": "skills/xezar-security-review.md",
       "rewrite": "copied",
-      "sha256": "d64b225b33bac28e5c3282d49864231d274ff4a6cb3ba12b68c03501b2256011"
+      "sha256": "9750fda5434ad494610fae40c033daf16e37c98245f94d9b38737af20f96bf95"
     },
     ".xezar/skills/xezar-spike.md": {
       "kitBlob": "b48e44151bfa024906b0f9d78986e202af99239e",
