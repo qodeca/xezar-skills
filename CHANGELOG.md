@@ -384,6 +384,13 @@ and macOS CI jobs are required on `develop` beside `lint` (#132); the nightly Wi
 guard suite, which takes about 23 minutes (#123), stays informational. Setup:
 `CONTRIBUTING.md` → Contributing from Windows. Nothing changes for an installed project.
 
+**The kit passes its own security scan (#137).** An onboarding pull request adds the whole kit, and
+a comment in `kit/checks/lib/common.sh` gave an example remote URL with a token in it, so the kit's
+secret scan flagged every onboarding pull request. The comment now describes the token in words,
+and FACT G2 in `scripts/test-kit-facts.mjs` runs the secret and kill-by-pattern scans over every
+kit file as added lines, so a new example cannot bring it back. Found by the 3.1.0 release runs
+(#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
