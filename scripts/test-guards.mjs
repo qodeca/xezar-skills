@@ -3083,6 +3083,31 @@ breaks(
   "does not rule out --record-gate-evidence",
 );
 
+// A QA or design verdict that could not run the change is FAIL (#156, FACT I6).
+breaks(
+  "a QA skill that passes a change it never ran is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("is FAIL with the reason \"required evidence unavailable\", never a PASS from reading the diff.", "may PASS from reading the diff."),
+  facts("I6"),
+  "lets a verdict PASS without the running change it needs",
+);
+
+breaks(
+  "a QA skill that lets a confined checkout PASS from the diff is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace(" In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS.", ""),
+  facts("I6"),
+  "lets a confined checkout end in a PASS judged from the diff",
+);
+
+breaks(
+  "a design review that passes a change it never ran is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("is FAIL with the reason \"required evidence unavailable\", never a PASS from reading the diff.", "may PASS from reading the diff."),
+  facts("I6"),
+  "lets a verdict PASS without the running change it needs",
+);
+
 // A reviewer runs the checkout before it reports one (#147, FACT I3).
 breaks(
   "a review skill that lets a reviewer predict review-run=confined is rejected",

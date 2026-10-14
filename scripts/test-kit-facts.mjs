@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I6", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2227,6 +2227,25 @@ if (S.section("I3")) {
     fail(fact, `${SKILL}/kit/checks/review-run.sh`, "checkout no longer records its outcome in <evidence>/review/checkout");
   if (!/grep -q 'review-run=confined' "\$tmp"/.test(vw) || !vw.includes('"$dir/review/checkout"'))
     fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer checks a confined claim against this run's checkout record");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I6 -- a QA or design verdict that could not run the change is FAIL, never PASS (#156). A Codex
+// QA step that could not check out, start the app or open a browser posted "PASS (static-evidence-
+// only)", while the design review in the same run failed for the same reason. Both role skills carry
+// one identical rule, so the two gates cannot drift apart again.
+// ---------------------------------------------------------------------------
+if (S.section("I6")) {
+  const fact = "FACT I6: QA and design review FAIL when the required evidence is unavailable";
+  const RULE = "A verdict that needs the running change – the PR checked out, the app running, browser evidence for a user-facing change – and could not get it in this run is FAIL with the reason \"required evidence unavailable\", never a PASS from reading the diff.";
+  for (const file of ["xezar-qa.md", "xezar-ux-design.md"]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    if (!read(where).includes(RULE)) fail(fact, where, "lets a verdict PASS without the running change it needs (required evidence unavailable must be FAIL)");
+    // The confined-checkout sentence must say the same, or "judge from the diff" reads as a way to PASS.
+    if (!read(where).includes("In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS."))
+      fail(fact, where, "lets a confined checkout end in a PASS judged from the diff");
+  }
   checked.push(fact);
 }
 
