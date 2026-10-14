@@ -23,6 +23,25 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-14 – QA passes, but the PR keeps `needs-qa` and never merges
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – the `## QA` comment says PASS and "`qa-approved` not applied, as instructed".** Your
+`SDLC.md` § The QA gate says `qa-approved` is something "automation never applies". The leader
+passes that sentence into the QA launch text, so the QA step obeys it. The kit's QA role is the
+one meant to apply it: `xezar-qa` adds `qa-approved` on PASS through `gh-write.sh`, which moves it
+only for the reviewed current head.
+
+**What to do.** In `SDLC.md`, under § The QA gate (and § The design gate, if it says the same of
+`design-approved`), replace that sentence with: "The independent QA step applies `qa-approved` on
+PASS, and the design review `design-approved`, through `gh-write.sh`'s verdict check; no authoring
+step and no leader applies them, and a person may apply them by hand." Commit it through a pull
+request.
+
+**What you lose by skipping it.** Every PR that needs QA waits for a person to add `qa-approved`,
+even after QA passed.
+
 ## 2026-10-01 – QA evidence uploads use a fixed `/tmp` file
 
 Applies to any repository with this collection's GitHub tracker descriptor,
