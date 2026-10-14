@@ -405,6 +405,14 @@ has, or a wish beyond the issue, is a non-blocking follow-up with a suggested is
 change brings still blocks. The design review also runs the change with `review-run.sh start`, not
 "the running cockpit". FACT I2 keeps the rule. Found by the 3.1.0 release runs (#132).
 
+**A review cannot claim a checkout it never ran (#147, #151).** Codex reviewers reported "checkout
+exited 3, `review-run=confined`" without running it, and later reviewers copied the claim from PR
+comments. The running role skills now name the exact call, alone and with no pipe, since the
+command lock refuses a compound command. `review-run.sh checkout` records its outcome, and
+`verdict-write.sh` refuses a verdict that says confined when this run recorded no confined
+checkout. FACT I3 and the run test in `test-kit-catalog.mjs` keep it. Found by the 3.1.0 release
+runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

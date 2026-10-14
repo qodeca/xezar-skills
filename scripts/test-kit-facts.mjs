@@ -2175,7 +2175,7 @@ if (S.section("W10")) {
   checked.push(fact);
 }
 
-// FACT I3 -- a reviewer runs the checkout before it reports one (#147). Every Codex reviewer in the
+// FACT I3 -- a reviewer runs the checkout before it reports one (#147, #151). Every Codex reviewer in the
 // macOS release run posted "checkout exited 3, review-run=confined" without ever running it: the
 // skills described the Codex sandbox, so it predicted the result, and later reviewers copied it
 // from PR comments. Each running role skill tells the step to run `checkout` and to report the
@@ -2184,7 +2184,8 @@ if (S.section("W10")) {
 // ---------------------------------------------------------------------------
 if (S.section("I3")) {
   const fact = "FACT I3: a reviewer reports review-run=confined only from its own checkout";
-  const RUN = "Run `checkout` before you judge anything that needs the running change; never predict its result from your runner's name, and never copy it from an earlier review or PR comment.";
+  const RUN = "Run `checkout` – exactly `bash .local/xezar/cache/kit/checks/review-run.sh checkout <pr>`, alone, with no pipe, no `2>&1` and no `tail`, because the command lock refuses a compound command – before you judge anything that needs the running change; never predict its result from your runner's name, and never copy it from an earlier review or PR comment.";
+  const REFUSED_CLAIM = "`verdict-write.sh` refuses a verdict that says confined when this run recorded no confined checkout";
   const ONLY = "Only when `checkout` exits 3 in this run with `review-run=confined`";
   const CODEX = "A Codex run gets only the tools `.codex/config.toml` enables";
   const dir = `${SKILL}/kit/skills`;
@@ -2195,10 +2196,18 @@ if (S.section("I3")) {
     seen++;
     if (!text.includes(RUN)) fail(fact, rel, "does not tell the step to run `checkout` first, so a reviewer predicts or copies \"confined\" instead");
     if (!text.includes(ONLY)) fail(fact, rel, "lets a reviewer report review-run=confined without this run's own exit 3");
+    if (!text.includes(REFUSED_CLAIM)) fail(fact, rel, "does not say verdict-write.sh refuses a confined claim this run's checkout never recorded (#151)");
     if (/Every `chrome-devtools` tool is granted/.test(text) && !text.includes(CODEX))
       fail(fact, rel, "says every chrome-devtools tool is granted, but not that a Codex run gets only what .codex/config.toml enables");
   }
   if (!seen) fail(fact, dir, "no role skill names review-run=confined any more; re-aim this fact");
+  // The text is backed by the scripts: checkout records its outcome and the verdict writer checks it
+  // (the D-review section of test-kit-catalog.mjs runs both).
+  const rr = read(`${SKILL}/kit/checks/review-run.sh`), vw = read(`${SKILL}/kit/checks/verdict-write.sh`);
+  if (!rr.includes(`printf 'confined exit=3 pr=%s\\n' "$1" >"$state/checkout"`) || !rr.includes(`printf 'ok exit=0 pr=%s head=%s\\n' "$1" "$head" >"$state/checkout"`))
+    fail(fact, `${SKILL}/kit/checks/review-run.sh`, "checkout no longer records its outcome in <evidence>/review/checkout");
+  if (!/grep -qi 'confined' "\$tmp"/.test(vw) || !vw.includes('"$dir/review/checkout"'))
+    fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer checks a confined claim against this run's checkout record");
   checked.push(fact);
 }
 
