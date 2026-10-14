@@ -391,6 +391,12 @@ and FACT G2 in `scripts/test-kit-facts.mjs` runs the secret and kill-by-pattern 
 kit file as added lines, so a new example cannot bring it back. Found by the 3.1.0 release runs
 (#132).
 
+**The first task no longer stops on build folders (#138).** `worktree-preflight.sh` refuses every
+task until `node_modules/`, `dist/` and `coverage/` are git-ignored, and the setup wrote only
+`/.local/` to the root `.gitignore`, so a project without those rules failed its first task. The
+setup now adds the three when they are not already ignored, and FACT I1 keeps its list equal to
+the preflight's. Found by the 3.1.0 release runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

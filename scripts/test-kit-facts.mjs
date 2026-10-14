@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1805,6 +1805,27 @@ if (S.section("W-scheduler")) {
 // and never by its bare name, which Windows looks for in the unit's own folder first. A spawnSync
 // outside start() is a tool started without those rules.
 // ---------------------------------------------------------------------------
+// FACT I1 -- the setup ignores every root path the task preflight demands (#138). The preflight's
+// ignore-hygiene loop refuses every task until each probe is git-ignored; the setup writes the
+// root .gitignore. A probe outside .local/ that the setup never writes stops the first task.
+// ---------------------------------------------------------------------------
+if (S.section("I1")) {
+  const fact = "FACT I1: onboarding writes every root ignore rule worktree-preflight.sh demands";
+  const pre = read(`${SKILL}/kit/checks/worktree-preflight.sh`);
+  const loop = pre.match(/for ignored in ([\s\S]*?); do/);
+  const write = read(`${SKILL}/references/write.md`);
+  if (!loop) fail(fact, `${SKILL}/kit/checks/worktree-preflight.sh`, "the ignore-hygiene loop (for ignored in …; do) is gone");
+  else {
+    const roots = [...new Set(loop[1].split(/[\s\\]+/).filter(Boolean).map((p) => p.split("/")[0]).filter((d) => d !== ".local"))];
+    if (!roots.length) fail(fact, `${SKILL}/kit/checks/worktree-preflight.sh`, "the ignore-hygiene loop names no root folder besides .local");
+    for (const d of roots)
+      if (!write.includes("`" + d + "/`"))
+        fail(fact, `${SKILL}/references/write.md`, `never writes \`${d}/\` to the root .gitignore, but worktree-preflight.sh refuses every task until it is ignored`);
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
 if (S.section("W3")) {
   const fact = "FACT W3: deps.mjs starts every unit tool through start()";
   const where = "kit/checks/lib/deps.mjs";
@@ -2077,7 +2098,8 @@ for os in msys linux-gnu; do (
 // core.filemode=false, is recorded as 100644, and a Linux or macOS clone then stops with
 // "Permission denied". The list is derived on every run from git's modes through the kit's own copy
 // map, so a script added later cannot be missed; each block also runs chmod, then git add, then
-// git update-index, in that order (chmod first, or a POSIX working file stays dirty).
+// git update-index, in that order (chmod first, or a POSIX working file stays dirty), and never
+// passes `--` to chmod after the mode, which BSD chmod on macOS takes for a file name (#136).
 if (S.section("W10")) {
   const fact = "FACT W10: onboarding and upgrade entry 14 make every executable kit file executable in git";
   const { execFileSync } = await import("node:child_process");
@@ -2109,9 +2131,13 @@ if (S.section("W10")) {
     const list = block[1].split("\n").map((l) => l.trim().replace(/ \\$/, ""));
     for (const p of want) if (!list.includes(p)) fail(fact, where, `${p} is executable in the kit but not marked executable here: a Linux or macOS clone stops with "Permission denied" on it`);
     for (const p of list) if (!want.includes(p)) fail(fact, where, `marks ${p} executable, but no kit file git records as executable is installed there`);
-    const steps = ["chmod +x -- ", "git add -- ", "git update-index --chmod=+x -- "].map((s) => block[2].indexOf(s));
+    const steps = ["chmod +x ", "git add -- ", "git update-index --chmod=+x -- "].map((s) => block[2].indexOf(s));
     if (steps.some((at) => at < 0) || !(steps[0] < steps[1] && steps[1] < steps[2]))
       fail(fact, where, "does not run chmod +x, then git add, then git update-index --chmod=+x on the list, in that order");
+    // BSD chmod (macOS) reads options only before the mode, so `chmod +x --` takes `--` for a file
+    // and exits 1 after marking the rest: an `&&` chain or `set -e` stops there (#136).
+    if (/\bchmod \+x --/.test(block[2]))
+      fail(fact, where, "runs `chmod +x --`, which exits 1 on macOS: BSD chmod takes `--` after the mode for a file name");
   }
   checked.push(fact);
 }

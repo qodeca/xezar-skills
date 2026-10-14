@@ -296,7 +296,7 @@ report it as a tool fault:
 Then make every `executable=` path executable in git, on every OS. A file written on Windows, or
 into a repository with `core.filemode=false`, is recorded as `100644`, and a Linux or macOS clone
 of the project then stops with `Permission denied` on it. Do it in this order, with the paths
-from the `executable=` lines: `chmod +x -- <paths>` (a POSIX working file then matches; in Git
+from the `executable=` lines: `chmod +x <paths>` (a POSIX working file then matches; in Git
 Bash it changes nothing), `git add -- <paths>`, then `git update-index --chmod=+x -- <paths>`
 (it refuses a path not yet added). Leaving out `chmod` leaves a POSIX file dirty, and the next
 `git add` takes the bit away again.

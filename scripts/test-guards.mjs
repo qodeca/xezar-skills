@@ -1841,6 +1841,15 @@ breaks(
   "url-userinfo-credential",
 );
 
+// Onboarding ignores every root path the task preflight demands (#138, FACT I1).
+breaks(
+  "an onboarding that never ignores dist/ is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("add `node_modules/`, `dist/` and `coverage/`", "add `node_modules/` and `coverage/`"),
+  facts("I1"),
+  "never writes `dist/`",
+);
+
 // Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
 // edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.
 const SCAN_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs";
@@ -2984,6 +2993,14 @@ breaks(
   (s) => s.replace("  .xezar/checks/push-check.sh \\\n", ""),
   facts("W10"),
   "not marked executable",
+);
+
+breaks(
+  "an onboarding chmod that fails on macOS is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace('chmod +x "$@"', 'chmod +x -- "$@"'),
+  facts("W10"),
+  "exits 1 on macOS",
 );
 
 breaks(

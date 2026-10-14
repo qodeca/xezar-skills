@@ -624,7 +624,7 @@ set -- \
   .xezar/checks/worktree-setup.sh \
   scripts/xezar-leader.sh
 for f in "$@"; do
-  if [ -f "$f" ]; then chmod +x -- "$f" && git add -- "$f" && git update-index --chmod=+x -- "$f"; fi
+  if [ -f "$f" ]; then chmod +x "$f" && git add -- "$f" && git update-index --chmod=+x -- "$f"; fi
 done
 ```
 
