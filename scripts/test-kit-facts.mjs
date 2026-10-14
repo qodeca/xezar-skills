@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "H1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "H1", "I1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1775,6 +1775,27 @@ if (S.section("W-scheduler")) {
 // .cmd shims: start() finds a tool by PATHEXT and starts a .cmd through cmd.exe with checked text,
 // and never by its bare name, which Windows looks for in the unit's own folder first. A spawnSync
 // outside start() is a tool started without those rules.
+// ---------------------------------------------------------------------------
+// FACT I1 -- the setup ignores every root path the task preflight demands (#138). The preflight's
+// ignore-hygiene loop refuses every task until each probe is git-ignored; the setup writes the
+// root .gitignore. A probe outside .local/ that the setup never writes stops the first task.
+// ---------------------------------------------------------------------------
+if (S.section("I1")) {
+  const fact = "FACT I1: onboarding writes every root ignore rule worktree-preflight.sh demands";
+  const pre = read(`${SKILL}/kit/checks/worktree-preflight.sh`);
+  const loop = pre.match(/for ignored in ([\s\S]*?); do/);
+  const write = read(`${SKILL}/references/write.md`);
+  if (!loop) fail(fact, `${SKILL}/kit/checks/worktree-preflight.sh`, "the ignore-hygiene loop (for ignored in …; do) is gone");
+  else {
+    const roots = [...new Set(loop[1].split(/[\s\\]+/).filter(Boolean).map((p) => p.split("/")[0]).filter((d) => d !== ".local"))];
+    if (!roots.length) fail(fact, `${SKILL}/kit/checks/worktree-preflight.sh`, "the ignore-hygiene loop names no root folder besides .local");
+    for (const d of roots)
+      if (!write.includes("`" + d + "/`"))
+        fail(fact, `${SKILL}/references/write.md`, `never writes \`${d}/\` to the root .gitignore, but worktree-preflight.sh refuses every task until it is ignored`);
+  }
+  checked.push(fact);
+}
+
 // ---------------------------------------------------------------------------
 if (S.section("W3")) {
   const fact = "FACT W3: deps.mjs starts every unit tool through start()";

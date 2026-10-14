@@ -524,6 +524,10 @@ to carry — do not invent one, and do not tell the owner to run one.
   will otherwise commit scratch, runtime state and the gitignored identity half of the manifest
   into the first branch it touches. `kit/xezar.gitignore` lands at `.xezar/.gitignore` and its
   paths are rooted there, so it **cannot** cover a repo-root path — this is a separate write.
+  In the same write, add `node_modules/`, `dist/` and `coverage/` when the root `.gitignore` does
+  not already ignore them (check with `git check-ignore -q <dir>/probe`, never by reading the
+  file): `worktree-preflight.sh` refuses every task until all three are ignored, whatever the
+  project's stack, because the cockpit's autosave would commit build output (#138).
 - `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`).
   **Create the folders and nothing else — no README beside them.** What each one is for is printed
   by `kit/checks/local-tree.sh` itself, and that check reports any file at the top level as loose,
