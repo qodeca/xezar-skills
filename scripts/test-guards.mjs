@@ -1642,6 +1642,22 @@ breaks(
   "no longer runs review-run.sh finish before a verdict packet",
 );
 
+// The PR is checked out by a check step before the review agent (#160, qodeca/xezar#1006).
+breaks(
+  "a QA workflow with no prepare step before its agent is rejected",
+  "skills/xez-onboard-opinionated/kit/workflows/qa.yaml",
+  (s) => s.replace('command: "bash .local/xezar/cache/kit/checks/review-run.sh prepare"', 'command: "true"'),
+  catalog("D-data"),
+  "no review-run.sh prepare check step",
+);
+breaks(
+  "a review-run.sh that refuses to confirm the PR its prepare step checked out is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('echo "review-head=$(cat "$state/head") pr=$1 already checked out"\n        exit 0', 'refuse "one reviewed head per run"'),
+  catalog("D-review"),
+  "refuses to confirm the PR its prepare step checked out",
+);
+
 breaks(
   "a gh-write.sh that takes a verdict's role from the request is rejected",
   "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",

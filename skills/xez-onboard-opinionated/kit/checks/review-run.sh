@@ -14,6 +14,10 @@
 # Usage:
 #   review-run.sh checkout <pr-number>        check the PR's head out, detached, in THIS worktree,
 #                                             and record it as the reviewed head (once per run)
+#   review-run.sh prepare                     the workflow check step before the agent (#160): checkout
+#                                             $XEZ_PR_NUMBER, or print review-run=no-pr and exit 0 when the
+#                                             run names no PR. A later `checkout` of the same PR at the same
+#                                             head confirms it ("already checked out")
 #   review-run.sh install                     install dependencies here (deps-restore.sh)
 #   review-run.sh run <program> [<args>…]     run one project command here, in the foreground
 #   review-run.sh start <name> <program> […]  start one long-running command (a dev server) in the
@@ -80,11 +84,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 refuse() {
   echo "review-run.sh: refused: $*" >&2
+  # A refused prepare stops the run before the agent: say what the leader should make of it (#160).
+  [ "${PREPARING:-0}" = 1 ] && echo "review-run.sh: this is the prepare check step, not a verdict – no review ran; re-run the review, or report this refusal" >&2
   exit 1
 }
 
 usage() {
-  echo "usage: review-run.sh checkout <pr> | install | run <program> [<args>…] | start <name> <program> [<args>…] | stop [<name>] | verify-unchanged | finish" >&2
+  echo "usage: review-run.sh checkout <pr> | prepare | install | run <program> [<args>…] | start <name> <program> [<args>…] | stop [<name>] | verify-unchanged | finish" >&2
   exit 2
 }
 
@@ -189,11 +195,17 @@ verify_unchanged() {
   echo "review-tree=unchanged head=$head"
 }
 
-case "$sub" in
-  checkout)
-    [ $# -eq 1 ] || usage
+checkout_pr() {
     printf '%s' "$1" | grep -Eq '^[1-9][0-9]{0,9}$' || refuse "\"$1\" is not a PR number"
-    [ -f "$state/head" ] && refuse "this run already reviews $(cat "$state/head"); one reviewed head per run"
+    if [ -f "$state/head" ]; then
+      # The workflow's `prepare` step may have checked this PR out already (#160): the same PR at
+      # the same, unmoved head is that checkout confirmed, not a second one.
+      if [ "$(cat "$state/pr" 2>/dev/null)" = "$1" ] && [ "$(cat "$state/head")" = "$(git rev-parse HEAD 2>/dev/null)" ]; then
+        echo "review-head=$(cat "$state/head") pr=$1 already checked out"
+        exit 0
+      fi
+      refuse "this run already reviews $(cat "$state/head"); one reviewed head per run"
+    fi
     [ -z "$(tracked_changes)" ] || refuse "the worktree has tracked changes before the checkout"
     for gitdir in "$(git rev-parse --absolute-git-dir 2>/dev/null)" "$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)"; do
       probe=""
@@ -201,7 +213,7 @@ case "$sub" in
       if [ -z "$probe" ]; then
         printf 'confined exit=3 pr=%s\n' "$1" >"$state/checkout"
         echo "review-run=confined"
-        echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, engine 0.19.0). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
+        echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, on an engine without the prepare step of qodeca/xezar#1006). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
         exit 3
       fi
       rm -f "$probe"
@@ -222,6 +234,25 @@ case "$sub" in
     printf '%s\n' "$1" >"$state/pr"
     printf 'ok exit=0 pr=%s head=%s\n' "$1" "$head" >"$state/checkout"
     echo "review-head=$head pr=$1"
+}
+
+case "$sub" in
+  checkout)
+    [ $# -eq 1 ] || usage
+    checkout_pr "$1"
+    ;;
+  prepare)
+    # The workflow's check step, before the review agent (#160). The engine runs it outside any
+    # agent sandbox and sets XEZ_PR_NUMBER when the run knows its pull request, so a step whose own
+    # sandbox cannot write git (a Codex reading step) still reviews a checked-out head.
+    [ $# -eq 0 ] || usage
+    if [ -z "${XEZ_PR_NUMBER:-}" ]; then
+      echo "review-run=no-pr"
+      echo "review-run.sh: this run names no pull request, so nothing was checked out; the review judges what its task names" >&2
+      exit 0
+    fi
+    PREPARING=1
+    checkout_pr "$XEZ_PR_NUMBER"
     ;;
   install)
     [ $# -eq 0 ] || usage
