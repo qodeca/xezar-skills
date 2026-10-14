@@ -14,7 +14,7 @@
 #   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON;
 #                                      taskId and stepId stamped from XEZ_TASK_ID and XEZ_STEP_ID)
 #   verdict-write.sh blocked           stdin → <evidence dir>/BLOCKED
-#   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name>
+#   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name> (.md .txt .log .json .csv .png .jpg .jpeg)
 #   verdict-write.sh                   any of the three, as one JSON request on stdin:
 #     {"kind":"packet","packet":{…}}   {"kind":"blocked","text":"…"}   {"kind":"evidence","name":"notes.md","text":"…"}
 #
@@ -165,6 +165,13 @@ case "$kind" in
       *) refuse "\"$name\" needs a dot or a hyphen (e.g. notes.md); bare names are phase records, written by phase-record.sh set" ;;
     esac
     lower="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
+    # Evidence is a record, never a program: a reading step with no Write tool must not get a
+    # script into a folder it can then run (#166). A courtesy like review-run.sh's name list, not
+    # the boundary – but it keeps the evidence folder holding only what a reader opens.
+    case "$lower" in
+      *.md | *.txt | *.log | *.json | *.csv | *.png | *.jpg | *.jpeg) ;;
+      *) refuse "\"$name\" is not an evidence file: name it .md, .txt, .log, .json, .csv, .png, .jpg or .jpeg" ;;
+    esac
     case " $RESERVED_NAMES " in *" $lower "*) refuse "\"$name\" is a file the run itself owns" ;; esac
     dir="$(evidence_dir)" || exit 1
     tmp="$(atomic_from_stdin "$dir/$name" "$EVIDENCE_MAX_BYTES")" || exit 1

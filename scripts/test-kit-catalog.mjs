@@ -236,6 +236,9 @@ if (S.section("1b")) {
       const evidence = pipe("verdict-write.sh", { kind: "evidence", name: "notes.md", text: "x\r\ny\n" }, extra);
       if (evidence !== 0 || readOr(join(evidenceDir, "notes.md")) !== "x\r\ny\n")
         fail(`verdict-write.sh does not write evidence text under ${label} byte for byte (exit ${evidence}): ${JSON.stringify(readOr(join(evidenceDir, "notes.md")))}`);
+      const script = pipe("verdict-write.sh", { kind: "evidence", name: "serve.mjs", text: "x\n" }, extra);
+      if (script !== 1 || existsSync(join(evidenceDir, "serve.mjs")))
+        fail(`verdict-write.sh writes evidence named serve.mjs under ${label}, a script a reading step could then run (#166) (exit ${script})`);
       const blocked = pipe("verdict-write.sh", { kind: "blocked", text: "why\n" }, extra);
       if (blocked !== 0 || readOr(join(evidenceDir, "BLOCKED")) !== "why\n")
         fail(`verdict-write.sh does not write blocked text under ${label} byte for byte (exit ${blocked}): ${JSON.stringify(readOr(join(evidenceDir, "BLOCKED")))}`);
@@ -1340,6 +1343,7 @@ if (S.section("D-review")) {
   // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
   const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
   let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
+  let leftPid = null; // the one a second, ended run left running (#166), stopped there too
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1610,6 +1614,45 @@ if (S.section("D-review")) {
     else if (probeExit === 1) reviewPid = null; // gone: `finally` must not signal a pid the system may reuse
     else fail(`the probe for review-run.sh's started command could not run (bash exit ${probeExit})`);
 
+    // #166: a cancelled review step never reaches `finish`, so what its `start` began lives on. The
+    // next review's prepare or start stops it – only when the engine's index says that run ended,
+    // and only while the process still runs in the ended run's own worktree.
+    const alive = (p) => {
+      try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null', "_", p], { stdio: "ignore" }); return true; } catch { return false; }
+    };
+    const wt2 = join(repo, ".local/xezar/worktrees/run-2");
+    git(repo, "worktree", "add", "--quiet", "-b", "xez/run-2", wt2, "main");
+    env.XEZ_TASK_ID = "run-2";
+    const left = sh(wt2, "review-run.sh", ["start", "srv", "sleep", "86400"], "", ".xezar/checks");
+    env.XEZ_TASK_ID = "run-1";
+    leftPid = (left.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (left.status !== 0 || !leftPid) fail(`review-run.sh start does not start a background command in a second run:\n${left.out}`);
+    const indexRuns = (status) => writeFileSync(runsIndex, JSON.stringify([
+      { id: "run-1", status: "running", workflow: "qa", workflowDef: { steps: [{ id: "review", verdictRole: "qa" }] } },
+      { id: "run-2", status, workflow: "design-review" },
+    ]));
+    indexRuns("running");
+    const beside = rr("start", "web", "sleep", "86400");
+    const webPid = (beside.out.match(/pid=(\d+)/) ?? [])[1];
+    reviewPid = webPid ?? null;
+    if (beside.status !== 0 || !alive(leftPid)) fail(`review-run.sh start stops what a run that is still running started (#166):\n${beside.out}`);
+    rr("stop", "web");
+    indexRuns("cancelled");
+    const swept = rr("start", "web", "sleep", "86400");
+    reviewPid = (swept.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (swept.status !== 0 || alive(leftPid) || !swept.out.includes("which run run-2 started and left running when it ended"))
+      fail(`review-run.sh start leaves running what a cancelled run's start began (#166):\n${swept.status} ${swept.out}`);
+    else leftPid = null;
+    // A pid file whose pid now belongs to a process outside the ended run's worktree is left alone.
+    const strayFile = join(repo, ".local/xezar/tasks/run-2/review/srv.pid");
+    writeFileSync(strayFile, `${reviewPid}\n`);
+    const stray = rr("prepare");
+    if (!alive(reviewPid) || !stray.out.includes("not that run's worktree – left alone"))
+      fail(`review-run.sh prepare stops a process outside the ended run's worktree (#166):\n${stray.status} ${stray.out}`);
+    rmSync(strayFile, { force: true });
+    rr("stop", "web");
+    declareRole("qa");
+
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
     // A child can rewrite the head record too; the recorded head must still be a commit of the PR on GitHub.
@@ -1681,8 +1724,8 @@ if (S.section("D-review")) {
   } finally {
     // A failing run leaves no day-long sleep behind. Through bash's kill: `$!` is a Git Bash
     // (MSYS) pid on Windows, which Node's process.kill cannot reach; elsewhere it is the real pid.
-    if (reviewPid) {
-      try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", reviewPid], { stdio: "ignore" }); } catch {}
+    for (const p of [reviewPid, leftPid]) {
+      if (p) try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", p], { stdio: "ignore" }); } catch {}
     }
     rmSync(run, { recursive: true, force: true });
   }

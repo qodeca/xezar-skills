@@ -22,6 +22,8 @@
 #   review-run.sh run <program> [<args>…]     run one project command here, in the foreground
 #   review-run.sh start <name> <program> […]  start one long-running command (a dev server) in the
 #                                             background; its log is <evidence>/review/<name>.log
+#                                             `prepare` and `start` first stop what an ended run's
+#                                             `start` left running (#166; stop_ended_runs below)
 #   review-run.sh stop [<name>]               stop one started command, or all of them
 #   review-run.sh verify-unchanged            exit 0 only when the tracked tree equals the
 #                                             reviewed head (below); prints review-tree=<status>
@@ -155,6 +157,58 @@ stop_one() {
   rm -f "$pidfile"
 }
 
+# The folder a process runs in, or nothing when this machine does not show it.
+process_cwd() {
+  if [ -e "/proc/$1/cwd" ]; then
+    readlink "/proc/$1/cwd" 2>/dev/null
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
+  fi
+}
+
+# A step the leader cancels never reaches `finish`, so a command its `start` began lives on and
+# holds its port (#166). Before this run prepares or starts anything, stop what an ENDED run left:
+# one whose status in the engine's runs index is done, failed or cancelled. A pid is stopped only
+# while it still runs in that run's own worktree, so a pid the system gave to another program is
+# never signalled; a dead one only loses its pid file.
+stop_ended_runs() {
+  local index="$MAIN_ROOT/.local/xezar/runs.json" ended root pidfile id pid cwd wt fold=cat
+  [ -r "$index" ] || return 0
+  ended="$(node -e '
+    const raw = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    for (const r of Array.isArray(raw) ? raw : (raw.runs ?? []))
+      if (["done", "failed", "cancelled"].includes(r?.status) && typeof r.id === "string") console.log(r.id);
+  ' "$index" 2>/dev/null | drop_jq_cr)" || return 0
+  [ -n "$ended" ] || return 0
+  case "${OSTYPE:-}" in msys* | cygwin* | darwin*) fold="tr A-Z a-z" ;; esac
+  while IFS= read -r root; do
+    for pidfile in "$root"/*/review/*.pid; do
+      [ -e "$pidfile" ] || continue
+      id="${pidfile%/review/*}"
+      id="${id##*/}"
+      [ "$id" != "${TASK_ID:-}" ] && printf '%s\n' "$ended" | grep -Fqx -- "$id" || continue
+      pid="$(cat "$pidfile" 2>/dev/null)"
+      if ! printf '%s' "$pid" | grep -Eq '^[1-9][0-9]*$' || ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$pidfile"
+        continue
+      fi
+      cwd="$(process_cwd "$pid" | $fold)"
+      wt="$(printf '%s' "$MAIN_ROOT/.local/xezar/worktrees/$id" | $fold)"
+      case "$cwd" in
+        "$wt" | "$wt"/* | "$wt (deleted)" | "$wt"/*" (deleted)")
+          stop_one "$pidfile"
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "review-run.sh: could not stop pid $pid, which run $id started and left running when it ended – stop it by hand"
+          else
+            echo "review-run.sh: stopped $(basename "$pidfile" .pid) (pid $pid), which run $id started and left running when it ended"
+          fi
+          ;;
+        *) echo "review-run.sh: run $id ended and left $pidfile, but pid $pid runs in ${cwd:-a folder this machine does not show}, not that run's worktree – left alone" ;;
+      esac
+    done
+  done < <(task_evidence_roots)
+}
+
 verify_unchanged() {
   local head recorded changes pr known
   head="$(git rev-parse HEAD 2>/dev/null)" || { echo "review-tree=fail"; echo "review-run.sh: HEAD cannot be read" >&2; return 1; }
@@ -246,6 +300,7 @@ case "$sub" in
     # agent sandbox and sets XEZ_PR_NUMBER when the run knows its pull request, so a step whose own
     # sandbox cannot write git (a Codex reading step) still reviews a checked-out head.
     [ $# -eq 0 ] || usage
+    stop_ended_runs
     if [ -z "${XEZ_PR_NUMBER:-}" ]; then
       echo "review-run=no-pr"
       echo "review-run.sh: this run names no pull request, so nothing was checked out; the review judges what its task names" >&2
@@ -270,6 +325,7 @@ case "$sub" in
     name="$1"
     shift
     check_program "$1"
+    stop_ended_runs
     if [ -f "$state/$name.pid" ] && kill -0 "$(cat "$state/$name.pid")" 2>/dev/null; then
       refuse "\"$name\" is already running"
     fi

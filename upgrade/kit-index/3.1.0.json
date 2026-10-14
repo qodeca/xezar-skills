@@ -272,10 +272,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "0a98a97a4ebdabe3969707acadbc05f38a0866b6",
+      "kitBlob": "a4761dd435fd582df627d34454f3f2bf43f43a2d",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "a93ec162ce418fe72d313779b67979d403403fab412337ecb1a958881a670fb9"
+      "sha256": "00126c63d4497635c6711fdb4fea2c92b0be822f53752044c8e76ffc0cbeaf40"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
@@ -296,10 +296,10 @@
       "sha256": "8d5d99dda8ea2cef9a8f17e4f4733838f5828d100a8392047de23aebde3a7d41"
     },
     ".xezar/checks/verdict-write.sh": {
-      "kitBlob": "e56a6f7a9d98778bd81bc839866ac0970e1402e1",
+      "kitBlob": "81f1d1844e9405c11ef83702640f228d3e250cda",
       "kitSource": "checks/verdict-write.sh",
       "rewrite": "copied",
-      "sha256": "2b8c1f02ba2c6599bdf85574e5f4589869446d6542f2c4e6aa50934660691ed4"
+      "sha256": "4fb84a5220a5676c48998302e0ec5fa466138f1bcab2cb6d555d94369e57c658"
     },
     ".xezar/checks/verify-evidence.sh": {
       "kitBlob": "f5ec97bd6b199b508bc458f1d4d537a38aee5977",
