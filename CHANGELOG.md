@@ -397,6 +397,14 @@ task until `node_modules/`, `dist/` and `coverage/` are git-ignored, and the set
 setup now adds the three when they are not already ignored, and FACT I1 keeps its list equal to
 the preflight's. Found by the 3.1.0 release runs (#132).
 
+**Reviews judge the change, not the whole screen (#146).** The design review checked every state –
+loading, error, refusal – on every UI change and blocked on states the base page never had; each fix
+round then added new edge cases, and a small change could not merge without a person. The code
+review and the design review now judge a change against its accepted scope: a gap the base already
+has, or a wish beyond the issue, is a non-blocking follow-up with a suggested issue, and a defect the
+change brings still blocks. The design review also runs the change with `review-run.sh start`, not
+"the running cockpit". FACT I2 keeps the rule. Found by the 3.1.0 release runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

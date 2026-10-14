@@ -1850,6 +1850,15 @@ breaks(
   "never writes `dist/`",
 );
 
+// A review judges the change against its accepted scope (#146, FACT I2).
+breaks(
+  "a design review that blocks on gaps the base already has is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("are NB-n follow-ups, each with", "are B-n findings, each with"),
+  facts("I2"),
+  "no longer makes a gap the base already has",
+);
+
 // Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
 // edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.
 const SCAN_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs";

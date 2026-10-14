@@ -527,10 +527,10 @@
       "sha256": "889f4e23d1b689fdd333dd7a61c56d14299840dccdda35d0864c0d842b5dbb78"
     },
     ".xezar/skills/xezar-code-review.md": {
-      "kitBlob": "050c8e196f1792e33a5f2cba89080252f08a99fe",
+      "kitBlob": "0dabbc8ca5fa220ae13d6078554ab88749e5be17",
       "kitSource": "skills/xezar-code-review.md",
       "rewrite": "copied",
-      "sha256": "b893ef8eb2f0012929e2b33db634d57eed769d6035872a3c3fef998965dd6a30"
+      "sha256": "bf6d8f2b5c164df32e7423a9d4e100a3a43bfd5e353d70a17e005f821b1ab5a0"
     },
     ".xezar/skills/xezar-dependency-maintenance.md": {
       "kitBlob": "65ff30ac937d9aca5888031456f8bce3bfd614fa",
@@ -713,10 +713,10 @@
       "sha256": "e195574b615fc4219663b53327456396944ac1a93bb4d0147b5e18ea99aa34c4"
     },
     ".xezar/skills/xezar-ux-design.md": {
-      "kitBlob": "65fed3605ced0becc34252a17ad4d9a690f44c48",
+      "kitBlob": "07af10ac300251a83fa77d86c883ab5f958cae68",
       "kitSource": "skills/xezar-ux-design.md",
       "rewrite": "copied",
-      "sha256": "b521bdea0da7e1522c1122dcf1e8f4c97b1fc8dcaf39a40f6b7a7714e5c2f8ad"
+      "sha256": "5c581004818b0ec26f4735ede861121f46e0d54248ebdc04abdd00dedf2656fc"
     },
     ".xezar/skills/xezar-visual-asset.md": {
       "kitBlob": "27fcf4f528ead3a6ea2dbf1f633a1659ce583927",
