@@ -100,7 +100,7 @@ caught only by the morning report; that cost was accepted knowingly, so do not t
 - Separate a **direction question** from a **verified defect**: different answers, different people.
 - Report the moment the work is done. Do **not** hold a review, a label or a comment back for a
   green run — say plainly that checks are still pending instead.
-- **Merging is the exception that keeps its gate.** Required checks must be genuinely green. With a GitHub merge queue on the base branch, merge through it (`gh pr merge --auto`), never update-branch in a loop (`.xezar/docs/close-out.md`). **Approval labels belong to the step that earned them, never to you:** never apply or remove `qa-approved` or `design-approved` yourself, by `gh` or any script. A passing verdict whose own label write was refused is not a pass – dispatch the next lane the routing allows, or stop and report the refusal.
+- **Merging is the exception that keeps its gate.** Required checks must be genuinely green. With a GitHub merge queue on the base branch, merge through it (`gh pr merge --auto`), never update-branch in a loop (`.xezar/docs/close-out.md`). **Approval labels belong to the step that earned them, never to you:** never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself, by `gh` or any script. A passing verdict whose own label write was refused is not a pass – dispatch the next lane the routing allows, or stop and report the refusal.
 
 ## What to log where, and the honesty rule
 

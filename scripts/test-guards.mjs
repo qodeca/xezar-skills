@@ -1903,7 +1903,14 @@ breaks(
 breaks(
   "a leader guide that lets the leader apply approval labels is rejected",
   "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
-  (s) => s.replace("never apply or remove `qa-approved` or `design-approved` yourself", "apply `qa-approved` or `design-approved` when a review passed"),
+  (s) => s.replace("never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself", "apply `qa-approved` or `design-approved` when a review passed"),
+  facts("I5"),
+  "no longer forbids the leader from applying or removing",
+);
+breaks(
+  "a leader guide that lets the leader remove needs-qa or needs-design is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace(", `needs-qa` or `needs-design` yourself", " yourself"),
   facts("I5"),
   "no longer forbids the leader from applying or removing",
 );

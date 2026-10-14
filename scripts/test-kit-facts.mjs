@@ -1860,8 +1860,8 @@ if (S.section("I5")) {
   const fact = "FACT I5: the leader guide forbids the leader from applying an approval label";
   const tpl = `${SKILL}/kit/leader-guide.template.md`;
   const text = read(tpl);
-  if (!text.includes("never apply or remove `qa-approved` or `design-approved` yourself"))
-    fail(fact, tpl, "no longer forbids the leader from applying or removing qa-approved or design-approved");
+  if (!text.includes("never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself"))
+    fail(fact, tpl, "no longer forbids the leader from applying or removing qa-approved, design-approved, needs-qa or needs-design");
   if (!text.includes("A passing verdict whose own label write was refused is not a pass"))
     fail(fact, tpl, "no longer says a passing verdict whose label write was refused is not a pass");
   const write = read(`${SKILL}/references/write.md`).replace(/\n\s+/g, " ");

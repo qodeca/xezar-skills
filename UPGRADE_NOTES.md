@@ -35,7 +35,7 @@ approval label, and it may even say `qa-approved` is applied "never by automatio
 
 **What to do.** In `.xezar/docs/leader-guide.md`, at the end of the "Merging is the exception that
 keeps its gate" bullet under `## Review discipline`, add: "**Approval labels belong to the step that
-earned them, never to you:** never apply or remove `qa-approved` or `design-approved` yourself, by
+earned them, never to you:** never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself, by
 `gh` or any script. A passing verdict whose own label write was refused is not a pass – dispatch
 the next lane the routing allows, or stop and report the refusal." If the task lifecycle section
 says an approval label is applied "never by automation", say instead that the independent QA and
