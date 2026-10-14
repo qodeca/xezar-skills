@@ -23,6 +23,27 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-14 – the leader adds `design-approved` or `qa-approved` itself
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – a PR merged with `design-approved` or `qa-approved` that no review step applied.** The
+review passed, its own label write was refused (for example a Codex step that could not check the
+head out), and the leader then added the label with `gh pr edit` and merged. The gate was passed
+by the leader, not by the review. Your `.xezar/docs/leader-guide.md` never said who may apply an
+approval label, and it may even say `qa-approved` is applied "never by automation".
+
+**What to do.** In `.xezar/docs/leader-guide.md`, at the end of the "Merging is the exception that
+keeps its gate" bullet under `## Review discipline`, add: "**Approval labels belong to the step that
+earned them, never to you:** never apply or remove `qa-approved` or `design-approved` yourself, by
+`gh` or any script. A passing verdict whose own label write was refused is not a pass – dispatch
+the next lane the routing allows, or stop and report the refusal." If the task lifecycle section
+says an approval label is applied "never by automation", say instead that the independent QA and
+design-review steps apply them on PASS. Commit it through a pull request.
+
+**What you lose by skipping it.** A refused review can still reach the base branch, approved by the
+leader alone.
+
 ## 2026-10-14 – QA passes, but the PR keeps `needs-qa` and never merges
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
