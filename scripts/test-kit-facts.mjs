@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1828,6 +1828,33 @@ if (S.section("I1")) {
       if (!write.includes("`" + d + "/`"))
         fail(fact, `${SKILL}/references/write.md`, `never writes \`${d}/\` to the root .gitignore, but worktree-preflight.sh refuses every task until it is ignored`);
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I2 -- a review judges the change against its accepted scope (#146). Without the rule a
+// design or code review blocks a small change on states the base never had, each fix round adds
+// new edge cases, and a hands-off run never converges.
+// ---------------------------------------------------------------------------
+if (S.section("I2")) {
+  const fact = "FACT I2: the code and design reviews block only on defects the change brings";
+  const rules = [
+    ["xezar-code-review.md", "`minor` follow-up", /A robustness gap the base code already has[^.]*are `minor` follow-ups/],
+    ["xezar-ux-design.md", "NB-n follow-up", /A gap the base already has[^.]*are NB-n follow-ups/],
+  ];
+  for (const [file, follow, rule] of rules) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    const text = norm(read(where));
+    if (!text.includes("Judge the change against its accepted scope"))
+      fail(fact, where, "lost the rule that a review judges the change against its accepted scope");
+    if (!rule.test(text))
+      fail(fact, where, `no longer makes a gap the base already has a non-blocking ${follow.replace(/`/g, "")}`);
+  }
+  // A missing state of something the change adds is the loophole run 1 looped on: it blocks only
+  // when the scope asks for it or the screen already handles it.
+  const ux = `${SKILL}/kit/skills/xezar-ux-design.md`;
+  if (!/A state that something the change adds leaves out blocks only when the scope asks for it/.test(norm(read(ux))))
+    fail(fact, ux, "lets a missing state of something the change adds block although the scope never asked for it");
   checked.push(fact);
 }
 
