@@ -3230,6 +3230,15 @@ breaks(
   "lets a verdict PASS without the running change it needs",
 );
 
+// A verdict comment posts with an apostrophe in it (#165, FACT I7).
+breaks(
+  "a security review whose post line does not say how to write an apostrophe is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-security-review.md",
+  (s) => s.replace("no `$` and no `'` in it – write them `\\u0024` and `\\u0027`", "no `$` in it"),
+  facts("I7"),
+  "an apostrophe breaks the shell quoting",
+);
+
 // A reviewer runs the checkout before it reports one (#147, FACT I3).
 breaks(
   "a review skill that lets a reviewer predict review-run=confined is rejected",

@@ -455,6 +455,12 @@ words: a defect the change brings blocks; a gap the base already has, or a wish 
 is a non-blocking follow-up with a suggested issue. Acceptance already kept what was not asked apart
 from its verdicts; FACT I2 now pins all six roles.
 
+**A verdict comment with an apostrophe in it now posts (#165).** The post line puts the comment
+inside a single-quoted `jq -n` filter, so an apostrophe ended the shell string: on macOS run 2 a
+security review could not post until it removed every one. The post line of QA, code, security,
+architecture and design review now says to write a dollar sign and an apostrophe as JSON unicode
+escapes. FACT I7 pins all five.
+
 **A cancelled review step no longer leaves its app running (#166).** A step the leader cancels never
 reaches `finish`, so a server its `review-run.sh start` began kept its port. Now `prepare` and
 `start` first stop what a run that ended (done, failed or cancelled in the engine's runs index)
