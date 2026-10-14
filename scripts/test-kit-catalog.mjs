@@ -1495,6 +1495,11 @@ if (S.section("D-review")) {
     writeFileSync(record, saved);
     if (noRecord.status !== 1 || !noRecord.out.includes("this run has no checkout record") || existsSync(`${handoff}.verdict.json`))
       fail(`verdict-write.sh writes a verdict that says confined when this run ran no checkout (#151):\n${noRecord.status} ${noRecord.out}`);
+    // The plain word is not the claim: an honest verdict may say the change is confined to a file.
+    const plain = sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass", summary: "the change is confined to src/store.mjs" } }));
+    if (plain.status !== 0 || !existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh refuses an honest verdict that only uses the word "confined" (#151):\n${plain.status} ${plain.out}`);
+    rmSync(`${handoff}.verdict.json`);
     // A day, not 30 s (#123): under load the steps up to the probe below can outlast a short sleep,
     // which would then end by itself and pass the probe even when `finish` stopped nothing.
     // `finally` stops it whatever happens, so the length costs nothing.

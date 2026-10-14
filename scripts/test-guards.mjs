@@ -1654,9 +1654,17 @@ breaks(
 breaks(
   "a verdict-write.sh that takes a confined claim on trust is rejected",
   "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
-  (s) => s.replace(`if grep -qi 'confined' "$tmp"; then`, "if false; then"),
+  (s) => s.replace(`if grep -q 'review-run=confined' "$tmp"; then`, "if false; then"),
   catalog("D-review"),
   "writes a verdict that says confined after a checkout that worked",
+);
+
+breaks(
+  "a verdict-write.sh that refuses the plain word confined is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace(`if grep -q 'review-run=confined' "$tmp"; then`, `if grep -qi 'confined' "$tmp"; then`),
+  catalog("D-review"),
+  'refuses an honest verdict that only uses the word "confined"',
 );
 
 breaks(
@@ -1670,7 +1678,7 @@ breaks(
 breaks(
   "a review skill that does not say a confined claim needs a record is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-security-review.md",
-  (s) => s.replace(" `checkout` records its outcome, and `verdict-write.sh` refuses a verdict that says confined when this run recorded no confined checkout.", ""),
+  (s) => s.replace(" `checkout` records its outcome, and `verdict-write.sh` refuses a verdict that says `review-run=confined` when this run recorded no confined checkout.", ""),
   facts("I3"),
   "refuses a confined claim this run's checkout never recorded",
 );
