@@ -3034,6 +3034,23 @@ breaks(
   "does not rule out --record-gate-evidence",
 );
 
+// A reviewer runs the checkout before it reports one (#147, FACT I3).
+breaks(
+  "a review skill that lets a reviewer predict review-run=confined is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
+  (s) => s.replace("Only when `checkout` exits 3 in this run with `review-run=confined`", "When `checkout` exits 3 with `review-run=confined`"),
+  facts("I3"),
+  "without this run's own exit 3",
+);
+
+breaks(
+  "a review skill that hides the Codex browser tool gap is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace(" A Codex run gets only the tools `.codex/config.toml` enables", " A run gets only the tools it is given"),
+  facts("I3"),
+  "a Codex run gets only what .codex/config.toml enables",
+);
+
 breaks(
   "an onboarding chmod that fails on macOS is rejected",
   "skills/xez-onboard-opinionated/references/write.md",

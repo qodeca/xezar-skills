@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2175,6 +2175,34 @@ if (S.section("W10")) {
   checked.push(fact);
 }
 
+// FACT I3 -- a reviewer runs the checkout before it reports one (#147). Every Codex reviewer in the
+// macOS release run posted "checkout exited 3, review-run=confined" without ever running it: the
+// skills described the Codex sandbox, so it predicted the result, and later reviewers copied it
+// from PR comments. Each running role skill tells the step to run `checkout` and to report the
+// limit only from this run's own exit 3; and since `.codex/config.toml` enables fewer browser
+// tools than a review's tool list, it says what a Codex run lacks.
+// ---------------------------------------------------------------------------
+if (S.section("I3")) {
+  const fact = "FACT I3: a reviewer reports review-run=confined only from its own checkout";
+  const RUN = "Run `checkout` before you judge anything that needs the running change; never predict its result from your runner's name, and never copy it from an earlier review or PR comment.";
+  const ONLY = "Only when `checkout` exits 3 in this run with `review-run=confined`";
+  const CODEX = "A Codex run gets only the tools `.codex/config.toml` enables";
+  const dir = `${SKILL}/kit/skills`;
+  let seen = 0;
+  for (const rel of walk(dir, /\.md$/)) {
+    const text = read(rel);
+    if (!text.includes("review-run=confined")) continue;
+    seen++;
+    if (!text.includes(RUN)) fail(fact, rel, "does not tell the step to run `checkout` first, so a reviewer predicts or copies \"confined\" instead");
+    if (!text.includes(ONLY)) fail(fact, rel, "lets a reviewer report review-run=confined without this run's own exit 3");
+    if (/Every `chrome-devtools` tool is granted/.test(text) && !text.includes(CODEX))
+      fail(fact, rel, "says every chrome-devtools tool is granted, but not that a Codex run gets only what .codex/config.toml enables");
+  }
+  if (!seen) fail(fact, dir, "no role skill names review-run=confined any more; re-aim this fact");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
 // FACT W11 -- the Codex trust line on native Windows. A double-quoted TOML key reads `\u` and `\m`
 // in `c:\users\me\app` as escapes, so the key is a single-quoted literal string, in lower case as
 // Codex writes it itself (a mixed-case key is untested), and the Codex home there is
