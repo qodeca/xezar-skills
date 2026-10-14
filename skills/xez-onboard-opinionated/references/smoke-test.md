@@ -27,7 +27,9 @@ work. What needs proving splits cleanly in two, and only one half needs an agent
 workflow: the kit's worktree preflight, then **one** agent step on the first lane
 `node .xezar/checks/route.mjs --file .xezar/routing.json evidence-pass` lists – that row's order
 starts with the cheapest lanes – told to append one line to a scratch file under `.local/xezar/scratch/`, then the
-evidence step. Give each step only `runner` and `model`: with inline steps the engine refuses `agentProfile`, `worktree` and `autonomous`.
+evidence step. The agent step's prompt must also tell it to end its reply with `XEZ:DONE` on a line
+of its own. A smoke run whose prompt left it out failed tier 1 with nothing wrong in the setup
+(#141). Give each step only `runner` and `model`: with inline steps the engine refuses `agentProfile`, `worktree` and `autonomous`.
 So the agent step runs on the login this project selected for that step's tool (`get_account` →
 `accounts`). Read the agent step's `profileId` from `task_read view=task` and name it in the report.
 A `profileId` that is the leader's login under the leader's tool is ❌.
