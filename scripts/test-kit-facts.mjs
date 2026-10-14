@@ -2242,6 +2242,9 @@ if (S.section("I6")) {
   for (const file of ["xezar-qa.md", "xezar-ux-design.md"]) {
     const where = `${SKILL}/kit/skills/${file}`;
     if (!read(where).includes(RULE)) fail(fact, where, "lets a verdict PASS without the running change it needs (required evidence unavailable must be FAIL)");
+    // The confined-checkout sentence must say the same, or "judge from the diff" reads as a way to PASS.
+    if (!read(where).includes("In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS."))
+      fail(fact, where, "lets a confined checkout end in a PASS judged from the diff");
   }
   checked.push(fact);
 }

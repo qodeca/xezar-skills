@@ -3093,6 +3093,14 @@ breaks(
 );
 
 breaks(
+  "a QA skill that lets a confined checkout PASS from the diff is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace(" In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS.", ""),
+  facts("I6"),
+  "lets a confined checkout end in a PASS judged from the diff",
+);
+
+breaks(
   "a design review that passes a change it never ran is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
   (s) => s.replace("is FAIL with the reason \"required evidence unavailable\", never a PASS from reading the diff.", "may PASS from reading the diff."),
