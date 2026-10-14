@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2292,6 +2292,23 @@ if (S.section("I6")) {
   const qaWhere = `${SKILL}/kit/skills/xezar-qa.md`;
   if (!read(qaWhere).includes("FAIL is required evidence unavailable (above), or a defect the change itself brings"))
     fail(fact, qaWhere, "defines FAIL by the scope rule alone, which a reviewer can cite to PASS from the diff");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I7 -- a verdict comment posts with an apostrophe in it (#165). The post line puts the text
+// inside a single-quoted `jq -n '…'`, so a raw `'` ends the shell string; on macOS run 2 a security
+// review could not post until it dropped every apostrophe. Each role's own post line says how to
+// write both characters, not only the trust-boundary paragraph at the end of the skill.
+// ---------------------------------------------------------------------------
+if (S.section("I7")) {
+  const fact = "FACT I7: every verdict post line says how to write $ and ' in the comment text";
+  const CLAUSE = "the text written as a JSON string with no `$` and no `'` in it – write them `\\u0024` and `\\u0027`";
+  for (const file of ["xezar-architecture.md", "xezar-code-review.md", "xezar-qa.md", "xezar-security-review.md", "xezar-ux-design.md"]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    const post = read(where).split("\n").find((line) => line.includes(`jq -n '{action:"comment"`));
+    if (!post?.includes(CLAUSE)) fail(fact, where, "posts its verdict comment without saying to write ' as \\u0027, so an apostrophe breaks the shell quoting");
+  }
   checked.push(fact);
 }
 
