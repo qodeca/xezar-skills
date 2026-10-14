@@ -2976,6 +2976,14 @@ breaks(
 );
 
 breaks(
+  "an onboarding chmod that fails on macOS is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace('chmod +x "$@"', 'chmod +x -- "$@"'),
+  facts("W10"),
+  "exits 1 on macOS",
+);
+
+breaks(
   "an applier that does not name executable files is rejected",
   "upgrade/tools/apply.mjs",
   (s) => s.replace("  for (const p of r.executable ?? []) console.log(`executable=${p}`);\n", ""),

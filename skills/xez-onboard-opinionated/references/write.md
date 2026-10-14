@@ -646,7 +646,7 @@ set -- \
   .xezar/checks/worktree-preflight.sh \
   .xezar/checks/worktree-setup.sh \
   scripts/xezar-leader.sh
-chmod +x -- "$@"
+chmod +x "$@"
 git add -- "$@"
 git update-index --chmod=+x -- "$@"
 ```
