@@ -2985,6 +2985,22 @@ breaks(
 );
 
 breaks(
+  "a tier 1 smoke test with no plain evidence check is rejected",
+  "skills/xez-onboard-opinionated/references/smoke-test.md",
+  (s) => s.replace("runs `cat .local/xezar/scratch/smoke.txt`", "runs `worktree-preflight.sh --record-gate-evidence`"),
+  facts("11"),
+  "plain `cat` of the scratch file",
+);
+
+breaks(
+  "a tier 1 smoke test that allows the seal step is rejected",
+  "skills/xez-onboard-opinionated/references/smoke-test.md",
+  (s) => s.replace("It is **not** `worktree-preflight.sh --record-gate-evidence`", "It may be `worktree-preflight.sh --record-gate-evidence`"),
+  facts("11"),
+  "does not rule out --record-gate-evidence",
+);
+
+breaks(
   "an onboarding chmod that fails on macOS is rejected",
   "skills/xez-onboard-opinionated/references/write.md",
   (s) => s.replace('chmod +x "$@"', 'chmod +x -- "$@"'),
