@@ -455,6 +455,12 @@ words: a defect the change brings blocks; a gap the base already has, or a wish 
 is a non-blocking follow-up with a suggested issue. Acceptance already kept what was not asked apart
 from its verdicts; FACT I2 now pins all six roles.
 
+**A verdict comment with an apostrophe in it now posts (#165).** The post line puts the comment
+inside a single-quoted `jq -n` filter, so an apostrophe ended the shell string: on macOS run 2 a
+security review could not post until it removed every one. The post line of QA, code, security,
+architecture and design review now says to write a dollar sign and an apostrophe as JSON unicode
+escapes. FACT I7 pins all five.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
