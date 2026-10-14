@@ -468,6 +468,13 @@ left running – only while that process still runs in the ended run's own workt
 is never touched. Evidence written through `verdict-write.sh` must now be `.md`, `.txt`, `.log`,
 `.json`, `.csv`, `.png`, `.jpg` or `.jpeg`, so a reading step cannot write a script there.
 
+**A design review that passes after a failed one no longer blocks the merge (#171).** A FAIL leaves
+`design-failed` on the PR, and a later PASS added `design-approved` but kept `design-failed`, which
+the project policy refuses at merge: on macOS run 3 the PR could not merge through the proper path.
+The PASS request of design review and QA now also removes its role's failed label (`design-failed`,
+`qa-failed`), and `gh-write.sh` lifts it only together with the approval label, for the reviewed head,
+and only when the PR carries it. FACT I9 pins both requests.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
