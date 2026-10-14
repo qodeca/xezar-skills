@@ -449,6 +449,12 @@ PowerShell could take longer than 5 s to read the Windows process table, and the
 reported that it could not stop a gate's processes. It now reads the table once more with a 20 s
 limit before it gives up. FACT W-stop checks the retry.
 
+**Every verdict role judges the change against its accepted scope (#150).** #146 gave the rule to the
+code and design reviews. QA, security review and architecture review now say it in their own verdict
+words: a defect the change brings blocks; a gap the base already has, or a wish beyond the scope,
+is a non-blocking follow-up with a suggested issue. Acceptance already kept what was not asked apart
+from its verdicts; FACT I2 now pins all six roles.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

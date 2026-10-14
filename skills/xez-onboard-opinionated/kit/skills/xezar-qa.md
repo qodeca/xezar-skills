@@ -60,6 +60,8 @@ Leave `taskId` and `stepId` out: `verdict-write.sh` stamps both from the step's 
 
 `verdict` is `PASS` or `FAIL` and nothing else — this role has no third outcome, and a QA `PASS` is never business acceptance. **Required evidence unavailable is FAIL (#156).** A verdict that needs the running change – the PR checked out, the app running, browser evidence for a user-facing change – and could not get it in this run is FAIL with the reason "required evidence unavailable", never a PASS from reading the diff. FAIL keeps the gate label, and the leader re-routes to the next lane. `id` is stable for THIS report: the same id with identical content is a no-op, the same id with different content is refused. `reviewedHeadSha` is never abbreviated and never the branch's current head when that is not what you exercised.
 
+**Judge the change against its accepted scope (#150).** The scope is what the change claims to fix or add, from the issue's acceptance criteria. FAIL is required evidence unavailable (above), or a defect the change itself brings: what it claims does not work, or it breaks something that worked. A gap the base already has, or a wish beyond the scope, is a `minor` finding with a one-line suggested issue; on its own it does not make the verdict FAIL.
+
 `labels` is evidence, not intent. `requestedAdd` / `requestedRemove` are what you asked `gh-write.sh` to do (empty arrays when you asked for nothing). Then read the labels back and set:
 
 - `"state": "verified"` with `observed` (what you read back) and `observedAt`, when every request applied;

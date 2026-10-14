@@ -1890,10 +1890,14 @@ if (S.section("I5")) {
 // new edge cases, and a hands-off run never converges.
 // ---------------------------------------------------------------------------
 if (S.section("I2")) {
-  const fact = "FACT I2: the code and design reviews block only on defects the change brings";
+  const fact = "FACT I2: every verdict role blocks only on defects the change brings";
   const rules = [
     ["xezar-code-review.md", "`minor` follow-up", /A robustness gap the base code already has[^.]*are `minor` follow-ups/],
     ["xezar-ux-design.md", "NB-n follow-up", /A gap the base already has[^.]*are NB-n follow-ups/],
+    // #150: the other verdict roles, each in its own verdict words.
+    ["xezar-qa.md", "`minor` finding", /A gap the base already has, or a wish beyond the scope, is a `minor` finding[^.]*; on its own it does not make the verdict FAIL/],
+    ["xezar-security-review.md", "follow-up at its own severity", /A weakness the base already has and the change does not reach is a follow-up at its own severity[^.]*; on its own it never makes the verdict BLOCKING FINDINGS/],
+    ["xezar-architecture.md", "NB-n follow-up", /A contradiction the base already has, or a design wish beyond the scope, is NB-n[^.]*; on its own it gives CONFORMS WITH FOLLOW-UPS/],
   ];
   for (const [file, follow, rule] of rules) {
     const where = `${SKILL}/kit/skills/${file}`;
@@ -1908,6 +1912,10 @@ if (S.section("I2")) {
   const ux = `${SKILL}/kit/skills/xezar-ux-design.md`;
   if (!/A state that something the change adds leaves out blocks only when the scope asks for it/.test(norm(read(ux))))
     fail(fact, ux, "lets a missing state of something the change adds block although the scope never asked for it");
+  // Acceptance judges the accepted criteria one by one; what was not asked stays an observation.
+  const acc = `${SKILL}/kit/skills/xezar-acceptance.md`;
+  if (!norm(read(acc)).includes("Report both as observations, clearly apart from the verdicts."))
+    fail(fact, acc, "no longer keeps what was not asked apart from the per-criterion verdicts");
   checked.push(fact);
 }
 
@@ -2280,6 +2288,10 @@ if (S.section("I6")) {
     if (!read(where).includes("In this role that verdict is FAIL with the reason \"required evidence unavailable\": the diff alone never earns a PASS."))
       fail(fact, where, "lets a confined checkout end in a PASS judged from the diff");
   }
+  // #150: the scope rule names both kinds of FAIL, so it cannot be read as the whole definition.
+  const qaWhere = `${SKILL}/kit/skills/xezar-qa.md`;
+  if (!read(qaWhere).includes("FAIL is required evidence unavailable (above), or a defect the change itself brings"))
+    fail(fact, qaWhere, "defines FAIL by the scope rule alone, which a reviewer can cite to PASS from the diff");
   checked.push(fact);
 }
 

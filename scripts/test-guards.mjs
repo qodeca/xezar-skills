@@ -1961,6 +1961,43 @@ breaks(
   "lets a missing state of something the change adds block",
 );
 
+// #150: the other verdict roles judge their accepted scope too.
+breaks(
+  "a QA scope rule that defines FAIL without the evidence rule is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("FAIL is required evidence unavailable (above), or a defect the change itself brings", "FAIL is a defect the change itself brings"),
+  facts("I6"),
+  "defines FAIL by the scope rule alone",
+);
+breaks(
+  "a QA that fails a change on gaps the base already has is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("on its own it does not make the verdict FAIL", "on its own it makes the verdict FAIL"),
+  facts("I2"),
+  "no longer makes a gap the base already has a non-blocking minor finding",
+);
+breaks(
+  "a security review that blocks on weaknesses the change does not reach is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-security-review.md",
+  (s) => s.replace("on its own it never makes the verdict BLOCKING FINDINGS", "it makes the verdict BLOCKING FINDINGS"),
+  facts("I2"),
+  "no longer makes a gap the base already has a non-blocking follow-up at its own severity",
+);
+breaks(
+  "an architecture review that blocks on contradictions the base already has is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-architecture.md",
+  (s) => s.replace("on its own it gives CONFORMS WITH FOLLOW-UPS, not CONTRADICTS", "it gives CONTRADICTS"),
+  facts("I2"),
+  "no longer makes a gap the base already has a non-blocking NB-n follow-up",
+);
+breaks(
+  "an acceptance check that counts what was not asked as a verdict is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-acceptance.md",
+  (s) => s.replace("Report both as observations, clearly apart from the verdicts.", "Report both as verdicts."),
+  facts("I2"),
+  "no longer keeps what was not asked apart",
+);
+
 // Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
 // edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.
 const SCAN_LIB = "skills/xez-onboard-opinionated/kit/checks/lib/security-scan.mjs";
