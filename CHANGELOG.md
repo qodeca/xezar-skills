@@ -427,6 +427,15 @@ independent QA step applies `qa-approved` on PASS (and the design review `design
 `gh-write.sh`'s verdict check, and FACT I4 keeps it. An `UPGRADE_NOTES.md` entry fixes the sentence
 in a project already onboarded. Found by the 3.1.0 release runs (#132).
 
+**A review step starts with the pull request already checked out (#160).** A Codex reading step
+cannot write git inside its sandbox, so it could never check the PR out, and its QA or design
+verdict could never clear a gate. Each running review workflow now has a `prepare` check step before
+the agent: the engine runs it outside every agent sandbox, and `review-run.sh prepare` checks out the
+PR the run names (`XEZ_PR_NUMBER`, qodeca/xezar#1006), or prints `review-run=no-pr` when there is
+none. The agent's own `checkout` of the same PR at the same head prints `already checked out`. The
+run test in `test-kit-catalog.mjs` drives both, and D-data keeps the step in every review workflow.
+Needs the engine release with qodeca/xezar#1006. Found by the 3.1.0 release runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

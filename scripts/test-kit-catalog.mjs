@@ -1321,6 +1321,12 @@ if (S.section("D-data")) {
     if (!text.includes("mcp__chrome-devtools__evaluate_script")) fail(`kit/workflows/${name}.yaml: the review step lacks the full browser tool set`);
     if (text.includes("worktree-preflight.sh --allow-root")) fail(`kit/workflows/${name}.yaml: the preflight step is not the strict worktree-preflight.sh`);
     if (/^\s*- id: finish$/m.test(text)) fail(`kit/workflows/${name}.yaml ends with a check step, which silences XEZ:ASK and XEZ:DONE`);
+    // #160 (qodeca/xezar#1006): a check step, outside every agent sandbox, checks the PR out before
+    // the agent – a Codex reading step cannot write git itself.
+    const prepare = text.indexOf('command: "bash .local/xezar/cache/kit/checks/review-run.sh prepare"');
+    const agent = text.search(/^\s+prompt: /m);
+    if (prepare < 0 || agent < 0 || prepare > agent || prepare < text.indexOf("worktree-preflight.sh"))
+      fail(`kit/workflows/${name}.yaml: no review-run.sh prepare check step between the preflight and the agent, so a sandboxed reviewer reviews no checked-out head (#160)`);
   }
   const verdictWrite = readFileSync(join(KIT, "checks/verdict-write.sh"), "utf8");
   if (!verdictWrite.includes('bash "$SCRIPT_DIR/review-run.sh" finish')) fail("kit/checks/verdict-write.sh no longer runs review-run.sh finish before a verdict packet");
@@ -1452,6 +1458,11 @@ if (S.section("D-review")) {
     if (probe.status !== 0 || probe.out !== '""') fail(`git inside review-run.sh run still has a credential helper: ${probe.out}`);
     const clean = rr("verify-unchanged");
     if (clean.status !== 0 || !clean.out.includes("review-tree=unchanged")) fail(`review-run.sh fails an untouched worktree:\n${clean.out}`);
+    // #160: a run that names no PR – XEZ_PR_NUMBER absent – prepares nothing and says so.
+    delete env.XEZ_PR_NUMBER;
+    const noPr = rr("prepare");
+    if (noPr.status !== 0 || !noPr.out.includes("review-run=no-pr") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1" || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh prepare with no PR number does not exit 0 with review-run=no-pr and leave the tree alone (#160):\n${noPr.status} ${noPr.out}`);
     // A backend that confines a reading step to its worktree and its own folders (engine 0.19.0's
     // confined Codex step) cannot write the git directories a checkout needs. Seen live under
     // `codex sandbox -P :workspace`: the fetch and the checkout both die on "Operation not
@@ -1476,11 +1487,22 @@ if (S.section("D-review")) {
     if (evil.status !== 1 || !evil.out.includes("tracks files under .local/xezar/cache/kit/") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1"
       || !same("verdict-write.sh") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
       fail(`review-run.sh checkout keeps a PR head that replaced the review's own scripts:\n${evil.status} ${evil.out}`);
-    const checkout = rr("checkout", "5");
+    // #160: the workflow check step checks the PR the run names out, through prepare.
+    env.XEZ_PR_NUMBER = "5";
+    const checkout = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
     if (checkout.status !== 0 || git(wt, "rev-parse", "HEAD") !== prHead) fail(`review-run.sh checkout does not check the PR's head out:\n${checkout.out}`);
     if (existsSync(join(wt, ".xezar/checks/review-run.sh")) || !readFileSync(join(wt, ".xezar/checks/verdict-write.sh"), "utf8").includes("tampered"))
       fail("stream D fixture: the checked-out PR head does not carry the old kit (no review-run.sh, a tampered verdict-write.sh)");
-    if (rr("checkout", "5").status !== 1) fail("review-run.sh checks a second head out in one run");
+    // #160: the workflow's prepare step may have checked this PR out already. The same PR at the same
+    // head is confirmed; another PR is a second head, refused.
+    const again = rr("checkout", "5");
+    if (again.status !== 0 || !again.out.includes("already checked out")) fail(`review-run.sh refuses to confirm the PR its prepare step checked out (#160):\n${again.status} ${again.out}`);
+    if (rr("checkout", "6").status !== 1) fail("review-run.sh checks a second head out in one run");
+    env.XEZ_PR_NUMBER = "5";
+    const prepared = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
+    if (prepared.status !== 0 || !prepared.out.includes("already checked out")) fail(`review-run.sh prepare does not confirm the PR the run names (#160):\n${prepared.status} ${prepared.out}`);
     // #151: a verdict that says the checkout was confined must rest on this run's checkout record.
     const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
     if (!existsSync(record) || !readFileSync(record, "utf8").startsWith(`ok exit=0 pr=5 head=${prHead}`))
