@@ -1891,6 +1891,13 @@ breaks(
   facts("I4"),
   "independent QA step applies qa-approved on PASS",
 );
+breaks(
+  "an onboarding that may write 'automation never applies' the approval labels is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => s.replace("by hand. Never write that", "by hand. You may write that"),
+  facts("I4"),
+  "no longer forbids writing that automation never applies the approval labels",
+);
 
 // A review judges the change against its accepted scope (#146, FACT I2).
 breaks(
