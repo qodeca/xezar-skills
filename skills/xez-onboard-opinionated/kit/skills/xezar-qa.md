@@ -58,7 +58,7 @@ Order matters: post the comment, then attempt the labels, then write the packet.
 
 Leave `taskId` and `stepId` out: `verdict-write.sh` stamps both from the step's environment, and refuses a packet that names a different task or step. Never type either one: the engine compares them to the settling task and step, and a mismatch refuses the packet and yields no verdict at all.
 
-`verdict` is `PASS` or `FAIL` and nothing else — this role has no third outcome, and a QA `PASS` is never business acceptance. `id` is stable for THIS report: the same id with identical content is a no-op, the same id with different content is refused. `reviewedHeadSha` is never abbreviated and never the branch's current head when that is not what you exercised.
+`verdict` is `PASS` or `FAIL` and nothing else — this role has no third outcome, and a QA `PASS` is never business acceptance. **Required evidence unavailable is FAIL (#156).** A verdict that needs the running change – the PR checked out, the app running, browser evidence for a user-facing change – and could not get it in this run is FAIL with the reason "required evidence unavailable", never a PASS from reading the diff. FAIL keeps the gate label, and the leader re-routes to the next lane. `id` is stable for THIS report: the same id with identical content is a no-op, the same id with different content is refused. `reviewedHeadSha` is never abbreviated and never the branch's current head when that is not what you exercised.
 
 `labels` is evidence, not intent. `requestedAdd` / `requestedRemove` are what you asked `gh-write.sh` to do (empty arrays when you asked for nothing). Then read the labels back and set:
 

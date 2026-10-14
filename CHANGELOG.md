@@ -413,6 +413,13 @@ command lock refuses a compound command. `review-run.sh checkout` records its ou
 checkout. FACT I3 and the run test in `test-kit-catalog.mjs` keep it. Found by the 3.1.0 release
 runs (#132).
 
+**QA cannot pass a change it never ran (#156).** A Codex QA step with no checkout, no running app
+and no browser posted "PASS (static-evidence-only)", while the design review in the same run failed
+for the same reason. QA and the design review now share one rule: a verdict that needs the running
+change and could not get it is FAIL with the reason "required evidence unavailable", so the leader
+re-routes to the next lane. The verdict stays PASS or FAIL. FACT I6 keeps both skills in step.
+Found by the 3.1.0 release runs (#132).
+
 **A passing QA applies `qa-approved` again (#153).** Onboarding could write into `SDLC.md` that
 `qa-approved` is something "automation never applies"; the leader passed that into the QA launch
 text, and a QA step that passed the change left it unmergeable. The setup now writes that the
