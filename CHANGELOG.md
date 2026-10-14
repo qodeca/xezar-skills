@@ -455,6 +455,13 @@ words: a defect the change brings blocks; a gap the base already has, or a wish 
 is a non-blocking follow-up with a suggested issue. Acceptance already kept what was not asked apart
 from its verdicts; FACT I2 now pins all six roles.
 
+**A cancelled review step no longer leaves its app running (#166).** A step the leader cancels never
+reaches `finish`, so a server its `review-run.sh start` began kept its port. Now `prepare` and
+`start` first stop what a run that ended (done, failed or cancelled in the engine's runs index)
+left running – only while that process still runs in the ended run's own worktree, so a reused pid
+is never touched. Evidence written through `verdict-write.sh` must now be `.md`, `.txt`, `.log`,
+`.json`, `.csv`, `.png`, `.jpg` or `.jpeg`, so a reading step cannot write a script there.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

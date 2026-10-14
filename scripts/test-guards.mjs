@@ -1658,6 +1658,36 @@ breaks(
   "refuses to confirm the PR its prepare step checked out",
 );
 
+// A cancelled review step's server is stopped by the next review, safely (#166).
+breaks(
+  "a review-run.sh start that leaves an ended run's server running is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('check_program "$1"\n    stop_ended_runs\n', 'check_program "$1"\n'),
+  catalog("D-review"),
+  "leaves running what a cancelled run's start began",
+);
+breaks(
+  "a review-run.sh that stops an ended run's pid without checking its worktree is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('"$wt" | "$wt"/* | "$wt (deleted)" | "$wt"/*" (deleted)")', "*)"),
+  catalog("D-review"),
+  "stops a process outside the ended run's worktree",
+);
+breaks(
+  "a review-run.sh that stops what a running run started is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('["done", "failed", "cancelled"]', '["done", "failed", "cancelled", "running"]'),
+  catalog("D-review"),
+  "stops what a run that is still running started",
+);
+breaks(
+  "a verdict-write.sh that writes a script as evidence is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("*.md | *.txt | *.log | *.json | *.csv | *.png | *.jpg | *.jpeg) ;;", "*) ;;"),
+  catalog("1b"),
+  "writes evidence named serve.mjs",
+);
+
 breaks(
   "a gh-write.sh that takes a verdict's role from the request is rejected",
   "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
