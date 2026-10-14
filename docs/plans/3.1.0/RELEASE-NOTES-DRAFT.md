@@ -47,9 +47,8 @@ changes as fifteen entries. Apply them top to bottom, in order.
 ## ⚠️ Windows
 
 The kit's checks run natively on Windows, in Git Bash: install Git for Windows (the full
-installer, not MinGit) and `jq`. The engine, the leader and its tasks need an engine that runs
-natively on Windows – qodeca/xezar#963 phases 2b and 3, not released yet. Until it ships, run the
-engine, the leader and the upgrade prompt in WSL2, which stays the fallback. The MCP servers start
+installer, not MinGit) and `jq`, and switch long paths on. The engine, the leader and its tasks
+run natively on Windows from xezar 0.20.0 (qodeca/xezar#963). The MCP servers start
 with a plain `npx`, tested on Windows with Claude Code 2.1.286 and Codex 0.157.1. A project
 onboarded or upgraded from Windows has its kit scripts marked executable in git; for one onboarded
 from Windows before 3.1.0, `UPGRADE_NOTES.md` entry 14 has the repair.

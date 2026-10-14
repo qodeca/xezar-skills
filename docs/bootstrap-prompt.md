@@ -17,9 +17,8 @@ This is the **setup session**, so it deliberately has no `XEZAR_LEADER=1`: nothi
 switches on exists yet. After setup you start the **leader** differently – see the last section.
 
 You need Node 22 or later, `git`, the GitHub CLI logged in, and a repository with a GitHub
-remote. On native Windows you also need Git for Windows (Git Bash) and `jq` on `PATH`, and an
-engine that runs natively on Windows (qodeca/xezar#963 phases 2b and 3, not released yet); until
-it ships, use WSL, which stays the fallback. Pasted the prompt into a plain `claude` session
+remote. On native Windows you also need Git for Windows (Git Bash), `jq` on `PATH`, long paths
+switched on, and xezar 0.20.0 or newer, the first engine that runs natively on Windows. Pasted the prompt into a plain `claude` session
 instead? It still does the first steps, then gives you the line above and picks up where it
 stopped.
 
@@ -66,7 +65,8 @@ Then decide which of three states this project is in, and say which one in one l
   not ask me whether to install it again - I pasted this prompt, which is the answer.
 
 Step 1 - The engine is installed
-Check: `xezar --version` prints 0.19.0 or later. Missing or older: ask me once, then run
+Check: `xezar --version` prints 0.19.0 or later – on native Windows, 0.20.0 or newer, because
+older engines do not run there. Missing or older: ask me once, then run
 `npm install -g @qodeca/xezar`. If npm cannot write to its global folder, stop and tell me how
 to point npm at a folder I own - do not work around it. Verify the version again.
 
