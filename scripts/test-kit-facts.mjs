@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "H1", "I1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1189,6 +1189,35 @@ if (S.section("G1")) {
     if (!/`security\.trustBoundaries`[\s\S]{0,600}base branch/.test(text))
       fail(fact, what, "does not describe the project's security.trustBoundaries list and that it is read from the base branch");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT G2 -- the kit passes its own secret scan (#137). An onboarding or upgrade pull request adds
+// the whole kit, so every kit line is an added line to the scan it ships: one example that looks
+// like a credential fails every such pull request. Driven against the real scan functions.
+// ---------------------------------------------------------------------------
+if (S.section("G2")) {
+  const fact = "FACT G2: every kit file passes the kit's own secret and kill-by-pattern scans as added lines";
+  const { pathToFileURL } = await import("node:url");
+  const { readdirSync } = await import("node:fs");
+  const scan = await import(pathToFileURL(join(root, SKILL, "kit/checks/lib/security-scan.mjs")).href);
+  const kit = join(root, SKILL, "kit");
+  const added = new Map();
+  const walk = (dir, rel) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(join(dir, entry.name), path);
+      else if (entry.isFile()) {
+        const text = norm(readFileSync(join(dir, entry.name), "utf8"));
+        added.set(path, text.split("\n").map((t, i) => ({ line: i + 1, text: t })));
+      }
+    }
+  };
+  walk(kit, "");
+  if (added.size < 50) fail(fact, `${SKILL}/kit`, `read only ${added.size} kit files -- the walk lost the kit`);
+  for (const f of [...scan.scanSecrets(added).findings, ...scan.scanKillByPattern(added).findings])
+    fail(fact, `${SKILL}/kit/${f.file}:${f.line}`, `${f.rule} – this kit line fails the security scan in every onboarding and upgrade pull request`);
   checked.push(fact);
 }
 // 3.1.0-stream-G:end

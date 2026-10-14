@@ -1830,6 +1830,17 @@ breaks(
 // 3.1.0-stream-F:end
 
 // 3.1.0-stream-G:start
+// The kit passes its own secret scan (#137, FACT G2): an onboarding pull request adds the whole
+// kit, so an example that looks like a credential fails every one of them.
+breaks(
+  "a kit comment with a credential-shaped example URL is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/common.sh",
+  // Built in two parts, so this file's own line does not look like a credential.
+  (s) => s.replace("# reports.\nrepo_identity() {", "# reports. Example: https://x-access-token:" + "SECRET123@github.com/o/r\nrepo_identity() {"),
+  facts("G2"),
+  "url-userinfo-credential",
+);
+
 // Onboarding ignores every root path the task preflight demands (#138, FACT I1).
 breaks(
   "an onboarding that never ignores dist/ is rejected",
@@ -3485,7 +3496,7 @@ breaks(
 breaks(
   "a workflow env entry that narrows the gate is rejected",
   ".github/workflows/lint.yml",
-  (s) => s.replace("    continue-on-error: true\n    strategy:\n", '    continue-on-error: true\n    env:\n      XEZ_DEPS_TEST_ONLY: "53"\n    strategy:\n'),
+  (s) => s.replace("    timeout-minutes: ${{ matrix.timeout }}\n    strategy:\n", '    timeout-minutes: ${{ matrix.timeout }}\n    env:\n      XEZ_DEPS_TEST_ONLY: "53"\n    strategy:\n'),
   gateMap,
   "T1 must run in full: lint.yml's env: XEZ_DEPS_TEST_ONLY",
 );

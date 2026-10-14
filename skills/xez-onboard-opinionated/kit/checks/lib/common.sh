@@ -296,9 +296,9 @@ standalone_gates_dir() {
 # Repository identity that works offline and leaks nothing.
 #
 # The root commit is the stable, fetch-free answer to "is this the same repository". The origin
-# URL is recorded only as host+path: an HTTPS remote can carry a token in its userinfo
-# (`https://x-access-token:<TOKEN>@github.com/...`), and evidence files are read by people and
-# pasted into reports.
+# URL is recorded only as host+path: an HTTPS remote can carry a token in its userinfo (a user
+# name and a token before the host), and evidence files are read by people and pasted into
+# reports.
 repo_identity() {
   local root_commit origin
   root_commit="$(cd "$TASK_CWD" && git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1)"
