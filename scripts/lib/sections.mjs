@@ -9,7 +9,8 @@
  * when a selected id ran nothing, and `require()` throws when a section reads the state of a
  * section that did not run (its `needs` entry is missing). A script that gives `count` also fails
  * a targeted run in which a selected section made no check, unless `mayBeEmpty` names that section
- * with the reason it may legitimately check nothing.
+ * with the reason it may legitimately check nothing; `outside()` then gives the checks made outside
+ * every section so far.
  *
  * XEZ_SECTIONS_TRACE=<file> is a mapping and proof aid only – it changes no result: each failure
  * the script reports through `trace()` is appended as one JSON line naming its section, and when
@@ -115,6 +116,10 @@ export function sections(script, ids, { needs = {}, exclusive = {}, mayBeEmpty =
       if (on) entered.add(id);
       current = on ? id : null;
       return on;
+    },
+    outside() {
+      settle();
+      return counts["(outside)"] ?? 0;
     },
     require(id) {
       known(id);
