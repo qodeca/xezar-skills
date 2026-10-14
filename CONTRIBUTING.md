@@ -29,9 +29,8 @@ minutes (about thirteen with `--jobs 1`), and on GitHub's Windows runner the gua
 ## Contributing from Windows
 
 Native Windows works for **this repository's checks**, and the kit's checks run natively in Git
-Bash in a project too. The leader and the engine's tasks need an engine that runs natively on
-Windows (qodeca/xezar#963 phases 2b and 3, not released yet); until it ships, run them in WSL, as
-the [README](README.md) says. To work on this repository on Windows itself, you need:
+Bash in a project too. The leader and the engine's tasks run natively from xezar 0.20.0
+(qodeca/xezar#963), as the [README](README.md) says. To work on this repository on Windows itself, you need:
 
 - **Node 22 or later.** The gate uses `fs.globSync` and a Node preload.
 - **Git for Windows with Git Bash** – the full installer, not MinGit: the kit's gate scheduler

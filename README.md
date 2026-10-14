@@ -53,9 +53,8 @@ repository – no leader guide, no leader rules.
 
 You need Node 22 or later, `git`, the GitHub CLI logged in, and a GitHub remote. The leader runs
 in Claude Code, and GitHub is the only tracker. On native Windows you also need Git for Windows
-(the kit's checks run in Git Bash), `jq` on `PATH`, and an engine that runs natively on Windows –
-qodeca/xezar#963 phases 2b and 3, not released yet. Until it ships, run it in WSL, which stays the
-fallback. The MCP servers start with a plain `npx`, tested on Windows with Claude Code 2.1.286 and
+(the kit's checks run in Git Bash), `jq` on `PATH`, long paths switched on, and xezar 0.20.0 or
+newer – the first engine that runs natively on Windows (qodeca/xezar#963). The MCP servers start with a plain `npx`, tested on Windows with Claude Code 2.1.286 and
 Codex 0.157.1. (Working on this
 repository itself on Windows? See
 [Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).)
