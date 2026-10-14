@@ -1915,6 +1915,29 @@ breaks(
   "no longer forbids writing that automation never applies the approval labels",
 );
 
+// The leader never applies an approval label (#155, FACT I5).
+breaks(
+  "a leader guide that lets the leader apply approval labels is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself", "apply `qa-approved` or `design-approved` when a review passed"),
+  facts("I5"),
+  "no longer forbids the leader from applying or removing",
+);
+breaks(
+  "a leader guide that lets the leader remove needs-qa or needs-design is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace(", `needs-qa` or `needs-design` yourself", " yourself"),
+  facts("I5"),
+  "no longer forbids the leader from applying or removing",
+);
+breaks(
+  "a leader guide that treats a refused label write as a pass is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("A passing verdict whose own label write was refused is not a pass", "A passing verdict counts"),
+  facts("I5"),
+  "whose label write was refused is not a pass",
+);
+
 // A review judges the change against its accepted scope (#146, FACT I2).
 breaks(
   "a design review that blocks on gaps the base already has is rejected",

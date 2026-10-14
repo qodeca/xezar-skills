@@ -436,6 +436,14 @@ none. The agent's own `checkout` of the same PR at the same head prints `already
 run test in `test-kit-catalog.mjs` drives both, and D-data keeps the step in every review workflow.
 Needs the engine release with qodeca/xezar#1006. Found by the 3.1.0 release runs (#132).
 
+**The leader never applies an approval label (#155).** A design review passed, its own label write
+was refused, and the leader added `design-approved` itself and merged – the gate passed by the
+leader, not by the review. The leader guide's fixed Review discipline section now says approval
+labels belong to the step that earned them, and a passing verdict whose label write was refused is
+not a pass: the leader dispatches the next lane or stops. The setup no longer writes "never by
+automation" into the guide's task lifecycle. FACT I5 keeps both; an `UPGRADE_NOTES.md` entry adds
+the rule to an installed guide. Found by the 3.1.0 release runs (#132).
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

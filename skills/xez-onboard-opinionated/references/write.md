@@ -282,8 +282,8 @@ Never copied, because each depends on an answer:
 
   The guide is injected **in full** at every start, resume, clear and compaction, so its size is
   paid on every one of those events. Keep the whole file at or under **200 lines**, as you write it; the
-  shipped template's fixed part is 145, which leaves 51 for the four sections together and about
-  four lines spare. Those numbers are counted, not estimated — `scripts/test-kit-facts.mjs` adds
+  shipped template's fixed part is 152, which leaves exactly the 48 the four sections are budgeted
+  and no line spare. Those numbers are counted, not estimated — `scripts/test-kit-facts.mjs` adds
   the template's fixed lines to the four budgets below and fails above 200, because for one
   release the limit was arithmetically impossible and every run reported a cross it could do
   nothing about. **The limit is about what this skill writes, not a cap forever**: a rule the
@@ -300,6 +300,10 @@ Never copied, because each depends on an answer:
   A section with nothing true to say gets one honest line — "this project has no release process
   yet" — not invented content. The guide is read after every compaction, so a padded section costs
   tokens forever.
+
+  In `{{TASK_LIFECYCLE}}`, never write that `qa-approved` or `design-approved` is applied "never by
+  automation": the independent QA and design-review steps apply them on PASS, and the fixed
+  Review discipline section says the leader never does (#153, #155).
 - **`.xezar/routing.json`** — copied from `kit/routing.json`, then edited in place by the routing
   screens: rotations, unlimited logins, switched-off lanes, tags for lanes the defaults lack, and
   the owner's row-level edits. It is never generated from scratch and never rewritten as prose; the

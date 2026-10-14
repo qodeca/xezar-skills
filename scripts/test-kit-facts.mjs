@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I6", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1847,6 +1847,26 @@ if (S.section("I4")) {
   const qa = read(`${SKILL}/kit/skills/xezar-qa.md`);
   if (!qa.includes("On PASS: add `qa-approved`"))
     fail(fact, `${SKILL}/kit/skills/xezar-qa.md`, "no longer applies qa-approved on PASS – re-aim FACT I4 and write.md together");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I5 -- the leader never applies an approval label (#155). A Codex design review passed, its
+// own label write was refused, and the leader then added design-approved itself and merged: the
+// gate passed by the leader, not by the review. The rule sits in the template's fixed part, which
+// ships verbatim, and write.md keeps the generated lifecycle section from contradicting it.
+// ---------------------------------------------------------------------------
+if (S.section("I5")) {
+  const fact = "FACT I5: the leader guide forbids the leader from applying an approval label";
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  const text = read(tpl);
+  if (!text.includes("never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself"))
+    fail(fact, tpl, "no longer forbids the leader from applying or removing qa-approved, design-approved, needs-qa or needs-design");
+  if (!text.includes("A passing verdict whose own label write was refused is not a pass"))
+    fail(fact, tpl, "no longer says a passing verdict whose label write was refused is not a pass");
+  const write = read(`${SKILL}/references/write.md`).replace(/\n\s+/g, " ");
+  if (!write.includes("In `{{TASK_LIFECYCLE}}`, never write that `qa-approved` or `design-approved` is applied \"never by automation\""))
+    fail(fact, `${SKILL}/references/write.md`, "no longer stops the generated lifecycle section from saying approval labels are never applied by automation");
   checked.push(fact);
 }
 
