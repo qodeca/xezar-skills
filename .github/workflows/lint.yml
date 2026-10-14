@@ -93,7 +93,7 @@ jobs:
   # proven stable. One step runs every command in .xezar/pipeline/config.json, so this job cannot
   # drift from the gate. The timeouts are twice the slowest measured job, rounded up to 5 minutes
   # (#123): Windows 406 s and macOS 160 s (run 37236704110, the slowest of the parallel-gate PR runs
-  # 37218662088 and 37236704110). TBD(#123 L5 proof: re-take both from the L5 PR's own runs).
+  # 37218662088 and 37236704110; the L5 PR's own run 38539297225 took 304 s and 123 s at most).
   cross-platform:
     name: Cross-platform gate (${{ matrix.os }}, Node ${{ matrix.node }})
     if: github.event_name != 'merge_group'
