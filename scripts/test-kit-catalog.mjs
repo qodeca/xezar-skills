@@ -178,9 +178,22 @@ if (S.section("1b")) {
       fail("gh-write.sh lets a JSON label request lift a blocking label");
     if (pipe("gh-write.sh", { action: "comment", kind: "pr", number: "12; rm -rf /", body: "x" }) !== 1)
       fail("gh-write.sh accepts a JSON request whose number is not a number");
+    // The ids come from the step's environment and recordedAt from the clock (#172): a reader
+    // cannot run `date`, and a typed time was hours off, so one it types is replaced.
+    const stamped = (text) => {
+      let p;
+      try { p = JSON.parse(text); } catch { return false; }
+      return text.endsWith("}\n") && JSON.stringify(Object.keys(p).sort()) === '["recordedAt","stepId","taskId","verdict"]' &&
+        p.verdict === "APPROVE" && p.taskId === "run-1" && p.stepId === "review" &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(p.recordedAt) && Math.abs(Date.now() - Date.parse(p.recordedAt)) < 10 * 60 * 1000;
+    };
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }) !== 0 ||
-        (existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : "") !== '{"verdict":"APPROVE","taskId":"run-1","stepId":"review"}\n')
-      fail("verdict-write.sh does not write a JSON packet request as the verdict packet, stamped with the step's taskId and stepId");
+        !stamped(existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : ""))
+      fail("verdict-write.sh does not write a JSON packet request as the verdict packet, stamped with the step's taskId and stepId and the clock's recordedAt");
+    rmSync(join(lab, "handoff.verdict.json"), { force: true });
+    if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE", recordedAt: "2026-10-15T12:00:00Z" } }) !== 0 ||
+        !stamped(existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : ""))
+      fail("verdict-write.sh keeps the recordedAt a reviewer typed instead of stamping the clock's (#172)");
     rmSync(join(lab, "handoff.verdict.json"), { force: true });
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, { XEZ_STEP_ID: "" }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
       fail("verdict-write.sh writes a packet with XEZ_STEP_ID unset, which the engine would refuse");
@@ -244,7 +257,7 @@ if (S.section("1b")) {
         fail(`verdict-write.sh does not write blocked text under ${label} byte for byte (exit ${blocked}): ${JSON.stringify(readOr(join(evidenceDir, "BLOCKED")))}`);
       rmSync(join(lab, "handoff.verdict.json"), { force: true });
       if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, extra) !== 0 ||
-          readOr(join(lab, "handoff.verdict.json")) !== '{"verdict":"APPROVE","taskId":"run-1","stepId":"review"}\n')
+          !stamped(readOr(join(lab, "handoff.verdict.json"))))
         fail(`verdict-write.sh does not write a JSON packet request under ${label} as the stamped verdict packet: ${JSON.stringify(readOr(join(lab, "handoff.verdict.json")))}`);
     }
   } finally {
@@ -1452,6 +1465,29 @@ if (S.section("D-review")) {
       if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
     }
     if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
+    // #172: `run` has a time limit. A command that outlives it – here one that starts a child and
+    // both wait a minute – is stopped with the child, prints review-run=timeout and exits 124; one
+    // that ends in time keeps its own exit status.
+    {
+      const hangPid = join(run, "hang.pid");
+      const hang = `const { spawn } = require("child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { stdio: "ignore" }); require("fs").writeFileSync(${JSON.stringify(hangPid)}, String(c.pid)); setTimeout(() => {}, 60000);`;
+      env.XEZ_REVIEW_RUN_SECONDS = "3";
+      const started = Date.now();
+      const hung = rr("run", "node", "-e", hang);
+      const took = Date.now() - started;
+      const childPid = Number(existsSync(hangPid) ? readFileSync(hangPid, "utf8") : 0);
+      let childAlive = false;
+      try { if (childPid) { process.kill(childPid, 0); childAlive = true; } } catch { childAlive = false; }
+      if (childAlive) try { process.kill(childPid, "SIGKILL"); } catch {}
+      if (hung.status !== 124 || !hung.out.includes("review-run=timeout after 3s") || took > 30000)
+        fail(`review-run.sh run does not stop a command that outlives its time limit (#172): exit ${hung.status} after ${took} ms:\n${hung.out}`);
+      if (!childPid || childAlive) fail(`review-run.sh run's time limit leaves running what the stopped command started (#172): child pid ${childPid || "not recorded"}`);
+      const quick = rr("run", "node", "-e", "process.exit(7)");
+      if (quick.status !== 7) fail(`review-run.sh run under a time limit does not keep a command's own exit status: ${quick.status}\n${quick.out}`);
+      env.XEZ_REVIEW_RUN_SECONDS = "soon";
+      if (rr("run", "node", "-e", "").status !== 1) fail("review-run.sh accepts a time limit that is not a number of seconds");
+      delete env.XEZ_REVIEW_RUN_SECONDS;
+    }
     // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,
     // so it must not inherit the operator's credentials.
     const child = rr("run", "node", "-e", "process.stdout.write([process.env.GH_TOKEN, process.env.GITHUB_TOKEN, process.env.SSH_AUTH_SOCK ?? '', process.env.GIT_TERMINAL_PROMPT].join(' '))");

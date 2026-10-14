@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I10", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -777,7 +777,7 @@ if (S.section("19")) {
       if (text.includes(bad)) fail(fact, `kit/skills/${f}`, `holds ${bad} -- the packet ids come from verdict-write.sh, and a reading step cannot run a command with a $ or an mv`);
   }
   const vw = read(`${SKILL}/kit/checks/verdict-write.sh`);
-  if (!vw.includes('[ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse') || !vw.includes("JSON.stringify({ ...p, taskId, stepId })"))
+  if (!vw.includes('[ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse') || !vw.includes("JSON.stringify({ ...p, taskId, stepId,"))
     fail(fact, "kit/checks/verdict-write.sh", "no longer refuses an unset XEZ_TASK_ID or XEZ_STEP_ID, or no longer stamps both into the packet");
   checked.push(fact);
 }
@@ -2309,6 +2309,32 @@ if (S.section("I7")) {
     const post = read(where).split("\n").find((line) => line.includes(`jq -n '{action:"comment"`));
     if (!post?.includes(CLAUSE)) fail(fact, where, "posts its verdict comment without saying to write ' as \\u0027, so an apostrophe breaks the shell quoting");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I10 -- a hung command does not hold a review, and a verdict's time is the clock's (#172). A pi
+// design review's browser script ran 12 minutes inside `review-run.sh run`, which had no limit, and a
+// QA packet said 12:00Z for work done at 22:15Z, because the reviewer typed the time. `run` stops a
+// command after its limit, every role that runs the change reports a timed-out `run` as not run, and
+// `verdict-write.sh` stamps recordedAt, so no verdict skill asks for it.
+// ---------------------------------------------------------------------------
+if (S.section("I10")) {
+  const fact = "FACT I10: review-run.sh run has a time limit, and verdict-write.sh stamps recordedAt";
+  const CLAUSE = "and so is a `run` that ended with `review-run=timeout after <n>s`";
+  for (const file of ["xezar-acceptance.md", "xezar-architecture.md", "xezar-code-review.md", "xezar-qa.md", "xezar-security-review.md", "xezar-ux-design.md"]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    if (!read(where).includes(CLAUSE)) fail(fact, where, "does not say that a run stopped at its time limit is reported as not run");
+  }
+  for (const file of ["xezar-code-review.md", "xezar-qa.md", "xezar-ux-design.md"]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    if (read(where).includes('"recordedAt"')) fail(fact, where, "asks the reviewer to type recordedAt, which verdict-write.sh stamps from the clock");
+  }
+  const rr = read(`${SKILL}/kit/checks/review-run.sh`);
+  if (!rr.includes('    run_limited "$@"') || !rr.includes('echo "review-run=timeout after ${RUN_LIMIT}s"'))
+    fail(fact, `${SKILL}/kit/checks/review-run.sh`, "runs a review command with no time limit");
+  if (!read(`${SKILL}/kit/checks/verdict-write.sh`).includes("recordedAt: new Date().toISOString()"))
+    fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer stamps recordedAt from the clock");
   checked.push(fact);
 }
 

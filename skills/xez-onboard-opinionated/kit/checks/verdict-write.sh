@@ -12,7 +12,8 @@
 #
 # Usage:
 #   verdict-write.sh packet            stdin → ${XEZ_HANDOFF_FILE}.verdict.json (atomic, ≤ 40 KB, JSON;
-#                                      taskId and stepId stamped from XEZ_TASK_ID and XEZ_STEP_ID)
+#                                      taskId and stepId stamped from XEZ_TASK_ID and XEZ_STEP_ID,
+#                                      recordedAt from this machine's clock)
 #   verdict-write.sh blocked           stdin → <evidence dir>/BLOCKED
 #   verdict-write.sh evidence <name>   stdin → <evidence dir>/<name> (.md .txt .log .json .csv .png .jpg .jpeg)
 #   verdict-write.sh                   any of the three, as one JSON request on stdin:
@@ -110,6 +111,9 @@ case "$kind" in
     [ -n "${XEZ_HANDOFF_FILE:-}" ] || refuse "XEZ_HANDOFF_FILE is not set: a packet belongs to a workflow step"
     # The engine refuses a packet whose ids are not this task's and step's, so the ids are stamped
     # here from the step's environment, never typed by the reviewer; a packet naming others is refused.
+    # recordedAt is stamped here too, from the clock (#172): a reading step cannot run `date`, and a
+    # typed time was hours off. A typed recordedAt is replaced, not refused – it is a wrong time, not
+    # another run.
     [ -n "${XEZ_TASK_ID:-}" ] && [ -n "${XEZ_STEP_ID:-}" ] || refuse "XEZ_TASK_ID or XEZ_STEP_ID is not set: a packet belongs to a workflow step"
     # A review that ran the change (review-run.sh keeps its state under <evidence>/review/) records a
     # verdict only when it left the tree as it found it: `finish` stops what it started and fails
@@ -136,7 +140,7 @@ case "$kind" in
       if (p === null || typeof p !== "object" || Array.isArray(p)) { console.log("the packet is not a JSON object"); process.exit(1); }
       for (const [k, v] of [["taskId", taskId], ["stepId", stepId]])
         if (p[k] !== undefined && p[k] !== v) { console.log("the packet names " + k + " " + JSON.stringify(p[k]) + ", not the running " + JSON.stringify(v)); process.exit(1); }
-      fs.writeFileSync(file, JSON.stringify({ ...p, taskId, stepId }) + "\n");
+      fs.writeFileSync(file, JSON.stringify({ ...p, taskId, stepId, recordedAt: new Date().toISOString() }) + "\n");
     ' "$tmp" "$XEZ_TASK_ID" "$XEZ_STEP_ID" 2>/dev/null)"; then
       rm -f "$tmp"
       refuse "${stamp:-the packet could not be read}"
