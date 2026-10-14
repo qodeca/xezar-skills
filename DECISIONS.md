@@ -1466,8 +1466,8 @@ first. On Windows the tests adapt the environment rather than the kit: Git's too
 through Git Bash. That choice means no Windows test runs on an autocrlf checkout of its own
 fixtures; the explicit CRLF cases are what prove the CRLF tolerance. So a green Windows gate
 proves the kit's logic on Windows, not that the whole kit runs natively there. The Windows and
-macOS CI jobs are informational until their runs prove stable; the `lint` job on ubuntu stays the
-required check. How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
+macOS CI jobs were informational until their runs proved stable; since #132 they are required on
+`develop` beside `lint` ("Windows and macOS CI block merges"). How to set a machine up is in `CONTRIBUTING.md` → Contributing from Windows.
 
 The stubs need one patch to Node itself, and its reach is kept narrow. On Windows only,
 `prepareTestPlatform()` (`scripts/lib/test-harness.mjs`) wraps `spawn`, `spawnSync`, `execFile` and
@@ -1762,6 +1762,23 @@ group's failure shows only once the groups before it have finished; `--only <gro
 one group in one process, for the plain terminal view. The pool's order is the one measured on
 the #122 PC; a group that grows past `gates-write` sets the time until the order is updated. A
 serial gate gives the pool up: `--jobs 1` took 627 s with it and takes 808 s without.
+
+## Windows and macOS CI block merges
+
+**Owner: Marcin. Decided 2026-10-14 (#132).**
+
+The cross-platform job in `lint.yml` – Windows and macOS, each on Node 22 and `lts/*` – is a
+required check on `develop`, beside `lint`, through a repository ruleset. It no longer has
+`continue-on-error`. A random failure gets one re-run to unblock the PR, then an issue and a real
+fix; a skip-list, a `continue-on-error` or a removed matrix row is never the fix.
+
+**Why.** Native Windows and macOS are supported platforms in 3.1.0, with the same features as
+Linux. A check that cannot block lets a later PR break them silently; the runs proved stable
+through #123 (every PR run green since L3, Windows within its 15-minute timeout).
+
+**What it costs.** Every PR waits for the slowest job – about 5–7 minutes on GitHub's Windows
+runner against about 2 for `lint` – and a flaky Windows test now stops every PR until it is
+re-run. The owner accepted both. The nightly Windows guard run stays informational.
 
 ## The gate runs in parallel by default
 

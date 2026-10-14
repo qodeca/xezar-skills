@@ -380,8 +380,8 @@ never a gate result. A twenty-fourth gate command, `scripts/check-gate-map.mjs`,
 quick check's map complete and makes sure the full gate never reads it or runs narrowed.
 `.gitattributes` checks text out with LF on every system, `scripts/lib/platform.mjs` finds Git Bash
 and never WSL's `bash.exe`, and `scripts/test-platform.mjs` (run by `lint.sh`) covers it. Windows
-and macOS CI jobs are informational, and so is a nightly Windows run of the guard suite, which
-takes about 23 minutes (#123). Setup:
+and macOS CI jobs are required on `develop` beside `lint` (#132); the nightly Windows run of the
+guard suite, which takes about 23 minutes (#123), stays informational. Setup:
 `CONTRIBUTING.md` → Contributing from Windows. Nothing changes for an installed project.
 
 # 3.0.3 (2026-09-24)

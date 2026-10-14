@@ -127,7 +127,7 @@ from Windows before 3.1.0, `UPGRADE_NOTES.md` entry 14 has the repair.
 - `catalog-check.mjs` refuses an agent step with no timeout, and a review step without
   `review-run.sh` or the full browser set.
 - This repository's gate runs on native Windows, from Git Bash or with `npm run gate`. The
-  Windows and macOS CI jobs are informational (#122).
+  Windows and macOS CI jobs are required on `develop`, beside `lint` (#132).
 
 ## ✅ Full details
 

@@ -59,7 +59,8 @@ the [README](README.md) says. To work on this repository on Windows itself, you 
 Expect a full `lint` run to take about 10 seconds on Windows. `test-onboarding-content` runs
 lint only in its targeted mode (`--only`, `--files`), so it takes seconds.
 
-The Windows and macOS CI jobs are informational: they report without blocking a merge. A green
+The Windows and macOS CI jobs are required on `develop`, like `lint`: a red one blocks the merge. A
+random failure gets one re-run, then an issue and a real fix – never a skip-list. A green
 gate on Windows proves the kit's logic there – the tests adapt the environment, for example with
 Git's tools first on `PATH` – and the cases that start a program the Windows way (`.cmd` shims, Git
 Bash, `C:/…` worktree paths) run there for real. The gaps left are listed in
