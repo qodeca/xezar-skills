@@ -869,13 +869,32 @@ try {
   });
 
   // A crashed run's copies sit in its private folder <base>/guards-<pid>-XXXXXX/guards-<pid>-<k>.
+  // The dead pid is one that just exited. Windows reuses pids quickly, so the many git
+  // processes this check starts can bring it back to life; a kept copy whose pid is live
+  // again proves nothing, and the check runs again with a fresh pid.
+  const alive = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return error.code === "EPERM";
+    }
+  };
   check("removeStaleCopies removes a dead run's copies and leftover folders, and keeps a live run's", () => {
+    for (let attempt = 1; ; attempt++) {
+      const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+      if (staleCopiesCheck(dead, alive, attempt)) return;
+      assert.ok(attempt < 5, `removeStaleCopies: the dead pid came back to life ${attempt} times; nothing was proved`);
+    }
+  });
+
+  /** One run of the check above; false when the dead pid came back to life and the run proves nothing. */
+  function staleCopiesCheck(dead, alive, attempt) {
     const { base, source } = treeCopy();
-    const temp = join(base, "temp");
-    const elsewhere = join(base, "elsewhere");
+    const temp = join(base, `temp-${attempt}`);
+    const elsewhere = join(base, `elsewhere-${attempt}`);
     const sleeper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], { stdio: "ignore" });
     try {
-      const dead = spawnSync(process.execPath, ["-e", ""]).pid;
       const live = sleeper.pid;
       const places = {
         dead: join(temp, `guards-${dead}-AbC123`, `guards-${dead}-0`),
@@ -889,6 +908,10 @@ try {
       removeStaleCopies(source, temp, "guards-");
       const listed = toPosixPath(git(source, "worktree", "list", "--porcelain"));
       const has = (place) => listed.includes(`/${toPosixPath(path.relative(base, place))}\n`);
+      if (existsSync(dirname(places.dead)) && alive(dead)) {
+        for (const place of [places.dead, places.live, places.outside]) removeTree(source, base, place);
+        return false;
+      }
       assert.ok(!existsSync(dirname(places.dead)) && !has(places.dead), `removeStaleCopies kept a dead run's copy:\n${listed}`);
       assert.ok(!existsSync(leftover), "removeStaleCopies kept a dead run's leftover folder");
       assert.ok(existsSync(places.live) && has(places.live), "removeStaleCopies removed a copy whose run is still alive");
@@ -896,10 +919,11 @@ try {
       assert.ok(existsSync(join(temp, "guards-notes")), "removeStaleCopies removed a folder whose name only starts like a copy's");
       assert.match(listed, /^worktree .*\/tree\/side$/m, `removeStaleCopies pruned another worktree's entry:\n${listed}`);
       for (const place of [places.live, places.outside]) removeTree(source, base, place);
+      return true;
     } finally {
       sleeper.kill();
     }
-  });
+  }
 
   check("writeInside writes inside its base and refuses ../ and another path, unwritten", () => {
     const base = join(lab, "write-base");
