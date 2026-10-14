@@ -1670,6 +1670,13 @@ if (S.section("W-scheduler")) {
   const recorded = []; // the gates' processes, by the pids they wrote
   const children = [];
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // A race's time limit, cleared once the race is decided: a pending timer keeps Node running, so
+  // an uncleared 60 s limit held every green run open for up to a minute after its last line (#123).
+  const deadline = (ms, label) => {
+    let timer;
+    const promise = new Promise((resolve) => { timer = setTimeout(() => resolve(label), ms); });
+    return { promise, clear: () => clearTimeout(timer) };
+  };
   // What the last check of each pid found. A pid once seen gone is never signalled again: by the
   // cleanup it may name an unrelated process (Windows reuses pids quickly).
   const lastSeen = new Map();
@@ -1720,7 +1727,9 @@ if (S.section("W-scheduler")) {
   try {
     // G1: the gate starts node in the background, waits for it and its child, and exits 0.
     const reaped = start("reap", `${holderRuns} & ${bothStarted}; exit 0`);
-    const reapCode = await Promise.race([reaped.closed, sleep(60_000).then(() => "no exit within 60 s")]);
+    const reapLimit = deadline(60_000, "no exit within 60 s");
+    const reapCode = await Promise.race([reaped.closed, reapLimit.promise]);
+    reapLimit.clear();
     const left = pidsIn(reaped.dir);
     recorded.push(...left.filter(Boolean));
     if (reapCode !== 0 || left.includes(null)) fail(fact, where, `the reap case did not run (scheduler: ${reapCode}; pids ${JSON.stringify(left)}): ${reaped.err()}`);
@@ -1735,7 +1744,9 @@ if (S.section("W-scheduler")) {
       // POSIX: a TERM, as repo-gates.sh sends it. Windows: the stop file repo-gates.sh writes there.
       if (process.platform === "win32") writeFileSync(join(stoppedRun.attempt, "workers", "stop"), "");
       else stoppedRun.child.kill("SIGTERM");
-      const stopCode = await Promise.race([stoppedRun.closed, sleep(20_000).then(() => "no exit within 20 s")]);
+      const stopLimit = deadline(20_000, "no exit within 20 s");
+      const stopCode = await Promise.race([stoppedRun.closed, stopLimit.promise]);
+      stopLimit.clear();
       const gone = await until(() => !stopping.some(alive), 10_000);
       if (stopCode !== 130 || !gone)
         fail(fact, where, `the gate scheduler did not stop its gates on an interrupt (scheduler: ${stopCode}; still running: ${stopping.filter(alive).join(", ") || "none"})`);
