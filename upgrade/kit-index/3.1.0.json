@@ -683,10 +683,10 @@
       "sha256": "5a94597bf4b47820afa9b22ff9867d5304affe01156c0799f634444430caaa1c"
     },
     ".xezar/skills/xezar-security-review.md": {
-      "kitBlob": "8f188d01d0c43c734d2f093d1d34b3578f87d438",
+      "kitBlob": "db361e01b098f4d1ef861308656e1f7ea92cefc8",
       "kitSource": "skills/xezar-security-review.md",
       "rewrite": "copied",
-      "sha256": "9750fda5434ad494610fae40c033daf16e37c98245f94d9b38737af20f96bf95"
+      "sha256": "85022c6306c6056603d1782250bcf749e7797028ebcd02b7d5d18890aa0168e9"
     },
     ".xezar/skills/xezar-spike.md": {
       "kitBlob": "b48e44151bfa024906b0f9d78986e202af99239e",
