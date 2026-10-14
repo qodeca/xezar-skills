@@ -84,6 +84,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 refuse() {
   echo "review-run.sh: refused: $*" >&2
+  # A refused prepare stops the run before the agent: say what the leader should make of it (#160).
+  [ "${PREPARING:-0}" = 1 ] && echo "review-run.sh: this is the prepare check step, not a verdict – no review ran; re-run the review, or report this refusal" >&2
   exit 1
 }
 
@@ -211,7 +213,7 @@ checkout_pr() {
       if [ -z "$probe" ]; then
         printf 'confined exit=3 pr=%s\n' "$1" >"$state/checkout"
         echo "review-run=confined"
-        echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, engine 0.19.0). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
+        echo "review-run.sh: this step cannot write ${gitdir:-the git directory}, which a checkout needs – its sandbox confines it to the worktree and the run's own folders (a Codex step with no Edit and no Write, on an engine without the prepare step of qodeca/xezar#1006). The PR cannot be checked out or run here: judge from the diff, and report every check that needed running as not run." >&2
         exit 3
       fi
       rm -f "$probe"
@@ -249,6 +251,7 @@ case "$sub" in
       echo "review-run.sh: this run names no pull request, so nothing was checked out; the review judges what its task names" >&2
       exit 0
     fi
+    PREPARING=1
     checkout_pr "$XEZ_PR_NUMBER"
     ;;
   install)

@@ -1487,6 +1487,12 @@ if (S.section("D-review")) {
     if (evil.status !== 1 || !evil.out.includes("tracks files under .local/xezar/cache/kit/") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1"
       || !same("verdict-write.sh") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
       fail(`review-run.sh checkout keeps a PR head that replaced the review's own scripts:\n${evil.status} ${evil.out}`);
+    // #160: the same refusal from the prepare check step tells the leader it is not a verdict.
+    env.XEZ_PR_NUMBER = "6";
+    const evilPrepare = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
+    if (evilPrepare.status !== 1 || !evilPrepare.out.includes("this is the prepare check step, not a verdict") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh prepare does not say that its refusal is not a verdict (#160):\n${evilPrepare.status} ${evilPrepare.out}`);
     // #160: the workflow check step checks the PR the run names out, through prepare.
     env.XEZ_PR_NUMBER = "5";
     const checkout = rr("prepare");
