@@ -1858,6 +1858,20 @@ breaks(
   facts("I2"),
   "no longer makes a gap the base already has",
 );
+breaks(
+  "a code review that blocks on gaps the base already has is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
+  (s) => s.replace("are `minor` follow-ups, each with", "are `major` findings, each with"),
+  facts("I2"),
+  "no longer makes a gap the base already has",
+);
+breaks(
+  "a design review that blocks on any state a new element leaves out is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("leaves out blocks only when the scope asks for it", "leaves out blocks"),
+  facts("I2"),
+  "lets a missing state of something the change adds block",
+);
 
 // Project trust boundaries (#70). Each break is one rule of FACT G1 undone the way a well-meant
 // edit would undo it; test-kit-facts.mjs drives the real scan and must name the lost rule.

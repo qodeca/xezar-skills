@@ -713,10 +713,10 @@
       "sha256": "e195574b615fc4219663b53327456396944ac1a93bb4d0147b5e18ea99aa34c4"
     },
     ".xezar/skills/xezar-ux-design.md": {
-      "kitBlob": "07af10ac300251a83fa77d86c883ab5f958cae68",
+      "kitBlob": "4d097e8a0770b73b9942bc6e7170f7a79b7f5d81",
       "kitSource": "skills/xezar-ux-design.md",
       "rewrite": "copied",
-      "sha256": "5c581004818b0ec26f4735ede861121f46e0d54248ebdc04abdd00dedf2656fc"
+      "sha256": "7310a486543173e7f146d6e7a88b5723ca06d34c2a283b3710cf69e45ca26190"
     },
     ".xezar/skills/xezar-visual-asset.md": {
       "kitBlob": "27fcf4f528ead3a6ea2dbf1f633a1659ce583927",

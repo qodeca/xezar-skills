@@ -1838,14 +1838,23 @@ if (S.section("I1")) {
 // ---------------------------------------------------------------------------
 if (S.section("I2")) {
   const fact = "FACT I2: the code and design reviews block only on defects the change brings";
-  for (const [file, follow] of [["xezar-code-review.md", "`minor` follow-up"], ["xezar-ux-design.md", "NB-n follow-ups"]]) {
+  const rules = [
+    ["xezar-code-review.md", "`minor` follow-up", /A robustness gap the base code already has[^.]*are `minor` follow-ups/],
+    ["xezar-ux-design.md", "NB-n follow-up", /A gap the base already has[^.]*are NB-n follow-ups/],
+  ];
+  for (const [file, follow, rule] of rules) {
     const where = `${SKILL}/kit/skills/${file}`;
     const text = norm(read(where));
     if (!text.includes("Judge the change against its accepted scope"))
       fail(fact, where, "lost the rule that a review judges the change against its accepted scope");
-    if (!/A (gap|robustness gap) the base[^.]*already has/.test(text) || !text.includes(follow))
+    if (!rule.test(text))
       fail(fact, where, `no longer makes a gap the base already has a non-blocking ${follow.replace(/`/g, "")}`);
   }
+  // A missing state of something the change adds is the loophole run 1 looped on: it blocks only
+  // when the scope asks for it or the screen already handles it.
+  const ux = `${SKILL}/kit/skills/xezar-ux-design.md`;
+  if (!/A state that something the change adds leaves out blocks only when the scope asks for it/.test(norm(read(ux))))
+    fail(fact, ux, "lets a missing state of something the change adds block although the scope never asked for it");
   checked.push(fact);
 }
 
