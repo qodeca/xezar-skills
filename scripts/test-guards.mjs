@@ -1449,6 +1449,15 @@ breaks(
   "does not check that Codex trusts the project",
 );
 
+// The kit's pi add-on allows only the browser tools .codex/config.toml lists (#185, FACT I16).
+breaks(
+  "a pi add-on that allows any chrome-devtools tool without asking is rejected",
+  "skills/xez-onboard-opinionated/kit/pi/extensions/mcp-approval-queue.ts",
+  (s) => s.replace("return allowlist.includes(tool) && SHIPPED_BROWSER_TOOLS.includes(tool) ? \"allow_once\" : undefined;", () => "return \"allow_once\";"),
+  facts("I16"),
+  "allows chrome-devtools/evaluate_script without asking",
+);
+
 // With no campaign open, the leader's records have one place (#181, FACT I13).
 breaks(
   "a leader guide that names no folder for the leader's records outside a campaign is rejected",

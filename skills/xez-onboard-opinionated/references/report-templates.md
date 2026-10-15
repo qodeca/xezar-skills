@@ -61,6 +61,13 @@ One leader per project: to move it to a new session, exit this one first.
 `trust_level = "trusted"` to `<the Codex home's config.toml>` (on native Windows the lower-case
 literal-string key, `[projects.'<lower-case Windows path>']`).
 
+<when the pi approval add-on check is ❌:>
+⚠️ **What you do now** – your pi add-on `<file>` answers every MCP approval, and with no person
+there it denies, so a pi QA or design step has no browser. Replace it with
+`.xezar/pi/extensions/mcp-approval-queue.ts`: it keeps your one-at-a-time, Deny-first prompts and
+allows without asking only the chrome-devtools tools the main checkout's `.codex/config.toml`
+lists, never one outside the kit's shipped list.
+
 PR: #<number> (link: <full PR URL>)
 ```
 

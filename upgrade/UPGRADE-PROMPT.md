@@ -420,6 +420,10 @@ Walk the `Actions:` of every upgrade entry in the range, oldest first:
   TOML literal-string key in single quotes, `[projects.'c:\users\me\app']`, in
   `%USERPROFILE%\.codex\config.toml` unless `CODEX_HOME` is set; a mixed-case key is untested, and
   a path holding a `'` takes the double-quoted form with every `\` doubled.
+  `install-pi-extension:<project path>` applies only when a routing lane is `pi/…` and a file in
+  the `extensions/` folder of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`)
+  names the `pi-mcp-adapter:tool-approval-request` event and differs from `<project path>`: the
+  owner replaces that file with `<project path>`.
 - An action outside this list is refused: report it as an unknown action and do not guess.
 
 Then read every entry on `unblockedEntries` (its heading and line in the clone's

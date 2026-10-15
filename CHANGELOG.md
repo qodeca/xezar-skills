@@ -531,6 +531,20 @@ step's own is not evidence, and a step without the tools reports each
 browser check as not run (#156). The browser for pi comes from the engine (qodeca/xezar#1015).
 FACT I15 pins it.
 
+**A pi step can use the project's browser tools with no person there (#185).** pi-mcp-adapter
+hands every MCP call to the first pi add-on that claims its approval event, even for a server
+whose `approveTools` is off, and pi loads the owner's add-ons before a project's. On the Windows
+release PC the owner's approval add-on denied every chrome-devtools call with no person there, so
+a pi QA had no browser. The kit now ships that add-on, imported from the owner's repository with
+every rule kept, as `.xezar/pi/extensions/mcp-approval-queue.ts`, with one rule added: a
+chrome-devtools tool is allowed without asking when the main checkout's `.codex/config.toml` lists
+it in `enabled_tools` (read once when the session starts, from the folder `git rev-parse
+--git-common-dir` names – never the pull request's own worktree, whose file is the change under
+review) and the kit ships it, so evaluate_script and uploads never are; every other call is asked,
+or denied with no person there. Verification reports which add-on answers pi's approvals when a row names a `pi/` lane, and
+the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
+gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

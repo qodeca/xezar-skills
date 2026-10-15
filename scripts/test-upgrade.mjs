@@ -1743,11 +1743,14 @@ if (S.section("13a")) {
     "per-machine=remove-mcp-permission:mcp__chrome-devtools",
     "per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro",
     "per-machine=trust-codex-project:<absolute-project-path>",
+    "per-machine=install-pi-extension:.xezar/pi/extensions/mcp-approval-queue.ts",
   ]) {
     expect(plan.actions.includes(a), `per-machine: a 3.0.3 project's plan does not carry ${a} (${plan.actions.join(", ")})`);
   }
   const ok = parseBlocks("```upgrade\nApplies-to: *\nActions: per-machine=add-runner-model:pi/x/y\n```\n", "t");
   expect(!ok.errors.length, `machine block: per-machine=add-runner-model is refused: ${ok.errors}`);
+  const pi = parseBlocks("```upgrade\nApplies-to: *\nActions: per-machine=install-pi-extension:.xezar/pi/extensions/x.ts\n```\n", "t");
+  expect(!pi.errors.length, `machine block: per-machine=install-pi-extension is refused: ${pi.errors}`);
 }
 
 // 13b. A 3.0.0 project: 3.0.2's per-machine steps are actions; an in-range entry with no block is
