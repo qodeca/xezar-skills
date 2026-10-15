@@ -23,6 +23,32 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-15 – a pi QA or design review passes on its own browser script
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – a pi QA or design review passes on its own browser script.** Its report says it
+drove Chrome over CDP, or with Puppeteer or Playwright, through `bash`, and it made no
+chrome-devtools call. A pi step holds no chrome-devtools tool, so it wrote a browser of its own:
+nothing limited its tools, its time or what it wrote, and one such script hung a review for
+464 s. Another pi review FAILs the same change with "required evidence unavailable".
+
+**What to do.** In each of `.xezar/skills/xezar-acceptance.md`, `xezar-qa.md` and
+`xezar-ux-design.md`, after "name a browser tool as unavailable only when your own tool list lacks
+it.", add: "Browser evidence comes only from the `chrome-devtools` tools this step holds: a browser
+script of your own – CDP, Puppeteer or Playwright code driven through `bash` or `review-run.sh run`
+– is not evidence, because nothing limits what it runs, how long, or what it writes. A step whose
+tool list holds no `chrome-devtools` tool has no browser: report each browser check as not run, as
+#156 says." The browser for a pi step comes from the engine (qodeca/xezar#1015); until your engine
+has it, a pi QA or design review of a UI change FAILs and the leader routes it to the next lane.
+
+**What you lose by skipping it.** A pi review can pass a UI change on a browser nobody checked.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-15 – a pi QA or design review cannot use chrome-devtools: every call says the user declined approval
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names

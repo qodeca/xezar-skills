@@ -1467,6 +1467,15 @@ breaks(
   "does not say where the leader keeps its records with no campaign open",
 );
 
+// Browser evidence comes only from the chrome-devtools tools a step holds (#185, FACT I15).
+breaks(
+  "a QA skill that lets a browser script of the step's own count as evidence is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace(" – is not evidence, because nothing limits what it runs", () => " – is evidence too, though nothing limits what it runs"),
+  facts("I15"),
+  "does not say a browser script of the step's own is not evidence",
+);
+
 breaks(
   "a QA skill that asks the reviewer to type recordedAt is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
