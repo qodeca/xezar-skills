@@ -433,6 +433,12 @@
       "rewrite": "copied",
       "sha256": "28a41846c6aa69a0232527204d43a11f8f4ba10de4c440963c1b0da8e2403c75"
     },
+    ".xezar/pi/extensions/mcp-approval-queue.ts": {
+      "kitBlob": "79de6d481bd9f2960c432e873c83c7e2bca6eb46",
+      "kitSource": "pi/extensions/mcp-approval-queue.ts",
+      "rewrite": "copied",
+      "sha256": "56c51b8bc43a2302276d966a8df65322611e30999868d4e94f3c81bf4a6b8e0d"
+    },
     ".xezar/pipeline/browsers/agent-browser.md": {
       "kitBlob": "7423c3f813d311bde33416f209f38b1b1e12c4e7",
       "kitSource": "pipeline/browsers/agent-browser.md",

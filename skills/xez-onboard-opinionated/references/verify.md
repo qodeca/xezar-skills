@@ -167,20 +167,31 @@ In order:
   (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'`), and a double-quoted key doubles every `\`. No such
   table, or another trust level, is ❌, and the report gives the two lines from
   `references/write.md` with this project's path in them.
+- **pi approval add-on, when a routing row names a `pi/` lane.** Read only: pi's add-ons are the
+  owner's, never write them. pi-mcp-adapter sends every MCP tool call to the first add-on that
+  claims the `pi-mcp-adapter:tool-approval-request` event, and pi loads the owner's add-ons before
+  the project's, so an add-on that denies a call with no person to answer leaves a pi QA or design
+  step with no browser. List the files in the `extensions/` folder of pi's agent dir
+  (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`) that name that event. None is ✅ (the adapter's
+  own `approveTools` setting decides). One that is byte for byte
+  `.xezar/pi/extensions/mcp-approval-queue.ts` is ✅. Any other is ❌: the report names the file and
+  says to replace it with `.xezar/pi/extensions/mcp-approval-queue.ts`, which keeps asking for
+  every other call and allows only the browser tools the main checkout's `.codex/config.toml`
+  lists, and never one outside the kit's shipped list.
 
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
 on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
-`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · pi approval add-on, when a row names a `pi/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 
 Any ❌ → name the **one** next action, keep the pending file, and use the matching failure
 template. All ✅ → delete the pending file and report with `references/report-templates.md` →
-"Setup complete". The one exception is Codex trust: it is the owner's own setting, so its ❌ does
-not hold the report back – "Setup complete" carries it under **What you do now**, with the two
-lines to add.
+"Setup complete". The two exceptions are Codex trust and the pi approval add-on: each is the
+owner's own setting, so its ❌ does not hold the report back – "Setup complete" carries it under
+**What you do now**, with the lines to add or the file to replace.
 
 After a context compaction in this session, call `leader_events` action `read` with no cursor
 before anything else: the attachment survives, the memory of what arrived does not.

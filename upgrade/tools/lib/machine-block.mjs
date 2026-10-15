@@ -8,7 +8,7 @@ const ACTION = [
   /^config-key=[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/,
   /^label-sync$/,
   /^env-rename=[A-Z0-9_]+:[A-Z0-9_]+$/,
-  /^per-machine=(add-mcp-permission|remove-mcp-permission|enable-mcp-server|trust-codex-project|add-runner-model):\S+$/,
+  /^per-machine=(add-mcp-permission|remove-mcp-permission|enable-mcp-server|trust-codex-project|add-runner-model|install-pi-extension):\S+$/,
 ];
 
 /** "3.0.2+abc" -> [3,0,2]. Anything else -> null. */
