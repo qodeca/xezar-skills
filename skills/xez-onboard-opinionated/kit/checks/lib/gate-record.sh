@@ -41,7 +41,16 @@ GATE_STDOUT_TAIL_PASS=3
 GATE_STDOUT_TAIL_FAIL=60
 
 _gate_iso_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-_gate_epoch_ms() { node -e 'process.stdout.write(String(Date.now()))'; }
+# Bash 5 has the clock built in (`EPOCHREALTIME`, seconds and six digits of microseconds, with the
+# locale's decimal mark); a node start costs about half a second on Windows. Older bash (macOS's
+# 3.2) has no such variable and asks node, as before.
+_gate_epoch_ms() {
+  local now="${EPOCHREALTIME:-}"
+  case "$now" in
+    [0-9]*[.,][0-9][0-9][0-9][0-9][0-9][0-9]) now="${now//[.,]/}"; printf '%s' "${now%???}" ;;
+    *) node -e 'process.stdout.write(String(Date.now()))' ;;
+  esac
+}
 
 # Build a JSON object from key=value arguments. Suffix a key with `:n` for a number or `:j` for
 # a raw JSON value. Doing this in node rather than by hand keeps a log path with a quote in it
@@ -113,14 +122,6 @@ gate_resolve_producer() {
 # A standalone attempt is uncertifiable by construction, twice over: its producer is `author`,
 # which sealing refuses, and it does not live under an evidence root, which verification refuses.
 # So the owner gets a verdict they can act on and nobody gets evidence they did not earn.
-_gate_claim_field() {
-  printf '%s' "$1" | node -e '
-    let raw = "";
-    process.stdin.on("data", (d) => (raw += d)).on("end", () => {
-      try { process.stdout.write(String(JSON.parse(raw)[process.argv[1]] ?? "")); } catch { process.exit(1); }
-    });' "$2"
-}
-
 gate_attempt_begin() {
   local required_json="$1" command_list_id="$2"
   local gates_root seq stamp claim
@@ -155,9 +156,20 @@ gate_attempt_begin() {
   # `reserve` claims `.sequences/<n>` with mkdir, which exactly one process can win.
   stamp="$(_gate_epoch_ms)"
   claim="$(node "$GATE_RESULTS_MJS" reserve --gates-root "$gates_root" --head "$HEAD_SHA" --stamp "$stamp" --pid "$$")" || return 1
-  seq="$(_gate_claim_field "$claim" sequence)"
-  GATE_ATTEMPT_ID="$(_gate_claim_field "$claim" attemptId)"
-  GATE_ATTEMPT_DIR="$(_gate_claim_field "$claim" attemptDir)"
+  # One node for the three fields (#132 speed bar), one per line. A field holding a line break is
+  # refused, so a field never spans or merges lines; the empty fields then stop the attempt below.
+  seq="" GATE_ATTEMPT_ID="" GATE_ATTEMPT_DIR=""
+  {
+    IFS= read -r seq && IFS= read -r GATE_ATTEMPT_ID && IFS= read -r GATE_ATTEMPT_DIR
+  } < <(printf '%s' "$claim" | node -e '
+    let raw = "";
+    process.stdin.on("data", (d) => (raw += d)).on("end", () => {
+      let c;
+      try { c = JSON.parse(raw); } catch { process.exit(1); }
+      const fields = ["sequence", "attemptId", "attemptDir"].map((k) => String(c[k] ?? ""));
+      if (fields.some((f) => /[\r\n]/.test(f))) process.exit(1);
+      process.stdout.write(fields.map((f) => `${f}\n`).join(""));
+    });' 2>/dev/null)
   [ -n "$GATE_ATTEMPT_ID" ] && [ -n "$GATE_ATTEMPT_DIR" ] || {
     printf 'gate-record: the attempt sequence could not be reserved\n' >&2; return 1;
   }

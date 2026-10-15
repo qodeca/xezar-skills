@@ -100,6 +100,14 @@ jq_string_bytes() { case "${OSTYPE:-}" in msys* | cygwin*) jq -r "($1) | @base64
 # `shasum -a 256` lines for files or stdin. Git Bash has shasum only on a login PATH (core_perl),
 # so without it the same lines come from coreutils' sha256sum (#122).
 sha256_lines() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
+# sha256_each: the same lines as one sha256_lines call per path, for paths read one per line from
+# stdin, in that order – from one hashing process instead of one per file. On Windows a process
+# start costs about 0.1 s, and a fingerprint hashes every kit file (#132 speed bar).
+sha256_each() {
+  local path paths=()
+  while IFS= read -r path; do paths+=("$path"); done
+  [ "${#paths[@]}" -eq 0 ] || sha256_lines "${paths[@]}"
+}
 
 # A task id becomes a directory name under the task evidence root. Anything that is not a
 # single safe path segment is refused outright rather than sanitised, so a crafted id
@@ -593,6 +601,25 @@ deps_use_pinned_node
 # the workspace definition, the registry/hoisting configuration, the patch files applied
 # through `npm.patchedDependencies`, the pinned package manager, and every workspace
 # package.json.
+#
+# `npm --version` starts npm itself, about a second on Windows, and one gate run fingerprints six
+# times (#132 speed bar). So a caller may pin the answer for a stretch in which npm cannot change:
+# `deps_npm_version_pin` asks once, and every fingerprint after it in this shell (and in the
+# $(…) subshells it starts) reuses the answer until the next pin. The pin is a plain shell
+# variable, never exported, and it is cleared whenever this file is sourced, so a value inherited
+# from the environment is never believed. Without a pin every fingerprint asks npm, as before.
+unset XEZ_DEPS_NPM_VERSION XEZ_DEPS_NPM_VERSION_PINNED
+deps_npm_version_pin() {
+  XEZ_DEPS_NPM_VERSION="$(npm --version 2>/dev/null || printf 'unknown')"
+  XEZ_DEPS_NPM_VERSION_PINNED=1
+}
+deps_npm_version() {
+  if [ "${XEZ_DEPS_NPM_VERSION_PINNED:-}" = 1 ]; then
+    printf '%s' "$XEZ_DEPS_NPM_VERSION"
+  else
+    npm --version 2>/dev/null || printf 'unknown'
+  fi
+}
 deps_fingerprint() {
   deps_units_mode 2>/dev/null
   case $? in
@@ -603,12 +630,11 @@ deps_fingerprint() {
     cd "$TASK_CWD" || return 1
     local f
     for f in package-lock.json npm-shrinkwrap.json package.json .npmrc; do
-      [ -f "$f" ] && sha256_lines "$f"
-    done
+      if [ -f "$f" ]; then printf '%s\n' "$f"; fi
+    done | sha256_each
     # Patches are applied at install time, so a changed patch means a different node_modules.
     if [ -d patches ]; then
-      find patches -type f -print 2>/dev/null | LC_ALL=C sort |
-        while IFS= read -r f; do sha256_lines "$f"; done
+      find patches -type f -print 2>/dev/null | LC_ALL=C sort | sha256_each
     fi
     # Workspace manifests. `find` is given only the directories that exist, because a
     # missing `examples/` must not turn into a failed fingerprint under `set -o pipefail`.
@@ -617,8 +643,7 @@ deps_fingerprint() {
     [ -d examples ] && roots+=(examples)
     if [ ${#roots[@]} -gt 0 ]; then
       find "${roots[@]}" -mindepth 2 -maxdepth 2 -name package.json -print 2>/dev/null |
-        LC_ALL=C sort |
-        while IFS= read -r f; do sha256_lines "$f"; done
+        LC_ALL=C sort | sha256_each
     fi
     # The pinned package manager: a different npm resolves differently.
     node -e '
@@ -628,7 +653,7 @@ deps_fingerprint() {
         process.stdout.write(`packageManager=${pkg.packageManager ?? ""}\n`);
       } catch { process.stdout.write("packageManager=unreadable\n"); }
     ' 2>/dev/null
-    printf 'npm=%s\n' "$(npm --version 2>/dev/null || printf 'unknown')"
+    printf 'npm=%s\n' "$(deps_npm_version)"
     printf 'node=%s\n' "$(node --version 2>/dev/null || printf 'unknown')"
   ) | sha256_lines | cut -d' ' -f1
 }
@@ -852,13 +877,12 @@ tree_fingerprint() {
     printf -- '--kit--\n'
     for kit_part in checks skills workflows docs pipeline; do
       if [ -d ".xezar/$kit_part" ]; then
-        find ".xezar/$kit_part" -type f -print | LC_ALL=C sort |
-          while IFS= read -r kit_file; do sha256_lines "$kit_file"; done
+        find ".xezar/$kit_part" -type f -print | LC_ALL=C sort | sha256_each
       fi
     done
     for kit_file in config.json CLAUDE.md kit-manifest.json .gitignore; do
-      [ ! -f ".xezar/$kit_file" ] || sha256_lines ".xezar/$kit_file"
-    done
+      [ ! -f ".xezar/$kit_file" ] || printf '%s\n' ".xezar/$kit_file"
+    done | sha256_each
     printf -- '--tracked--\n'
     git diff HEAD 2>/dev/null
     printf -- '--untracked--\n'
