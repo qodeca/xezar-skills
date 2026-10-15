@@ -1440,6 +1440,15 @@ breaks(
   "does not say a finding's fingerprint is a short hash of at most 64 characters",
 );
 
+// Onboarding checks that Codex trusts the project (#184, FACT I14).
+breaks(
+  "an onboarding verify step that never checks Codex trust is rejected",
+  "skills/xez-onboard-opinionated/references/verify.md",
+  (s) => s.replace("· Codex trust, when a row names a `codex/` lane ·", () => "·"),
+  facts("I14"),
+  "does not check that Codex trusts the project",
+);
+
 // With no campaign open, the leader's records have one place (#181, FACT I13).
 breaks(
   "a leader guide that names no folder for the leader's records outside a campaign is rejected",
