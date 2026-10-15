@@ -1742,6 +1742,7 @@ if (S.section("13a")) {
     "per-machine=remove-mcp-permission:mcp__chrome-devtools__*",
     "per-machine=remove-mcp-permission:mcp__chrome-devtools",
     "per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro",
+    "per-machine=trust-codex-project:<absolute-project-path>",
   ]) {
     expect(plan.actions.includes(a), `per-machine: a 3.0.3 project's plan does not carry ${a} (${plan.actions.join(", ")})`);
   }

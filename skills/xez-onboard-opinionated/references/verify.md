@@ -155,18 +155,32 @@ In order:
   but it is the leader **only** if it also set `XEZAR_LEADER=1` — so say plainly that
   `./scripts/xezar-leader.sh` is what the owner uses from tomorrow, give the by-hand form with the
   variable, and say the launcher is parsed, not yet run.
+- **Codex trust, when a routing row names a `codex/` lane.** Read only: trust is the owner's
+  setting (`references/write.md`), never write it. Without it Codex never reads the project's
+  `.codex/config.toml`, so a Codex step has no chrome-devtools server. The smoke test does not
+  catch this: it runs one step on the cheapest lane, not a Codex browser step. Read the
+  `config.toml` of the Codex home the engine's `codex` uses: `$CODEX_HOME` first, when that
+  `codex` or a wrapper script on PATH sets it, otherwise `~/.codex` (on native Windows
+  `%USERPROFILE%\.codex`). Find a `[projects."<path>"]` or
+  `[projects.'<path>']` table for this project's absolute path whose `trust_level` is `"trusted"`.
+  Compare the path without case and with either slash: Codex writes the Windows key in lower case
+  (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'`), and a double-quoted key doubles every `\`. No such
+  table, or another trust level, is ❌, and the report gives the two lines from
+  `references/write.md` with this project's path in them.
 
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
 on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
-`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 
 Any ❌ → name the **one** next action, keep the pending file, and use the matching failure
 template. All ✅ → delete the pending file and report with `references/report-templates.md` →
-"Setup complete".
+"Setup complete". The one exception is Codex trust: it is the owner's own setting, so its ❌ does
+not hold the report back – "Setup complete" carries it under **What you do now**, with the two
+lines to add.
 
 After a context compaction in this session, call `leader_events` action `read` with no cursor
 before anything else: the attachment survives, the memory of what arrived does not.

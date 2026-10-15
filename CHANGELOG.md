@@ -514,6 +514,15 @@ and `local-tree.sh` failed the next gate on each loose entry. The guide's record
 with no campaign open, they go in `.local/xezar/scratch/leader/`. It is one table header, not a new
 paragraph, because the guide is at its 200-line budget. FACT I13 pins it.
 
+**Onboarding checks that Codex trusts the project (#184).** Codex reads a project's
+`.codex/config.toml` only when its own `config.toml` trusts the project, so without that entry a
+Codex step has no chrome-devtools server. Onboarding only told the owner to add the entry; on the
+macOS upgrade run a headless onboarding report never mentioned it. Verification now reads the
+entry in `$CODEX_HOME` first, then `~/.codex` (read only, any case, either slash) when a routing
+row names a `codex/` lane, and "Setup complete" puts the two
+lines under **What you do now** when it is missing. The upgrade to 3.1.0 lists
+`per-machine=trust-codex-project` for the owner. FACT I14 pins it.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

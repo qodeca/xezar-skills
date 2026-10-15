@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2423,6 +2423,31 @@ if (S.section("I13")) {
     fail(fact, tpl, "does not say where the leader keeps its records with no campaign open, so it writes them where local-tree.sh fails the next gate");
   if (!/^ALLOWED="[^"\n]*\bscratch\b/m.test(read(`${SKILL}/kit/checks/local-tree.sh`)))
     fail(fact, `${SKILL}/kit/checks/local-tree.sh`, "no longer allows scratch/, where the leader guide puts the leader's records");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I14 -- onboarding checks that Codex trusts the project (#184). Codex reads the project's
+// .codex/config.toml only for a trusted project, so without the entry a Codex step has no
+// chrome-devtools server. write.md only told the owner; on the macOS upgrade run a headless
+// onboarding report never mentioned it. Verification reads it,
+// the report names it, and the upgrade to 3.1.0 lists it for the owner.
+// ---------------------------------------------------------------------------
+if (S.section("I14")) {
+  const fact = "FACT I14: onboarding checks that Codex trusts the project when a row names a codex/ lane";
+  const verify = `${SKILL}/references/verify.md`;
+  const text = read(verify).replace(/\s*\n\s*/g, " ");
+  if (!text.includes("**Codex trust, when a routing row names a `codex/` lane.** Read only") || !text.includes("· Codex trust, when a row names a `codex/` lane ·"))
+    fail(fact, verify, "does not check that Codex trusts the project, so a Codex step can run with no chrome-devtools server");
+  if (!text.includes("`$CODEX_HOME` first"))
+    fail(fact, verify, "does not read $CODEX_HOME first, so it checks a Codex home the engine's codex may not use");
+  if (!text.includes("Compare the path without case and with either slash"))
+    fail(fact, verify, "does not compare the trust key without case, so the lower-case key Codex writes on Windows reads as missing");
+  const report = `${SKILL}/references/report-templates.md`;
+  if (!read(report).includes("<when the Codex trust check is ❌:>"))
+    fail(fact, report, "\"Setup complete\" does not tell the owner to add the Codex trust entry when the check is ❌");
+  if (!/```upgrade\r?\nApplies-to: <3\.1\.0\r?\nActions: per-machine=trust-codex-project:<absolute-project-path>\r?\n```/.test(read("UPGRADE_NOTES.md")))
+    fail(fact, "UPGRADE_NOTES.md", "has no 3.1.0 block that lists per-machine=trust-codex-project for the owner");
   checked.push(fact);
 }
 

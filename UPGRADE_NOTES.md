@@ -23,6 +23,31 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-15 – Codex does not trust the project, so a Codex step has no chrome-devtools server
+
+Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
+a `codex/` lane.
+
+**Symptom – the project is not trusted in the Codex home the engine's `codex` uses.** Codex
+never reads `.codex/config.toml` for an untrusted project, so a Codex step has no chrome-devtools
+server. Onboarding told the owner to add the entry but never checked it, so it is easy to miss on
+a second machine or a second checkout.
+
+**What to do.** On every machine that runs Codex steps, read the `config.toml` of the Codex home
+the engine's `codex` uses: `$CODEX_HOME` first, when that `codex` or a wrapper script on PATH sets
+it, otherwise `~/.codex` (on native Windows `%USERPROFILE%\.codex`). It needs `[projects."<absolute project path>"]` then
+`trust_level = "trusted"`; on native Windows the key is the lower-case Windows path as a
+literal-string key, `[projects.'c:\users\me\app']`. Trust is the owner's setting: the upgrade
+never writes it.
+
+**What you lose by skipping it.** On a machine where the project is not trusted, no Codex step
+can use the browser.
+
+```upgrade
+Applies-to: <3.1.0
+Actions: per-machine=trust-codex-project:<absolute-project-path>
+```
+
 ## 2026-10-15 – a Codex design review or QA fails every UI change at 375px
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

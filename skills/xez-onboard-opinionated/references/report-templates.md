@@ -55,6 +55,12 @@ the leader**; the same command without it is an ordinary session that gets no le
 One leader per project: to move it to a new session, exit this one first.
 <when push was not seen:> Events are read by polling, not pushed: <the reason found>.
 
+<when the Codex trust check is ❌:>
+⚠️ **What you do now** – Codex does not trust this project yet, so it never reads
+`.codex/config.toml` and a Codex step has no chrome-devtools server. Add `[projects."<absolute project path>"]` then
+`trust_level = "trusted"` to `<the Codex home's config.toml>` (on native Windows the lower-case
+literal-string key, `[projects.'<lower-case Windows path>']`).
+
 PR: #<number> (link: <full PR URL>)
 ```
 
