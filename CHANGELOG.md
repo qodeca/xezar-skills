@@ -523,6 +523,14 @@ row names a `codex/` lane, and "Setup complete" puts the two
 lines under **What you do now** when it is missing. The upgrade to 3.1.0 lists
 `per-machine=trust-codex-project` for the owner. FACT I14 pins it.
 
+**Browser evidence comes only from the chrome-devtools tools a step holds (#185).** A pi step holds
+none, and on the macOS release runs its QA and design reviews passed on node scripts that drove
+Chrome over CDP through `bash` – nothing limited their tools, time or output, and one hung a review
+for 464 s (#172). The QA, design-review and acceptance roles now say a browser script of the
+step's own is not evidence, and a step without the tools reports each
+browser check as not run (#156). The browser for pi comes from the engine (qodeca/xezar#1015).
+FACT I15 pins it.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
