@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2407,6 +2407,22 @@ if (S.section("I12")) {
   }
   if (!read(`${SKILL}/kit/checks/verdict-write.sh`).includes('for (const k of ["id", "fingerprint"])'))
     fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer checks the length of a finding's id and fingerprint");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I13 -- with no campaign open, the leader's own records have one place (#181). The guide put
+// them only in the live campaign's folder, and only the owner opens a campaign, so on the Windows
+// release runs the leader wrote them at the top level of .local/xezar/ (`leader/`,
+// `issue6-timeline.md`), and local-tree.sh failed the next gate on each loose entry.
+// ---------------------------------------------------------------------------
+if (S.section("I13")) {
+  const fact = "FACT I13: with no campaign open, the leader keeps its records in .local/xezar/scratch/leader/";
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  if (!read(tpl).includes("with no campaign open, `.local/xezar/scratch/leader/` |"))
+    fail(fact, tpl, "does not say where the leader keeps its records with no campaign open, so it writes them where local-tree.sh fails the next gate");
+  if (!/^ALLOWED="[^"\n]*\bscratch\b/m.test(read(`${SKILL}/kit/checks/local-tree.sh`)))
+    fail(fact, `${SKILL}/kit/checks/local-tree.sh`, "no longer allows scratch/, where the leader guide puts the leader's records");
   checked.push(fact);
 }
 

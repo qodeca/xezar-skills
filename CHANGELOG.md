@@ -507,6 +507,13 @@ failed its 375px check with no finding, and another lane had to review it again.
 `.codex/config.toml` now also enables `emulate`, which sets the viewport (22 tools; owner decision),
 and the six reviewing roles tell a Codex run to use it. FACT 23 pins the list and the sentence.
 
+**The leader's records have a place when no campaign is open (#181).** The leader guide put the
+timeline and the other records only in the live campaign's folder, and only the owner opens a
+campaign, so on the Windows release runs the leader wrote them at the top level of `.local/xezar/`
+and `local-tree.sh` failed the next gate on each loose entry. The guide's record table now says:
+with no campaign open, they go in `.local/xezar/scratch/leader/`. It is one table header, not a new
+paragraph, because the guide is at its 200-line budget. FACT I13 pins it.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

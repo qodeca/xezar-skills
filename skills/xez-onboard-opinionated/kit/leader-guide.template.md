@@ -104,7 +104,7 @@ caught only by the morning report; that cost was accepted knowingly, so do not t
 
 ## What to log where, and the honesty rule
 
-| Record | Goes in |
+| Record | Goes in: the live campaign's folder; with no campaign open, `.local/xezar/scratch/leader/` |
 |---|---|
 | the owner's exact words | `decisions.md`, append-only, dated, channel named |
 | current state of the campaign | `README.md`, rewritten at every milestone |
