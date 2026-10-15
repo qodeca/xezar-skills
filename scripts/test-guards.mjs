@@ -2498,7 +2498,9 @@ breaks(
 breaks(
   "a changed kit file dropped from its 3.1.0 upgrade block's Files: line is rejected",
   "UPGRADE_NOTES.md",
-  (s) => s.replace(".xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new;", ".xezar/checks/review-run.sh =new;"),
+  (s) => s
+    .replace(".xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new;", ".xezar/checks/review-run.sh =new;")
+    .replace(".xezar/checks/lib/common.sh; .xezar/checks/lib/gate-record.sh; .xezar/checks/repository-checks.sh;", ".xezar/checks/lib/common.sh; .xezar/checks/repository-checks.sh;"),
   upgrade("6"),
   ".xezar/checks/lib/gate-record.sh changed since 3.0.3 but no 3.1.0 upgrade block lists it",
 );
