@@ -1351,9 +1351,51 @@ breaks(
 breaks(
   "a reviewer skill that asks for the task id from the environment again is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
-  (s) => s.replace("Leave `taskId` and `stepId` out:", () => "Set `taskId` to `$XEZ_TASK_ID`. Leave `taskId` and `stepId` out:"),
+  (s) => s.replace("Leave `taskId`, `stepId` and `recordedAt` out:", () => "Set `taskId` to `$XEZ_TASK_ID`. Leave `taskId`, `stepId` and `recordedAt` out:"),
   facts("19"),
   "holds $XEZ_TASK_ID",
+);
+
+breaks(
+  "a review-run.sh whose run has no time limit is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('    run_limited "$@"', () => '    "$@"'),
+  catalog("D-review"),
+  "does not stop a command that outlives its time limit",
+);
+
+// Git Bash stops a native child with its parent and has no real process groups, so the catalog
+// checks this one on Linux and macOS only, and only there can its break be caught.
+if (process.platform !== "win32") breaks(
+  "a review-run.sh whose run does not pass a cancel on to its command is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(`  trap 'stop_tree "$pid"; exit 143' TERM INT HUP\n`, () => ""),
+  catalog("D-review"),
+  "does not pass a cancel of its step on to the command it runs",
+);
+
+breaks(
+  "a verdict writer that keeps a typed recordedAt is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("recordedAt: new Date().toISOString() }", () => "recordedAt: new Date().toISOString(), ...p }"),
+  catalog("1b"),
+  "keeps the recordedAt a reviewer typed",
+);
+
+breaks(
+  "a QA skill that asks the reviewer to type recordedAt is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace('  "summary":', () => '  "recordedAt": "<ISO-8601, now>",\n  "summary":'),
+  facts("I10"),
+  "asks the reviewer to type recordedAt",
+);
+
+breaks(
+  "a code review skill that does not say a timed-out run is not run is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-code-review.md",
+  (s) => s.replace("and so is a `run` that ended with `review-run=timeout after <n>s`", () => "and so is a slow `run`"),
+  facts("I10"),
+  "does not say that a run stopped at its time limit",
 );
 
 breaks(

@@ -482,6 +482,16 @@ The PASS request of design review and QA now also removes its role's failed labe
 `qa-failed`), and `gh-write.sh` lifts it only together with the approval label, for the reviewed head,
 and only when the PR carries it. FACT I9 pins both requests.
 
+**A hung command no longer holds a review (#172).** A pi design review's browser script ran 12
+minutes inside `review-run.sh run`, and the leader had to cancel the step by hand. `run` now stops
+a command after 300 seconds together with everything it started, prints
+`review-run=timeout after <n>s` and exits 124; the reviewing roles report that check as not run.
+The command now runs with no stdin, so a prompt cannot wait for an answer. It runs in a process
+group of its own, so a cancel of the step reaches `review-run.sh`, which stops the command with what
+it started. `verdict-write.sh` also
+stamps a verdict's `recordedAt` from the clock, as it stamps `taskId` and `stepId`: a reading step
+cannot run `date`, and a typed time was ten hours off. FACT I10 pins both.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

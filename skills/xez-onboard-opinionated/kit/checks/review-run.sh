@@ -20,6 +20,8 @@
 #                                             head confirms it ("already checked out")
 #   review-run.sh install                     install dependencies here (deps-restore.sh)
 #   review-run.sh run <program> [<args>…]     run one project command here, in the foreground
+#                                             with no stdin; after 300 s (XEZ_REVIEW_RUN_SECONDS) it is
+#                                             stopped with all it started: review-run=timeout, exit 124 (#172)
 #   review-run.sh start <name> <program> […]  start one long-running command (a dev server) in the
 #                                             background; its log is <evidence>/review/<name>.log
 #                                             `prepare` and `start` first stop what an ended run's
@@ -76,7 +78,7 @@
 # and verdict-write.sh refuses a verdict that claims `review-run=confined` without a `confined`
 # record, so a review cannot report an exit 3 it never ran (#151).
 #
-# Exit: the command's own status for `run`; 0 ok, 1 refused or changed, 2 usage, 3 confined
+# Exit: the command's own status for `run`, or 124 when it ran out of time; 0 ok, 1 refused or changed, 2 usage, 3 confined
 # (`checkout` only: this step's sandbox cannot write git, so the PR cannot be checked out here).
 set -uo pipefail
 
@@ -106,6 +108,11 @@ evidence="$(task_evidence_dir)" || refuse "no run identity for this worktree, so
 state="$evidence/review"
 mkdir -p "$state" || refuse "cannot create $state"
 cd "$TASK_CWD" || exit 1
+
+# How long `run` lets one command take (#172). XEZ_REVIEW_RUN_SECONDS is for the operator and the
+# tests; a review step's shell cannot set it.
+RUN_LIMIT="${XEZ_REVIEW_RUN_SECONDS:-300}"
+printf '%s' "$RUN_LIMIT" | grep -Eq '^[1-9][0-9]{0,5}$' || refuse "XEZ_REVIEW_RUN_SECONDS=\"$RUN_LIMIT\" is not a number of seconds"
 
 REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice cmd powershell pwsh wsl winpty git-bash start mintty git-cmd"
 
@@ -155,6 +162,53 @@ stop_one() {
     kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
   fi
   rm -f "$pidfile"
+}
+
+# Stop a command and everything it started. `run_limited` gives the command its own process group,
+# so a signal to the group reaches its children as well. On Windows (Git Bash, Cygwin) a native
+# program is not in that group: taskkill /T stops its Windows process tree.
+stop_tree() {
+  local pid="$1" winpid
+  case "${OSTYPE:-}" in
+    msys* | cygwin*)
+      winpid="$(cat "/proc/$pid/winpid" 2>/dev/null)"
+      [ -n "$winpid" ] && taskkill //F //T //PID "$winpid" >/dev/null 2>&1
+      ;;
+  esac
+  kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+  sleep 2
+  kill -KILL -- "-$pid" 2>/dev/null
+  kill -KILL "$pid" 2>/dev/null
+}
+
+# `run` with a time limit (#172): one hung command – a browser script that never ends – held a review
+# for 12 minutes, and `timeout` is a refused program, so the reviewer could not limit it. The command
+# runs in the background in its own process group (`set -m`) with no stdin, so a prompt cannot wait
+# for an answer, and this script waits for it. After RUN_LIMIT seconds it stops the command and all it
+# started, prints `review-run=timeout after <n>s` and exits 124: the reviewer reports that check as
+# not run. No `timeout` binary is used: macOS has none, and the refusal above stays whole.
+run_limited() {
+  local pid waited=0 status
+  set -m
+  "$@" </dev/null &
+  pid=$!
+  set +m
+  # Its own group no longer gets a cancel sent to this script's group, so pass the cancel on.
+  trap 'stop_tree "$pid"; exit 143' TERM INT HUP
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$waited" -ge "$RUN_LIMIT" ]; then
+      stop_tree "$pid"
+      wait "$pid" 2>/dev/null
+      echo "review-run=timeout after ${RUN_LIMIT}s"
+      echo "review-run.sh: \"$1\" did not end within ${RUN_LIMIT}s and was stopped with what it started – report this check as not run" >&2
+      exit 124
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  wait "$pid"
+  status=$?
+  return "$status"
 }
 
 # The folder a process runs in, or nothing when this machine does not show it.
@@ -317,7 +371,7 @@ case "$sub" in
   run)
     check_program "${1:-}"
     no_credentials
-    "$@"
+    run_limited "$@"
     ;;
   start)
     [ $# -ge 2 ] || usage
