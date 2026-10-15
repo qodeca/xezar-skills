@@ -1217,6 +1217,12 @@ recorded rather than changed. The Codex corepack EPERM seen on cmplus needs no k
 from browser tooling started inside Codex's sandbox, the browser now runs outside it, and a
 workflow step takes no `env` to move the cache anyway.
 
+Codex gets one tool beyond that list: `emulate` (owner decision, 2026-10-15, #177). `resize_page`
+cannot make a headless window 375px wide, so in the macOS release runs every Codex design review and
+browser QA of a UI change failed its 375px check while finding no defect, and the leader paid for a
+second review on another lane. `emulate` sets the viewport; it changes no data and runs no page
+script. It replaces the earlier rule of exactly 21 Codex tools, and FACT 23 pins the 22.
+
 ## Dependency units come from the base branch, and their installs keep lifecycle scripts
 
 A project with no root manifest (cmplus: five Yarn 1 apps and a .NET solution) lists its installs in

@@ -860,7 +860,15 @@ if (S.section("23")) {
   const codex = has(codexRel) ? read(codexRel) : "";
   if (!codex) fail(fact, codexRel, "is missing, so Codex runs get no browser and no tool limit is written down");
   const enabled = [...(/^enabled_tools = \[([\s\S]*?)\]/m.exec(codex)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  if (codex && !same(enabled, ALLOWED)) fail(fact, codexRel, `enabled_tools is [${enabled.join(", ")}], expected exactly the allowed set`);
+  // Codex also gets `emulate` (#177): `resize_page` cannot make a headless window 375px wide, so
+  // without it every Codex design review and browser QA of a UI change failed its 375px check.
+  const CODEX_TOOLS = [...ALLOWED, "emulate"];
+  if (codex && !same(enabled, CODEX_TOOLS)) fail(fact, codexRel, `enabled_tools is [${enabled.join(", ")}], expected exactly the allowed set plus emulate`);
+  const EMULATE = "which leaves out all of these but `emulate`: set the 375px width with `emulate`, because `resize_page` cannot make a headless window that narrow";
+  for (const role of ["acceptance", "architecture", "code-review", "qa", "security-review", "ux-design"]) {
+    const where = `${SKILL}/kit/skills/xezar-${role}.md`;
+    if (!read(where).includes(EMULATE)) fail(fact, where, "does not tell a Codex run to set the 375px width with emulate, which its config enables");
+  }
   if (codex && !/^default_tools_approval_mode = "approve"$/m.test(codex))
     fail(fact, codexRel, "has no default_tools_approval_mode = \"approve\"; the engine runs Codex with approvals set to never, so every browser call would fail");
   const mcpArgs = JSON.parse(read(`${SKILL}/kit/mcp.json`)).mcpServers?.["chrome-devtools"]?.args ?? [];

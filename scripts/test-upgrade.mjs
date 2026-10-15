@@ -662,7 +662,9 @@ const unchangedChecks = Object.keys(fx303.files)
 
 // 5a. A v1 manifest with drift: files edited after install, nothing recorded (#55: 7 of 172).
 if (S.section("5a")) {
-  const drifted = [".xezar/pipeline/config.json", ".claude/settings.json", unchangedChecks[0], ".xezar/docs/routing.md", changedSince303[0]];
+  // An owner-shaped file (`.codex/config.toml`, #177) is always merged by hand, never both-changed.
+  const kitChanged = changedSince303.find((p) => !OWNER_SHAPED.has(p));
+  const drifted = [".xezar/pipeline/config.json", ".claude/settings.json", unchangedChecks[0], ".xezar/docs/routing.md", kitChanged];
   const dir = materialize(fx303, {
     name: "drift",
     edit: (d) => {
@@ -676,12 +678,12 @@ if (S.section("5a")) {
   const files = byPath(plan);
   expect(files.get(unchangedChecks[0])?.class === "unexplained-local-change", `drift: a silently edited check is ${files.get(unchangedChecks[0])?.class}, not unexplained`);
   expect(files.get(unchangedChecks[0])?.stops.includes("unexplained-safety-file"), "drift: an unexplained edit to a check does not stop and ask");
-  expect(files.get(changedSince303[0])?.class === "both-changed" && files.get(changedSince303[0])?.unexplained, `drift: an edited file the kit also changed is ${files.get(changedSince303[0])?.class}`);
+  expect(files.get(kitChanged)?.class === "both-changed" && files.get(kitChanged)?.unexplained, `drift: an edited file the kit also changed is ${files.get(kitChanged)?.class}`);
   expect(plan.unexplained.includes(unchangedChecks[0]) && plan.registerDrafts.add.some((d) => d.files.includes(unchangedChecks[0])), "drift: no register entry is drafted for the unexplained change");
   for (const p of [".xezar/pipeline/config.json", ".claude/settings.json"]) expect(files.get(p)?.class === "owner-shaped", `drift: ${p} is not owner-shaped`);
   const r = applyPlan(ctxFor(dir), plan);
   expect(r.status === "ok" && read(dir, unchangedChecks[0]).includes("# edited locally"), "drift: apply overwrote a drifted file");
-  const staged = join(dir, ".local/xezar/scratch/upgrade/staged", `${changedSince303[0]}.merged`);
+  const staged = join(dir, ".local/xezar/scratch/upgrade/staged", `${kitChanged}.merged`);
   expect(existsSync(staged) && readFileSync(staged, "utf8").includes("# edited locally"), "drift: the both-changed file was not merged into the staging folder");
 }
 
