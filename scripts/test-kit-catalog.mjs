@@ -1394,7 +1394,10 @@ if (S.section("D-review")) {
     const bin = join(run, "bin");
     mkdirSync(bin);
     const log = join(run, "gh.log");
-    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) echo ${prHead} ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
+    // The labels PR 5 carries, one per line, for `gh pr view --json labels` (#171).
+    const prLabels = join(run, "pr-labels");
+    writeFileSync(prLabels, "needs-qa\n");
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) case "$*" in *labels*) cat "${prLabels}" ;; *) echo ${prHead} ;; esac ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
     chmodSync(join(bin, "gh"), 0o755);
     const handoff = join(run, "handoff");
     const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
@@ -1599,6 +1602,34 @@ if (S.section("D-review")) {
     const granted = verdictLabel(prHead);
     if (granted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
       fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
+    // #171: a PASS also lifts the failed label an earlier FAIL of the same role left – only with its
+    // approval label, only for the reviewed head, and only when the PR carries it.
+    rmSync(log, { force: true });
+    writeFileSync(prLabels, "needs-qa\nqa-failed\n");
+    const lifted = verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "qa-failed"]);
+    if (lifted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa --remove-label qa-failed"))
+      fail(`gh-write.sh does not lift qa-failed with a qa PASS (#171):\n${lifted.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
+    if (verdictLabel(prHead, [], "qa", ["qa-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a verdict request remove qa-failed without adding qa-approved (#171)");
+    if (verdictLabel("0".repeat(40), ["qa-approved"], "qa", ["needs-qa", "qa-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lifts qa-failed for a head that is not the PR's (#171)");
+    if (verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "design-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a qa verdict lift design-failed (#171)");
+    if (sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, remove: ["qa-failed"] })).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a request with no verdict remove qa-failed (#171)");
+    writeFileSync(prLabels, "needs-qa\n");
+    const notCarried = verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "qa-failed"]);
+    if (notCarried.status !== 0 || ghLog().includes("qa-failed") || !ghLog().includes("--add-label qa-approved --remove-label needs-qa"))
+      fail(`gh-write.sh asks gh to remove a qa-failed the PR does not carry, which gh refuses where the label is not defined (#171):\n${notCarried.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
+    declareRole("design-review");
+    writeFileSync(prLabels, "design-approved\ndesign-failed\n");
+    const design = verdictLabel(prHead, ["design-approved"], "design-review", ["needs-design", "design-failed"]);
+    declareRole("qa");
+    if (design.status !== 0 || !ghLog().includes("--add-label design-approved --remove-label needs-design --remove-label design-failed"))
+      fail(`gh-write.sh does not lift design-failed with a design-review PASS (#171):\n${design.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
     const written = packet();
     if (written.status !== 0 || !existsSync(`${handoff}.verdict.json`)) fail(`verdict-write.sh refuses a verdict from an unchanged tree:\n${written.out}`);
     else if (readFileSync(`${handoff}.verdict.json`, "utf8").includes("tampered")) fail("the verdict was written by the PR's own verdict-write.sh, not the kit step's copy");

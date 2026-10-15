@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2331,6 +2331,29 @@ if (S.section("I8")) {
   const close = `${SKILL}/kit/docs/close-out.md`;
   if (!read(close).replace(/\n/g, " ").includes("A merge the engine's merge tool refuses is a blocker to report, never a reason to merge another way"))
     fail(fact, close, "no longer says a merge the engine refuses is a blocker to report, never a reason to merge another way");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I9 -- a PASS lifts the failed label an earlier FAIL of the same role left (#171). On macOS
+// run 3 a design review failed, a later one passed, and `design-failed` stayed: the reviewer could not
+// remove it and the leader must not, while lib/project-policy.mjs refuses a merge that carries it.
+// Each role's PASS request names its failed label, and gh-write.sh lifts it only with that request.
+// ---------------------------------------------------------------------------
+if (S.section("I9")) {
+  const fact = "FACT I9: a QA or design PASS lifts its role's failed label";
+  for (const [file, role, add, gate, failed] of [
+    ["xezar-qa.md", "qa", "qa-approved", "needs-qa", "qa-failed"],
+    ["xezar-ux-design.md", "design-review", "design-approved", "needs-design", "design-failed"],
+  ]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    const request = `add:["${add}"],remove:["${gate}","${failed}"],verdict:{role:"${role}",head:"<reviewed sha>"}`;
+    if (!read(where).includes(request))
+      fail(fact, where, `its PASS request does not remove ${failed}, so a PR whose first review failed can never merge through the proper path`);
+  }
+  const ghWrite = read(`${SKILL}/kit/checks/gh-write.sh`);
+  if (!/^VERDICT_CLEAR_qa="qa-failed"$/m.test(ghWrite) || !/^VERDICT_CLEAR_design_review="design-failed"$/m.test(ghWrite))
+    fail(fact, "kit/checks/gh-write.sh", "no longer lets a verdict request lift its role's failed label");
   checked.push(fact);
 }
 
