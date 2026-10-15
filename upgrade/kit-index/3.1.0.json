@@ -152,10 +152,10 @@
       "sha256": "e8afd39026bd3465ded03860f207d655e2ffff7f7f62da29d55af22f722deebb"
     },
     ".xezar/checks/lib/common.sh": {
-      "kitBlob": "2d35100ece10e6cfb56ae571c073599e88438b46",
+      "kitBlob": "7995278851851106f58a926dad222bba134f89d9",
       "kitSource": "checks/lib/common.sh",
       "rewrite": "copied",
-      "sha256": "fd6d18f9ad129c938d3c99cbacfcad1bc25586c631d963b3194eddabd89446ee"
+      "sha256": "3ab4cc9e7536691d34b9ea0a5be729d8faa7e1fa4b55289ef79fb82f42ce152f"
     },
     ".xezar/checks/lib/config-grammar.mjs": {
       "kitBlob": "8992f027613e475a88b83d4e16199f0b8b00ff75",
@@ -176,10 +176,10 @@
       "sha256": "1c4c3ef8130a462002b561608c1a458470b31802a2d22a9bb090abd0bf507957"
     },
     ".xezar/checks/lib/gate-record.sh": {
-      "kitBlob": "c997072615269ece7d3663fc5d88f0de9e33015a",
+      "kitBlob": "1b8d1086ee4a449429117455619fccad83abd583",
       "kitSource": "checks/lib/gate-record.sh",
       "rewrite": "copied",
-      "sha256": "d0f4d03fb5827e8eb819b0f4c36e6f3b9ee34100356e265ad6333d9a20c15494"
+      "sha256": "c39d9fb2a395b8d369d5c444bba29c12b136b5d30be9f4cab2a8c1628c597404"
     },
     ".xezar/checks/lib/gate-results.mjs": {
       "kitBlob": "f4a8d9195071b8fb182328865cce27f55b461614",
@@ -254,10 +254,10 @@
       "sha256": "c49dfc9a2978e5140ef5071fbbcd453a12cbdafec727d40fa5be1229b551ee5d"
     },
     ".xezar/checks/repo-gates.sh": {
-      "kitBlob": "b75cb474fcc235918365945e07314c91d2a27bdb",
+      "kitBlob": "dcb8d2734be766403aae8271023d268a6b63e6de",
       "kitSource": "checks/repo-gates.sh",
       "rewrite": "adapted",
-      "sha256": "d69e6aee27515831637621c673d90efc6b854992a86132d076e7c6c93407e2ad"
+      "sha256": "858cb5c5012d1e3fc351bbe4fb6d21bdd7555ee950ea4e11859a4479a95c65cd"
     },
     ".xezar/checks/repository-checks.sh": {
       "kitBlob": "122b4446da023a71f217866e0e28fcd7dd681c55",
@@ -314,10 +314,10 @@
       "sha256": "9bbffccaf43a699aa68fdfa35ed32381087d4199d898ad96506726885befb368"
     },
     ".xezar/checks/worktree-preflight.sh": {
-      "kitBlob": "c930e72deabe276df1aa174f2a2707e24f649282",
+      "kitBlob": "ab70454cc83be6644d988bd4b7eeb6b687e2cfde",
       "kitSource": "checks/worktree-preflight.sh",
       "rewrite": "copied",
-      "sha256": "4f51336fb64e9eb940d596ac7e97b3f70f98883661469ae0d22adc538c2c3ab6"
+      "sha256": "0804bc336494c1471a4e93d7281f64924ad38f697712001ffe14e0187ba43814"
     },
     ".xezar/checks/worktree-setup.sh": {
       "kitBlob": "b9cc62e6e6d252ae8c1153bc97d150e17af2516b",

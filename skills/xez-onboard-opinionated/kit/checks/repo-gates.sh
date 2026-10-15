@@ -259,23 +259,24 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
     else
       lease_version=""
     fi
-    if ! node -e '
+    # One node start answers both thresholds (#132 speed bar: each start is about 0.2 s on
+    # Windows): exit 0 for 0.19.0 and later, 3 for 0.17 and 0.18, anything else - including a
+    # version that does not parse and a node that cannot start - for "no gate lease".
+    lease_version_rc=0
+    node -e '
       const raw = String(process.argv[1] || "").replace(/^v/, "");
       const m = /^(\d+)\.(\d+)\.(\d+)/.exec(raw);
       if (!m) process.exit(1);
       const major = Number(m[1]), minor = Number(m[2]);
-      process.exit(major > 0 || (major === 0 && minor >= 17) ? 0 : 1);
-    ' "$lease_version" 2>/dev/null; then
-      lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
-      lease_bin=""
-    elif node -e '
-      const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(process.argv[1] || "").replace(/^v/, ""));
-      if (!m) process.exit(1);
-      const major = Number(m[1]), minor = Number(m[2]);
-      process.exit(major > 0 || (major === 0 && minor >= 19) ? 0 : 1);
-    ' "$lease_version" 2>/dev/null; then
+      if (major > 0 || (major === 0 && minor >= 19)) process.exit(0);
+      process.exit(major === 0 && minor >= 17 ? 3 : 1);
+    ' "$lease_version" 2>/dev/null || lease_version_rc=$?
+    if [ "$lease_version_rc" -eq 0 ]; then
       # 0.19.0 and later answer the published `--probe`; older engines refuse the flag.
       lease_has_probe=1
+    elif [ "$lease_version_rc" -ne 3 ]; then
+      lease_why="engine ${lease_version:-unknown} has no gate lease (it arrived in 0.17.0)"
+      lease_bin=""
     fi
   fi
 
