@@ -272,10 +272,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "c91f23e969751e444ab22eb678161f18b58c9c24",
+      "kitBlob": "b4e30e5c8eab77c37f5c9c97e969dffbe06bb04e",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "b7ab15b1151a8b195c8b6cfa92458f399b2a073446d3057bb4f666d39b822255"
+      "sha256": "8e0879aba55cf4ba11cf14681329fb39af5b47b5331016d40e747ad6e4a9517b"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",

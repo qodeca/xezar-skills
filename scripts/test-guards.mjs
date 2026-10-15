@@ -1364,6 +1364,16 @@ breaks(
   "does not stop a command that outlives its time limit",
 );
 
+// Git Bash stops a native child with its parent and has no real process groups, so the catalog
+// checks this one on Linux and macOS only, and only there can its break be caught.
+if (process.platform !== "win32") breaks(
+  "a review-run.sh whose run does not pass a cancel on to its command is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace(`  trap 'stop_tree "$pid"; exit 143' TERM INT HUP\n`, () => ""),
+  catalog("D-review"),
+  "does not pass a cancel of its step on to the command it runs",
+);
+
 breaks(
   "a verdict writer that keeps a typed recordedAt is rejected",
   "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",

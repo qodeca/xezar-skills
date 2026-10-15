@@ -472,7 +472,9 @@ is never touched. Evidence written through `verdict-write.sh` must now be `.md`,
 minutes inside `review-run.sh run`, and the leader had to cancel the step by hand. `run` now stops
 a command after 300 seconds together with everything it started, prints
 `review-run=timeout after <n>s` and exits 124; the reviewing roles report that check as not run.
-The command now runs with no stdin, so a prompt cannot wait for an answer. `verdict-write.sh` also
+The command now runs with no stdin, so a prompt cannot wait for an answer. It runs in a process
+group of its own, so a cancel of the step reaches `review-run.sh`, which stops the command with what
+it started. `verdict-write.sh` also
 stamps a verdict's `recordedAt` from the clock, as it stamps `taskId` and `stepId`: a reading step
 cannot run `date`, and a typed time was ten hours off. FACT I10 pins both.
 

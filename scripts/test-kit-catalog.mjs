@@ -1484,6 +1484,27 @@ if (S.section("D-review")) {
       if (!childPid || childAlive) fail(`review-run.sh run's time limit leaves running what the stopped command started (#172): child pid ${childPid || "not recorded"}`);
       const quick = rr("run", "node", "-e", "process.exit(7)");
       if (quick.status !== 7) fail(`review-run.sh run under a time limit does not keep a command's own exit status: ${quick.status}\n${quick.out}`);
+      // A cancelled step gets a signal to its whole process group. The command runs in a group of
+      // its own, so review-run.sh must pass the cancel on, or the command outlives the step. Git Bash
+      // stops a native child with its parent, and a group signal there is not the same, so this runs
+      // on Linux and macOS.
+      if (process.platform !== "win32") {
+        rmSync(hangPid, { force: true });
+        const cancel = [
+          "set -m", '"$BASH" "$RR" run node -e "$HANG" &', "rp=$!", "set +m",
+          'for i in $(seq 1 100); do [ -s "$PIDF" ] && break; sleep 0.1; done',
+          'kill -TERM -- "-$rp"', 'wait "$rp"; echo "status=$?"',
+        ].join("\n");
+        let out = "";
+        try { out = execFileSync(bashPath(), ["-c", cancel], { cwd: wt, env: { ...env, RR: `${TRUSTED}/review-run.sh`, HANG: hang, PIDF: hangPid }, encoding: "utf8", stdio: "pipe" }); }
+        catch (error) { out = (error.stdout ?? "") + (error.stderr ?? ""); }
+        const cancelPid = Number(existsSync(hangPid) ? readFileSync(hangPid, "utf8") : 0);
+        let cancelAlive = false;
+        try { if (cancelPid) { process.kill(cancelPid, 0); cancelAlive = true; } } catch { cancelAlive = false; }
+        if (cancelAlive) try { process.kill(cancelPid, "SIGKILL"); } catch {}
+        if (!cancelPid || cancelAlive || !out.includes("status=143"))
+          fail(`review-run.sh run does not pass a cancel of its step on to the command it runs (#172): child pid ${cancelPid || "not recorded"}, alive ${cancelAlive}:\n${out}`);
+      }
       env.XEZ_REVIEW_RUN_SECONDS = "soon";
       if (rr("run", "node", "-e", "").status !== 1) fail("review-run.sh accepts a time limit that is not a number of seconds");
       delete env.XEZ_REVIEW_RUN_SECONDS;

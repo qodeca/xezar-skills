@@ -193,6 +193,8 @@ run_limited() {
   "$@" </dev/null &
   pid=$!
   set +m
+  # Its own group no longer gets a cancel sent to this script's group, so pass the cancel on.
+  trap 'stop_tree "$pid"; exit 143' TERM INT HUP
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$waited" -ge "$RUN_LIMIT" ]; then
       stop_tree "$pid"
