@@ -65,7 +65,8 @@ literal-string key, `[projects.'<lower-case Windows path>']`).
 ⚠️ **What you do now** – your pi add-on `<file>` answers every MCP approval, and with no person
 there it denies, so a pi QA or design step has no browser. Replace it with
 `.xezar/pi/extensions/mcp-approval-queue.ts`: it keeps your one-at-a-time, Deny-first prompts and
-allows without asking only the chrome-devtools tools `.codex/config.toml` lists.
+allows without asking only the chrome-devtools tools the main checkout's `.codex/config.toml`
+lists, never one outside the kit's shipped list.
 
 PR: #<number> (link: <full PR URL>)
 ```

@@ -176,7 +176,8 @@ In order:
   own `approveTools` setting decides). One that is byte for byte
   `.xezar/pi/extensions/mcp-approval-queue.ts` is ✅. Any other is ❌: the report names the file and
   says to replace it with `.xezar/pi/extensions/mcp-approval-queue.ts`, which keeps asking for
-  every other call and allows only the browser tools `.codex/config.toml` lists.
+  every other call and allows only the browser tools the main checkout's `.codex/config.toml`
+  lists, and never one outside the kit's shipped list.
 
 ## 4. The checklist, then the report
 

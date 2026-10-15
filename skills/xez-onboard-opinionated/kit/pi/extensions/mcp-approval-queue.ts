@@ -18,15 +18,32 @@
 //   arguments: whole up to 4000 characters, else the first 3000 and the last 500.
 // - A request that was cancelled, or that belongs to a session that has ended, is denied without a dialog.
 // - Browser tools a xezar project allows: a call to the chrome-devtools server whose tool is in the project's
-//   `.codex/config.toml` [mcp_servers.chrome-devtools] enabled_tools list is allowed once, without asking, UI or not.
-//   The project is the nearest folder at or above the session's cwd that holds `.xezar/routing.json`. The list is
-//   read once, when the session starts, so a step that edits the file mid-run does not widen it. That list is the
-//   one the Codex lane already runs with: a change to it needs a security review (the kit's config guard), and it
-//   holds no evaluate_script and no upload. No project, no file, no such table or an unreadable list: no tool is
-//   allowed this way, and the rules above decide.
+//   `.codex/config.toml` [mcp_servers.chrome-devtools] enabled_tools list AND in SHIPPED_BROWSER_TOOLS below is
+//   allowed once, without asking, UI or not.
+//   - The project is the MAIN checkout of the session's git repository (the parent of `git rev-parse
+//     --git-common-dir`), never the session's own folder: a review or QA step runs in an engine worktree of the
+//     pull request's head, whose `.codex/config.toml` is the change under review. The main checkout must hold
+//     `.xezar/routing.json`.
+//   - SHIPPED_BROWSER_TOOLS is the kit's own list. A tool outside it – evaluate_script, upload_file, anything –
+//     is never allowed this way, whatever the file says.
+//   - The list is read once, when the session starts, so a step that edits the file mid-run does not widen it.
+//   - git fails, no project, no file, no such table or an unreadable list: no tool is allowed this way, and the
+//     rules above decide.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+
+// The chrome-devtools tools the kit's `.codex/config.toml` ships (FACT I16 holds them equal). The ceiling of what
+// this add-on can ever allow without asking.
+export const SHIPPED_BROWSER_TOOLS: readonly string[] = [
+  "navigate_page", "new_page", "list_pages", "select_page", "close_page",
+  "take_snapshot", "take_screenshot",
+  "list_console_messages", "get_console_message", "list_network_requests", "get_network_request",
+  "click", "fill", "fill_form", "hover", "press_key", "type_text", "wait_for", "handle_dialog",
+  "resize_page", "get_css_styles",
+  "emulate",
+];
 
 const APPROVAL_EVENT = "pi-mcp-adapter:tool-approval-request";
 const OPTIONS = ["Deny", "Allow once"];
@@ -184,20 +201,35 @@ function withoutComment(line: string): string {
   return line;
 }
 
-/** The browser allowlist of the xezar project at or above `cwd`, or undefined when there is none. */
+/** The main checkout of the git repository `cwd` is in (a worktree's main one too), or undefined. */
+export function mainCheckout(cwd: string): string | undefined {
+  try {
+    const common = execFileSync("git", ["rev-parse", "--git-common-dir"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    }).trim();
+    if (common === "") return undefined;
+    return dirname(resolve(cwd, common));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The browser tools allowed without asking for a session in `cwd`: the main checkout's `.codex/config.toml`
+ * chrome-devtools enabled_tools, cut to SHIPPED_BROWSER_TOOLS. Undefined when there is no xezar main checkout.
+ */
 export function projectAllowlist(cwd: string): string[] | undefined {
-  let dir = resolve(cwd);
-  for (;;) {
-    if (existsSync(join(dir, ".xezar", "routing.json"))) {
-      try {
-        return browserAllowlist(readFileSync(join(dir, ".codex", "config.toml"), "utf8"));
-      } catch {
-        return undefined;
-      }
-    }
-    const up = dirname(dir);
-    if (up === dir) return undefined;
-    dir = up;
+  const main = mainCheckout(cwd);
+  if (!main || !existsSync(join(main, ".xezar", "routing.json"))) return undefined;
+  try {
+    const listed = browserAllowlist(readFileSync(join(main, ".codex", "config.toml"), "utf8"));
+    return listed?.filter((tool) => SHIPPED_BROWSER_TOOLS.includes(tool));
+  } catch {
+    return undefined;
   }
 }
 
@@ -208,7 +240,8 @@ export function allowedWithoutAsking(
 ): Decision | undefined {
   if (request.signal?.aborted === true) return undefined;
   if (request.serverName !== BROWSER_SERVER || !allowlist) return undefined;
-  return allowlist.includes(request.originalToolName) ? "allow_once" : undefined;
+  const tool = request.originalToolName;
+  return allowlist.includes(tool) && SHIPPED_BROWSER_TOOLS.includes(tool) ? "allow_once" : undefined;
 }
 
 export default function (pi: ExtensionAPI) {

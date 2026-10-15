@@ -2500,6 +2500,43 @@ if (S.section("I16")) {
     fail(fact, addon, "allows a cancelled request");
   if (!/allowlist = projectAllowlist\(ctx\.cwd\);/.test(src))
     fail(fact, addon, "does not read the allowlist once at session start, so a step that edits .codex/config.toml mid-run widens it");
+  // The ceiling: only the kit's shipped tool names, whatever a config file lists.
+  if (JSON.stringify([...m.SHIPPED_BROWSER_TOOLS].sort()) !== JSON.stringify([...(allow ?? [])].sort()))
+    fail(fact, addon, "SHIPPED_BROWSER_TOOLS is not the chrome-devtools list the kit's .codex/config.toml ships");
+  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, ["evaluate_script", "new_page"]) !== undefined)
+    fail(fact, addon, "allows evaluate_script without asking when a config lists it – the shipped-tools ceiling is gone");
+  // The source: the main checkout, never the worktree a review runs in (the PR head's own config).
+  const { execFileSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kit-pi-approval-"));
+  try {
+    const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const toml = (tools) => `[mcp_servers.chrome-devtools]\nenabled_tools = [${tools.map((t) => `"${t}"`).join(", ")}]\n`;
+    const main = join(lab, "main");
+    mkdirSync(join(main, ".xezar"), { recursive: true });
+    mkdirSync(join(main, ".codex"), { recursive: true });
+    g(lab, "init", "-q", "main");
+    writeFileSync(join(main, ".xezar", "routing.json"), "{}\n");
+    writeFileSync(join(main, ".codex", "config.toml"), toml(["new_page", "evaluate_script"]));
+    g(main, "add", "-A");
+    g(main, "commit", "-q", "-m", "base");
+    const wt = join(lab, "wt");
+    g(main, "worktree", "add", "-q", "-b", "pr", wt);
+    writeFileSync(join(wt, ".codex", "config.toml"), toml(["new_page", "upload_file", "list_pages"]));
+    const fromWt = m.projectAllowlist(wt);
+    if (JSON.stringify(fromWt) !== JSON.stringify(["new_page"]))
+      fail(fact, addon, `reads the allowlist from the session's worktree, or skips the ceiling: a worktree under review got ${JSON.stringify(fromWt)}, not the main checkout's ["new_page"]`);
+    if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, fromWt) !== undefined)
+      fail(fact, addon, "allows evaluate_script without asking because the main checkout lists it");
+    const notGit = join(lab, "plain");
+    mkdirSync(join(notGit, ".xezar"), { recursive: true });
+    writeFileSync(join(notGit, ".xezar", "routing.json"), "{}\n");
+    if (m.projectAllowlist(notGit) !== undefined)
+      fail(fact, addon, "allows browser tools in a folder that is no git checkout");
+  } catch (error) {
+    fail(fact, addon, `the worktree check did not run: ${error?.message ?? error}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
   if (!read(`${SKILL}/references/write.md`).includes("| `kit/pi/extensions/mcp-approval-queue.ts` | `.xezar/pi/extensions/mcp-approval-queue.ts`"))
     fail(fact, `${SKILL}/references/write.md`, "does not copy the pi add-on into the project");
   const verify = read(`${SKILL}/references/verify.md`).replace(/\s*\n\s*/g, " ");

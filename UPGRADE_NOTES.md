@@ -65,8 +65,9 @@ owner's add-ons before a project's, so a project cannot fix this on its own.
 of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`) that name that event. Replace
 the one you find with `.xezar/pi/extensions/mcp-approval-queue.ts`, which the upgrade copies into
 the project. It keeps one-at-a-time prompts with Deny first and denies with no person there, and
-allows without asking only a chrome-devtools tool the project's `.codex/config.toml` lists in
-`enabled_tools` – the list the Codex lane already runs with, so no evaluate_script and no upload.
+allows without asking only a chrome-devtools tool that the main checkout's `.codex/config.toml`
+lists in `enabled_tools` (never the copy in a pull request's worktree under review) and that the
+kit itself ships – so never evaluate_script or an upload, whatever a file says.
 With no such add-on, change nothing. The add-on is the owner's: the upgrade never writes pi's
 agent dir.
 

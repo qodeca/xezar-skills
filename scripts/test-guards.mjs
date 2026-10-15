@@ -1453,7 +1453,7 @@ breaks(
 breaks(
   "a pi add-on that allows any chrome-devtools tool without asking is rejected",
   "skills/xez-onboard-opinionated/kit/pi/extensions/mcp-approval-queue.ts",
-  (s) => s.replace("return allowlist.includes(request.originalToolName) ? \"allow_once\" : undefined;", () => "return \"allow_once\";"),
+  (s) => s.replace("return allowlist.includes(tool) && SHIPPED_BROWSER_TOOLS.includes(tool) ? \"allow_once\" : undefined;", () => "return \"allow_once\";"),
   facts("I16"),
   "allows chrome-devtools/evaluate_script without asking",
 );

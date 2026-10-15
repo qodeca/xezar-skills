@@ -537,9 +537,11 @@ whose `approveTools` is off, and pi loads the owner's add-ons before a project's
 release PC the owner's approval add-on denied every chrome-devtools call with no person there, so
 a pi QA had no browser. The kit now ships that add-on, imported from the owner's repository with
 every rule kept, as `.xezar/pi/extensions/mcp-approval-queue.ts`, with one rule added: a
-chrome-devtools tool the project's `.codex/config.toml` lists in `enabled_tools` – read once when
-the session starts – is allowed without asking; every other call is asked, or denied with no person
-there. Verification reports which add-on answers pi's approvals when a row names a `pi/` lane, and
+chrome-devtools tool is allowed without asking when the main checkout's `.codex/config.toml` lists
+it in `enabled_tools` (read once when the session starts, from the folder `git rev-parse
+--git-common-dir` names – never the pull request's own worktree, whose file is the change under
+review) and the kit ships it, so evaluate_script and uploads never are; every other call is asked,
+or denied with no person there. Verification reports which add-on answers pi's approvals when a row names a `pi/` lane, and
 the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
 gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
 
