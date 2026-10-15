@@ -500,6 +500,11 @@ do item 4:
    `local-tree: missing expected subfolder(s)` is a per-machine item, not an upgrade fault: the
    gitignored `.local/xezar/` folders are missing on this machine. Report it with its output and
    put "create the listed folders" on the owner checklist; never create them yourself (rule 5).
+   A config guard failure that names a browser-tool file this upgrade changed (for example
+   `.codex/config.toml` "differs from origin/main … needs a security review and a human merge")
+   is expected until the upgrade pull request merges: the guard refuses a changed browser entry on
+   purpose. Report it with its output and put "security review, then a person merges the pull
+   request" on the owner checklist. Any other config guard failure is a fault.
 
 A red check is either fixed (back to step 5) or reported in the report with its full output. It
 is never hidden and never counted as passed.
