@@ -492,6 +492,15 @@ it started. `verdict-write.sh` also
 stamps a verdict's `recordedAt` from the clock, as it stamps `taskId` and `stepId`: a reading step
 cannot run `date`, and a typed time was ten hours off. FACT I10 pins both.
 
+**A long finding fingerprint no longer loses the verdict (#178).** The engine allows a finding `id`
+or `fingerprint` of at most 64 characters and drops the whole packet over a longer one, after
+`verdict-write.sh` had already said "wrote". On macOS run 5 a QA fingerprint was a 77-character slug
+of the finding title, and a later PASS lost its verdict to a 68-character `file|severity|title`. The
+QA, code review and design review skills now say the fingerprint is a short stable hash of `file`,
+`severity` and `title`, never the raw text. `verdict-write.sh` replaces a longer `id` or
+`fingerprint` with the first 16 hex characters of its sha256 – the same text always gives the same
+value – prints a note, and refuses an empty one. FACT I12 pins it.
+
 **A Codex design review or QA can check 375px (#177).** `resize_page` cannot make a headless window
 375px wide, so on the macOS release runs every Codex design review and browser QA of a UI change
 failed its 375px check with no finding, and another lane had to review it again. The kit's

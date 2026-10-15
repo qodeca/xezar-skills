@@ -102,7 +102,7 @@ Bounds the engine enforces: at most 40 KB, a regular file and never a symlink, a
 - `severity` is lower-case `blocker`, `major`, `minor` or `nit`. A blocking `B-n` is `blocker` or `major`; a non-blocking `NB-n` is `minor` or `nit`.
 - `file` is the mockup or view the finding is about (`<designs>/<feature>/…`, or the source file of the view), absent for a whole-flow finding. A theme or width finding names the view and omits `line`; a `line` without a `file` is refused.
 - `title` is one headline. `body` is ONE sentence — the rule it breaks, the state and the capture stay in the comment, which `evidenceUrl` addresses.
-- `fingerprint` is optional and is stable ACROSS reports for the same defect: derive it from `file`, `severity` and `title`, never from the line.
+- `fingerprint` is optional and is stable ACROSS reports for the same defect: derive it from `file`, `severity` and `title`, never from the line. Write it as a short stable hash of `file`, `severity` and `title`, at most 64 characters (for example the first 20 hex characters of their sha256) – never the raw text. A finding's `id` is at most 64 characters too. The engine drops the whole packet over a longer one, so `verdict-write.sh` replaces it with a hash and says so.
 - `findings` and `findingsOmitted` are a PAIR — write both or neither. Absent `findings` means you reported none IN THIS FORM; it is not "there were none" and it is not a pass.
 - **`PASS WITH FOLLOW-UPS` is the verdict whose findings must survive.** Its follow-ups go in `findings` as `minor`, or `major` when they gate anything, and the verdict is still never written as `PASS`.
 

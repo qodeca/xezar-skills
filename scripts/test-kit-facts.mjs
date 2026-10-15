@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2388,6 +2388,25 @@ if (S.section("I10")) {
     fail(fact, `${SKILL}/kit/checks/review-run.sh`, "runs a review command with no time limit");
   if (!read(`${SKILL}/kit/checks/verdict-write.sh`).includes("recordedAt: new Date().toISOString()"))
     fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer stamps recordedAt from the clock");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I12 -- a finding id or fingerprint is at most 64 characters (#178). The engine's contract
+// (TASK_VERDICT_FINDING_ID_MAX) refuses a longer one and drops the whole packet, after
+// verdict-write.sh had already said "wrote": on macOS run 5 a QA fingerprint was a 77-character slug
+// of the finding title, and a later PASS lost its verdict to a 68-character "file|severity|title".
+// Each role that writes findings says to hash, and the writer hashes an over-long one itself.
+// ---------------------------------------------------------------------------
+if (S.section("I12")) {
+  const fact = "FACT I12: a finding id or fingerprint is at most 64 characters";
+  const CLAUSE = "Write it as a short stable hash of `file`, `severity` and `title`, at most 64 characters";
+  for (const file of ["xezar-code-review.md", "xezar-qa.md", "xezar-ux-design.md"]) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    if (!read(where).includes(CLAUSE)) fail(fact, where, "does not say a finding's fingerprint is a short hash of at most 64 characters, so the raw text can lose the whole verdict");
+  }
+  if (!read(`${SKILL}/kit/checks/verdict-write.sh`).includes('for (const k of ["id", "fingerprint"])'))
+    fail(fact, `${SKILL}/kit/checks/verdict-write.sh`, "no longer checks the length of a finding's id and fingerprint");
   checked.push(fact);
 }
 
