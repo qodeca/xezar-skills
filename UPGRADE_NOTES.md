@@ -23,6 +23,36 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-15 – a pi QA or design review cannot use chrome-devtools: every call says the user declined approval
+
+Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
+a `pi/` lane, on a machine where a pi add-on answers MCP approvals.
+
+**Symptom – a pi QA or design review gets "The user declined approval to run MCP tool …" on every
+chrome-devtools call**, then FAILs with no browser evidence, although nobody declined anything.
+pi-mcp-adapter hands every MCP tool call to the first add-on that claims its
+`pi-mcp-adapter:tool-approval-request` event – even for a server whose `approveTools` is off – and
+an add-on that asks a person denies when no person can answer, as in a xezar step. pi loads the
+owner's add-ons before a project's, so a project cannot fix this on its own.
+
+**What to do.** On every machine that runs pi steps, list the files in the `extensions/` folder
+of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`) that name that event. Replace
+the one you find with `.xezar/pi/extensions/mcp-approval-queue.ts`, which the upgrade copies into
+the project. It keeps one-at-a-time prompts with Deny first and denies with no person there, and
+allows without asking only a chrome-devtools tool the project's `.codex/config.toml` lists in
+`enabled_tools` – the list the Codex lane already runs with, so no evaluate_script and no upload.
+With no such add-on, change nothing. The add-on is the owner's: the upgrade never writes pi's
+agent dir.
+
+**What you lose by skipping it.** On that machine no pi step can use the browser, so every UI
+change pays for a failed pi review before another lane passes it.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/pi/extensions/mcp-approval-queue.ts
+Actions: per-machine=install-pi-extension:.xezar/pi/extensions/mcp-approval-queue.ts
+```
+
 ## 2026-10-15 – Codex does not trust the project, so a Codex step has no chrome-devtools server
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
