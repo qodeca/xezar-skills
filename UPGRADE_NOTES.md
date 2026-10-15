@@ -23,6 +23,32 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-15 – a Codex design review or QA fails every UI change at 375px
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – a Codex design review or browser QA returns FAIL with no design or product finding,
+saying 375px was not verified** (for example "browser stayed 500px"), and a review on another lane
+then passes. `resize_page` cannot make a headless window that narrow, and your
+`.codex/config.toml` does not enable `emulate`, which sets the viewport.
+
+**What to do.** In `.codex/config.toml`, add `"emulate",` as the last entry of the chrome-devtools
+`enabled_tools` list. In each of `.xezar/skills/xezar-acceptance.md`, `xezar-architecture.md`,
+`xezar-code-review.md`, `xezar-qa.md`, `xezar-security-review.md` and `xezar-ux-design.md`, replace
+"enables, which leaves these out: report" with "enables, which leaves out all of these but
+`emulate`: set the 375px width with `emulate`, because `resize_page` cannot make a headless window
+that narrow. Report". Commit it through a pull request: `config-guard.sh browser --from-base`
+refuses the changed browser entry in the gate on purpose, so the change needs a security review
+and a person to merge it.
+
+**What you lose by skipping it.** Every UI change pays for one failed Codex review before another
+lane passes it.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .codex/config.toml =merge
+```
+
 ## 2026-10-14 – the leader adds `design-approved` or `qa-approved` itself
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

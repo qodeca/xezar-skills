@@ -1230,6 +1230,23 @@ breaks(
   "every browser call would fail",
 );
 
+// #177: Codex needs `emulate` for the 375px check, and the role skills say so.
+breaks(
+  "a Codex browser config without emulate is rejected",
+  "skills/xez-onboard-opinionated/kit/codex/config.toml",
+  (s) => s.replace('  "emulate",\n', ""),
+  facts("23"),
+  "expected exactly the allowed set plus emulate",
+);
+
+breaks(
+  "a review skill that does not tell a Codex run to use emulate for 375px is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("which leaves out all of these but `emulate`: set the 375px width with `emulate`, because `resize_page` cannot make a headless window that narrow. Report", "which leaves these out: report"),
+  facts("23"),
+  "set the 375px width with emulate",
+);
+
 breaks(
   "a config guard that no longer refuses a changed browser entry is rejected",
   "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",

@@ -501,6 +501,12 @@ QA, code review and design review skills now say the fingerprint is a short stab
 `fingerprint` with the first 16 hex characters of its sha256 – the same text always gives the same
 value – prints a note, and refuses an empty one. FACT I12 pins it.
 
+**A Codex design review or QA can check 375px (#177).** `resize_page` cannot make a headless window
+375px wide, so on the macOS release runs every Codex design review and browser QA of a UI change
+failed its 375px check with no finding, and another lane had to review it again. The kit's
+`.codex/config.toml` now also enables `emulate`, which sets the viewport (22 tools; owner decision),
+and the six reviewing roles tell a Codex run to use it. FACT 23 pins the list and the sentence.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
