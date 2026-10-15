@@ -1382,6 +1382,47 @@ breaks(
   "keeps the recordedAt a reviewer typed",
 );
 
+// A finding id or fingerprint is at most 64 characters (#178, FACT I12).
+breaks(
+  "a verdict writer that keeps a 65-character finding id is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("if (f[k].length > 64) {", () => "if (f[k].length > 65) {"),
+  catalog("1b"),
+  "does not replace a finding id of 65 characters",
+);
+
+breaks(
+  "a verdict writer that hashes a 64-character finding id is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace("if (f[k].length > 64) {", () => "if (f[k].length > 63) {"),
+  catalog("1b"),
+  "changes or refuses a finding id of 64 characters",
+);
+
+breaks(
+  "a verdict writer whose fingerprint hash changes from run to run is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace('.update(f[k]).digest("hex")', () => '.update(f[k] + Date.now() + Math.random()).digest("hex")'),
+  catalog("1b"),
+  "with the same short hash on every run",
+);
+
+breaks(
+  "a verdict writer that accepts an empty finding fingerprint is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
+  (s) => s.replace(' || f[k] === "") {', () => ") {"),
+  catalog("1b"),
+  "accepts an empty finding",
+);
+
+breaks(
+  "a QA skill that lets a finding fingerprint be the raw text is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("Write it as a short stable hash of `file`, `severity` and `title`, at most 64 characters", () => "Write it from `file`, `severity` and `title`"),
+  facts("I12"),
+  "does not say a finding's fingerprint is a short hash of at most 64 characters",
+);
+
 breaks(
   "a QA skill that asks the reviewer to type recordedAt is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",

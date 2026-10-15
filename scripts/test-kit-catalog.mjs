@@ -38,6 +38,7 @@
 // (B, C, D-refusals, D-data, D-review, F, H, U, R, 122-route) (scripts/lib/sections.mjs).
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -199,6 +200,35 @@ if (S.section("1b")) {
       fail("verdict-write.sh writes a packet with XEZ_STEP_ID unset, which the engine would refuse");
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE", taskId: "run-2" } }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
       fail("verdict-write.sh overwrites or accepts a packet that names another task instead of refusing it");
+    // The engine refuses a finding id or fingerprint over 64 characters, and drops the whole packet
+    // with it (#178). The writer keeps one of 64 as written and replaces a longer one with the first
+    // 16 hex characters of its sha256 – the same on every run, so a fingerprint stays stable – and
+    // says so. An empty one has nothing stable to hash and is refused.
+    {
+      const written = (request) => {
+        rmSync(join(lab, "handoff.verdict.json"), { force: true });
+        let out = "";
+        try { out = execFileSync(bashPath(), [".xezar/checks/verdict-write.sh"], { cwd: repo, env, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" }); }
+        catch (error) { return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? ""), packet: null }; }
+        const file = join(lab, "handoff.verdict.json");
+        return { status: 0, out, packet: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null };
+      };
+      for (const k of ["id", "fingerprint"]) {
+        const packet = (value) => ({ kind: "packet", packet: { verdict: "APPROVE", findings: [{ id: "f1", severity: "major", title: "t", [k]: value }] } });
+        const at64 = "a".repeat(64), at65 = `major:${"b".repeat(59)}`;
+        const short = createHash("sha256").update(at65).digest("hex").slice(0, 16);
+        const kept = written(packet(at64));
+        if (kept.status !== 0 || kept.packet?.findings?.[0]?.[k] !== at64 || kept.out.includes("note:"))
+          fail(`verdict-write.sh changes or refuses a finding ${k} of 64 characters, which the engine allows (#178):\n${kept.out}`);
+        const first = written(packet(at65)), second = written(packet(at65));
+        if (first.status !== 0 || first.packet?.findings?.[0]?.[k] !== short || second.packet?.findings?.[0]?.[k] !== short || !first.out.includes(`finding 1 ${k} had 65 characters`))
+          fail(`verdict-write.sh does not replace a finding ${k} of 65 characters with the same short hash on every run and say so, so the engine drops the whole packet (#178):\n${first.out}`);
+        const empty = written(packet(""));
+        if (empty.status !== 1 || empty.packet)
+          fail(`verdict-write.sh accepts an empty finding ${k}, which the engine refuses with the whole packet (#178):\n${empty.out}`);
+      }
+      rmSync(join(lab, "handoff.verdict.json"), { force: true });
+    }
     if (pipe("verdict-write.sh", { kind: "packet", packet: "not an object" }) !== 1)
       fail("verdict-write.sh accepts a packet request whose packet is not an object");
 
