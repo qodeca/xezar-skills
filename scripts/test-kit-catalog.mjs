@@ -1490,18 +1490,20 @@ if (S.section("D-review")) {
       // on Linux and macOS.
       if (process.platform !== "win32") {
         rmSync(hangPid, { force: true });
+        // The pid file holds the child and the command itself, so a failed check can stop both.
+        const cancelHang = hang.split("String(c.pid)").join("c.pid + \" \" + process.pid");
         const cancel = [
-          "set -m", '"$BASH" "$RR" run node -e "$HANG" &', "rp=$!", "set +m",
+          "set -m", '"$BASH" "$RR" run node -e "$HANG" >/dev/null 2>&1 &', "rp=$!", "set +m",
           'for i in $(seq 1 100); do [ -s "$PIDF" ] && break; sleep 0.1; done',
           'kill -TERM -- "-$rp"', 'wait "$rp"; echo "status=$?"',
         ].join("\n");
         let out = "";
-        try { out = execFileSync(bashPath(), ["-c", cancel], { cwd: wt, env: { ...env, RR: `${TRUSTED}/review-run.sh`, HANG: hang, PIDF: hangPid }, encoding: "utf8", stdio: "pipe" }); }
+        try { out = execFileSync(bashPath(), ["-c", cancel], { cwd: wt, env: { ...env, RR: `${TRUSTED}/review-run.sh`, HANG: cancelHang, PIDF: hangPid }, encoding: "utf8", stdio: "pipe" }); }
         catch (error) { out = (error.stdout ?? "") + (error.stderr ?? ""); }
-        const cancelPid = Number(existsSync(hangPid) ? readFileSync(hangPid, "utf8") : 0);
+        const [cancelPid, commandPid] = (existsSync(hangPid) ? readFileSync(hangPid, "utf8") : "0 0").split(" ").map(Number);
         let cancelAlive = false;
         try { if (cancelPid) { process.kill(cancelPid, 0); cancelAlive = true; } } catch { cancelAlive = false; }
-        if (cancelAlive) try { process.kill(cancelPid, "SIGKILL"); } catch {}
+        for (const pid of [cancelPid, commandPid]) try { if (pid) process.kill(pid, "SIGKILL"); } catch {}
         if (!cancelPid || cancelAlive || !out.includes("status=143"))
           fail(`review-run.sh run does not pass a cancel of its step on to the command it runs (#172): child pid ${cancelPid || "not recorded"}, alive ${cancelAlive}:\n${out}`);
       }
