@@ -23,6 +23,29 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-15 – a Windows build spends about two minutes in the gates
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – a Windows build spends about two minutes in the gates** (`repo-gates.sh --fast`),
+where macOS takes about ten seconds, and most of it is outside the commands the gates run: before
+the first command and after the last. The kit's scripts started a process per kit file to hash it
+and asked `npm --version` six times; each start costs about 0.1–0.5 s on Windows.
+
+**What to do.** Copy `.xezar/checks/lib/common.sh`, `.xezar/checks/lib/gate-record.sh`,
+`.xezar/checks/repository-checks.sh` and `.xezar/checks/documented-output.mjs` from the 3.1.0 kit.
+`.xezar/checks/repo-gates.sh` is adapted to your gate list, so merge it: take the kit's
+`lease_run_bounded` (it polls every 0.1 s) and its three `deps_npm_version_pin` lines, and keep
+your gate list. Nothing a gate checks or records changes.
+
+**What you lose by skipping it.** About a minute of every Windows gate run, and the same again in
+the readiness and evidence steps, which fingerprint the tree too.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/checks/lib/common.sh; .xezar/checks/lib/gate-record.sh; .xezar/checks/repository-checks.sh; .xezar/checks/documented-output.mjs; .xezar/checks/repo-gates.sh =merge
+```
+
 ## 2026-10-15 – a pi QA or design review passes on its own browser script
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

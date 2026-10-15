@@ -212,13 +212,15 @@ if [ -z "${XEZ_GATE_LEASE:-}" ]; then
     local secs="$1" out="$2"
     shift 2
     "$@" >"$out" 2>&1 &
+    # Polled in tenths of a second: an engine start takes 1-2 s, and whole-second polls rounded
+    # each probe up to the next second (#132 speed bar).
     local pid=$! waited=0
     while kill -0 "$pid" 2>/dev/null; do
-      if [ "$waited" -ge "$secs" ]; then
+      if [ "$waited" -ge "$((secs * 10))" ]; then
         kill -TERM "$pid" 2>/dev/null
         return 124
       fi
-      sleep 1
+      sleep 0.1
       waited=$((waited + 1))
     done
     wait "$pid"
@@ -392,6 +394,9 @@ if [ "$DEPS_UNITS" -eq 0 ] && [ "${GATE_COMMANDS[0]}" != ".xezar/checks/deps-res
   exit 1
 fi
 
+# npm cannot change between here and the first gate, so every fingerprint until then asks it once
+# (lib/common.sh, deps_npm_version_pin). It is asked again after the install and after the gates.
+deps_npm_version_pin
 if [ "$FAST" -eq 1 ] && ! deps_are_fresh; then
   printf '=== --fast declined ===\n'
   if [ "$DEPS_UNITS" -eq 0 ]; then
@@ -479,6 +484,9 @@ gate_phase() {
 gate_finish() {
   local expected="$1"
   printf '\n==================== SUMMARY ====================\n'
+  # The gates have run, so npm is asked again: the record's after-fingerprint and the re-stamp both
+  # see the npm that is there now, and a gate that changed it still blocks the re-stamp.
+  deps_npm_version_pin
   # Publishing result.json is the completion commit point. Bash may defer a signal
   # during finalization; the trap then reports the completed record instead of denying it.
   result="$(gate_attempt_complete)"
@@ -523,6 +531,7 @@ else
       fi
       exit 1
     fi
+    deps_npm_version_pin
     write_deps_stamp || exit 1
     DEPS_BASELINE="$(deps_restamp_baseline)" || DEPS_BASELINE=""
   fi

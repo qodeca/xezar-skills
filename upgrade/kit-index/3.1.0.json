@@ -110,10 +110,10 @@
       "sha256": "8970f1d813ea7129428797b62dd50fc4594dd93a79b7e89bf26047e1f6197456"
     },
     ".xezar/checks/documented-output.mjs": {
-      "kitBlob": "26137fbdd10ab65fae13f8f46e0e40e61aff104e",
+      "kitBlob": "f55070d2bcc017a7475ce22bbe74c5d8996b07ad",
       "kitSource": "checks/documented-output.mjs",
       "rewrite": "copied",
-      "sha256": "14494fc53a6243d5895baab3c32e07ba6b8e0bb7cfe6c38b3daed2768e3b97d3"
+      "sha256": "672391fc5e93b516d3669695d22b07f8bf8d97360daec6bb568cac0fb5f0cd46"
     },
     ".xezar/checks/fenced-quotes.mjs": {
       "kitBlob": "2f13ef028e6023798baabb7ed85200ae91352b7c",
@@ -152,10 +152,10 @@
       "sha256": "e8afd39026bd3465ded03860f207d655e2ffff7f7f62da29d55af22f722deebb"
     },
     ".xezar/checks/lib/common.sh": {
-      "kitBlob": "366cdaedcbdeac6810e13ebfc6608510fb8ff887",
+      "kitBlob": "2d35100ece10e6cfb56ae571c073599e88438b46",
       "kitSource": "checks/lib/common.sh",
       "rewrite": "copied",
-      "sha256": "0f6fe645dc52eee5b5356f4ae3407d1bbdf3c56c15c22a20bcb08f53623411d1"
+      "sha256": "fd6d18f9ad129c938d3c99cbacfcad1bc25586c631d963b3194eddabd89446ee"
     },
     ".xezar/checks/lib/config-grammar.mjs": {
       "kitBlob": "8992f027613e475a88b83d4e16199f0b8b00ff75",
@@ -176,10 +176,10 @@
       "sha256": "1c4c3ef8130a462002b561608c1a458470b31802a2d22a9bb090abd0bf507957"
     },
     ".xezar/checks/lib/gate-record.sh": {
-      "kitBlob": "7dc232f9008307298940987f01a12c92949c8166",
+      "kitBlob": "c997072615269ece7d3663fc5d88f0de9e33015a",
       "kitSource": "checks/lib/gate-record.sh",
       "rewrite": "copied",
-      "sha256": "93017dfab241c2ca204c22a6b279be2a20de49c5d6c25d8fc859de27d2f3e6a1"
+      "sha256": "d0f4d03fb5827e8eb819b0f4c36e6f3b9ee34100356e265ad6333d9a20c15494"
     },
     ".xezar/checks/lib/gate-results.mjs": {
       "kitBlob": "f4a8d9195071b8fb182328865cce27f55b461614",
@@ -254,16 +254,16 @@
       "sha256": "c49dfc9a2978e5140ef5071fbbcd453a12cbdafec727d40fa5be1229b551ee5d"
     },
     ".xezar/checks/repo-gates.sh": {
-      "kitBlob": "84adc13c8a59f46a98f7914746da37bcc9890c9a",
+      "kitBlob": "b75cb474fcc235918365945e07314c91d2a27bdb",
       "kitSource": "checks/repo-gates.sh",
       "rewrite": "adapted",
-      "sha256": "45cd655583c8b5c690f7a40cee0d2bbab2e2595a2593d858850c12805e8ac27f"
+      "sha256": "d69e6aee27515831637621c673d90efc6b854992a86132d076e7c6c93407e2ad"
     },
     ".xezar/checks/repository-checks.sh": {
-      "kitBlob": "97051ddab349e2c7e1615681c03c9e3cb154ab7e",
+      "kitBlob": "122b4446da023a71f217866e0e28fcd7dd681c55",
       "kitSource": "checks/repository-checks.sh",
       "rewrite": "copied",
-      "sha256": "24b11b6f0cd83c34640bb85e1723bc3dc589ba85c5d2fde57795fbc84425576f"
+      "sha256": "cea1ee25e5f2559eb5fdb5d351d98804498bbe1dd00b7947c43e38dcd9713678"
     },
     ".xezar/checks/resume-complete.sh": {
       "kitBlob": "1b79872ab5fb5540eea1aa29119b3201d3d46ef9",

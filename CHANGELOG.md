@@ -545,6 +545,19 @@ or denied with no person there. Verification reports which add-on answers pi's a
 the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
 gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
 
+**A Windows gate run spends a third of the time it did (#132).** On the Windows release PC the
+build's gate step took 124 s against about 10 s on macOS; almost all of it was process starts,
+which cost about 0.1–0.5 s each on Windows. The tree fingerprint hashed every kit file with its own
+`shasum` (about 140 starts, twice per run); it now hashes each folder's list in one call, with the
+same lines and the same digest. `repository-checks.sh` starts its read-only checks together in the
+background and prints each at its place in the listed order, with the same output and exit status;
+the drift check, the config guard and the changelog check (which reads the base the guard fetches)
+still run in the foreground, in order. `documented-output.mjs` runs its read-only fixture cases
+together. A gate run asks `npm --version` once before the gates and once after them instead of six
+times, and the gate lease probes poll every tenth of a second. Measured on that PC, outside the
+engine: `repo-gates.sh --fast` 101–105 s → 35–41 s, `repository-checks.sh` 12.5–12.8 s →
+7.2–7.4 s. No check was removed or relaxed.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
