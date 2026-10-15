@@ -98,8 +98,18 @@ drop_jq_cr() { case "${OSTYPE:-}" in msys* | cygwin*) tr -d '\r' ;; *) cat ;; es
 jq_string_bytes() { case "${OSTYPE:-}" in msys* | cygwin*) jq -r "($1) | @base64" | tr -d '\r' | base64 --decode ;; *) jq -j "$1" ;; esac; }
 
 # `shasum -a 256` lines for files or stdin. Git Bash has shasum only on a login PATH (core_perl),
-# so without it the same lines come from coreutils' sha256sum (#122).
-sha256_lines() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
+# so without it the same lines come from coreutils' sha256sum (#122). Which one is decided once per
+# PATH, not per call: `command -v` walks the whole PATH, about 45 ms on Windows, and one gate run
+# hashed 54 times (#132 speed bar). The choice is remembered with the PATH it was made for, so a
+# caller that changes PATH gets a fresh decision; it is decided when this file is sourced (the
+# end of the file), so the `$(…)` subshells a fingerprint starts inherit it, and both variables
+# are cleared on sourcing, so the environment never makes the choice.
+unset XEZ_SHA256_TOOL XEZ_SHA256_PATH
+sha256_tool_choose() {
+  if command -v shasum >/dev/null 2>&1; then XEZ_SHA256_TOOL=shasum; else XEZ_SHA256_TOOL=sha256sum; fi
+  XEZ_SHA256_PATH="$PATH"
+}
+sha256_lines() { [ "${XEZ_SHA256_PATH-}" = "$PATH" ] && [ -n "${XEZ_SHA256_TOOL:-}" ] || sha256_tool_choose; if [ "$XEZ_SHA256_TOOL" = shasum ]; then shasum -a 256 "$@"; else sha256sum "$@"; fi; }
 # sha256_each: the same lines as one sha256_lines call per path, for paths read one per line from
 # stdin, in that order – from one hashing process instead of one per file. On Windows a process
 # start costs about 0.1 s, and a fingerprint hashes every kit file (#132 speed bar).
@@ -139,22 +149,42 @@ expected_task_branch() {
 }
 
 resolve_task_paths() {
-  local toplevel common_dir
-  toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  TASK_CWD="$(abs_real_dir "$toplevel")" || return 1
+  local toplevel common_dir answer rest
+  # One git start for the four facts below when git can give them (2.31+, a HEAD with a commit):
+  # every kit script sources this, and on Windows each git start costs about 0.1 s (#132 speed
+  # bar). The arguments are read in order, so `HEAD` before `--abbrev-ref` is the full SHA and
+  # `HEAD` after it is the branch. `--path-format=absolute` makes the common dir absolute from any
+  # directory. Anything else – an older git, an unborn HEAD, a line missing – takes the four
+  # separate calls below, which are what this always did.
+  answer="$(git rev-parse --path-format=absolute --show-toplevel --git-common-dir HEAD --abbrev-ref HEAD 2>/dev/null)" || answer=""
+  toplevel="${answer%%$'\n'*}"; rest="${answer#*$'\n'}"
+  common_dir="${rest%%$'\n'*}"; rest="${rest#*$'\n'}"
+  HEAD_SHA="${rest%%$'\n'*}"; BRANCH="${rest#*$'\n'}"
+  case "$answer" in
+    *$'\n'*$'\n'*$'\n'*) ;;
+    *) answer="" ;;
+  esac
+  case "$BRANCH" in *$'\n'* | '') answer="" ;; esac
+  if [ -n "$answer" ] && [ -n "$toplevel" ] && is_absolute_path "$common_dir" && [ -n "$HEAD_SHA" ]; then
+    TASK_CWD="$(abs_real_dir "$toplevel")" || return 1
+    MAIN_ROOT="$(abs_real_dir "$(dirname "$common_dir")")" || return 1
+  else
+    toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    TASK_CWD="$(abs_real_dir "$toplevel")" || return 1
 
-  # In the primary checkout `--git-common-dir` is relative (".git"); in a linked
-  # worktree it is the absolute path of the primary checkout's .git directory.
-  common_dir="$(cd "$TASK_CWD" && git rev-parse --git-common-dir 2>/dev/null)" || return 1
-  is_absolute_path "$common_dir" || common_dir="$TASK_CWD/$common_dir"
-  MAIN_ROOT="$(abs_real_dir "$(dirname "$common_dir")")" || return 1
+    # In the primary checkout `--git-common-dir` is relative (".git"); in a linked
+    # worktree it is the absolute path of the primary checkout's .git directory.
+    common_dir="$(cd "$TASK_CWD" && git rev-parse --git-common-dir 2>/dev/null)" || return 1
+    is_absolute_path "$common_dir" || common_dir="$TASK_CWD/$common_dir"
+    MAIN_ROOT="$(abs_real_dir "$(dirname "$common_dir")")" || return 1
+
+    BRANCH="$(cd "$TASK_CWD" && git rev-parse --abbrev-ref HEAD 2>/dev/null)" || BRANCH="HEAD"
+    HEAD_SHA="$(cd "$TASK_CWD" && git rev-parse HEAD 2>/dev/null)" || HEAD_SHA=""
+  fi
 
   WORKTREES_DIR="$MAIN_ROOT/$XEZAR_WORKTREES_RELDIR"
 
   if [ "$TASK_CWD" = "$MAIN_ROOT" ]; then IS_WORKTREE=0; else IS_WORKTREE=1; fi
-
-  BRANCH="$(cd "$TASK_CWD" && git rev-parse --abbrev-ref HEAD 2>/dev/null)" || BRANCH="HEAD"
-  HEAD_SHA="$(cd "$TASK_CWD" && git rev-parse HEAD 2>/dev/null)" || HEAD_SHA=""
 
   BASE_BRANCH="$(xezar_base_branch)" || return 1
 
@@ -629,32 +659,48 @@ deps_fingerprint() {
   (
     cd "$TASK_CWD" || return 1
     local f
-    for f in package-lock.json npm-shrinkwrap.json package.json .npmrc; do
-      if [ -f "$f" ]; then printf '%s\n' "$f"; fi
-    done | sha256_each
-    # Patches are applied at install time, so a changed patch means a different node_modules.
-    if [ -d patches ]; then
-      find patches -type f -print 2>/dev/null | LC_ALL=C sort | sha256_each
-    fi
-    # Workspace manifests. `find` is given only the directories that exist, because a
-    # missing `examples/` must not turn into a failed fingerprint under `set -o pipefail`.
-    local roots=()
-    [ -d packages ] && roots+=(packages)
-    [ -d examples ] && roots+=(examples)
-    if [ ${#roots[@]} -gt 0 ]; then
-      find "${roots[@]}" -mindepth 2 -maxdepth 2 -name package.json -print 2>/dev/null |
-        LC_ALL=C sort | sha256_each
-    fi
-    # The pinned package manager: a different npm resolves differently.
-    node -e '
+    # The root files, then the patches, then the workspace manifests, each list sorted on its
+    # own as before: one hashing process for all three lists prints the same lines, in the same
+    # order, as one per list (#132 speed bar).
+    {
+      for f in package-lock.json npm-shrinkwrap.json package.json .npmrc; do
+        if [ -f "$f" ]; then printf '%s\n' "$f"; fi
+      done
+      # Patches are applied at install time, so a changed patch means a different node_modules.
+      if [ -d patches ]; then
+        find patches -type f -print 2>/dev/null | LC_ALL=C sort
+      fi
+      # Workspace manifests. `find` is given only the directories that exist, because a
+      # missing `examples/` must not turn into a failed fingerprint under `set -o pipefail`.
+      local roots=()
+      [ -d packages ] && roots+=(packages)
+      [ -d examples ] && roots+=(examples)
+      if [ ${#roots[@]} -gt 0 ]; then
+        find "${roots[@]}" -mindepth 2 -maxdepth 2 -name package.json -print 2>/dev/null |
+          LC_ALL=C sort
+      fi
+    } | sha256_each
+    # The pinned package manager: a different npm resolves differently. The same node start also
+    # answers its own version, which used to be a second start (`node --version`, the same string
+    # as `process.version`) – about a quarter of a second on Windows, six times a gate run (#132).
+    # The lines and their order are unchanged: packageManager, npm, node; with no node at all,
+    # no packageManager line and `node=unknown`, as before.
+    local pm_node="" node_version="unknown"
+    if pm_node="$(node -e '
       const fs = require("node:fs");
       try {
         const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
         process.stdout.write(`packageManager=${pkg.packageManager ?? ""}\n`);
       } catch { process.stdout.write("packageManager=unreadable\n"); }
-    ' 2>/dev/null
+      process.stdout.write(`${process.version}\n`);
+    ' 2>/dev/null)"; then
+      # The version is the last line; everything before it is the packageManager line exactly
+      # as it was printed, a newline inside the value included.
+      printf '%s\n' "${pm_node%$'\n'*}"
+      node_version="${pm_node##*$'\n'}"
+    fi
     printf 'npm=%s\n' "$(deps_npm_version)"
-    printf 'node=%s\n' "$(node --version 2>/dev/null || printf 'unknown')"
+    printf 'node=%s\n' "$node_version"
   ) | sha256_lines | cut -d' ' -f1
 }
 
@@ -875,14 +921,26 @@ tree_fingerprint() {
     cd "$TASK_CWD" || return 1
     printf 'head=%s\n' "$(git rev-parse HEAD 2>/dev/null || printf 'no-head')"
     printf -- '--kit--\n'
+    # The same lines as one `find | sort | sha256_each` per part, in this part order, followed by
+    # the four kit files: one find, one sort and one hashing process for all of it instead of
+    # sixteen (#132 speed bar – each start is about 0.1 s on Windows). The part's position goes in
+    # front of each path for the sort and comes off after it, so each part's files are sorted
+    # among themselves exactly as before and the parts keep their order.
+    local kit_parts=() kit_part
     for kit_part in checks skills workflows docs pipeline; do
-      if [ -d ".xezar/$kit_part" ]; then
-        find ".xezar/$kit_part" -type f -print | LC_ALL=C sort | sha256_each
-      fi
+      [ ! -d ".xezar/$kit_part" ] || kit_parts+=(".xezar/$kit_part")
     done
-    for kit_file in config.json CLAUDE.md kit-manifest.json .gitignore; do
-      [ ! -f ".xezar/$kit_file" ] || printf '%s\n' ".xezar/$kit_file"
-    done | sha256_each
+    {
+      if [ "${#kit_parts[@]}" -gt 0 ]; then
+        find "${kit_parts[@]}" -type f -print |
+          awk -F/ 'BEGIN { split("checks skills workflows docs pipeline", order, " "); for (i in order) rank[order[i]] = i }
+                   { printf "%d\t%s\n", rank[$2], $0 }' |
+          LC_ALL=C sort | cut -f2-
+      fi
+      for kit_file in config.json CLAUDE.md kit-manifest.json .gitignore; do
+        [ ! -f ".xezar/$kit_file" ] || printf '%s\n' ".xezar/$kit_file"
+      done
+    } | sha256_each
     printf -- '--tracked--\n'
     git diff HEAD 2>/dev/null
     printf -- '--untracked--\n'
@@ -899,3 +957,7 @@ tree_fingerprint() {
       done
   ) | sha256_lines | cut -d' ' -f1
 }
+
+# The hashing tool sha256_lines uses, chosen for the PATH deps_use_pinned_node has just set (see
+# sha256_lines), so the subshells a fingerprint starts inherit the choice instead of each making it.
+sha256_tool_choose

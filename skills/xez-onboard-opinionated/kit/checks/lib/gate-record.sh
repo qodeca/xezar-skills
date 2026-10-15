@@ -44,6 +44,39 @@ _gate_iso_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # Bash 5 has the clock built in (`EPOCHREALTIME`, seconds and six digits of microseconds, with the
 # locale's decimal mark); a node start costs about half a second on Windows. Older bash (macOS's
 # 3.2) has no such variable and asks node, as before.
+# The commit HEAD points at now, or nothing: the after-record's headSha.
+_gate_head_sha() {
+  ( cd "$TASK_CWD" && git rev-parse HEAD 2>/dev/null )
+}
+
+# gate_facts_capture VAR FUNCTION [VAR FUNCTION ...]
+# Runs each FUNCTION at the same time, in the background, and sets each VAR (in the caller's scope)
+# to what that function printed, trailing newlines removed – exactly what `VAR="$(FUNCTION)"`
+# gives, failures included: a function that fails or prints nothing leaves its VAR empty, as
+# the `$(…)` it replaces did. Every call it replaces only reads, so the order they run in cannot
+# change an answer. With no temporary folder they run one after another, as they used to.
+gate_facts_capture() {
+  local _gfc_dir _gfc_i _gfc_pids=() _gfc_args=("$@")
+  _gfc_dir="$(mktemp -d "${TMPDIR:-/tmp}/gate-facts.XXXXXX" 2>/dev/null)" || _gfc_dir=""
+  if [ -z "$_gfc_dir" ]; then
+    for ((_gfc_i = 0; _gfc_i < ${#_gfc_args[@]}; _gfc_i += 2)); do
+      printf -v "${_gfc_args[_gfc_i]}" '%s' "$("${_gfc_args[_gfc_i + 1]}")"
+    done
+    return 0
+  fi
+  for ((_gfc_i = 0; _gfc_i < ${#_gfc_args[@]}; _gfc_i += 2)); do
+    "${_gfc_args[_gfc_i + 1]}" >"$_gfc_dir/$_gfc_i" &
+    _gfc_pids+=("$!")
+  done
+  wait "${_gfc_pids[@]}" 2>/dev/null
+  for ((_gfc_i = 0; _gfc_i < ${#_gfc_args[@]}; _gfc_i += 2)); do
+    # `$(<file)` is bash's own read: no `cat` to start. The file always exists – the background
+    # redirection above created it before its function ran.
+    printf -v "${_gfc_args[_gfc_i]}" '%s' "$(<"$_gfc_dir/$_gfc_i")"
+  done
+  rm -rf "$_gfc_dir"
+}
+
 _gate_epoch_ms() {
   local now="${EPOCHREALTIME:-}"
   case "$now" in
@@ -178,6 +211,17 @@ gate_attempt_begin() {
   GATE_STARTED_AT="$(_gate_iso_now)"
   GATE_STARTED_MS="$stamp"
 
+  # The five before-facts only read the checkout, so they are taken at the same time instead of
+  # one after another (#132 speed bar: together they start about thirty processes, and on Windows
+  # each start is about 0.1 s). Each value is exactly what its own `$(…)` gave before.
+  local tree_sha repo_json env_json tree_fp deps_fp
+  gate_facts_capture \
+    tree_sha head_tree_sha \
+    repo_json repo_identity \
+    env_json env_profile \
+    tree_fp tree_fingerprint \
+    deps_fp deps_fingerprint
+
   node "$GATE_RESULTS_MJS" begin --dir "$GATE_ATTEMPT_DIR" --json "$(_gate_json \
     "attemptId=$GATE_ATTEMPT_ID" \
     "sequence:n=$seq" \
@@ -191,13 +235,13 @@ gate_attempt_begin() {
     "baseRef=${GATE_BASE_REF:-$BASE_BRANCH}" \
     "baseSha=${GATE_BASE_SHA:-}" \
     "headSha=$HEAD_SHA" \
-    "treeSha=$(head_tree_sha)" \
+    "treeSha=$tree_sha" \
     "commandListId=$command_list_id" \
     "leaseWaitMs:n=${GATE_LEASE_WAIT_MS:-}" \
     "required:j=$required_json" \
-    "repo:j=$(repo_identity)" \
-    "environment:j=$(env_profile)" \
-    "before:j=$(_gate_json "headSha=$HEAD_SHA" "treeFingerprint=$(tree_fingerprint)" "depsFingerprint=$(deps_fingerprint)")" \
+    "repo:j=$repo_json" \
+    "environment:j=$env_json" \
+    "before:j=$(_gate_json "headSha=$HEAD_SHA" "treeFingerprint=$tree_fp" "depsFingerprint=$deps_fp")" \
     "startedAt=$GATE_STARTED_AT")" || return 1
 
   printf 'gate attempt   %s\n' "$GATE_ATTEMPT_ID"
@@ -334,16 +378,23 @@ gate_note_skip() {
 # Publish the attempt. The result is derived inside `gate-results.mjs` from the recorded
 # outcomes — this function cannot declare a pass, it can only ask what the record adds up to.
 gate_attempt_complete() {
-  local ended result
+  local ended duration_ms result after_head after_tree after_deps
   ended="$(_gate_iso_now)"
+  # Measured before the after-facts, as it always was: the duration is the gates', not the record's.
+  duration_ms=$(( $(_gate_epoch_ms) - GATE_STARTED_MS ))
+  # The three after-facts are taken at the same time, as the before-facts are (gate_facts_capture).
+  gate_facts_capture \
+    after_head _gate_head_sha \
+    after_tree tree_fingerprint \
+    after_deps deps_fingerprint
   # The install gate's name comes from the list that ran (repo-gates.sh's GATE_NAMES), never from
   # the record: it is the one gate a verified-current skip may satisfy.
   result="$(node "$GATE_RESULTS_MJS" complete --dir "$GATE_ATTEMPT_DIR" --install-gate "${GATE_NAMES[0]:-}" --json "$(_gate_json \
     "endedAt=$ended" \
-    "durationMs:n=$(( $(_gate_epoch_ms) - GATE_STARTED_MS ))" \
-    "after:j=$(_gate_json "headSha=$( cd "$TASK_CWD" && git rev-parse HEAD 2>/dev/null )" \
-                          "treeFingerprint=$(tree_fingerprint)" \
-                          "depsFingerprint=$(deps_fingerprint)")")")" || return 1
+    "durationMs:n=$duration_ms" \
+    "after:j=$(_gate_json "headSha=$after_head" \
+                          "treeFingerprint=$after_tree" \
+                          "depsFingerprint=$after_deps")")")" || return 1
   printf '%s' "$result"
   [ "$result" = "passed" ]
 }

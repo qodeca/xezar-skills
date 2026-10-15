@@ -528,18 +528,25 @@ if [ ${#failures[@]} -eq 0 ] && [ "$MODE" = "record-gate-evidence" ]; then
     # Nothing is sealed until the list reads. Sealing here would record a pass whose security
     # requirement was decided by a failure to look.
     fail evidence.gate-list-readable "the canonical gate list could not be read (repo-gates.sh --list --json exited $gate_list_rc, or its output could not be parsed), so whether this attempt must carry a security result could not be measured. An unmeasured requirement is not an absent one. Run bash .xezar/checks/repo-gates.sh --list --json and fix what it reports."
-  elif seal_digest="$(node "$SCRIPT_DIR/lib/gate-results.mjs" seal \
+  elif
+    # The seal's three facts only read the checkout, so they are taken at the same time
+    # (lib/gate-record.sh, gate_facts_capture; #132 speed bar). Each is what its `$(…)` gave.
+    gate_facts_capture \
+      seal_tree_sha head_tree_sha \
+      seal_tree_fp tree_fingerprint \
+      seal_deps_fp deps_fingerprint
+    seal_digest="$(node "$SCRIPT_DIR/lib/gate-results.mjs" seal \
     --manifest "$manifest" \
     --gates-root "$(task_gates_dir)" \
     --json "$(_gate_json \
       "headSha=$HEAD_SHA" \
-      "treeSha=$(head_tree_sha)" \
+      "treeSha=$seal_tree_sha" \
       "branch=$BRANCH" \
       "commandListId=$command_list_id" \
       "securityGate=$security_gate" \
       "installGate=$install_gate" \
-      "treeFingerprint=$(tree_fingerprint)" \
-      "depsFingerprint=$(deps_fingerprint)" \
+      "treeFingerprint=$seal_tree_fp" \
+      "depsFingerprint=$seal_deps_fp" \
       "dirty:j=$dirty")")"; then
     info "gate evidence sealed  $HEAD_SHA"
     info "result digest         $seal_digest"

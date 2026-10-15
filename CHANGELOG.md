@@ -558,6 +558,20 @@ times, and the gate lease probes poll every tenth of a second. Measured on that 
 engine: `repo-gates.sh --fast` 101–105 s → 35–41 s, `repository-checks.sh` 12.5–12.8 s →
 7.2–7.4 s. No check was removed or relaxed.
 
+**A Windows gate run, preflight and readiness check start fewer processes (#132).** A second pass
+over the same PC. The hashing tool is chosen once per script instead of on every hash (`command -v`
+walked the whole PATH 54 times a run); the tree fingerprint lists every kit part with one `find`,
+one `sort` and one hash, and the dependency fingerprint hashes its three lists in one call and asks
+node for `packageManager` and its own version in one start – the same lines in the same order, so
+every digest and every stamp already written stays valid. The path facts every script resolves
+first come from one `git rev-parse` when git can answer them all, and the four separate calls
+otherwise. The engine's version is judged by one node start instead of two, and the gate record's
+before- and after-facts and the seal's facts are taken at the same time instead of one after
+another. Measured on that PC outside the engine, old and new files alternated three times:
+`repo-gates.sh --fast` 34.5–34.6 s → 31.0 s, `worktree-preflight.sh` 2.8–2.9 s → 2.4–2.5 s,
+`--readiness` 4.6 s → 4.1–4.2 s. What remains is mostly the engine's own start, three times a gate
+run (`--version`, the lease probe, the lease), which is qodeca/xezar#1037.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
