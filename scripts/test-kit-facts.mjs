@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2448,6 +2448,26 @@ if (S.section("I14")) {
     fail(fact, report, "\"Setup complete\" does not tell the owner to add the Codex trust entry when the check is ❌");
   if (!/```upgrade\r?\nApplies-to: <3\.1\.0\r?\nActions: per-machine=trust-codex-project:<absolute-project-path>\r?\n```/.test(read("UPGRADE_NOTES.md")))
     fail(fact, "UPGRADE_NOTES.md", "has no 3.1.0 block that lists per-machine=trust-codex-project for the owner");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I15 -- browser evidence comes only from the chrome-devtools tools a step holds (#185). A pi
+// step holds none, and on the macOS release runs its QA and design reviews passed on node scripts
+// that drove Chrome over CDP through bash – nothing limited their tools, time or output, and one
+// hung for 464 s (#172). The browser for pi comes from the engine (qodeca/xezar#1015); until then a
+// step without the tools has no browser, and a script of its own is not evidence.
+// ---------------------------------------------------------------------------
+if (S.section("I15")) {
+  const fact = "FACT I15: browser evidence comes only from the chrome-devtools tools a step holds; a browser script of its own is not evidence";
+  const RULE = "Browser evidence comes only from the `chrome-devtools` tools this step holds: a browser script of your own – CDP, Puppeteer or Playwright code driven through `bash` or `review-run.sh run` – is not evidence";
+  const NONE = "A step whose tool list holds no `chrome-devtools` tool has no browser: report each browser check as not run, as #156 says.";
+  for (const role of ["acceptance", "qa", "ux-design"]) {
+    const where = `${SKILL}/kit/skills/xezar-${role}.md`;
+    const text = read(where);
+    if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
+    if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
+  }
   checked.push(fact);
 }
 
