@@ -1440,6 +1440,15 @@ breaks(
   "does not say a finding's fingerprint is a short hash of at most 64 characters",
 );
 
+// With no campaign open, the leader's records have one place (#181, FACT I13).
+breaks(
+  "a leader guide that names no folder for the leader's records outside a campaign is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("; with no campaign open, `.local/xezar/scratch/leader/` |", () => " |"),
+  facts("I13"),
+  "does not say where the leader keeps its records with no campaign open",
+);
+
 breaks(
   "a QA skill that asks the reviewer to type recordedAt is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
