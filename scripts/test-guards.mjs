@@ -3281,6 +3281,55 @@ breaks(
   "an apostrophe breaks the shell quoting",
 );
 
+// A merge the engine refuses stops the leader (#170, FACT I8).
+breaks(
+  "a leader guide that lets the leader merge a refused PR with gh is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("never merge that PR with `gh pr merge`, a merge queue or any other path instead", "merge it with `gh pr merge` instead"),
+  facts("I8"),
+  "no longer forbids merging a refused PR",
+);
+breaks(
+  "a close-out that lets a refused merge go another way is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => s.replace("is a blocker to report, never a reason to merge another way", "can still merge another way"),
+  facts("I8"),
+  "never a reason to merge another way",
+);
+
+// A PASS lifts the failed label an earlier FAIL of the same role left (#171, FACT I9).
+breaks(
+  "a design review whose PASS keeps design-failed is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace('remove:["needs-design","design-failed"]', 'remove:["needs-design"]'),
+  facts("I9"),
+  "its PASS request does not remove design-failed",
+);
+
+breaks(
+  "a gh-write.sh that never lifts a failed label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('          args+=(--remove-label "$verdict_cleared")\n', "          :\n"),
+  catalog("D-review"),
+  "does not lift qa-failed with a qa PASS",
+);
+
+breaks(
+  "a gh-write.sh that lifts a failed label without the approval label is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('            verdict_removed="$label"\n            verdict_cleared="$label"', '            verdict_cleared="$label"'),
+  catalog("D-review"),
+  "remove qa-failed without adding qa-approved",
+);
+
+breaks(
+  "a gh-write.sh that removes a failed label the PR does not carry is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace('grep -qxF "$verdict_cleared"; then', 'true; then'),
+  catalog("D-review"),
+  "asks gh to remove a qa-failed the PR does not carry",
+);
+
 // A reviewer runs the checkout before it reports one (#147, FACT I3).
 breaks(
   "a review skill that lets a reviewer predict review-run=confined is rejected",

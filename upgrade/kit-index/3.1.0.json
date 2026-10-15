@@ -122,10 +122,10 @@
       "sha256": "01a4162d52b0708dec2f47bc4ed8dbf2dc12f44fac24a2eda7abcff6f0a1ab9d"
     },
     ".xezar/checks/gh-write.sh": {
-      "kitBlob": "2b07d44572b7cbadce0015ed8409c7304ee1ec67",
+      "kitBlob": "08b336bea2eaa76abd199752b50c3c6515e1dce4",
       "kitSource": "checks/gh-write.sh",
       "rewrite": "copied",
-      "sha256": "713df33d9243f6175092c8f0a3b24823bda066dcb458a734c354ce0825a90e15"
+      "sha256": "55be2a68e1f99bb9d74ab01bac1bf4c9dff29191149108b7a4735d93c72bd62d"
     },
     ".xezar/checks/git-read.sh": {
       "kitBlob": "f2122b93e6344dcafab617552941ed5d51ef7b05",
@@ -353,10 +353,10 @@
       "sha256": "e816c54da38343020dd9f55f3191a2c8a2fcc383def5c39afe37af7bcb477069"
     },
     ".xezar/docs/close-out.md": {
-      "kitBlob": "cc31685dacf16d7b7bbe17bb211ba726038d28fe",
+      "kitBlob": "f9530fc954a9fba143c1176aae45d10b98c92d1c",
       "kitSource": "docs/close-out.md",
       "rewrite": "copied",
-      "sha256": "c9e4f76e29876280a2412a18e8bf2d7dc2cb665fc9ec87a073ab6bef358fca71"
+      "sha256": "c5e21325063db13aaff555a683747b81abd2aa04bc009b5557df209459611eac"
     },
     ".xezar/docs/documented-output.md": {
       "kitBlob": "78d029ae14509c169f3d690acc648b22f0f15cb7",
@@ -377,10 +377,10 @@
       "sha256": "56da7aff84517b04bc1b587d3ad6f6281233c53c1a848f35bcaceb27217567b0"
     },
     ".xezar/docs/leader-guide-detail.md": {
-      "kitBlob": "14918bed9687b860a2e5c37942c3e786b7376e39",
+      "kitBlob": "3b55a159cbb2e2c850f20aa7ad689b9256b39fe3",
       "kitSource": "docs/leader-guide-detail.md",
       "rewrite": "copied",
-      "sha256": "c999346fa6334d097c2358f054203dfb0e4f981d4289b5057792e6f794bd34a8"
+      "sha256": "c383f201cfa2ff701caee9210f600bcf394c5020e59a8acc9a400b1b8fa0e135"
     },
     ".xezar/docs/leader-guide.md": {
       "rewrite": "generated"
@@ -629,10 +629,10 @@
       "sha256": "fe9891c18c0cac9f8db44cba8159422062387ffc52c9c0a01f039adf59b25e92"
     },
     ".xezar/skills/xezar-qa.md": {
-      "kitBlob": "de1be420f83a6676ff05a27147aa4059cd2da5c5",
+      "kitBlob": "cb95def09e78f63389c7d73e22a84242ab6919b1",
       "kitSource": "skills/xezar-qa.md",
       "rewrite": "copied",
-      "sha256": "3f66657aefdc80192f5cb46d0d8ef9718c08eafa2d3e8d725cc614de53d14541"
+      "sha256": "d9c732e0828e152a0be1b4fa7268a07eb42eefb934c35ec28e082e19ae95f2b9"
     },
     ".xezar/skills/xezar-quality-gates.md": {
       "kitBlob": "967342af0d229ff7c852cfff2ad503269f004501",
@@ -713,10 +713,10 @@
       "sha256": "e195574b615fc4219663b53327456396944ac1a93bb4d0147b5e18ea99aa34c4"
     },
     ".xezar/skills/xezar-ux-design.md": {
-      "kitBlob": "66f08d942f843978c97f696bc179c03bb82d4af3",
+      "kitBlob": "47b58ba9461a6d50f3d2002997dd0d21d6ca6f8d",
       "kitSource": "skills/xezar-ux-design.md",
       "rewrite": "copied",
-      "sha256": "cefe483e954bd5dbc92f2118598af6b6a3bacd3661c06cd19134ee4765d923e5"
+      "sha256": "aad0de2a7db62f4faa3a449e283d69b4edd5d1263ec1ad353da9214e93c26509"
     },
     ".xezar/skills/xezar-visual-asset.md": {
       "kitBlob": "27fcf4f528ead3a6ea2dbf1f633a1659ce583927",
