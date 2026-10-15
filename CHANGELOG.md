@@ -492,6 +492,15 @@ it started. `verdict-write.sh` also
 stamps a verdict's `recordedAt` from the clock, as it stamps `taskId` and `stepId`: a reading step
 cannot run `date`, and a typed time was ten hours off. FACT I10 pins both.
 
+**A long finding fingerprint no longer loses the verdict (#178).** The engine allows a finding `id`
+or `fingerprint` of at most 64 characters and drops the whole packet over a longer one, after
+`verdict-write.sh` had already said "wrote". On macOS run 5 a QA fingerprint was a 77-character slug
+of the finding title, and a later PASS lost its verdict to a 68-character `file|severity|title`. The
+QA, code review and design review skills now say the fingerprint is a short stable hash of `file`,
+`severity` and `title`, never the raw text. `verdict-write.sh` replaces a longer `id` or
+`fingerprint` with the first 16 hex characters of its sha256 – the same text always gives the same
+value – prints a note, and refuses an empty one. FACT I12 pins it.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a

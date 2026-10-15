@@ -140,12 +140,33 @@ case "$kind" in
       if (p === null || typeof p !== "object" || Array.isArray(p)) { console.log("the packet is not a JSON object"); process.exit(1); }
       for (const [k, v] of [["taskId", taskId], ["stepId", stepId]])
         if (p[k] !== undefined && p[k] !== v) { console.log("the packet names " + k + " " + JSON.stringify(p[k]) + ", not the running " + JSON.stringify(v)); process.exit(1); }
+      // The engine refuses a finding id or fingerprint over 64 characters, and drops the whole packet
+      // with it (#178): twice a reviewer wrote the title as the fingerprint. An over-long one is
+      // replaced by the first 16 hex characters of its sha256 – the same text always gives the same
+      // value, so a fingerprint stays stable across reports – and a note says so. An empty or
+      // non-string one is refused: there is nothing stable to hash.
+      const notes = [];
+      if (p.findings !== undefined && !Array.isArray(p.findings)) { console.log("the findings field of the packet is not a list"); process.exit(1); }
+      for (const [i, f] of (p.findings ?? []).entries()) {
+        if (f === null || typeof f !== "object" || Array.isArray(f)) { console.log("finding " + (i + 1) + " is not a JSON object"); process.exit(1); }
+        for (const k of ["id", "fingerprint"]) {
+          if (f[k] === undefined && k === "fingerprint") continue;
+          if (typeof f[k] !== "string" || f[k] === "") { console.log("finding " + (i + 1) + " has no " + k + " the engine accepts: a non-empty string of at most 64 characters"); process.exit(1); }
+          if (f[k].length > 64) {
+            const short = require("crypto").createHash("sha256").update(f[k]).digest("hex").slice(0, 16);
+            notes.push("verdict-write.sh: note: finding " + (i + 1) + " " + k + " had " + f[k].length + " characters, over the 64 the engine allows; replaced by " + short + ", the start of its sha256");
+            f[k] = short;
+          }
+        }
+      }
       fs.writeFileSync(file, JSON.stringify({ ...p, taskId, stepId, recordedAt: new Date().toISOString() }) + "\n");
+      for (const n of notes) console.log(n);
     ' "$tmp" "$XEZ_TASK_ID" "$XEZ_STEP_ID" 2>/dev/null)"; then
       rm -f "$tmp"
       refuse "${stamp:-the packet could not be read}"
     fi
     mv -f "$tmp" "$target" || refuse "could not rename the packet into place"
+    [ -z "$stamp" ] || printf '%s\n' "$stamp"
     echo "verdict-write.sh: wrote $target"
     ;;
   blocked)
