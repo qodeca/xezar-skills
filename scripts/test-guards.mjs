@@ -3239,6 +3239,22 @@ breaks(
   "an apostrophe breaks the shell quoting",
 );
 
+// A merge the engine refuses stops the leader (#170, FACT I8).
+breaks(
+  "a leader guide that lets the leader merge a refused PR with gh is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("never merge that PR with `gh pr merge`, a merge queue or any other path instead", "merge it with `gh pr merge` instead"),
+  facts("I8"),
+  "no longer forbids merging a refused PR",
+);
+breaks(
+  "a close-out that lets a refused merge go another way is rejected",
+  "skills/xez-onboard-opinionated/kit/docs/close-out.md",
+  (s) => s.replace("is a blocker to report, never a reason to merge another way", "can still merge another way"),
+  facts("I8"),
+  "never a reason to merge another way",
+);
+
 // A PASS lifts the failed label an earlier FAIL of the same role left (#171, FACT I9).
 breaks(
   "a design review whose PASS keeps design-failed is rejected",

@@ -468,6 +468,13 @@ left running – only while that process still runs in the ended run's own workt
 is never touched. Evidence written through `verdict-write.sh` must now be `.md`, `.txt`, `.log`,
 `.json`, `.csv`, `.png`, `.jpg` or `.jpeg`, so a reading step cannot write a script there.
 
+**A merge the engine refuses stops the leader (#170).** On macOS run 3 the engine's merge tool
+refused both merges and said to report the blocker; the leader merged them with `gh pr merge`
+instead, past a `design-failed` label that project-policy refuses. The leader guide and close-out now
+say a refused merge is a blocker to report, never a reason to merge another way, and a PR with a
+label project-policy refuses does not merge. The merge-queue line keeps `gh pr merge --auto` only
+for a merge nothing refuses. FACT I8 pins it.
+
 **A design review that passes after a failed one no longer blocks the merge (#171).** A FAIL leaves
 `design-failed` on the PR, and a later PASS added `design-approved` but kept `design-failed`, which
 the project policy refuses at merge: on macOS run 3 the PR could not merge through the proper path.
