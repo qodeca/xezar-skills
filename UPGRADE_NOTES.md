@@ -23,6 +23,30 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-16 – on a second machine repository-checks fails: local-tree: missing expected subfolder(s)
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom – in a fresh clone, `.xezar/checks/repository-checks.sh` fails** with
+`local-tree: missing expected subfolder(s): runtime tasks worktrees qa` (or a similar list) once the
+engine has started there. git stores no empty folder, so the clone has none of the six named
+subfolders of `.local/xezar/`, and the engine's first start makes `.local/xezar/` itself, so the
+check no longer skips it. Only onboarding made the folders, on the onboarding machine (#196).
+
+**What to do.** Take the 3.1.0 copy of `scripts/xezar-leader.sh`: it makes the six folders, empty,
+every time the leader starts. Until then, run
+`mkdir -p .local/xezar/runtime .local/xezar/tasks .local/xezar/worktrees .local/xezar/scratch .local/xezar/cache .local/xezar/qa`
+once in the clone.
+
+**What you lose by skipping it.** On every new machine the repository checks stay red in the main
+checkout until someone makes the folders by hand. Task gates are not affected: they run in linked
+worktrees, where `local-tree.sh` skips.
+
+```upgrade
+Applies-to: <3.1.0
+Files: scripts/xezar-leader.sh
+```
+
 ## 2026-10-16 – a pi QA or design review saves no screenshot files
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names

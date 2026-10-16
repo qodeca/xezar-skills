@@ -541,7 +541,8 @@ to carry — do not invent one, and do not tell the owner to run one.
   file): `worktree-preflight.sh` refuses every task until all three are ignored, whatever the
   project's stack, because the cockpit's autosave would commit build output (#138).
 - `.local/xezar/` with its named subfolders (`runtime/ tasks/ worktrees/ scratch/ cache/ qa/`).
-  **Create the folders and nothing else — no README beside them.** What each one is for is printed
+  **Create the folders and nothing else — no README beside them.** `scripts/xezar-leader.sh` makes
+  the same six again on every machine, because a fresh clone has none of them (#196). What each one is for is printed
   by `kit/checks/local-tree.sh` itself, and that check reports any file at the top level as loose,
   a README included: the first audited run wrote one and failed its own gate on it. Beside them,
   `kit/checks/local-tree.sh` — which reports a missing subfolder or

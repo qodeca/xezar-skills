@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// A fresh clone gets the local-tree subfolders from the leader launcher (#196, FACT I18).
+breaks(
+  "a leader launcher that no longer makes the qa folder is rejected",
+  "skills/xez-onboard-opinionated/kit/scripts/xezar-leader.sh",
+  (s) => s.replace(" .local/xezar/qa\n", () => "\n"),
+  facts("I18"),
+  "does not make the subfolders local-tree.sh expects",
+);
+
 // A refused screenshot path goes to the run's own temp folder (#132, FACT I17).
 breaks(
   "a QA skill that no longer says where a refused screenshot goes is rejected",

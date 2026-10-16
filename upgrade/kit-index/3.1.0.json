@@ -971,10 +971,10 @@
       "sha256": "4cf7ca79f74d742a510f1a86febf5559c8595d1c7dfff87b79f653f68b2ef1a6"
     },
     "scripts/xezar-leader.sh": {
-      "kitBlob": "0c09d5eade107a4e9778c059f72414fd40f72a41",
+      "kitBlob": "1051bea23136dd58bb4334f386bd761a0f2d2676",
       "kitSource": "scripts/xezar-leader.sh",
       "rewrite": "copied",
-      "sha256": "be54651e7d25713ac1d78392e345f74265992abfcaeda7a742db11480fbc8afb"
+      "sha256": "0a720342d39e50951bd992da803a3e42e43c1d7dcb4528eca7eda95b0e33494f"
     }
   },
   "tag": "v3.1.0",
