@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// A refused screenshot path goes to the run's own temp folder (#132, FACT I17).
+breaks(
+  "a QA skill that no longer says where a refused screenshot goes is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("copy it into the evidence directory before the step ends", () => "leave it there"),
+  facts("I17"),
+  "does not say where to save a screenshot the browser refuses",
+);
+
 breaks(
   "a QA skill that asks the reviewer to type recordedAt is rejected",
   "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",

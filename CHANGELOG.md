@@ -545,6 +545,14 @@ or denied with no person there. Verification reports which add-on answers pi's a
 the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
 gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
 
+**A pi browser step saves its screenshots (#132).** chrome-devtools writes a file only inside the
+MCP client's roots and the OS temp folder; pi-mcp-adapter announces no roots, and the engine gives
+each run its own temp folder, so on pi every other `filePath` was refused with "not within any of
+the configured workspace roots" and the Windows release QA saved no screenshot (qodeca/xezar#1048).
+The QA, acceptance, UX, UI and design-system roles now save a refused file under the run's
+`$TMPDIR` and copy it into the evidence directory before the step ends, since the engine deletes
+that folder at run end – never through a browser script of their own. FACT I17 pins it.
+
 **A Windows gate run spends a third of the time it did (#132).** On the Windows release PC the
 build's gate step took 124 s against about 10 s on macOS; almost all of it was process starts,
 which cost about 0.1–0.5 s each on Windows. The tree fingerprint hashed every kit file with its own

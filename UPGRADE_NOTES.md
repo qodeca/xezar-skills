@@ -23,6 +23,30 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-16 – a pi QA or design review saves no screenshot files
+
+Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
+a `pi/` lane.
+
+**Symptom – a pi QA, design or acceptance step saves no screenshot**, and every `take_screenshot`
+with a `filePath` fails with "is not within any of the configured workspace roots", even for the
+task's own evidence folder or the system temp folder. chrome-devtools writes a file only inside the
+MCP client's roots and the OS temp folder; pi-mcp-adapter announces no roots, and the engine gives
+each run its own temp folder (`TMPDIR`, deleted when the run ends), so only that folder is allowed
+(qodeca/xezar#1048).
+
+**What to do.** Take the 3.1.0 copies of the five role skills below. Each now says: save a refused
+file under the run's `$TMPDIR` (the expanded absolute path) and copy it into the evidence directory
+before the step ends. Nothing else in them changes.
+
+**What you lose by skipping it.** A pi browser step keeps passing on page snapshots and console
+logs alone, with no screenshot for a person to look at.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-design-system.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ui-design.md; .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-15 – a Windows build spends about two minutes in the gates
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

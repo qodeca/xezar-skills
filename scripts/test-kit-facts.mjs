@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2471,6 +2471,22 @@ if (S.section("I15")) {
     const text = read(where);
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I17 -- a pi browser step can save a screenshot (#132, qodeca/xezar#1048). chrome-devtools
+// writes a file only inside the MCP client's roots plus the OS temp folder; pi-mcp-adapter announces
+// no roots, and the engine gives each run its own temp folder (deleted at run end), so on pi every
+// other filePath is refused and the Windows release QA saved no screenshot at all.
+// ---------------------------------------------------------------------------
+if (S.section("I17")) {
+  const fact = "FACT I17: a browser step whose screenshot path is refused saves it under the run's $TMPDIR and copies it out before the step ends";
+  const RULE = "If a `chrome-devtools` tool refuses a `filePath` as \"not within any of the configured workspace roots\", save the file under this run's own temp folder – the expanded absolute value of `$TMPDIR` – and copy it into the evidence directory before the step ends, because the engine deletes that folder when the run ends; never fall back to a browser script of your own.";
+  for (const role of ["acceptance", "design-system", "qa", "ui-design", "ux-design"]) {
+    const where = `${SKILL}/kit/skills/xezar-${role}.md`;
+    if (!read(where).includes(RULE)) fail(fact, where, "does not say where to save a screenshot the browser refuses, so a pi step saves none");
   }
   checked.push(fact);
 }
