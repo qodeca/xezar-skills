@@ -552,6 +552,12 @@ or denied with no person there. Verification reports which add-on answers pi's a
 the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
 gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
 
+**A Codex browser step looks its tools up before it reports them missing (#199).** In Codex code
+mode the MCP tools are not in the model's direct tool list; they are reachable only through
+`ALL_TOOLS` inside the `exec` tool, so a Codex QA step that read "unavailable only when your own
+tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
+sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
+
 **A fresh clone passes local-tree once the engine has started (#196).** git stores no empty folder,
 and the engine's first start makes `.local/xezar/` itself, so on a second machine `local-tree.sh`
 failed on the six named subfolders only onboarding had made. The leader launcher now makes them,

@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2471,6 +2471,22 @@ if (S.section("I15")) {
     const text = read(where);
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I19 -- a Codex browser step looks its tools up before it reports them missing (#199). In
+// Codex code mode the MCP tools are not in the direct tool list; they are reachable only through
+// `ALL_TOOLS` inside `exec`, so "only when your own tool list lacks it" made a Codex QA step FAIL
+// with "no chrome-devtools tool" without looking. Every role that carries the sentence names the lookup.
+// ---------------------------------------------------------------------------
+if (S.section("I19")) {
+  const fact = "FACT I19: a browser tool is unavailable only when the direct list and, on Codex, ALL_TOOLS inside exec both lack it";
+  const RULE = "name a browser tool as unavailable only when your own tool list lacks it and, on Codex, so does `ALL_TOOLS` inside the `exec` tool – there the browser tools are `mcp__chrome_devtools__*` and are not in the direct list, so look them up before you report them missing.";
+  for (const role of ["acceptance", "architecture", "code-review", "qa", "security-review", "ux-design"]) {
+    const where = `${SKILL}/kit/skills/xezar-${role}.md`;
+    if (!read(where).includes(RULE)) fail(fact, where, "does not tell a Codex step to look its browser tools up in ALL_TOOLS before it reports them missing");
   }
   checked.push(fact);
 }

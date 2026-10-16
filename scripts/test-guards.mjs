@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// A Codex browser step looks its tools up in ALL_TOOLS before it reports them missing (#199, FACT I19).
+breaks(
+  "a QA skill that no longer tells Codex to look its browser tools up is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace(" and, on Codex, so does `ALL_TOOLS` inside the `exec` tool", () => ""),
+  facts("I19"),
+  "does not tell a Codex step to look its browser tools up in ALL_TOOLS",
+);
+
 // A fresh clone gets the local-tree subfolders from the leader launcher (#196, FACT I18).
 breaks(
   "a leader launcher that no longer makes the qa folder is rejected",
