@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// The leader checks the merge-time routing bans before the merge tool (#206, FACT I22).
+breaks(
+  "a leader guide whose merge rule no longer names the merge-time ban is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("Today that is `qwen-write-claude-review`: ", () => ""),
+  facts("I22"),
+  "does not name the merge-time ban qwen-write-claude-review",
+);
+
 // The merge policy refuses a design-only PR that closes its issue (#207, FACT I21).
 breaks(
   "a merge policy that lets a design-only PR close its issue is rejected",

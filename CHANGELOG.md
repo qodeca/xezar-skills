@@ -558,6 +558,12 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**The leader checks the merge-time routing ban before it merges (#206).** A Linux design PR a pi
+lane repaired merged with Codex reviews only, although the ban now named `qwen-write-claude-review`
+asks for a Claude or Astra review: it is the one ban checked at merge, and nothing checked it. A
+commit names no lane, so no script can; the leader's merge rule now has it read the merge-time bans
+and hold them against its own dispatch records, and FACT I22 keeps every such ban named there.
+
 **A design-only PR never closes its issue (#207).** A Linux design PR closed its issue on merge
 from "(the one that closes #5)", while the implementation was still running. The handoff skill now
 says a design-only PR links its issue with "Refs" only; the merge policy

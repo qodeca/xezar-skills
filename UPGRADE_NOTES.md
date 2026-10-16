@@ -73,6 +73,29 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-16 – a PR a DeepSeek lane wrote or repaired merges with no Claude or Astra review
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A PR that a pi lane (a Qwen lane from 3.2.0) wrote or repaired merges after reviews on
+other lanes only, although the routing ban `pi-write-claude-review` (now
+`qwen-write-claude-review`) asks for a review on a Claude lane or on `codex/gpt-6-astra` first.
+The ban is marked `"checkedAt": "merge"`, but `route.mjs` prints only dispatch bans, no merge check
+reads routing, and a commit does not name the lane that made it.
+
+**What to do.** Merge the new sentences of the merge rule into `.xezar/docs/leader-guide.md`:
+before the merge tool, the leader reads every merge-time ban in `.xezar/routing.json` and holds it
+against its own dispatch records, and a merge the ban does not clear is a blocker until that review
+runs.
+
+**What you lose by skipping it.** DeepSeek-written work can merge with no review by a model of
+another vendor that the owner asked for.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/docs/leader-guide.md =merge
+```
+
 ## 2026-10-16 – a design-only PR closes its issue when it merges
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

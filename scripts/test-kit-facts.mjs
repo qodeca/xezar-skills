@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2475,6 +2475,26 @@ if (S.section("I15")) {
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I22 -- the leader checks every merge-time routing ban before the merge tool (#206). The ban
+// `qwen-write-claude-review` (pi-write-claude-review then) is marked checkedAt "merge", but route.mjs
+// prints only dispatch bans, no merge check reads routing, and a commit names no lane: a Linux design
+// PR a pi lane repaired merged with Codex reviews only. Every merge ban in the shipped routing must
+// be named in the leader's merge rule, with the dispatch records it is checked against.
+// ---------------------------------------------------------------------------
+if (S.section("I22")) {
+  const fact = "FACT I22: the leader's merge rule names every merge-time routing ban and checks it against its dispatch records";
+  const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  const text = read(tpl);
+  const merge = routing.globalBans.filter((b) => b.checkedAt === "merge").map((b) => b.id);
+  if (!merge.length) fail(fact, `${SKILL}/kit/routing.json`, "has no merge-time ban, so this fact checks nothing – drop it with the ban");
+  if (!/read every `globalBans` entry with `"checkedAt": "merge"` in `\.xezar\/routing\.json` and hold it against your own dispatch records/.test(text))
+    fail(fact, tpl, "does not tell the leader to check the merge-time routing bans against its dispatch records before the merge tool");
+  for (const id of merge) if (!text.includes(`\`${id}\``)) fail(fact, tpl, `does not name the merge-time ban ${id}`);
   checked.push(fact);
 }
 
