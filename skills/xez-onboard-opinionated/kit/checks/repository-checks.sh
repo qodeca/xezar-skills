@@ -25,10 +25,13 @@ skip() { printf 'repository-checks: skipped %s (%s)\n' "$1" "$2"; }
 # starts a node or a bash, about half a second on Windows; one after another they were most of a
 # Windows gate's last command (#132 speed bar). The verdict is still the one a run in order gives:
 # the first failing check, in the listed order, ends the script with its own exit status, and
-# nothing listed after it runs in the foreground or is printed. The drift check, the config guard
-# and the changelog check run in the foreground, in their place: drift and the guard are the two the
-# gate must be seen to run, and the changelog check reads the base the guard has just fetched. On
-# any exit the script first waits for the background checks, so none of them outlives it.
+# nothing listed after it runs in the foreground or is printed. The drift check and the changelog
+# check run in the foreground, in their place. The config guard starts with the others, because its
+# fetch of the base branch is most of its time and none of them reads a remote-tracking ref (the
+# route check reads the routing file in the working tree); its output and exit status still come
+# at its own place, after drift, and the changelog check, which reads the base the guard fetched,
+# still runs only after the guard has finished. On any exit the script first waits for the
+# background checks, so none of them outlives it.
 CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/repository-checks.XXXXXX")"
 trap 'wait; rm -rf "$CHECK_TMP"' EXIT
 started() {
@@ -54,6 +57,8 @@ started fenced-quotes node "$SCRIPT_DIR/fenced-quotes.mjs" "$REPO_ROOT"
 started documented-output node "$SCRIPT_DIR/documented-output.mjs" "$REPO_ROOT"
 [ ! -f "$REPO_ROOT/scripts/check-links.mjs" ] || started check-links node "$REPO_ROOT/scripts/check-links.mjs"
 [ ! -f "$SCRIPT_DIR/xezar-contract.test.mjs" ] || started xezar-contract node --test "$SCRIPT_DIR/xezar-contract.test.mjs"
+# The ad-hoc browser's MCP entry changes only through a security review, never through this gate.
+started config-guard bash "$SCRIPT_DIR/config-guard.sh" browser --from-base
 
 # The `.local/xezar/` working area keeps its six named subfolders and nothing loose at the top.
 # Like drift below, a failure here does not stop the later checks: a missing per-machine folder
@@ -77,8 +82,8 @@ else
   skip route-check "no .xezar/routing.json in this project"
 fi
 
-# The ad-hoc browser's MCP entry changes only through a security review, never through this gate.
-bash "$SCRIPT_DIR/config-guard.sh" browser --from-base
+# The browser entry guard, started above: its output and exit status, here, in their place.
+finished config-guard
 
 # `--diff-base auto` refuses a direct Unreleased edit (`# Unreleased`, or `## [Unreleased]` in a
 # Keep a Changelog file): inside the gate run it resolves the attempt's own base; run bare it uses

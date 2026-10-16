@@ -879,7 +879,10 @@ if (S.section("23")) {
   }
   if (JSON.stringify(mcpArgs) !== JSON.stringify(codexArgs)) fail(fact, codexRel, `args ${JSON.stringify(codexArgs)} differ from kit/mcp.json ${JSON.stringify(mcpArgs)}`);
   if (!/^\| `kit\/codex\/config\.toml` \| `\.codex\/config\.toml`/m.test(read(`${SKILL}/references/write.md`))) fail(fact, "references/write.md", "does not map kit/codex/config.toml to .codex/config.toml");
-  if (!/^bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(read(`${SKILL}/kit/checks/repository-checks.sh`))) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base, so a changed browser entry passes the gate");
+  // The guard starts with the other background checks and is judged at its own place (#132 speed
+  // bar): both halves must be there, or a changed browser entry passes the gate.
+  const repositoryChecks = read(`${SKILL}/kit/checks/repository-checks.sh`);
+  if (!/^started config-guard bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(repositoryChecks) || !/^finished config-guard$/m.test(repositoryChecks)) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base and judges it, so a changed browser entry passes the gate");
   checked.push(fact);
 }
 
@@ -1956,7 +1959,8 @@ if (S.section("W4")) {
   const docOut = read(`${SKILL}/${docWhere}`);
   if (!docOut.includes("const WINDOWS = process.platform === 'win32' ? await import('./lib/windows-programs.mjs') : null;"))
     fail(fact, docWhere, "no longer loads lib/windows-programs.mjs on Windows, so it has no way to find Git Bash");
-  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !docOut.includes("run(BASH, [path.join(root, row.script)]") || /\brun\(\s*['"]bash['"]/.test(docOut))
+  // The fixture's runs all start without waiting (`runAsync`, #132 speed bar); either runner counts.
+  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !/\brun(?:Async)?\(BASH, \[path\.join\(root, row\.script\)\]/.test(docOut) || /\brun(?:Async)?\(\s*['"]bash['"]/.test(docOut))
     fail(fact, docWhere, "starts a bare bash on Windows, which on a stock machine is WSL's bash; start Git Bash through gitBash()");
   if (!/if \(BASH === null\) \{\n\s+console\.error\(`documented-output: \$\{WINDOWS\.GIT_BASH_MISSING\}`\);\n\s+process\.exit\(1\);/.test(docOut))
     fail(fact, docWhere, "does not stop with the one-line Git Bash message when Git for Windows is missing");

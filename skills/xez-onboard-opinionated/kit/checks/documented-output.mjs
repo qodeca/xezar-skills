@@ -273,11 +273,7 @@ function cleanEnvironment() {
   return env;
 }
 
-function executeFixtureScript(root, row, { cwd = root, env = cleanEnvironment() } = {}) {
-  return run(BASH, [path.join(root, row.script)], { cwd, env });
-}
-
-// The same run, started without waiting, for the cases that run together.
+// One run of the fixture script, started without waiting: every case runs beside the others in its round.
 function startFixtureScript(root, row, { cwd = root, env = cleanEnvironment() } = {}) {
   return runAsync(BASH, [path.join(root, row.script)], { cwd, env });
 }
@@ -290,19 +286,40 @@ function assertSilent(result, name) {
   }
 }
 
-// The cases run in four rounds. Inside a round every run only reads the fixture; a round that
+// The cases run in three rounds. Inside a round every run only reads the fixture; a round that
 // changes it (the nested folder, the linked worktree, the removed guide) waits for the round before.
-// Results are still judged in the original order, so the first failure reported is the same one.
+// The two fixtures outside `root` (the repository-path copy and the folder with no git) are built
+// while the first round runs, since nothing in that round reads them. The linked worktree and the
+// missing guide share the last round: the linked checkout has its own copy of the guide, so
+// removing the one in `root` changes nothing it reads (#132 speed bar: each run is a Git Bash start).
+// Results are still judged in the original order, and a set-up failure is reported where it used to
+// happen, so the first failure reported is the same one.
 async function produceLeaderContextOutput(root, row, scratch) {
   const notLeader = cleanEnvironment();
   delete notLeader.XEZAR_LEADER;
   const guardVariables = ['XEZ_HANDOFF_FILE', 'XEZ_TODOS_FILE', 'XEZ_TASK_ID'];
-  const [primary, ...firstRound] = await Promise.all([
+  const firstRoundRuns = Promise.all([
     startFixtureScript(root, row),
     ...guardVariables.map((variable) =>
       startFixtureScript(root, row, { env: { ...cleanEnvironment(), [variable]: 'fixture-value' } })),
     startFixtureScript(root, row, { env: notLeader }),
   ]);
+  let guardedRoot;
+  let setupError = null;
+  const noGit = path.join(scratch, 'no-git');
+  try {
+    guardedRoot = setupLeaderContextFixture(
+      row,
+      path.join(scratch, 'repo-path/.local/xezar/worktrees'),
+    );
+    mkdirSync(path.join(noGit, '.xezar/checks'), { recursive: true });
+    mkdirSync(path.join(noGit, '.xezar/docs'), { recursive: true });
+    cpSync(path.join(root, row.script), path.join(noGit, row.script));
+    writeFileSync(path.join(noGit, '.xezar/docs/leader-guide.md'), '# Fixture leader guide\n');
+  } catch (error) {
+    setupError = error;
+  }
+  const [primary, ...firstRound] = await firstRoundRuns;
   if (primary.status !== 0) throw new Error(`script exited ${primary.status}: ${primary.stderr.trim()}`);
   if (primary.stderr !== '') throw new Error(`script wrote stderr: ${primary.stderr.trim()}`);
   const outputLines = primary.stdout.trimEnd().split('\n');
@@ -322,15 +339,7 @@ async function produceLeaderContextOutput(root, row, scratch) {
 
   const nested = path.join(root, '.local/xezar/worktrees/fixture-run');
   mkdirSync(nested, { recursive: true });
-  const guardedRoot = setupLeaderContextFixture(
-    row,
-    path.join(scratch, 'repo-path/.local/xezar/worktrees'),
-  );
-  const noGit = path.join(scratch, 'no-git');
-  mkdirSync(path.join(noGit, '.xezar/checks'), { recursive: true });
-  mkdirSync(path.join(noGit, '.xezar/docs'), { recursive: true });
-  cpSync(path.join(root, row.script), path.join(noGit, row.script));
-  writeFileSync(path.join(noGit, '.xezar/docs/leader-guide.md'), '# Fixture leader guide\n');
+  if (setupError) throw setupError;
   const [nestedResult, guardedResult, noGitResult] = await Promise.all([
     startFixtureScript(root, row, { cwd: nested }),
     startFixtureScript(guardedRoot, row),
@@ -346,11 +355,14 @@ async function produceLeaderContextOutput(root, row, scratch) {
   if (linkedResult.status !== 0) {
     throw new FixtureSetupError(`linked worktree setup failed: ${linkedResult.stderr.trim() || 'unknown error'}`);
   }
-  assertSilent(executeFixtureScript(linked, row), 'linked-worktree git guard');
-  assertSilent(noGitResult, 'non-git guard');
-
   rmSync(path.join(root, '.xezar/docs/leader-guide.md'));
-  assertSilent(executeFixtureScript(root, row), 'missing-guide guard');
+  const [linkedRun, missingGuideRun] = await Promise.all([
+    startFixtureScript(linked, row),
+    startFixtureScript(root, row),
+  ]);
+  assertSilent(linkedRun, 'linked-worktree git guard');
+  assertSilent(noGitResult, 'non-git guard');
+  assertSilent(missingGuideRun, 'missing-guide guard');
   return output;
 }
 

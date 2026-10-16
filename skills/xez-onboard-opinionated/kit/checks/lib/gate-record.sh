@@ -256,6 +256,37 @@ _gate_slug() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//'
 }
 
+# _gate_slug_into VAR NAME: sets VAR to `_gate_slug NAME` without starting a process when NAME is
+# printable ASCII only (every gate name a project writes): the same lower case, each run of other
+# characters one `-`, one `-` off each end. Anything else – a tab, a newline, a non-ASCII letter,
+# where tr, sed and the locale decide – takes `_gate_slug` itself. Three processes a call, six
+# calls a gate run, about 0.1 s each on Windows (#132 speed bar). The character sets are spelled
+# out, never ranges: a range in a pattern follows the locale's collation.
+_gate_slug_into() {
+  local _gsi_name="$2" _gsi_out="" _gsi_c _gsi_i _gsi_dash=0
+  local _gsi_upper=ABCDEFGHIJKLMNOPQRSTUVWXYZ _gsi_lower=abcdefghijklmnopqrstuvwxyz _gsi_before _gsi_code
+  for ((_gsi_i = 0; _gsi_i < ${#_gsi_name}; _gsi_i++)); do
+    _gsi_c="${_gsi_name:_gsi_i:1}"
+    case "$_gsi_c" in
+      [abcdefghijklmnopqrstuvwxyz0123456789]) _gsi_out+="$_gsi_c"; _gsi_dash=0 ;;
+      [ABCDEFGHIJKLMNOPQRSTUVWXYZ])
+        _gsi_before="${_gsi_upper%%"$_gsi_c"*}"
+        _gsi_out+="${_gsi_lower:${#_gsi_before}:1}"; _gsi_dash=0 ;;
+      *)
+        # Any other printable ASCII character (codes 32 to 126) joins a run of `-`.
+        printf -v _gsi_code '%d' "'$_gsi_c"
+        if [ "$_gsi_code" -lt 32 ] || [ "$_gsi_code" -gt 126 ]; then
+          printf -v "$1" '%s' "$(_gate_slug "$_gsi_name")"
+          return
+        fi
+        [ "$_gsi_dash" -eq 1 ] || _gsi_out+="-"
+        _gsi_dash=1 ;;
+    esac
+  done
+  _gsi_out="${_gsi_out#-}"
+  printf -v "$1" '%s' "${_gsi_out%-}"
+}
+
 # Workers publish only their unique result. The parent is the sole aggregate writer.
 _gate_record_result() {
   if [ -n "${GATE_WORKER_RESULT:-}" ]; then
@@ -268,8 +299,9 @@ _gate_record_result() {
 # Reduce only after the scheduler has joined. Missing/malformed results are orchestration
 # failure: the caller must leave the attempt incomplete, not merely return a failed shell code.
 gate_collect_worker() {
-  local index="$1" name="$2" command="$3" entry expected_log
-  expected_log="$(printf '%02d-%s.log' "$index" "$(_gate_slug "$name")")"
+  local index="$1" name="$2" command="$3" entry expected_log slug
+  _gate_slug_into slug "$name"
+  printf -v expected_log '%02d-%s.log' "$index" "$slug"
   entry="$(node -e '
     const fs = require("node:fs");
     const [file, name, command, log, header] = process.argv.slice(1);
@@ -283,8 +315,13 @@ gate_collect_worker() {
         !Number.isFinite(Date.parse(e.endedAt)) || Date.parse(e.endedAt) < Date.parse(e.startedAt)) {
       throw Error("worker result identity/status/timing mismatch");
     }
-    process.stdout.write(JSON.stringify(e));
+    process.stdout.write(`${e.status}\n${JSON.stringify(e)}`);
   ' "$GATE_ATTEMPT_DIR/workers/$index.json" "$name" "bash -c $command" "$expected_log" "#xezar-gate-log $GATE_ATTEMPT_ID $name")" || return 1
+  # The validated status comes first, on its own line (JSON.stringify never writes a raw newline),
+  # and stays in GATE_WORKER_STATUS for repo-gates.sh: the stage checks after the install and the
+  # security gate read it there instead of starting node to read the same file again (#132).
+  GATE_WORKER_STATUS[index]="${entry%%$'\n'*}"
+  entry="${entry#*$'\n'}"
   # Render from validated durable evidence, not interleaved worker stdout. A broken
   # output sink is orchestration failure even when the underlying command passed.
   printf '\n=== %s ===\n%s\n--- log: %s/%s\n' "$name" "$entry" "$GATE_LOG_DIR" "$expected_log" || return 1
@@ -300,7 +337,7 @@ gate_run() {
   local slug log log_path header started ended status ran rc
 
   GATE_INDEX=$((GATE_INDEX + 1))
-  slug="$(_gate_slug "$name")"
+  _gate_slug_into slug "$name"
   log="$(printf '%02d-%s.log' "$GATE_INDEX" "$slug")"
   log_path="$GATE_LOG_DIR/$log"
   header="#xezar-gate-log $GATE_ATTEMPT_ID $name"
