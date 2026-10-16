@@ -39,8 +39,11 @@ Fix: change each value to qwen, claude or codex, or remove it. Then start xezar 
 xezar changed nothing. The xezar guide page "Moving from pi or OpenCode to Qwen Code" shows each step.
 ```
 
-The engine reads the workflows, its config and its task records at start; it does not read
-`.xezar/routing.json`, so a routed pi lane is refused when a task is created instead.
+The engine reads the workflows, its config and its task records at start, so this refusal appears
+only when one of them names pi or OpenCode – a workflow step with `runner: pi`, a saved default
+agent, an old task record. No kit version shipped a `runner:` line, and the engine does not read
+`.xezar/routing.json`: in a stock kit project the engine starts, and each task routed to a `pi/` or
+`opencode/` lane is refused when it is created.
 
 **What to do.** Follow the xezar guide page "Moving from pi or OpenCode to Qwen Code" for the
 engine's own settings and task records – there is no converter. Then, in the project, copy
@@ -64,8 +67,10 @@ gets no lane for it, and the work falls back in row order. Flash is text only th
 it leaves the screen rows and `localisation`; V4 Pro now reviews read-only, so no shipped lane
 needs `fullShellReviews`.
 
-**What you lose by skipping it.** Nothing starts: engine 0.30.0 refuses the project, and an older
-engine does not run kit 3.2.0.
+**What you lose by skipping it.** On engine 0.30.0 every task routed to a `pi/` or `opencode/` lane
+is refused when it is created – in the shipped defaults that is most simple and mid-size work and
+the last reviewer of every review row – and the engine does not start at all while a workflow, its
+config or a task record names pi or OpenCode. An older engine does not run kit 3.2.0.
 
 ```upgrade
 Applies-to: <3.2.0
