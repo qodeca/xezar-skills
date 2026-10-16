@@ -62,10 +62,10 @@
       "sha256": "e72b5b8b0f4e5cab7c3863ab0fa4bf129e2da80e69c7a5da3613c15a1e4aa3a6"
     },
     ".xezar/checks/catalog-check.mjs": {
-      "kitBlob": "7b166563303037312651123396e0bc33d4a0a8e3",
+      "kitBlob": "9358a35c3c0c1824ff1717822b5d652bb74615ad",
       "kitSource": "checks/catalog-check.mjs",
       "rewrite": "copied",
-      "sha256": "70b2045c80b62ca31067ee9508bc0625577693b6ada43d4739152b66195791ee"
+      "sha256": "f807da4d9dff45c5bb1c320aa8a8b177d806d87ae3b4c00d27cc18b7c0f8e395"
     },
     ".xezar/checks/changelog-check.sh": {
       "kitBlob": "3443fc337faa6b8232c518751b68029ef434dd67",

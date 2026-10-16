@@ -1337,6 +1337,12 @@ if (S.section("D-refusals")) {
       'step "handoff": an agent step has no timeout', "a handoff step with no timeout");
     refusal("code-review.yaml", (t) => t.replace("    timeout: 2h\n", "    timeout: none\n"),
       'timeout "none" is not a positive duration', "an agent step with timeout: none");
+    // #211: a step that names a runner the engine floor no longer runs stops the engine at start.
+    for (const runner of ["pi", "opencode"])
+      refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", `    skill: xezar-handoff-draft-pr\n    runner: ${runner}\n    timeout: 15m\n`),
+        `step "handoff": names runner "${runner}", which the engine no longer runs`, `a step with runner: ${runner}`);
+    refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n    runner: qwen\n    timeout: 15m\n"),
+      "(it passed)", "a step with runner: qwen (it must pass)");
     refusal("design.yaml", (t) => t.replace("mcp__chrome-devtools__get_css_styles", "mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__evaluate_script"),
       "grants mcp__chrome-devtools__evaluate_script, which only the review and QA workflows may hold", "evaluate_script in the design workflow");
     for (const name of ["qa.yaml", "code-review.yaml", "security-review.yaml"]) {

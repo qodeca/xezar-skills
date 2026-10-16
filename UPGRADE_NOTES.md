@@ -61,7 +61,9 @@ same model, and your own edits stay:
 
 A lane of your own on `pi/` or `opencode/` moves to `qwen`, `claude` or `codex`, or goes; a row you
 reordered by hand that the new defaults also reorder is a routing clash – stop and ask the owner.
-Delete `.xezar/pi/`: the kit no longer ships the pi approval add-on. On each machine that runs
+Copy `.xezar/checks/catalog-check.mjs`: it now refuses a workflow step whose `runner:` is not
+`claude`, `codex` or `qwen`, so a `runner: pi` line a merge kept fails the gate instead of the
+engine start. Delete `.xezar/pi/`: the kit no longer ships the pi approval add-on. On each machine that runs
 DeepSeek steps, install Qwen Code and add the models to its settings; a machine without a model
 gets no lane for it, and the work falls back in row order. Flash is text only through Qwen Code, so
 it leaves the screen rows and `localisation`; V4 Pro now reviews read-only, so no shipped lane
@@ -74,7 +76,7 @@ config or a task record names pi or OpenCode. An older engine does not run kit 3
 
 ```upgrade
 Applies-to: <3.2.0
-Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge; .xezar/pi/extensions/mcp-approval-queue.ts =delete
+Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge; .xezar/checks/catalog-check.mjs; .xezar/pi/extensions/mcp-approval-queue.ts =delete
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 

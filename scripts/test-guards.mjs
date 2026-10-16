@@ -1782,6 +1782,15 @@ breaks(
   "catalog-check accepts a handoff step with no timeout",
 );
 
+// #211: catalog-check refuses a workflow step whose runner the engine no longer runs.
+breaks(
+  "a catalog check that accepts runner: pi is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const ENGINE_RUNNERS = new Set(["claude", "codex", "qwen"]);', () => 'const ENGINE_RUNNERS = new Set(["claude", "codex", "qwen", "pi", "opencode"]);'),
+  catalog("D-refusals"),
+  "catalog-check accepts a step with runner: pi",
+);
+
 breaks(
   "a kit handoff step without a timeout is rejected",
   "skills/xez-onboard-opinionated/kit/workflows/bug-fix.yaml",

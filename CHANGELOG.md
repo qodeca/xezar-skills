@@ -582,8 +582,8 @@ OpenCode. The shipped routing is defaults version 5: `qwen/deepseek-flash`, `qwe
 `qwen/deepseek-v4-flash-vision` and `qwen/qwen38-flash-next-mlx-mixed-4-8bit` take the pi lanes'
 places, and `route.mjs` and the schema accept only `claude`, `codex` and `qwen`. Qwen Code holds a
 reading step read-only, so V4 Pro now reviews read-only and no shipped lane needs
-`fullShellReviews`; Flash is text only there, so it left the screen rows and `localisation`. The
-pi approval add-on and the pi leader client template are gone; `xez-onboard` offers a Qwen Code
+`fullShellReviews`; Flash is text only there, so it left the screen rows and `localisation`. `catalog-check.mjs` refuses a workflow step whose `runner:` is pi or OpenCode
+(#211). The pi approval add-on and the pi leader client template are gone; `xez-onboard` offers a Qwen Code
 template instead. The upgrade note is keyed by the engine's refusal and points at the xezar guide
 page "Moving from pi or OpenCode to Qwen Code". Versions 1–4 of the defaults stay unchanged for the
 upgrade comparison.
