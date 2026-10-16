@@ -922,7 +922,10 @@ exec "${join(bin, "npm")}" "$@"
     write(join(r, "package-lock.json"), '{"lockfileVersion":3}\n');
     expect("gates write: a clean full run after it is fresh", gates(r).code === 0 && freshIn(r) === 0);
 
-    const reinstalled = gates(r, ["--fast"], { GATE_REINSTALL: "1" });
+    // One lane (GATE_APPLICATION_LANES empty): the stub npm test deletes node_modules, and in the
+    // kit default lanes the gates beside it write into node_modules at the same time – on Windows
+    // their mkdir then fails with "File exists" and the run is recorded failed (#132 CI flake).
+    const reinstalled = gates(r, ["--fast"], { GATE_REINSTALL: "1", GATE_APPLICATION_LANES: "" });
     expect("gates write: a tree a gate replaced is never re-stamped", reinstalled.code === 0 && reinstalled.out.includes("NOT refreshed (node_modules was replaced or its stamp rewritten during the gates)"), reinstalled.out);
     expect("gates write: and the next run installs (tree replaced)", freshIn(r) !== 0);
 
