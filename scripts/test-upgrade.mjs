@@ -1741,8 +1741,9 @@ if (S.section("12c")) {
 // ---------------------------------------------------------------------------------------
 // 13. Steps the tool never performs still reach the owner (3.1.0 review 4)
 // ---------------------------------------------------------------------------------------
-// 13a. 3.1.0 entries 4 and 11 name their per-machine steps as actions, so a 3.0.3 project's
-// owner checklist carries them.
+// 13a. 3.1.0 entries 4 and 11 and the 3.2.0 Qwen Code entry name their per-machine steps as
+// actions, so a 3.0.3 project's owner checklist carries them. The pi add-on no longer ships
+// (#204): the plan deletes it instead of asking the owner to install it.
 if (S.section("13a")) {
   const plan = buildPlan(ctxFor(materialize(fx303, { name: "per-machine-310" })));
   for (const a of [
@@ -1750,10 +1751,14 @@ if (S.section("13a")) {
     "per-machine=remove-mcp-permission:mcp__chrome-devtools",
     "per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro",
     "per-machine=trust-codex-project:<absolute-project-path>",
-    "per-machine=install-pi-extension:.xezar/pi/extensions/mcp-approval-queue.ts",
+    "per-machine=add-runner-model:qwen/deepseek-flash",
+    "per-machine=add-runner-model:qwen/deepseek-v4-pro",
+    "engine-min=0.30.0",
   ]) {
     expect(plan.actions.includes(a), `per-machine: a 3.0.3 project's plan does not carry ${a} (${plan.actions.join(", ")})`);
   }
+  expect(!plan.actions.some((a) => a.startsWith("per-machine=install-pi-extension:")), `per-machine: a 3.0.3 project's plan still asks the owner to install the pi add-on the kit no longer ships (${plan.actions.join(", ")})`);
+  expect(plan.files.find((f) => f.path === ".xezar/pi/extensions/mcp-approval-queue.ts")?.action !== "write", "per-machine: a 3.0.3 project's plan writes the pi add-on the kit no longer ships");
   const ok = parseBlocks("```upgrade\nApplies-to: *\nActions: per-machine=add-runner-model:pi/x/y\n```\n", "t");
   expect(!ok.errors.length, `machine block: per-machine=add-runner-model is refused: ${ok.errors}`);
   const pi = parseBlocks("```upgrade\nApplies-to: *\nActions: per-machine=install-pi-extension:.xezar/pi/extensions/x.ts\n```\n", "t");

@@ -558,6 +558,18 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**The DeepSeek lanes run on Qwen Code, and the kit needs engine 0.30.0 (#204).** Engine 0.30.0
+runs Claude Code, Codex and Qwen Code only, and refuses to start while a setting still names pi or
+OpenCode. The shipped routing is defaults version 5: `qwen/deepseek-flash`, `qwen/deepseek-v4-pro`,
+`qwen/deepseek-v4-flash-vision` and `qwen/qwen38-flash-next-mlx-mixed-4-8bit` take the pi lanes'
+places, and `route.mjs` and the schema accept only `claude`, `codex` and `qwen`. Qwen Code holds a
+reading step read-only, so V4 Pro now reviews read-only and no shipped lane needs
+`fullShellReviews`; Flash is text only there, so it left the screen rows and `localisation`. The
+pi approval add-on and the pi leader client template are gone; `xez-onboard` offers a Qwen Code
+template instead. The upgrade note is keyed by the engine's refusal and points at the xezar guide
+page "Moving from pi or OpenCode to Qwen Code". Versions 1–4 of the defaults stay unchanged for the
+upgrade comparison.
+
 **Onboarding carries on with one login, as its docs say (#132).** A fresh agent set Xezar up on
 Windows from the docs alone and was stopped by the preflight row check ("no lane in this row's order
 is usable now") although the bootstrap prompt and the preflight's own one-login warning both say to

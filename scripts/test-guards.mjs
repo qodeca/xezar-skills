@@ -1457,13 +1457,13 @@ breaks(
   "does not check that Codex trusts the project",
 );
 
-// The kit's pi add-on allows only the browser tools .codex/config.toml lists (#185, FACT I16).
+// The kit ships nothing for pi, and the upgrade deletes the old add-on copy (#204, FACT I16).
 breaks(
-  "a pi add-on that allows any chrome-devtools tool without asking is rejected",
-  "skills/xez-onboard-opinionated/kit/pi/extensions/mcp-approval-queue.ts",
-  (s) => s.replace("return allowlist.includes(tool) && SHIPPED_BROWSER_TOOLS.includes(tool) ? \"allow_once\" : undefined;", () => "return \"allow_once\";"),
+  "an onboarding write step that copies a pi file into the project again is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => `${s}\n| \`kit/pi/extensions/mcp-approval-queue.ts\` | \`.xezar/pi/extensions/mcp-approval-queue.ts\` |\n`,
   facts("I16"),
-  "allows chrome-devtools/evaluate_script without asking",
+  "still copies a pi file into the project",
 );
 
 // With no campaign open, the leader's records have one place (#181, FACT I13).

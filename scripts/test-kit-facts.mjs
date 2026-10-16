@@ -2531,80 +2531,30 @@ if (S.section("I17")) {
 }
 
 // ---------------------------------------------------------------------------
-// FACT I16 -- a pi step can use the project's browser tools unattended (#185). pi-mcp-adapter hands
-// every MCP call to the first add-on that claims its approval event, and the owner's add-on (loaded
-// before any project one) denied every call with no person there, so a pi QA had no browser. The kit
-// ships that add-on with one rule added: a chrome-devtools tool the project's .codex/config.toml
-// lists is allowed without asking; every other call keeps the old rules. RUN, not only read: the
-// decision functions are imported from the kit file and fed the kit's own Codex config.
+// FACT I16 -- the kit ships nothing for pi (#204, replacing #185's pi add-on check). From engine
+// 0.30.0 the engine runs no pi, so the approval add-on, its onboarding check and its owner step
+// went with it; a project upgraded from an earlier kit has the copy deleted, and nothing asks the
+// owner to install it again.
 // ---------------------------------------------------------------------------
 if (S.section("I16")) {
-  const fact = "FACT I16: the kit's pi add-on allows only the browser tools .codex/config.toml lists, and asks or denies the rest";
-  const addon = `${SKILL}/kit/pi/extensions/mcp-approval-queue.ts`;
-  const src = read(addon);
-  if (!src.includes('if (!ask) return "deny";') || !src.includes('const OPTIONS = ["Deny", "Allow once"];'))
-    fail(fact, addon, "no longer denies with no person there, or no longer offers Deny first – the owner's rules it was imported with");
-  const m = await import(pathToFileURL(join(root, addon)).href);
-  const allow = m.browserAllowlist(read(`${SKILL}/kit/codex/config.toml`));
-  const ask = (server, tool) => m.allowedWithoutAsking({ serverName: server, originalToolName: tool }, allow);
-  if (!Array.isArray(allow) || !allow.includes("new_page") || !allow.includes("emulate"))
-    fail(fact, addon, `does not read the chrome-devtools enabled_tools of the kit's .codex/config.toml (${JSON.stringify(allow)})`);
-  if (ask("chrome-devtools", "new_page") !== "allow_once")
-    fail(fact, addon, "does not allow a listed chrome-devtools tool without asking, so a pi step has no browser unattended");
-  for (const [server, tool] of [["chrome-devtools", "evaluate_script"], ["chrome-devtools", "upload_file"], ["searxng", "new_page"]])
-    if (ask(server, tool) !== undefined) fail(fact, addon, `allows ${server}/${tool} without asking, which .codex/config.toml does not list`);
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "new_page" }, undefined) !== undefined)
-    fail(fact, addon, "allows a browser tool with no project allowlist");
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "new_page", signal: AbortSignal.abort() }, allow) !== undefined)
-    fail(fact, addon, "allows a cancelled request");
-  if (!/allowlist = projectAllowlist\(ctx\.cwd\);/.test(src))
-    fail(fact, addon, "does not read the allowlist once at session start, so a step that edits .codex/config.toml mid-run widens it");
-  // The ceiling: only the kit's shipped tool names, whatever a config file lists.
-  if (JSON.stringify([...m.SHIPPED_BROWSER_TOOLS].sort()) !== JSON.stringify([...(allow ?? [])].sort()))
-    fail(fact, addon, "SHIPPED_BROWSER_TOOLS is not the chrome-devtools list the kit's .codex/config.toml ships");
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, ["evaluate_script", "new_page"]) !== undefined)
-    fail(fact, addon, "allows evaluate_script without asking when a config lists it – the shipped-tools ceiling is gone");
-  // The source: the main checkout, never the worktree a review runs in (the PR head's own config).
-  const { execFileSync } = await import("node:child_process");
-  const lab = mkdtempSync(join(tempRoot(), "kit-pi-approval-"));
-  try {
-    const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    const toml = (tools) => `[mcp_servers.chrome-devtools]\nenabled_tools = [${tools.map((t) => `"${t}"`).join(", ")}]\n`;
-    const main = join(lab, "main");
-    mkdirSync(join(main, ".xezar"), { recursive: true });
-    mkdirSync(join(main, ".codex"), { recursive: true });
-    g(lab, "init", "-q", "main");
-    writeFileSync(join(main, ".xezar", "routing.json"), "{}\n");
-    writeFileSync(join(main, ".codex", "config.toml"), toml(["new_page", "evaluate_script"]));
-    g(main, "add", "-A");
-    g(main, "commit", "-q", "-m", "base");
-    const wt = join(lab, "wt");
-    g(main, "worktree", "add", "-q", "-b", "pr", wt);
-    writeFileSync(join(wt, ".codex", "config.toml"), toml(["new_page", "upload_file", "list_pages"]));
-    const fromWt = m.projectAllowlist(wt);
-    if (JSON.stringify(fromWt) !== JSON.stringify(["new_page"]))
-      fail(fact, addon, `reads the allowlist from the session's worktree, or skips the ceiling: a worktree under review got ${JSON.stringify(fromWt)}, not the main checkout's ["new_page"]`);
-    if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, fromWt) !== undefined)
-      fail(fact, addon, "allows evaluate_script without asking because the main checkout lists it");
-    const notGit = join(lab, "plain");
-    mkdirSync(join(notGit, ".xezar"), { recursive: true });
-    writeFileSync(join(notGit, ".xezar", "routing.json"), "{}\n");
-    if (m.projectAllowlist(notGit) !== undefined)
-      fail(fact, addon, "allows browser tools in a folder that is no git checkout");
-  } catch (error) {
-    fail(fact, addon, `the worktree check did not run: ${error?.message ?? error}`);
-  } finally {
-    rmSync(lab, { recursive: true, force: true });
-  }
-  if (!read(`${SKILL}/references/write.md`).includes("| `kit/pi/extensions/mcp-approval-queue.ts` | `.xezar/pi/extensions/mcp-approval-queue.ts`"))
-    fail(fact, `${SKILL}/references/write.md`, "does not copy the pi add-on into the project");
+  const fact = "FACT I16: the kit ships no pi add-on, onboarding never checks one, and an upgrade deletes the old copy";
+  const { existsSync } = await import("node:fs");
+  if (existsSync(join(root, SKILL, "kit/pi")))
+    fail(fact, `${SKILL}/kit/pi`, "still ships pi files, which no engine from 0.30.0 loads");
+  if (/kit\/pi\/|\.xezar\/pi\//.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, `${SKILL}/references/write.md`, "still copies a pi file into the project");
   const verify = read(`${SKILL}/references/verify.md`).replace(/\s*\n\s*/g, " ");
-  if (!verify.includes("**pi approval add-on, when a routing row names a `pi/` lane.** Read only") || !verify.includes("· pi approval add-on, when a row names a `pi/` lane ·"))
-    fail(fact, `${SKILL}/references/verify.md`, "does not check which add-on answers pi's MCP approvals");
-  if (!read(`${SKILL}/references/report-templates.md`).includes("<when the pi approval add-on check is ❌:>"))
-    fail(fact, `${SKILL}/references/report-templates.md`, "\"Setup complete\" does not tell the owner to replace the pi add-on when the check is ❌");
-  if (!/```upgrade\r?\nApplies-to: <3\.1\.0\r?\nFiles: \.xezar\/pi\/extensions\/mcp-approval-queue\.ts\r?\nActions: per-machine=install-pi-extension:\.xezar\/pi\/extensions\/mcp-approval-queue\.ts\r?\n```/.test(read("UPGRADE_NOTES.md")))
-    fail(fact, "UPGRADE_NOTES.md", "has no 3.1.0 block that copies the pi add-on and lists per-machine=install-pi-extension for the owner");
+  if (/pi approval add-on/.test(verify))
+    fail(fact, `${SKILL}/references/verify.md`, "still checks which add-on answers pi's MCP approvals");
+  if (/pi approval add-on/.test(read(`${SKILL}/references/report-templates.md`)))
+    fail(fact, `${SKILL}/references/report-templates.md`, "\"Setup complete\" still tells the owner to replace a pi add-on");
+  if (existsSync(join(root, "skills/xez-onboard/templates/pi-mcp.json")))
+    fail(fact, "skills/xez-onboard/templates/pi-mcp.json", "still ships a pi leader client template");
+  const notes = read("UPGRADE_NOTES.md");
+  if (!/```upgrade\r?\nApplies-to: <3\.2\.0\r?\nFiles: [^\n]*\.xezar\/pi\/extensions\/mcp-approval-queue\.ts =delete[^\n]*\r?\nActions: [^\n]*engine-min=0\.30\.0/.test(notes))
+    fail(fact, "UPGRADE_NOTES.md", "has no 3.2.0 block that deletes the old pi add-on copy and asks for engine 0.30.0");
+  if (/Actions: [^\n]*per-machine=install-pi-extension:/.test(notes))
+    fail(fact, "UPGRADE_NOTES.md", "still asks the owner to install the pi add-on the kit no longer ships");
   checked.push(fact);
 }
 

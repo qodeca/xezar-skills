@@ -147,7 +147,7 @@ Two rules that are not negotiable and are stated on the screen:
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
-**OpenCode logins are not offered as task logins, and no `opencode/<model>` lane is offered
+**OpenCode logins are not offered as task logins, and no OpenCode lane is offered
 either.** The setup switches that provider off for this project (`references/verify.md` §3 has the
 four reasons and the one call that undoes it), so every dispatch on it would be refused. Say so on the screen in one line when the
 registry holds such an account, rather than leaving the owner to wonder where it went.

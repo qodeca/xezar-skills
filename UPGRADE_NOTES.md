@@ -23,6 +23,56 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-16 – xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode)
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before kit 3.2.0. From kit 3.2.0
+the kit needs engine 0.30.0 or later (`compat.json`), and that engine runs Claude Code, Codex and
+Qwen Code only.
+
+**Symptom – `xezar` refuses to start** with this message, and lists each file and field it found:
+
+```text
+xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode).
+Found <N> values in <M> files:
+  <file>: <field> = "pi", in the item with id "<id>"
+Fix: change each value to qwen, claude or codex, or remove it. Then start xezar again.
+xezar changed nothing. The xezar guide page "Moving from pi or OpenCode to Qwen Code" shows each step.
+```
+
+The engine reads the workflows, its config and its task records at start; it does not read
+`.xezar/routing.json`, so a routed pi lane is refused when a task is created instead.
+
+**What to do.** Follow the xezar guide page "Moving from pi or OpenCode to Qwen Code" for the
+engine's own settings and task records – there is no converter. Then, in the project, copy
+`.xezar/checks/route.mjs` **first**: an older one refuses the `qwen` runner and so the whole new
+routing file. Copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`, and merge
+`.xezar/routing.json` with the defaults version 5. Each pi lane becomes the Qwen Code lane of the
+same model, and your own edits stay:
+
+| Was | Is |
+|---|---|
+| `pi/deepseek-api/deepseek-flash` | `qwen/deepseek-flash` |
+| `pi/deepseek-api/deepseek-v4-pro` | `qwen/deepseek-v4-pro` |
+| `pi/dgx-spark/deepseek-v4-flash-vision` | `qwen/deepseek-v4-flash-vision` |
+| `pi/mac-m4/qwen38-flash-next-mlx-mixed-4-8bit` | `qwen/qwen38-flash-next-mlx-mixed-4-8bit` |
+
+A lane of your own on `pi/` or `opencode/` moves to `qwen`, `claude` or `codex`, or goes; a row you
+reordered by hand that the new defaults also reorder is a routing clash – stop and ask the owner.
+Delete `.xezar/pi/`: the kit no longer ships the pi approval add-on. On each machine that runs
+DeepSeek steps, install Qwen Code and add the models to its settings; a machine without a model
+gets no lane for it, and the work falls back in row order. Flash is text only through Qwen Code, so
+it leaves the screen rows and `localisation`; V4 Pro now reviews read-only, so no shipped lane
+needs `fullShellReviews`.
+
+**What you lose by skipping it.** Nothing starts: engine 0.30.0 refuses the project, and an older
+engine does not run kit 3.2.0.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge; .xezar/pi/extensions/mcp-approval-queue.ts =delete
+Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
+```
+
 ## 2026-10-16 – a Codex QA or design review FAILs with no chrome-devtools tool although the tools are there
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
@@ -148,37 +198,6 @@ has it, a pi QA or design review of a UI change FAILs and the leader routes it t
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
-```
-
-## 2026-10-15 – a pi QA or design review cannot use chrome-devtools: every call says the user declined approval
-
-Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
-a `pi/` lane, on a machine where a pi add-on answers MCP approvals.
-
-**Symptom – a pi QA or design review gets "The user declined approval to run MCP tool …" on every
-chrome-devtools call**, then FAILs with no browser evidence, although nobody declined anything.
-pi-mcp-adapter hands every MCP tool call to the first add-on that claims its
-`pi-mcp-adapter:tool-approval-request` event – even for a server whose `approveTools` is off – and
-an add-on that asks a person denies when no person can answer, as in a xezar step. pi loads the
-owner's add-ons before a project's, so a project cannot fix this on its own.
-
-**What to do.** On every machine that runs pi steps, list the files in the `extensions/` folder
-of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`) that name that event. Replace
-the one you find with `.xezar/pi/extensions/mcp-approval-queue.ts`, which the upgrade copies into
-the project. It keeps one-at-a-time prompts with Deny first and denies with no person there, and
-allows without asking only a chrome-devtools tool that the main checkout's `.codex/config.toml`
-lists in `enabled_tools` (never the copy in a pull request's worktree under review) and that the
-kit itself ships – so never evaluate_script or an upload, whatever a file says.
-With no such add-on, change nothing. The add-on is the owner's: the upgrade never writes pi's
-agent dir.
-
-**What you lose by skipping it.** On that machine no pi step can use the browser, so every UI
-change pays for a failed pi review before another lane passes it.
-
-```upgrade
-Applies-to: <3.1.0
-Files: .xezar/pi/extensions/mcp-approval-queue.ts
-Actions: per-machine=install-pi-extension:.xezar/pi/extensions/mcp-approval-queue.ts
 ```
 
 ## 2026-10-15 – Codex does not trust the project, so a Codex step has no chrome-devtools server

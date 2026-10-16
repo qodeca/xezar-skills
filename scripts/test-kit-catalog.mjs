@@ -134,7 +134,7 @@ try {
 } // section 1
 
 // --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
-// The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
+// The engine's shared read-only lock (Codex, Qwen Code) allows a pipe only into an argument-free
 // `bash <script>`, so a reader writes by piping ONE JSON request into the bare script. Two halves:
 // every pipe the kit's docs teach has nothing after the script's name, and the JSON form works.
 if (S.section("1b")) {

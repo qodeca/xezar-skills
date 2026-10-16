@@ -70,7 +70,6 @@ From this skill's `kit/` into the project:
 | `kit/routing.json` | `.xezar/routing.json`, then edited in place by interview screens 3 to 5 (`routing-interview.md`) |
 | `kit/mcp.json` | `.mcp.json` — merged into an existing file, never over it |
 | `kit/codex/config.toml` | `.codex/config.toml` — its `[mcp_servers.chrome-devtools]` table merged into an existing file, never over it |
-| `kit/pi/extensions/mcp-approval-queue.ts` | `.xezar/pi/extensions/mcp-approval-queue.ts` — a copy for the owner to install; pi never loads it from here (`references/verify.md`) |
 | `kit/claude/settings.local.json` | `.claude/settings.local.json` (gitignored) |
 | `kit/scripts/xezar-leader.sh` | `scripts/xezar-leader.sh`, made executable (§6) |
 | `kit/scripts/xezar-leader-settings.json` | `scripts/xezar-leader-settings.json` — the leader's merge permission, loaded only by the launcher |

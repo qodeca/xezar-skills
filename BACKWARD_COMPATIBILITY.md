@@ -144,6 +144,14 @@ The named browser operations (**ensure-installed**, **doctor**, **open**, **snap
   - Shipped routing defaults are now version 4 (`references/routing-defaults/4.json`). Version 4
     gains the lane `pi/deepseek-api/deepseek-v4-pro` and relaxes the rule text of `tool-limits`,
     `pi-write-claude-review` and `high-risk-other-vendor`. The ban ids are unchanged.
+
+  Changed in 3.2.0, breaking (engine 0.30.0 runs no pi or OpenCode, #204):
+  - The runner IDs are `claude`, `codex` and `qwen`. `route.mjs --check` and the schema refuse a
+    `pi/` or `opencode/` lane and a `pi` or `opencode` tool; `qwen` holds a reading step read-only,
+    so a `qwen` lane may claim `enforcesToolLimits`.
+  - Shipped routing defaults are version 5 (`references/routing-defaults/5.json`): each pi lane
+    becomes the `qwen/` lane of the same model, and the ban `pi-write-claude-review` is renamed
+    `qwen-write-claude-review`. Versions 1–4 stay as they were for the upgrade comparison.
 - **Discovery output lines from `xez-discover`** (`Product brief:`, `Coverage:`, `Collection plan:`, `Next:`) – line-anchored like the chaining lines; `product-brief.md` is read by `xez-brainstorm`, `xez-spec-writing` and `xez-prepare-issue` when present.
 - **The onboarding manifest and the local-patch register** (`.xezar/onboarding.json` version 2 and
   `.xezar/LOCAL-PATCHES.md`, both specified in `upgrade/CONTRACT.md` §1–§2) – written by
@@ -197,10 +205,12 @@ Every break we chose, with its date and its reason. The point of writing them do
 politeness: a break nobody recorded gets rediscovered years later as a bug, by someone who
 then "fixes" it back.
 
-Twenty-five breaks have shipped, all deliberate. Each gets a row here on the day it ships:
+Twenty-seven breaks have shipped, all deliberate. Each gets a row here on the day it ships:
 
 | Date | What changed | Who it affects | What they must do | Why it was worth it |
 |---|---|---|---|---|
+| 2026-10-16 | the minimum engine version in `compat.json` raised from 0.19.0 to 0.30.0; `route.mjs --check` and `routing.schema.json` accept only the runners `claude`, `codex` and `qwen`, and the kit no longer ships the pi approval add-on or the pi leader client template | every project onboarded by `xez-onboard-opinionated`, and every routing file with a `pi/` or `opencode/` lane | upgrade the engine, follow the xezar guide page "Moving from pi or OpenCode to Qwen Code", and merge `.xezar/routing.json` with the defaults version 5 (`UPGRADE_NOTES.md`); or stay on the kit version before 3.2.0 with an engine before 0.30.0 | engine 0.30.0 runs no pi or OpenCode and refuses to start while a setting names either, so a kit that routes to them stops every project on it |
+| 2026-10-16 | the routing ban `pi-write-claude-review` is renamed `qwen-write-claude-review`, with the same rule for Qwen-written work | an owner rule or note that names the ban by its id | use the new id | the ban is about who wrote the work, and no lane is a pi lane any more |
 | 2026-10-01 | the kit's Node floor rises from 20 to 22: `worktree-setup.sh` and `lib/deps.mjs` stop a task on an older Node with `node v20.… is below the required 22`, and the README, the bootstrap prompt and `.xezar/docs/worktrees.md` say Node 22 | a project whose tasks run on Node 20 and that copies the 3.1.0 checks; a `dependencies.units` project that pins a major in a numeric `.nvmrc` keeps that pin | install Node 22, or, with `dependencies.units`, pin a major in a numeric `.nvmrc` (`UPGRADE_NOTES.md`, 3.1.0 entry 15) | Node 20 reached its end of life in April 2026: a floor nobody supports lets tasks run on a Node that gets no security fixes |
 | 2026-09-27 | `route.mjs --check` refuses a `vendorExclusions` that is not a list, names a vendor twice, or names a vendor no lane has | nobody with a file written before 3.1.0: the key did not exist | fix or drop the entry | an exclusion that matches no lane is a ban that silently does nothing |
 | 2026-09-27 | `route.mjs` exits 2 on an `--author` or `--repair` lane that is not in `routing.json`, and on `--repair` without `--author` | only callers of the new arguments | run without `--author` and check independence by hand, as before | an unknown author must never read as "independent of everything" |
