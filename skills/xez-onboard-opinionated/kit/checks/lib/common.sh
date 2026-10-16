@@ -807,6 +807,8 @@ deps_resolve_in_task() {
   ' "$TASK_CWD"
 }
 
+# write_deps_stamp [FINGERPRINT]: a caller that has just taken the input fingerprint, with nothing run
+# since that could change an input, passes it instead of paying for it again (#132 speed bar).
 write_deps_stamp() {
   deps_units_mode 2>/dev/null
   case $? in
@@ -815,7 +817,11 @@ write_deps_stamp() {
   esac
   local fp digest
   mkdir -p "$TASK_CWD/node_modules" || return 1
-  fp="$(deps_fingerprint)" || return 1
+  if [ -n "${1:-}" ]; then
+    fp="$1"
+  else
+    fp="$(deps_fingerprint)" || return 1
+  fi
   # A tree with no digest is stamped as such, and deps_are_fresh never accepts that stamp.
   if ! digest="$(node "$DEPS_MJS" single-contents --root "$TASK_CWD")"; then
     printf 'deps: stamped as not fresh, so the next run installs again\n' >&2
@@ -879,20 +885,35 @@ deps_restamp_baseline() {
 #   - every dependency still resolves inside this task (#286).
 # Anything else leaves the stamp as it was, so the next --fast run installs again, and says why.
 # Never fails the run: the verdict is already recorded, and a stamp not refreshed costs one install.
+deps_restamp_lines() {
+  local rest=""
+  case "$3" in *$'\n'*) rest="${3#*$'\n'}" ;; esac
+  printf -v "$1" '%s' "${3%%$'\n'*}"
+  printf -v "$2" '%s' "${rest%%$'\n'*}"
+}
 deps_restamp_after_gates() {
   local baseline="$1" now="" why=""
   if [ -z "$baseline" ]; then
     why="this run has no verified install to compare against"
   elif ! now="$(deps_restamp_baseline)"; then
     why="the installed tree could not be read"
-  elif [ "$(printf '%s\n' "$now" | sed -n 1p)" != "$(printf '%s\n' "$baseline" | sed -n 1p)" ]; then
-    why="a lockfile, manifest or tool version changed during the gates"
-  elif [ "$(printf '%s\n' "$now" | sed -n 2p)" != "$(printf '%s\n' "$baseline" | sed -n 2p)" ]; then
-    why="node_modules was replaced or its stamp rewritten during the gates"
-  elif ! deps_resolve_in_task >/dev/null 2>&1; then
-    why="the dependencies no longer resolve inside this task"
-  elif ! write_deps_stamp; then
-    why="the stamp could not be written"
+  else
+    # Each baseline's two lines, as `sed -n 1p` and `sed -n 2p` print them, taken without starting a
+    # process (#132 speed bar: eight starts, about 0.1 s each on Windows).
+    local now_fp now_id base_fp base_id
+    deps_restamp_lines now_fp now_id "$now"
+    deps_restamp_lines base_fp base_id "$baseline"
+    if [ "$now_fp" != "$base_fp" ]; then
+      why="a lockfile, manifest or tool version changed during the gates"
+    elif [ "$now_id" != "$base_id" ]; then
+      why="node_modules was replaced or its stamp rewritten during the gates"
+    elif ! deps_resolve_in_task >/dev/null 2>&1; then
+      why="the dependencies no longer resolve inside this task"
+    # The fingerprint taken just above: nothing since could change an input, so the stamp does not
+    # pay for it a second time.
+    elif ! write_deps_stamp "$now_fp"; then
+      why="the stamp could not be written"
+    fi
   fi
   if [ -n "$why" ]; then
     printf 'deps stamp     NOT refreshed (%s); the next --fast run installs again\n' "$why"

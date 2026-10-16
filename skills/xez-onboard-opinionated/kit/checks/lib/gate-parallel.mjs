@@ -13,8 +13,14 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const [library, mode, rawEntries] = process.argv.slice(2);
-const entries = JSON.parse(rawEntries);
+const [library, mode, rawEntries, ...triples] = process.argv.slice(2);
+// The entries come as one JSON array, or – from repo-gates.sh, which then needs no node start of its
+// own to build that array (#132 speed bar) – as `--triples` followed by index, name and command
+// for each gate. Both give the same entries; the checks below judge them the same way.
+const entries = rawEntries === '--triples'
+  ? Array.from({ length: Math.ceil(triples.length / 3) }, (_, i) =>
+    ({ index: Number(triples[3 * i]), name: triples[3 * i + 1], command: triples[3 * i + 2] }))
+  : JSON.parse(rawEntries);
 const byIndex = new Map(entries.map((entry) => [entry.index, entry]));
 if (!['application', 'serial'].includes(mode) || !entries.length || byIndex.size !== entries.length ||
     entries.some(e => !Number.isInteger(e.index) || e.index < 1 || typeof e.name !== 'string' || !e.name || typeof e.command !== 'string' || !e.command)) {

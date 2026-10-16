@@ -1248,9 +1248,17 @@ breaks(
 );
 
 breaks(
+  "a gate that starts the browser entry guard but never judges it is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace("\nfinished config-guard\n", "\n"),
+  facts("23"),
+  "no longer runs config-guard.sh browser --from-base and judges it",
+);
+
+breaks(
   "a config guard that no longer refuses a changed browser entry is rejected",
   "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
-  (s) => s.replace('base === "" || base === entry(process.env.TREE_TEXT) ? "same" : "changed"', '"same"'),
+  (s) => s.replace('base === "" || base === entry(process.env[`TREE_TEXT_${i + 1}`], file) ? "same" : "changed"', '"same"'),
   catalog("7"),
   "the chrome-devtools entry in .mcp.json differs",
 );

@@ -572,6 +572,17 @@ another. Measured on that PC outside the engine, old and new files alternated th
 `--readiness` 4.6 s → 4.1–4.2 s. What remains is mostly the engine's own start, three times a gate
 run (`--version`, the lease probe, the lease), which is qodeca/xezar#1037.
 
+**The repository checks' browser guard runs beside the other checks (#132).** A third pass. The
+guard's `git fetch` of the base branch was most of the last gate command, and it started only once
+the others had finished; it now starts with them, and its output and exit status still come at its
+own place, before the changelog check that reads the base it fetched. The guard judges both browser
+files in one node start, the documented-output fixture builds its two outside folders while its
+first round runs and shares its last round, and the gate runner stops starting node to build each
+phase's list, to read back a status it has just validated, and `tr` and `sed` to name a gate's log
+– the same names, the same records. The re-stamp after the gates reuses the fingerprint it has just
+taken. Measured on that PC, the engine running, old and new files alternated three times:
+`repo-gates.sh --fast` 32.6–33.5 s → 28.2–28.5 s, and the repository checks 7.6 s → 5.1 s.
+
 # 3.0.3 (2026-09-24)
 
 **The install check for monorepos no longer trusts a tree it did not install (#46).** Found by a
