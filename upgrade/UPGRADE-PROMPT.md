@@ -142,10 +142,14 @@ commands (list them)? A no ends the run here, with nothing changed. Never bypass
 4. **The leader is stopped and no task is running.** A task that starts mid-upgrade copies a mix
    of old and new kit files into its worktree. Ask the owner to confirm both. Check what you can
    yourself:
-   - `pgrep -fl xezar-leader-settings.json` lists no process. The leader script
+   - no process has `xezar-leader-settings.json` in its command line. The leader script
      `scripts/xezar-leader.sh` starts Claude Code with `--settings scripts/xezar-leader-settings.json`,
-     so this finds a running leader. The match is not tied to a folder: if it finds one, ask the
-     owner whether it belongs to this project;
+     so this finds a running leader. On macOS and Linux run `pgrep -fl 'xezar-leader-setting[s].json'`;
+     on Windows Git Bash has no `pgrep`, so run
+     `powershell.exe -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match "xezar-leader-setting[s].json" } | Select-Object ProcessId, CommandLine | Format-List'`.
+     Either one printing nothing means no leader runs; the `[s]` keeps the check from finding its
+     own shell. The match is not tied to a folder: if it finds one, ask the owner whether it
+     belongs to this project;
    - you cannot list the engine's tasks yourself (rule 3), so the owner confirms that none is
      running. The engine itself may stay running; only the leader and tasks must stop.
 5. **The engine version.** Record the output of `xezar --version`. You compare it with the
@@ -175,8 +179,11 @@ No Node script runs before this step has passed.
    "base" of each merge) from the clone's git history, and a shallow clone has none.
 
    ```bash
-   git clone --branch v<target> https://github.com/qodeca/xezar-skills.git <temp>/xezar-skills
+   git clone -c core.autocrlf=false --branch v<target> https://github.com/qodeca/xezar-skills.git <temp>/xezar-skills
    ```
+
+   `-c core.autocrlf=false` keeps the kit files as the release has them (LF) on Windows, where git
+   would otherwise check them out with CRLF; elsewhere it changes nothing.
 
 2. **Verify the release.** All three must pass:
    - `gh release verify v<target> --repo qodeca/xezar-skills` exits 0 and prints

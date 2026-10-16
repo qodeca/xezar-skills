@@ -20,8 +20,10 @@ time, when they decide to.
 ## How the owner runs it
 
 1. **Get a verified copy of the release.** Clone `qodeca/xezar-skills` at the release tag, with
-   full history (for example `git clone --branch v3.1.0 https://github.com/qodeca/xezar-skills.git`),
-   and check it: `gh release verify v3.1.0 --repo qodeca/xezar-skills` must print
+   full history (for example
+   `git clone -c core.autocrlf=false --branch v3.1.0 https://github.com/qodeca/xezar-skills.git`; on
+   Windows the `-c core.autocrlf=false` keeps the kit files LF, as released, so a file you copy by
+   hand from the clone matches the kit), and check it: `gh release verify v3.1.0 --repo qodeca/xezar-skills` must print
    `Release v3.1.0 verified!`. Copy the prompt from that clone, never from a web page.
 2. **Prepare the project.** A clean working tree on the base branch, up to date with the remote.
    Stop the leader and let running tasks finish. The engine may stay running. Before you start

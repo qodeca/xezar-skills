@@ -291,6 +291,13 @@ and permission changes, works on a local branch `xezar/upgrade-<version>`, and w
 with the owner checklist and rollback. It never pushes or opens a pull request.
 `upgrade/README.md` says how to run it and what it never does.
 
+**The upgrade prompt runs on Windows (#132).** Step 0 checks for a running leader with
+`pgrep`, which Git Bash on Windows does not have, so the Windows dry run could not tell; it now
+names a PowerShell `Get-CimInstance Win32_Process` check for Windows, and both checks match
+`xezar-leader-setting[s].json`, so neither finds the shell that runs it. The clone in step 1 and in
+`upgrade/README.md` uses `git clone -c core.autocrlf=false`, so on Windows the kit files keep the
+release's LF line endings and a file copied by hand from the clone matches the kit.
+
 **The tracker descriptor of an onboarded project can be re-synced again.** The kit has no source
 for `.xezar/pipeline/trackers/github.md`, so the upgrade prompt only lists it, and a plain copy
 failed every gate with `reason=hash-mismatch` once a version-2 manifest recorded its digest.
