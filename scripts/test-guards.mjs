@@ -1782,6 +1782,15 @@ breaks(
   "catalog-check accepts a handoff step with no timeout",
 );
 
+// The leader never dispatches a lane route.mjs removed (#215, FACT I23).
+breaks(
+  "a leader guide that lets the leader dispatch a removed lane is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace(" A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used;", () => ""),
+  facts("I23"),
+  "does not forbid dispatching a lane route.mjs removed",
+);
+
 // #214: a config-guard failure lets the later checks run but still fails repository-checks.
 breaks(
   "a repository-checks that drops a config-guard failure it ran past is rejected",

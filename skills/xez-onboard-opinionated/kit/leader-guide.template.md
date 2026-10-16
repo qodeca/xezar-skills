@@ -51,7 +51,7 @@ A compaction is not a fresh start. Re-attach to what was already running; do not
 
 Three loops, data in `.xezar/loops.json`, full text in `.xezar/docs/leader-context-loading.md`.
 Also know `.xezar/docs/campaign-notes.md` (the 120-line README target, why `future-campaign/` is never live) and
-`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs` and runs the row's `workflow=` as `source`, never a bare `xez-*` skill.
+`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs` and runs the row's `workflow=` as `source`, never a bare `xez-*` skill. A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used; with no `lane=` left, stop and report the `removed=` reasons (#215).
 
 | Loop | Role | Cadence | May dispatch |
 |---|---|---|---|

@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2480,6 +2480,25 @@ if (S.section("I15")) {
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I23 -- the leader never dispatches a lane route.mjs removed (#215). In the Windows upgrade
+// row route.mjs removed every claude lane (the rotation named another machine's logins), and the
+// leader ran claude/opus on a login outside the rotation without saying so; the Linux leader, with
+// the same routing, stopped. Both the leader guide and the routing doc say only `lane=` dispatches.
+// ---------------------------------------------------------------------------
+if (S.section("I23")) {
+  const fact = "FACT I23: only a lane= line is dispatched, never a removed= lane or a login outside logins=, and a stop reports why";
+  const doc = `${SKILL}/kit/docs/routing.md`;
+  if (!read(doc).includes("**Only a `lane=` line is dispatchable (#215).** A lane on a `removed=` line is never dispatched – not on another login, not by hand – and a login outside the lane's `logins=` is never used."))
+    fail(fact, doc, "does not forbid dispatching a removed= lane or a login outside logins=");
+  if (!/When no `lane=` line is left, stop and report each `removed=` reason/.test(read(doc)))
+    fail(fact, doc, "does not say to stop and report the removed= reasons when no lane= is left");
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  if (!read(tpl).includes("A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used"))
+    fail(fact, tpl, "does not forbid dispatching a lane route.mjs removed");
   checked.push(fact);
 }
 

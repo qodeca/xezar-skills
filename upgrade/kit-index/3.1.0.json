@@ -410,10 +410,10 @@
       "sha256": "a3c7f32351fa1b892d1af96ae55293ea5a1d39e5c7c05113ece2651c84f5c96f"
     },
     ".xezar/docs/routing.md": {
-      "kitBlob": "76e46d8f104dc637446a6954d0f654403c81b169",
+      "kitBlob": "cf5f1586f4692b8b9a1337d0934045f1a43b1943",
       "kitSource": "docs/routing.md",
       "rewrite": "copied",
-      "sha256": "ae2571e8f4faa4c43a5cd30ce21dc97bf567d1cea1fd7d4fdeff2491a8fc73d7"
+      "sha256": "a1cbe176c5922e311f54411a5ce9b07d65a508ed971b6a641a7860d94b9e0a43"
     },
     ".xezar/docs/ui-operations.md": {
       "kitBlob": "35c95780627ab1f5c146e996471445c92588879a",

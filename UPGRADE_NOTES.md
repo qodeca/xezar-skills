@@ -85,6 +85,27 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-16 – the leader runs a lane that `route.mjs` removed, on a login nobody listed
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `route.mjs` prints `removed=` for a lane – for example every `claude/` lane, because
+`tools.claude.rotation` names logins this machine does not have – and the leader still dispatches
+that lane on another login, and its report does not say so.
+
+**What to do.** Copy `.xezar/docs/routing.md` and merge the new sentence into
+`.xezar/docs/leader-guide.md`: only a `lane=` line is dispatched, never a `removed=` lane or a
+login outside its `logins=`; with no `lane=` left, the leader stops and reports each `removed=`
+reason.
+
+**What you lose by skipping it.** Work runs on accounts the routing never listed, and the run report
+hides it.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/docs/routing.md; .xezar/docs/leader-guide.md =merge
+```
+
 ## 2026-10-16 – an upgrade's repository checks stop at the config guard and skip the rest
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

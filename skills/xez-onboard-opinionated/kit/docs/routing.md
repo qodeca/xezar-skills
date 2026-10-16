@@ -89,6 +89,8 @@ Take the **first** `lane=` line that passes both checks. Every `lane=` line is a
 the routing table, so choosing another one for budget or independence is yours to make; it is
 never an owner decision and never parked.
 
+**Only a `lane=` line is dispatchable (#215).** A lane on a `removed=` line is never dispatched – not on another login, not by hand – and a login outside the lane's `logins=` is never used. When no `lane=` line is left, stop and report each `removed=` reason and what the owner can change (a rotation, an installed program, the lane cache); an exception the owner grants for one run is named in that run's report.
+
 - **Budget.** Call `project_config` action `read_quota` before choosing a lane. The budget table
   is one place: the budget section of the live campaign's
   `README.md`, keyed runner × login. A login is `ok`, `unknown` or `out` with its reset time. Use

@@ -558,6 +558,11 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**The leader never dispatches a lane `route.mjs` removed (#215).** On the Windows upgrade row,
+`route.mjs` removed every Claude lane and the leader ran `claude/opus` on an unlisted login without
+saying so. The routing doc and the leader guide now say only a `lane=` line is dispatched, on a
+login from its `logins=`, and a stop reports each `removed=` reason; FACT I23 pins it.
+
 **A config guard failure no longer hides the checks after it (#214).** `repository-checks.sh`
 stopped at a failing config guard, which every upgrade that changes the browser entry hits until
 its PR merges, so the changelog, link and contract checks never ran. Its status is now applied at
