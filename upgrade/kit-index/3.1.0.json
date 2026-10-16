@@ -134,10 +134,10 @@
       "sha256": "c0a024a3365238737736c4b7e9983562dd4b4b3de28e011673805d9193e94252"
     },
     ".xezar/checks/integration-preflight.sh": {
-      "kitBlob": "e4b37a78dd62c7ca50053fa4622e7c3489bd6f48",
+      "kitBlob": "cd8da3be2638e5324deaa4a27f1dc1cdef5ef50b",
       "kitSource": "checks/integration-preflight.sh",
       "rewrite": "copied",
-      "sha256": "5df0d701ab4289b948cc9bbdf5795035d600d11ba566925a18e641e469904860"
+      "sha256": "f067d67524d766115b86227163d752599968522ea0f537bc02b5258687ee0ec3"
     },
     ".xezar/checks/leader-context.sh": {
       "kitBlob": "4268536866b34f1922e055f13c7cb9052b65d7c5",
@@ -200,10 +200,10 @@
       "sha256": "679af89dbebdd3254baf4b3c443092fd36ffe6fe89e32efa0bc7be9289a7f923"
     },
     ".xezar/checks/lib/project-policy.mjs": {
-      "kitBlob": "e66a8d7a26a372e0fdca151191174b62b6f54af6",
+      "kitBlob": "1a2736841a1866f93fc8174fd0a62275232071fb",
       "kitSource": "checks/lib/project-policy.mjs",
       "rewrite": "copied",
-      "sha256": "3b865ea3625ed9a4b7a8b35cdb8ee93dc6a58b9c750497a91f2171f757aa3349"
+      "sha256": "5be232579b59288cfa48219c521b4156264ae330901a3871c777b638506442c2"
     },
     ".xezar/checks/lib/security-scan.mjs": {
       "kitBlob": "f7d674f5a4f712a757abcc70d383be4e6bd04118",
@@ -563,10 +563,10 @@
       "sha256": "311d1774ad7ed6c285bdff9ae92d7460a60326f07bac71a5d421d07989463017"
     },
     ".xezar/skills/xezar-handoff-draft-pr.md": {
-      "kitBlob": "3bafd329defb14985432929e77f20f887fd10608",
+      "kitBlob": "303618457145285c1d15333ecf8a03f40de0351d",
       "kitSource": "skills/xezar-handoff-draft-pr.md",
       "rewrite": "copied",
-      "sha256": "b6f1ae5f33d12acf91bf201e0929f5b8fc6eefa8bc155762c77dbdc4bfc0bc28"
+      "sha256": "182995a9b9701418d13ebae30ba24689cb48a38878b81c3617ef97c1ab62d21b"
     },
     ".xezar/skills/xezar-implementation.md": {
       "kitBlob": "d25faeae5fc0adf5a80e4dc191c3b03773eecaab",

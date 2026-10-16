@@ -558,6 +558,13 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A design-only PR never closes its issue (#207).** A Linux design PR closed its issue on merge
+from "(the one that closes #5)", while the implementation was still running. The handoff skill now
+says a design-only PR links its issue with "Refs" only; the merge policy
+(`lib/project-policy.mjs`), which the leader now runs with the PR's files and closing references
+before the merge tool and the integration preflight feeds them, refuses a design-only PR that would
+close an issue. FACT I21 runs the policy on design-only and mixed PRs.
+
 **A design review that passes with follow-ups applies `design-approved` (#205).** The label step
 named only PASS, while the role says PASS WITH FOLLOW-UPS is never written as PASS, so a Linux
 design review passed and asked for no label. It now says "On PASS or PASS WITH FOLLOW-UPS – both

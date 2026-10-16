@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2475,6 +2475,39 @@ if (S.section("I15")) {
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I21 -- a design-only PR never closes its issue (#207). GitHub closes every issue in a PR's
+// closingIssuesReferences on merge, also from "(the one that closes #5)": a Linux design PR closed
+// its issue before any implementation. The handoff says "Refs" only, and the merge policy – which the
+// leader runs before the merge tool and the integration preflight feeds – refuses one that closes.
+// RUN, not only read: the policy is imported and fed design-only and mixed PRs.
+// ---------------------------------------------------------------------------
+if (S.section("I21")) {
+  const fact = "FACT I21: a design-only PR links its issue with Refs only, and the merge policy refuses one that closes it";
+  const where = `${SKILL}/kit/checks/lib/project-policy.mjs`;
+  const { projectPolicy } = await import(pathToFileURL(join(root, where)).href);
+  const pr = (files, closes) => ({ labels: [], files: files.map((path) => ({ path })), closingIssuesReferences: closes.map((number) => ({ number })) });
+  const designs = "docs/designs";
+  if (!projectPolicy(pr(["docs/designs/count/index.html", "docs/designs/count/README.md"], [5]), { designs }).refused?.includes("closes #5"))
+    fail(fact, where, "merges a design-only PR that closes its issue");
+  if (!projectPolicy(pr(["docs/designs/count/index.html"], []), { designs }).passed)
+    fail(fact, where, "refuses a design-only PR that closes nothing");
+  if (!projectPolicy(pr(["docs/designs/count/index.html", "src/count.ts"], [5]), { designs }).passed)
+    fail(fact, where, "refuses an implementation PR that closes its issue");
+  if (!projectPolicy(pr(["docs/designs-old/a.html"], [5]), { designs }).passed)
+    fail(fact, where, "reads a sibling folder that starts with the designs path as a design");
+  if (!projectPolicy({ labels: [] }, { designs }).passed)
+    fail(fact, where, "refuses a PR whose input carries no file list (the REST answer)");
+  const preflight = read(`${SKILL}/kit/checks/integration-preflight.sh`);
+  if (!/pr view "\$PR" --repo "\$REPO" --json files,closingIssuesReferences/.test(preflight))
+    fail(fact, `${SKILL}/kit/checks/integration-preflight.sh`, "does not give the merge policy the PR's files and closing references");
+  if (!read(`${SKILL}/kit/leader-guide.template.md`).includes("gh pr view <n> --json labels,files,closingIssuesReferences | node .xezar/checks/lib/project-policy.mjs"))
+    fail(fact, `${SKILL}/kit/leader-guide.template.md`, "does not run the merge policy with the PR's files and closing references before the merge tool");
+  if (!read(`${SKILL}/kit/skills/xezar-handoff-draft-pr.md`).includes("link the issue with `Refs #<n>` only"))
+    fail(fact, `${SKILL}/kit/skills/xezar-handoff-draft-pr.md`, "does not tell a design-only PR to link its issue with Refs only");
   checked.push(fact);
 }
 

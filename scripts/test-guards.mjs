@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// The merge policy refuses a design-only PR that closes its issue (#207, FACT I21).
+breaks(
+  "a merge policy that lets a design-only PR close its issue is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/project-policy.mjs",
+  (s) => s.replace("  if(closes)return {refused:closes};\n", () => ""),
+  facts("I21"),
+  "merges a design-only PR that closes its issue",
+);
+
 // A design review that passes with follow-ups still applies design-approved (#205, FACT I20).
 breaks(
   "a design review that applies design-approved on PASS only is rejected",

@@ -73,6 +73,31 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-16 – a design-only PR closes its issue when it merges
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A design PR (every file under `paths.designs`) merges and its issue closes as
+completed, while the implementation has not started. GitHub closes every issue in the PR's
+`closingIssuesReferences`, and it finds one in any sentence that puts a closing word next to the
+number – also "(the one that closes #5)". No merge check read the closing references.
+
+**What to do.** Copy `.xezar/checks/lib/project-policy.mjs`, `.xezar/checks/integration-preflight.sh`
+and `.xezar/skills/xezar-handoff-draft-pr.md`. Merge the new sentence of the merge rule into
+`.xezar/docs/leader-guide.md`: before the merge tool the leader runs
+`gh pr view <n> --json labels,files,closingIssuesReferences | node .xezar/checks/lib/project-policy.mjs`,
+which refuses a design-only PR that closes an issue. The PR template's "Closes #123" hint stays: it
+is right for the PR that delivers the issue, and the handoff now writes "Refs" on a design-only
+one. Reopen any issue a design PR closed.
+
+**What you lose by skipping it.** Issues close before their work exists, and the board says done
+while the implementation is still running.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/lib/project-policy.mjs; .xezar/checks/integration-preflight.sh; .xezar/skills/xezar-handoff-draft-pr.md; .xezar/docs/leader-guide.md =merge
+```
+
 ## 2026-10-16 – a design review passes with follow-ups, but the PR never gets `design-approved`
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
