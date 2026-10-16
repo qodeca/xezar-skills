@@ -558,6 +558,15 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**Onboarding carries on with one login, as its docs say (#132).** A fresh agent set Xezar up on
+Windows from the docs alone and was stopped by the preflight row check ("no lane in this row's order
+is usable now") although the bootstrap prompt and the preflight's own one-login warning both say to
+carry on. A row is a stop now only when none of its runner programs is installed; a row whose only
+gap is logins carries on, keeps the routing and is named in the report. The preflight also counts
+the engine's `workspace.json.bak` backups as clean and no longer calls native Windows unreleased;
+the bootstrap prompt says why `.xezar/config.json` is not on its ignore list; and the README says
+that a first leader start finishes an unfinished setup proof, throwaway pull request included.
+
 **A fresh clone passes local-tree once the engine has started (#196).** git stores no empty folder,
 and the engine's first start makes `.local/xezar/` itself, so on a second machine `local-tree.sh`
 failed on the six named subfolders only onboarding had made. The leader launcher now makes them,

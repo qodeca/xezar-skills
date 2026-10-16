@@ -66,7 +66,9 @@ pass together:
 - `.xezar/workspace.json`, `.xezar/workspace-ui.json` and `.xezar/agent-accounts.json`;
 - `.xezar/config.json` **when it holds no settings** (`{}`). A `config.json` with keys in it is
   somebody's configuration and stops the run;
-- the engine's short-lived `*.lock` and `*.tmp` files beside them.
+- the engine's short-lived `*.lock` and `*.tmp` files beside them, and the backups it keeps of
+  them (`workspace.json.bak` and the like – the `.xezar/workspace.json.*` lines the bootstrap
+  prompt adds to `.git/info/exclude`).
 
 Anything else under `.xezar/` is real configuration and **stops** the run: a `config.json` with
 settings in it, an edited workflow, any check script, any extra skill, a pipeline directory with
@@ -164,10 +166,13 @@ asked again in this run.
 **Then check that every routing row can run here.** For each row of this skill's
 `kit/routing.json` that is not handled by the leader, at least one of its lanes must be usable on
 this machine: its runner's program is installed (`claude`, `codex`, `pi`), and, for a runner that
-uses logins, `.xezar/agent-accounts.json` holds at least one account of that provider. A row with
-no usable lane is a **stop**: name the row and the runners that would serve it, because a row the
-leader can never dispatch is work that silently waits forever. This reads files and `PATH` only and
-needs no engine.
+uses logins, `.xezar/agent-accounts.json` holds at least one account of that provider. A row none of
+whose runner programs is installed is a **stop**: name the row and the runners that would serve it,
+because a row the leader can never dispatch is work that silently waits forever. A row whose only
+gap is logins – the runner is installed, but there is no account for it, or the one account is the
+leader's – is **not** a stop: it is the "one agent account, or none" case below. Carry on, keep the
+routing as shipped, and list those rows in the report as waiting until a login is added. This reads
+files and `PATH` only and needs no engine.
 
 Whether the engine is *running right now* is not a preflight fact: nothing before step 8 needs
 it. `references/verify.md` checks it where it matters.
@@ -208,10 +213,11 @@ preflight report, where the owner can still walk away:
 - **The base branch already requires an approval** and the owner works alone. The setup pull
   request cannot merge without a second person or an administrator's merge. Name that now.
 - **One agent account, or none.** The rule "the leader's login never runs tasks" cannot hold
-  with a single login. Carry on, and record the warning in the report.
-- **Native Windows (Git Bash).** Supported once the engine ships native Windows (qodeca/xezar#963
-  phases 2b and 3; not released yet): until then the leader cannot attach and check steps start
-  WSL's bash. Carry on; say so in the report. WSL stays the fallback.
+  with a single login, and the rows that need another login wait until one is added. Carry on, keep
+  the routing, and record the warning – with those rows named – in the report.
+- **Native Windows (Git Bash).** Supported from engine 0.20.0, the first that runs natively on
+  Windows (qodeca/xezar#963): the leader attaches and check steps run in Git Bash. Carry on; say so
+  in the report. WSL stays the fallback.
 - **A monorepo.** Supported via units: with no root manifest, each folder's install is listed in
   `dependencies.units` (analysis §2). A monorepo with a root manifest installs at the root, as
   before.

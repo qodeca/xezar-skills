@@ -89,6 +89,9 @@ Use .git/info/exclude, NOT .gitignore: it is a local ignore file git never commi
 stays clean for the skill's own clean-tree check. The skill writes the permanent entries into
 committed ignore files itself, in its own pull request. The last six are engine files holding
 this machine's accounts and paths - they must never be committed, and step 3 creates them.
+Step 3 also makes the engine write .xezar/config.json (empty, `{}`). It is not on the list on
+purpose: the setup pull request commits it, so `git status` shows it until then, and the skill
+accepts it as clean.
 Do not ignore .claude/skills/ as a whole - my own skills may live there. Commit nothing.
 
 Step 3 - The engine runs here
