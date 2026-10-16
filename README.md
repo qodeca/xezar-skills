@@ -51,6 +51,10 @@ XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # b
 A session started without `XEZAR_LEADER=1` is an ordinary Claude Code session in the same
 repository – no leader guide, no leader rules.
 
+If the setup session ended before its proof – branch protection and the smoke test – was done, the
+first leader start finishes that first: it runs `/xez-onboard-opinionated --verify`, which opens and
+closes one throwaway pull request, before it takes any other work.
+
 You need Node 22 or later, `git`, the GitHub CLI logged in, and a GitHub remote. The leader runs
 in Claude Code, and GitHub is the only tracker. On native Windows you also need Git for Windows
 (the kit's checks run in Git Bash), `jq` on `PATH`, long paths switched on, and xezar 0.20.0 or
