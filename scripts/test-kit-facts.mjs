@@ -882,7 +882,12 @@ if (S.section("23")) {
   // The guard starts with the other background checks and is judged at its own place (#132 speed
   // bar): both halves must be there, or a changed browser entry passes the gate.
   const repositoryChecks = read(`${SKILL}/kit/checks/repository-checks.sh`);
-  if (!/^started config-guard bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(repositoryChecks) || !/^finished config-guard$/m.test(repositoryChecks)) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base and judges it, so a changed browser entry passes the gate");
+  if (!/^started config-guard bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(repositoryChecks) || !/^finished config-guard \|\| config_guard_rc=\$\?$/m.test(repositoryChecks)) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base and judges it, so a changed browser entry passes the gate");
+  // A guard failure does not stop the later checks (#214) – an upgrade that changes the browser
+  // entry fails it until its PR merges, and step 7.4 reads every later check – but it is still the
+  // script's exit status at the end.
+  if (!/^  exit "\$config_guard_rc"$/m.test(repositoryChecks) || !/\|\| \[ "\$config_guard_rc" -ne 0 \]; then$/m.test(repositoryChecks))
+    fail(fact, "kit/checks/repository-checks.sh", "no longer fails at the end on a config-guard failure it let the later checks run past");
   checked.push(fact);
 }
 

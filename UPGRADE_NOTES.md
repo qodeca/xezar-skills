@@ -85,6 +85,26 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-16 – an upgrade's repository checks stop at the config guard and skip the rest
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `bash .xezar/checks/repository-checks.sh` prints the config guard's failure and
+nothing after it: the changelog, fenced-quote, documented-output, link and contract checks never
+run. Every upgrade that changes the browser entry in `.codex/config.toml` fails the guard until its
+pull request merges, so the upgrade's verification was partial.
+
+**What to do.** Copy `.xezar/checks/repository-checks.sh`: a config guard failure, like a drift or
+local-tree one, now lets the later checks run and print, and still fails the script at the end.
+
+**What you lose by skipping it.** An upgrade, or anyone reading the gate, sees checks as unknown
+that never ran whenever the guard fails.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/repository-checks.sh
+```
+
 ## 2026-10-16 – a PR a DeepSeek lane wrote or repaired merges with no Claude or Astra review
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

@@ -502,8 +502,8 @@ do item 4:
 4. **Run the project's own gate check:** `bash <project>/.xezar/checks/repository-checks.sh`.
    This is the one place you run the project's own code; the owner sees the permission prompt.
    It runs the drift check again, so the same `unconfirmed-patch` result is expected there too.
-   A drift or local-tree failure does not stop it: every later check still runs, and the script
-   fails at the end on their status. So read the whole output, not only the drift and local-tree
+   A drift, local-tree or config guard failure does not stop it: every later check still runs, and
+   the script fails at the end on their status. So read the whole output, not only the drift and local-tree
    lines: a failure from any other check (catalog, route, config guard, changelog, fenced quotes,
    documented output, links, the contract test) is a fault of its own and is reported, even when
    the only drift finding is `unconfirmed-patch`.

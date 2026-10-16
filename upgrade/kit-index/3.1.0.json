@@ -260,10 +260,10 @@
       "sha256": "114d4d2917f5f7a3c3cd5cf8fc0cbc813012ead0cdebca7b6ba93b9a17f2bfc3"
     },
     ".xezar/checks/repository-checks.sh": {
-      "kitBlob": "e1db97b0c0329b90380d9dace16161960a6cf719",
+      "kitBlob": "005cebc22200908778a85f2708b67e240b738034",
       "kitSource": "checks/repository-checks.sh",
       "rewrite": "copied",
-      "sha256": "69b6b656a48bddd9fac684989e9a71a804aa990d9541d61f1895796663eb4da1"
+      "sha256": "7e42ae7aa2a6e211526631badb25e59fb5d258ac4dfcab26b9d9ca91c4b5ee7a"
     },
     ".xezar/checks/resume-complete.sh": {
       "kitBlob": "1b79872ab5fb5540eea1aa29119b3201d3d46ef9",

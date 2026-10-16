@@ -1782,6 +1782,15 @@ breaks(
   "catalog-check accepts a handoff step with no timeout",
 );
 
+// #214: a config-guard failure lets the later checks run but still fails repository-checks.
+breaks(
+  "a repository-checks that drops a config-guard failure it ran past is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('  exit "$config_guard_rc"\n', () => '  exit 0\n'),
+  facts("23"),
+  "no longer fails at the end on a config-guard failure",
+);
+
 // #211: catalog-check refuses a workflow step whose runner the engine no longer runs.
 breaks(
   "a catalog check that accepts runner: pi is rejected",

@@ -558,6 +558,11 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A config guard failure no longer hides the checks after it (#214).** `repository-checks.sh`
+stopped at a failing config guard, which every upgrade that changes the browser entry hits until
+its PR merges, so the changelog, link and contract checks never ran. Its status is now applied at
+the end, like drift and local-tree; FACT 23 pins it.
+
 **The leader checks the merge-time routing ban before it merges (#206).** A Linux design PR a pi
 lane repaired merged with Codex reviews only, although the ban now named `qwen-write-claude-review`
 asks for a Claude or Astra review: it is the one ban checked at merge, and nothing checked it. A
