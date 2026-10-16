@@ -1959,7 +1959,8 @@ if (S.section("W4")) {
   const docOut = read(`${SKILL}/${docWhere}`);
   if (!docOut.includes("const WINDOWS = process.platform === 'win32' ? await import('./lib/windows-programs.mjs') : null;"))
     fail(fact, docWhere, "no longer loads lib/windows-programs.mjs on Windows, so it has no way to find Git Bash");
-  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !docOut.includes("run(BASH, [path.join(root, row.script)]") || /\brun\(\s*['"]bash['"]/.test(docOut))
+  // The fixture's runs all start without waiting (`runAsync`, #132 speed bar); either runner counts.
+  if (!docOut.includes("const BASH = WINDOWS ? WINDOWS.gitBash() : 'bash';") || !/\brun(?:Async)?\(BASH, \[path\.join\(root, row\.script\)\]/.test(docOut) || /\brun(?:Async)?\(\s*['"]bash['"]/.test(docOut))
     fail(fact, docWhere, "starts a bare bash on Windows, which on a stock machine is WSL's bash; start Git Bash through gitBash()");
   if (!/if \(BASH === null\) \{\n\s+console\.error\(`documented-output: \$\{WINDOWS\.GIT_BASH_MISSING\}`\);\n\s+process\.exit\(1\);/.test(docOut))
     fail(fact, docWhere, "does not stop with the one-line Git Bash message when Git for Windows is missing");
