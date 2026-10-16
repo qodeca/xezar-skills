@@ -59,6 +59,11 @@ same model, and your own edits stay:
 | `pi/dgx-spark/deepseek-v4-flash-vision` | `qwen/deepseek-v4-flash-vision` |
 | `pi/mac-m4/qwen38-flash-next-mlx-mixed-4-8bit` | `qwen/qwen38-flash-next-mlx-mixed-4-8bit` |
 
+What a lane can do through its runner – `vision`, `imageGeneration`, `enforcesToolLimits`,
+`fullShellReviews` and the `model` name – comes from the defaults version 5, not from your old pi
+lane, because pi's answer says nothing about Qwen Code's: Qwen Code passes no images on the
+`qwen38` lane, so `vision` stays `false` there even where you had set `true` on the pi lane. List
+each such value you replaced in the upgrade report; your row orders, `never` entries and notes stay.
 A lane of your own on `pi/` or `opencode/` moves to `qwen`, `claude` or `codex`, or goes; a row you
 reordered by hand that the new defaults also reorder is a routing clash – stop and ask the owner.
 Copy `.xezar/checks/catalog-check.mjs`: it now refuses a workflow step whose `runner:` is not
