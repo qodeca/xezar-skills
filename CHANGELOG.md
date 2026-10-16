@@ -552,6 +552,12 @@ or denied with no person there. Verification reports which add-on answers pi's a
 the upgrade to 3.1.0 lists the new `per-machine=install-pi-extension` action for the owner. pi
 gets the browser tools themselves from the engine (qodeca/xezar#1015). FACT I16 pins it.
 
+**A fresh clone passes local-tree once the engine has started (#196).** git stores no empty folder,
+and the engine's first start makes `.local/xezar/` itself, so on a second machine `local-tree.sh`
+failed on the six named subfolders only onboarding had made. The leader launcher now makes them,
+empty, on every machine; `local-tree.sh` stays a check that changes nothing. FACT I18 pins the
+launcher's list to the one the check reads.
+
 **A pi browser step saves its screenshots (#132).** chrome-devtools writes a file only inside the
 MCP client's roots and the OS temp folder; pi-mcp-adapter announces no roots, and the engine gives
 each run its own temp folder, so on pi every other `filePath` was refused with "not within any of

@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2471,6 +2471,26 @@ if (S.section("I15")) {
     const text = read(where);
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
+  }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I18 -- a fresh clone passes local-tree once the engine has started (#196). git stores no
+// empty folder, and the first engine start makes .local/xezar/ itself, so on a second machine
+// local-tree.sh failed on the six named subfolders nothing had made. The leader launcher makes them
+// on every machine; the list must be the one local-tree.sh checks, read from that file.
+// ---------------------------------------------------------------------------
+if (S.section("I18")) {
+  const fact = "FACT I18: the leader launcher makes every subfolder local-tree.sh expects, so a fresh clone passes it";
+  const allowed = /^ALLOWED="([^"]+)"$/m.exec(read(`${SKILL}/kit/checks/local-tree.sh`));
+  const launcher = read(`${SKILL}/kit/scripts/xezar-leader.sh`);
+  const made = /^mkdir -p (.+)$/m.exec(launcher);
+  if (!allowed) fail(fact, "kit/checks/local-tree.sh", "has no ALLOWED list to compare with");
+  else {
+    const want = allowed[1].split(/\s+/).map((name) => `.local/xezar/${name}`).sort();
+    const got = made ? made[1].trim().split(/\s+/).sort() : [];
+    if (JSON.stringify(want) !== JSON.stringify(got)) fail(fact, "kit/scripts/xezar-leader.sh", `does not make the subfolders local-tree.sh expects (${want.join(" ")}), so a fresh clone fails it once the engine has started`);
   }
   checked.push(fact);
 }
