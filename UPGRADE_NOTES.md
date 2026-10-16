@@ -73,6 +73,26 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-16 – a design review passes with follow-ups, but the PR never gets `design-approved`
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A design review posts "Verdict: PASS WITH FOLLOW-UPS" and writes its verdict, but
+asks for no label, so the design gate holds a PR that passed and the leader sends a second review
+of the same head. The role said "On PASS, add `design-approved`" and also that PASS WITH
+FOLLOW-UPS is never written as PASS, and a reviewer read the two together as "no label".
+
+**What to do.** Copy `.xezar/skills/xezar-ux-design.md`: its label step now says "On PASS or PASS
+WITH FOLLOW-UPS – both approve". QA has only PASS and FAIL, so `xezar-qa.md` needs nothing.
+
+**What you lose by skipping it.** Some passing design reviews leave the PR waiting, and each costs
+a second review run.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-16 – a Codex QA or design review FAILs with no chrome-devtools tool although the tools are there
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names

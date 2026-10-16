@@ -558,6 +558,11 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A design review that passes with follow-ups applies `design-approved` (#205).** The label step
+named only PASS, while the role says PASS WITH FOLLOW-UPS is never written as PASS, so a Linux
+design review passed and asked for no label. It now says "On PASS or PASS WITH FOLLOW-UPS – both
+approve"; FACT I20 checks every role with that verdict.
+
 **The DeepSeek lanes run on Qwen Code, and the kit needs engine 0.30.0 (#204).** Engine 0.30.0
 runs Claude Code, Codex and Qwen Code only, and refuses to start while a setting still names pi or
 OpenCode. The shipped routing is defaults version 5: `qwen/deepseek-flash`, `qwen/deepseek-v4-pro`,

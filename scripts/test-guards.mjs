@@ -1484,6 +1484,15 @@ breaks(
   "does not say a browser script of the step's own is not evidence",
 );
 
+// A design review that passes with follow-ups still applies design-approved (#205, FACT I20).
+breaks(
+  "a design review that applies design-approved on PASS only is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("On PASS or PASS WITH FOLLOW-UPS – both approve – add", () => "On PASS, add"),
+  facts("I20"),
+  "applies design-approved \"On PASS\" only",
+);
+
 // A Codex browser step looks its tools up in ALL_TOOLS before it reports them missing (#199, FACT I19).
 breaks(
   "a QA skill that no longer tells Codex to look its browser tools up is rejected",

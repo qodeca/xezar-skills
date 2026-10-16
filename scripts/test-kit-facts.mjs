@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2475,6 +2475,27 @@ if (S.section("I15")) {
     if (!text.includes(RULE)) fail(fact, where, "does not say a browser script of the step's own is not evidence, so a step with no chrome-devtools tool can pass on one");
     if (!text.includes(NONE)) fail(fact, where, "does not say a step with no chrome-devtools tool reports each browser check as not run");
   }
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I20 -- a review that passes with follow-ups still applies its approval label (#205). A role
+// whose verdicts include PASS WITH FOLLOW-UPS says that verdict is never written as PASS, so a label
+// step that said only "On PASS" read as "not on PASS WITH FOLLOW-UPS": a Linux design review passed
+// and left the PR without design-approved. Every role with both names every passing verdict there.
+// ---------------------------------------------------------------------------
+if (S.section("I20")) {
+  const fact = "FACT I20: a role whose verdicts include PASS WITH FOLLOW-UPS applies its approval label on that verdict too";
+  const { readdirSync } = await import("node:fs");
+  for (const file of readdirSync(join(root, SKILL, "kit/skills")).filter((f) => /^xezar-.*\.md$/.test(f))) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    const text = read(where);
+    if (!text.includes("PASS WITH FOLLOW-UPS")) continue;
+    for (const m of text.matchAll(/On PASS([^,:]*)[,:] add `([a-z-]+-approved)`/g))
+      if (!/^ or PASS WITH FOLLOW-UPS\b/.test(m[1])) fail(fact, where, `applies ${m[2]} "On PASS" only, so a PASS WITH FOLLOW-UPS leaves the PR without it`);
+  }
+  if (!/On PASS or PASS WITH FOLLOW-UPS – both approve – add `design-approved`/.test(read(`${SKILL}/kit/skills/xezar-ux-design.md`)))
+    fail(fact, `${SKILL}/kit/skills/xezar-ux-design.md`, "does not apply design-approved on PASS WITH FOLLOW-UPS");
   checked.push(fact);
 }
 
