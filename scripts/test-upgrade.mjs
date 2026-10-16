@@ -491,6 +491,13 @@ if (S.section("4")) {
   expect(applyPlan(ctx, plan).status === "ok", "customised: apply refused");
   const customised = new Set(spec.customisations.map((c) => resolvePath(c.path)));
   answerTrivially(dir, { files: plan.files.filter((f) => !customised.has(f.path)) }, fx);
+  // The routing file merges three ways against its defaults version (UPGRADE-PROMPT.md): the new
+  // defaults, with the owner's own row kept. The stand-in writes exactly that, because the old
+  // defaults name runners the engine floor no longer runs (#204).
+  for (const c of spec.customisations.filter((x) => x.path === ".xezar/routing.json")) {
+    write(dir, c.path, fresh(c.path, fx.renderInputs));
+    applyEdit(dir, c);
+  }
   const clean = installs().get(spec.base);
   const a = snapshot(clean);
   const b = snapshot(dir);

@@ -737,7 +737,7 @@ if (S.section("17")) {
   if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams","security-review"]')
     fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images, diagrams and security-review, plus escalation");
   const route = read(`${SKILL}/kit/checks/route.mjs`);
-  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude", "codex"\]\);$/m.test(route))
+  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude", "codex", "qwen"\]\);$/m.test(route))
     fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans, the security minimums and the enforcing-runner list itself -- a project's file could drop them");
   if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");
@@ -1463,13 +1463,16 @@ if (S.section("R1")) {
   const need = [
     ["no-self-review", /^A review, re-check or QA runs on a different model from the one that wrote the work\.$/, "is no longer word for word the ban #89 keeps"],
     ["local-never-writes", /^A lane with local: true is in no row with writes: true\.$/, "is no longer word for word the ban #89 keeps"],
-    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
-    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
+    ["qwen-write-claude-review", /^What a Qwen lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
+    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, qwen\/deepseek-v4-pro may be that reviewer, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
     ["tool-limits", /^A lane with enforcesToolLimits: false is in no reading row \(writes: false and not runsCode\) and in no security-and-release row\. One exception: a lane with fullShellReviews: true may be in a review row, or a security row that only reads\.$/, "is relaxed further than #89 decided (fullShellReviews, review rows and security rows that only read)"],
   ];
   for (const [id, re, detail] of need) if (!re.test(rule(id))) fail(fact, "kit/routing.json", `ban ${id} ${detail}`);
   const marked = Object.entries(routing.lanes).filter(([, l]) => l.fullShellReviews === true).map(([id]) => id);
-  if (marked.join(",") !== "pi/deepseek-api/deepseek-v4-pro") fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; the owner accepted pi/deepseek-api/deepseek-v4-pro alone`);
+  // Since #204 the DeepSeek reviewer runs under Qwen Code, which holds it read-only, so no shipped
+  // lane needs the relaxation; the owner accepted it for the pi lane alone, and that lane is gone.
+  if (marked.length) fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; none is accepted since qwen/deepseek-v4-pro holds a reading step read-only (#204)`);
+  if (routing.lanes["qwen/deepseek-v4-pro"]?.enforcesToolLimits !== true) fail(fact, "kit/routing.json", "qwen/deepseek-v4-pro does not enforce tool limits, so it would judge with a full shell that no entry accepts");
 
   const route = read(`${SKILL}/kit/checks/route.mjs`);
   if (!/^const FULL_SHELL_FORBIDDEN = \[\["tier", "cheap"\], \["local", true\], \["advisoryOnly", true\]\];$/m.test(route)
@@ -1478,13 +1481,13 @@ if (S.section("R1")) {
     fail(fact, "kit/checks/route.mjs", "no longer holds the fullShellReviews exception to judging rows and to strong, non-local lanes that give verdicts");
 
   const security = read("SECURITY.md");
-  if (!/One reviewer without a proven read-only lock is accepted and recorded[\s\S]*?pi\/deepseek-api\/deepseek-v4-pro[\s\S]*?full shell[\s\S]*?The owner accepted it \(#89\)[\s\S]*?"Reviews fall\s+to DeepSeek when Claude has no budget"/.test(security))
-    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell V4 Pro reviewer that the owner accepted (#89) and that points at its DECISIONS.md entry");
+  if (!/No shipped reviewer holds a full shell; the relaxation that would allow one is accepted and\s+recorded[\s\S]*?qwen\/deepseek-v4-pro[\s\S]*?read-only[\s\S]*?The owner accepted the relaxation \(#89\)[\s\S]*?"Reviews fall to DeepSeek when Claude has no budget"/.test(security))
+    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell relaxation the owner accepted (#89) that says no shipped reviewer holds a full shell and points at its DECISIONS.md entry");
   // The entry lists the reading rows the full-shell lane judges in, and SECURITY.md outranks the
   // routing file, so the list must be exactly the rows the routing gives it: a wider list would
   // pre-accept a placement the owner never accepted, and a row named as excluded must be one it is
   // truly absent from.
-  const accepted = security.split("One reviewer without a proven read-only lock")[1]?.split(/\n- \*\*/)[0] ?? "";
+  const accepted = security.split("No shipped reviewer holds a full shell")[1]?.split(/\n- \*\*/)[0] ?? "";
   const listed = (accepted.match(/judge in these reading rows only:([\s\S]*?)\./)?.[1]?.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).sort();
   const actual = routing.rows.filter((r) => r.writes === false && marked.some((m) => r.lanes.includes(m))).map((r) => r.id).sort();
   if (listed.join(",") !== actual.join(","))
@@ -1497,7 +1500,7 @@ if (S.section("R1")) {
   const decisions = read("DECISIONS.md");
   const entry = decisions.split(/^## Reviews fall to DeepSeek when Claude has no budget$/m)[1]?.split(/^## /m)[0] ?? "";
   if (!entry) fail(fact, "DECISIONS.md", "has no \"Reviews fall to DeepSeek when Claude has no budget\" entry, which SECURITY.md cites");
-  else for (const id of ["tool-limits", "pi-write-claude-review", "high-risk-other-vendor"]) {
+  else for (const id of ["tool-limits", "qwen-write-claude-review", "high-risk-other-vendor"]) {
     if (!new RegExp(`\\*\\*\`${id}\`\\.\\*\\*[\\s\\S]*?Given\\s+away:`).test(entry)) fail(fact, "DECISIONS.md", `the #89 entry does not say what relaxing ${id} gives away`);
   }
   checked.push(fact);

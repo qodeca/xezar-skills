@@ -284,10 +284,10 @@
       "sha256": "4f1a9e7a35973e70cf837940a2a184f0436915404813e31bd0b2e28b22302e20"
     },
     ".xezar/checks/route.mjs": {
-      "kitBlob": "21eabf4d4f73c2a1cedfe941258e8113fdfffc23",
+      "kitBlob": "3e706689f14037baa5da32cf3d17aa762cdc6b8d",
       "kitSource": "checks/route.mjs",
       "rewrite": "copied",
-      "sha256": "a22867718cec46f9abc40a11a18a4d049df9f74133a5cece85d34d91307cada1"
+      "sha256": "401a54f1032ac73b7f20c13c8f9378dce127dedac05edadb887c5a7d63707fcb"
     },
     ".xezar/checks/security-scan.sh": {
       "kitBlob": "6b1607072cdef1cab80ac0714a5165eb0a7058dc",
@@ -410,10 +410,10 @@
       "sha256": "a3c7f32351fa1b892d1af96ae55293ea5a1d39e5c7c05113ece2651c84f5c96f"
     },
     ".xezar/docs/routing.md": {
-      "kitBlob": "b050fcbc5412f585cfc44bd292ddd2016c1d23b9",
+      "kitBlob": "76e46d8f104dc637446a6954d0f654403c81b169",
       "kitSource": "docs/routing.md",
       "rewrite": "copied",
-      "sha256": "40bb10a4df61942429b01622e6b816903cd94d55aaf3a3d791aba1fc5f193ce7"
+      "sha256": "ae2571e8f4faa4c43a5cd30ce21dc97bf567d1cea1fd7d4fdeff2491a8fc73d7"
     },
     ".xezar/docs/ui-operations.md": {
       "kitBlob": "33bd61e8dbcba2e6154fa47358f40b1b9035c8de",
@@ -497,16 +497,16 @@
       "rewrite": "generated"
     },
     ".xezar/routing.json": {
-      "kitBlob": "34815c58a354f0cd0adec344880d8fe1e0dbb36c",
+      "kitBlob": "6c63451a6969c7dcf8c3326a336fc5e9425e12c6",
       "kitSource": "routing.json",
       "rewrite": "adapted",
-      "sha256": "c4c304b1bb0781d3fcd986db4d95dc414c31c866ad41da17016ad8ff9501c5d4"
+      "sha256": "fc71d4bb244dbbb1c607ca8ebc27c86aa9fd9264468f2e67b57bd649ecd3bbb8"
     },
     ".xezar/routing.schema.json": {
-      "kitBlob": "e5dda092e0313a6032bda363682c59bdf2a42cc7",
+      "kitBlob": "179f09e6240b6f212ed9cea817a065366f123c87",
       "kitSource": "routing.schema.json",
       "rewrite": "copied",
-      "sha256": "7a319b99d60335e621abd5935ea83895ae4338c12cd45fd273a041c1760f5068"
+      "sha256": "358f719d1b326b182050020bc34aa82baa109dd0c60cf818ab7c299eaf06cb73"
     },
     ".xezar/skills/xezar-acceptance.md": {
       "kitBlob": "3c9242901ff5bda14682f2c0fcc858e849520289",

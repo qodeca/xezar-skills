@@ -1339,7 +1339,8 @@ Three bans relax, each as far as that needs and no further:
   other reading row and every security row that writes. Given away: a V4 Pro review runs with a
   full shell until pi's read-only lock is proven live (qodeca/xezar#935), so it could edit files,
   commit or push while it reviews.
-- **`pi-write-claude-review`.** It gave pi-written work a Claude review before merge, so a model of
+- **`qwen-write-claude-review`.** (Named `pi-write-claude-review` until #204 moved the DeepSeek
+  lanes to Qwen Code.) It gave pi-written work a Claude review before merge, so a model of
   another vendor always read it. That work may now be cleared by `codex/gpt-6-astra` when Sonnet
   has none. Given away: the guarantee that a Claude model read every pi-written change. A DeepSeek
   lane may review DeepSeek work another model wrote (see the next entry), but that review alone
@@ -1359,6 +1360,14 @@ The off switch is per machine: remove the model from that machine's pi config. T
 cache, written from `list_models`, then marks the lane unavailable and `route.mjs` drops it, so
 work falls back in row order – the same path a DeepSeek outage takes. There is no DeepSeek spend
 limit; step time limits (#52) stop a runaway task. `SECURITY.md` records the accepted risk.
+
+Since #204 (kit 3.2.0, engine floor 0.30.0) the engine runs no pi, and both DeepSeek lanes run
+under Qwen Code as `qwen/deepseek-flash` and `qwen/deepseek-v4-pro`. Qwen Code holds a reading
+step read-only (qodeca/xezar#1044), so the shipped V4 Pro reviews with its tools limited and no
+shipped lane is marked `fullShellReviews`; what the `tool-limits` relaxation gave away above no
+longer ships. The relaxation itself stays in `route.mjs` for an owner who adds a lane that needs
+it. Flash is text only through Qwen Code, so it left the screen rows and `localisation`; the
+off switch is now the machine's Qwen Code settings.
 
 ## A same-vendor reviewer is allowed on every row
 
