@@ -23,6 +23,30 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-16 – a Codex QA or design review FAILs with no chrome-devtools tool although the tools are there
+
+Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
+a `codex/` lane for a browser step.
+
+**Symptom – a Codex QA, design or acceptance step reports "no `chrome-devtools` tool"** and FAILs
+with the required evidence unavailable, with no browser call in its run, although another Codex run
+of the same project used the tools minutes earlier. In Codex code mode the MCP tools are not in the
+model's direct tool list; they are reachable only as `ALL_TOOLS` / `tools.mcp__chrome_devtools__*`
+inside the `exec` tool, and the role text said to call a tool unavailable when "your own tool list
+lacks it" (#199).
+
+**What to do.** Take the 3.1.0 copies of the six role skills below. Each now says a browser tool is
+unavailable only when the direct list and, on Codex, `ALL_TOOLS` inside `exec` both lack it. Nothing
+else in them changes.
+
+**What you lose by skipping it.** Some Codex browser steps keep failing without looking, and the
+leader re-runs them on the next lane in the routing row.
+
+```upgrade
+Applies-to: <3.1.0
+Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-architecture.md; .xezar/skills/xezar-code-review.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-security-review.md; .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-16 – on a second machine repository-checks fails: local-tree: missing expected subfolder(s)
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
