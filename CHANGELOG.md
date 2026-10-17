@@ -1,4 +1,14 @@
-# 3.1.0 (2026-09-27)
+# 3.2.0 (2026-10-17)
+
+**Kit 3.2.0 runs on Claude Code, Codex and Qwen Code only, and needs engine 0.30.0 or later.** Engine 0.30.0 removed the pi and OpenCode runners and refuses to start while a workflow, its config or a task record still names one. The routing defaults (version 5) move every pi lane to a Qwen Code lane, and the pi add-on is gone. Upgrade the engine first, then run the upgrade prompt; the engine guide page "Moving from pi or OpenCode to Qwen Code" covers the engine side. 3.1.0 was never released on its own: everything below, from 3.1.0 on, ships in 3.2.0.
+
+**Known limit on Windows (#230).** A Codex review step on native Windows cannot post its comment
+or write its verdict the way the role skills prescribe: engine 0.30.0's read-only command check
+refuses that command form there. Linux, macOS and the Claude and Qwen Code lanes are not affected.
+The engine side is qodeca/xezar#1089; the kit follows in 3.2.1. Until then, route Windows reviews
+to a Claude lane where you can.
+
+## Folded in from 3.1.0 (prepared 2026-09-27)
 
 **Fifteen fixes and features found while running the kit in live projects, design-system modules,
 and an upgrade tool that brings an onboarded project to 3.1.0 and keeps its local changes.** No
