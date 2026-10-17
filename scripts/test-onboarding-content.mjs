@@ -10,7 +10,7 @@
 // onboarding skill. The gate runs the full lint over the whole tree on its own, so a case here
 // takes seconds instead of a full lint run each.
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -181,16 +181,18 @@ try {
     }
   }
   const templates = join(root, 'skills/xez-onboard/templates');
-  for (const name of ['claude-mcp.json', 'pi-mcp.json']) {
+  for (const name of ['claude-mcp.json', 'qwen-mcp.json']) {
     const parsed = JSON.parse(readFileSync(join(templates, name), 'utf8'));
     assert.deepEqual(parsed.mcpServers.xezar.args, ['-y', '@qodeca/xezar', 'mcp']);
     assert.equal(parsed.mcpServers.xezar.command, 'npx');
     assert.equal(Object.keys(parsed.mcpServers).length, 1);
     assert.equal(parsed.mcpServers.xezar.env, undefined);
   }
-  const pi = JSON.parse(readFileSync(join(templates, 'pi-mcp.json'), 'utf8'));
-  assert.equal(pi.settings.directTools, true);
-  assert.equal(pi.mcpServers.xezar.lifecycle, 'keep-alive');
+  // A read-only Qwen step refuses to start while the project's .qwen/settings.json holds hooks or
+  // permission rules, so the template carries the server entry and nothing else (#204).
+  const qwen = JSON.parse(readFileSync(join(templates, 'qwen-mcp.json'), 'utf8'));
+  assert.deepEqual(Object.keys(qwen), ['mcpServers']);
+  assert.ok(!existsSync(join(templates, 'pi-mcp.json')), 'the engine runs no pi from 0.30.0, so no pi client template ships');
   console.log('Onboarding content OK: base branch, package manager and credential-shaped rejection, JSON client contracts.');
 } finally {
   rmSync(fixture, { recursive: true, force: true });

@@ -62,10 +62,10 @@
       "sha256": "e72b5b8b0f4e5cab7c3863ab0fa4bf129e2da80e69c7a5da3613c15a1e4aa3a6"
     },
     ".xezar/checks/catalog-check.mjs": {
-      "kitBlob": "7b166563303037312651123396e0bc33d4a0a8e3",
+      "kitBlob": "9358a35c3c0c1824ff1717822b5d652bb74615ad",
       "kitSource": "checks/catalog-check.mjs",
       "rewrite": "copied",
-      "sha256": "70b2045c80b62ca31067ee9508bc0625577693b6ada43d4739152b66195791ee"
+      "sha256": "f807da4d9dff45c5bb1c320aa8a8b177d806d87ae3b4c00d27cc18b7c0f8e395"
     },
     ".xezar/checks/changelog-check.sh": {
       "kitBlob": "3443fc337faa6b8232c518751b68029ef434dd67",
@@ -122,10 +122,10 @@
       "sha256": "01a4162d52b0708dec2f47bc4ed8dbf2dc12f44fac24a2eda7abcff6f0a1ab9d"
     },
     ".xezar/checks/gh-write.sh": {
-      "kitBlob": "08b336bea2eaa76abd199752b50c3c6515e1dce4",
+      "kitBlob": "7c891684278759d1b5c46824fb3f796f34e73707",
       "kitSource": "checks/gh-write.sh",
       "rewrite": "copied",
-      "sha256": "55be2a68e1f99bb9d74ab01bac1bf4c9dff29191149108b7a4735d93c72bd62d"
+      "sha256": "bc809c7ea1e9b118c3622cedafc090541aaf67d48e91601d9a8ae9a46ad82c58"
     },
     ".xezar/checks/git-read.sh": {
       "kitBlob": "f2122b93e6344dcafab617552941ed5d51ef7b05",
@@ -134,10 +134,10 @@
       "sha256": "c0a024a3365238737736c4b7e9983562dd4b4b3de28e011673805d9193e94252"
     },
     ".xezar/checks/integration-preflight.sh": {
-      "kitBlob": "e4b37a78dd62c7ca50053fa4622e7c3489bd6f48",
+      "kitBlob": "cd8da3be2638e5324deaa4a27f1dc1cdef5ef50b",
       "kitSource": "checks/integration-preflight.sh",
       "rewrite": "copied",
-      "sha256": "5df0d701ab4289b948cc9bbdf5795035d600d11ba566925a18e641e469904860"
+      "sha256": "f067d67524d766115b86227163d752599968522ea0f537bc02b5258687ee0ec3"
     },
     ".xezar/checks/leader-context.sh": {
       "kitBlob": "4268536866b34f1922e055f13c7cb9052b65d7c5",
@@ -200,10 +200,10 @@
       "sha256": "679af89dbebdd3254baf4b3c443092fd36ffe6fe89e32efa0bc7be9289a7f923"
     },
     ".xezar/checks/lib/project-policy.mjs": {
-      "kitBlob": "e66a8d7a26a372e0fdca151191174b62b6f54af6",
+      "kitBlob": "1a2736841a1866f93fc8174fd0a62275232071fb",
       "kitSource": "checks/lib/project-policy.mjs",
       "rewrite": "copied",
-      "sha256": "3b865ea3625ed9a4b7a8b35cdb8ee93dc6a58b9c750497a91f2171f757aa3349"
+      "sha256": "5be232579b59288cfa48219c521b4156264ae330901a3871c777b638506442c2"
     },
     ".xezar/checks/lib/security-scan.mjs": {
       "kitBlob": "f7d674f5a4f712a757abcc70d383be4e6bd04118",
@@ -260,10 +260,10 @@
       "sha256": "114d4d2917f5f7a3c3cd5cf8fc0cbc813012ead0cdebca7b6ba93b9a17f2bfc3"
     },
     ".xezar/checks/repository-checks.sh": {
-      "kitBlob": "e1db97b0c0329b90380d9dace16161960a6cf719",
+      "kitBlob": "005cebc22200908778a85f2708b67e240b738034",
       "kitSource": "checks/repository-checks.sh",
       "rewrite": "copied",
-      "sha256": "69b6b656a48bddd9fac684989e9a71a804aa990d9541d61f1895796663eb4da1"
+      "sha256": "7e42ae7aa2a6e211526631badb25e59fb5d258ac4dfcab26b9d9ca91c4b5ee7a"
     },
     ".xezar/checks/resume-complete.sh": {
       "kitBlob": "1b79872ab5fb5540eea1aa29119b3201d3d46ef9",
@@ -272,10 +272,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "b4e30e5c8eab77c37f5c9c97e969dffbe06bb04e",
+      "kitBlob": "83e4a3ed563b886ec5cdb007e2a1d7a1eefbf527",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "8e0879aba55cf4ba11cf14681329fb39af5b47b5331016d40e747ad6e4a9517b"
+      "sha256": "14e7ad32a6366a4e13331f2d56504b1f579f38d0147f634072d4ea144bbc5fe5"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
@@ -284,10 +284,10 @@
       "sha256": "4f1a9e7a35973e70cf837940a2a184f0436915404813e31bd0b2e28b22302e20"
     },
     ".xezar/checks/route.mjs": {
-      "kitBlob": "21eabf4d4f73c2a1cedfe941258e8113fdfffc23",
+      "kitBlob": "3e706689f14037baa5da32cf3d17aa762cdc6b8d",
       "kitSource": "checks/route.mjs",
       "rewrite": "copied",
-      "sha256": "a22867718cec46f9abc40a11a18a4d049df9f74133a5cece85d34d91307cada1"
+      "sha256": "401a54f1032ac73b7f20c13c8f9378dce127dedac05edadb887c5a7d63707fcb"
     },
     ".xezar/checks/security-scan.sh": {
       "kitBlob": "6b1607072cdef1cab80ac0714a5165eb0a7058dc",
@@ -296,10 +296,10 @@
       "sha256": "8d5d99dda8ea2cef9a8f17e4f4733838f5828d100a8392047de23aebde3a7d41"
     },
     ".xezar/checks/verdict-write.sh": {
-      "kitBlob": "e500e1dc71fd5e2c6aa92e4d67c2f9a6c7d9504a",
+      "kitBlob": "8e0d36ddfde13cf63432a134c782dfe003aea3ab",
       "kitSource": "checks/verdict-write.sh",
       "rewrite": "copied",
-      "sha256": "c0097fade75c17cf3615e684895618ff08beaefaa631633dec31d92ecb9493fe"
+      "sha256": "e84842fa67ac00c226fd6032961d99af4c61241c6a108f749f174bf788d1d61c"
     },
     ".xezar/checks/verify-evidence.sh": {
       "kitBlob": "f5ec97bd6b199b508bc458f1d4d537a38aee5977",
@@ -392,10 +392,10 @@
       "sha256": "6b40ebeb721fb9a6bb05e8ec5a73549b05c946a6bfda74f38af2806543296ddf"
     },
     ".xezar/docs/parallel-tasks.md": {
-      "kitBlob": "47baff2387cbe110b4544d09bd28716bc5e755db",
+      "kitBlob": "66e4fde0125981d04dfbd7fb2d3130ce016afaa9",
       "kitSource": "docs/parallel-tasks.md",
       "rewrite": "copied",
-      "sha256": "71c4f528b8ec4b008409b33eafc20f5d822649fb060d7ce3a12004492a53425f"
+      "sha256": "5198babd45c9f409f8bbe96626283cd48a2ea44a12867fa83e4128d9601eb46d"
     },
     ".xezar/docs/phase-record.md": {
       "kitBlob": "5802467f3e4a2297e4d48f07ed461a568f6776d8",
@@ -410,16 +410,16 @@
       "sha256": "a3c7f32351fa1b892d1af96ae55293ea5a1d39e5c7c05113ece2651c84f5c96f"
     },
     ".xezar/docs/routing.md": {
-      "kitBlob": "b050fcbc5412f585cfc44bd292ddd2016c1d23b9",
+      "kitBlob": "cf5f1586f4692b8b9a1337d0934045f1a43b1943",
       "kitSource": "docs/routing.md",
       "rewrite": "copied",
-      "sha256": "40bb10a4df61942429b01622e6b816903cd94d55aaf3a3d791aba1fc5f193ce7"
+      "sha256": "a1cbe176c5922e311f54411a5ce9b07d65a508ed971b6a641a7860d94b9e0a43"
     },
     ".xezar/docs/ui-operations.md": {
-      "kitBlob": "33bd61e8dbcba2e6154fa47358f40b1b9035c8de",
+      "kitBlob": "35c95780627ab1f5c146e996471445c92588879a",
       "kitSource": "docs/ui-operations.md",
       "rewrite": "copied",
-      "sha256": "b6c2a2646c1ded120ab2ddb6d84a3a2cf0095826db0f850fc7e031d429f89ef0"
+      "sha256": "41fe6fd1fd3b6f78f22519454f556110351f27556d9257b48a72c0f6aabdeb5c"
     },
     ".xezar/docs/worktrees.md": {
       "kitBlob": "9db4bb394377ec6d837e88b00f37a52f0301bc85",
@@ -432,12 +432,6 @@
       "kitSource": "loops.json",
       "rewrite": "copied",
       "sha256": "28a41846c6aa69a0232527204d43a11f8f4ba10de4c440963c1b0da8e2403c75"
-    },
-    ".xezar/pi/extensions/mcp-approval-queue.ts": {
-      "kitBlob": "79de6d481bd9f2960c432e873c83c7e2bca6eb46",
-      "kitSource": "pi/extensions/mcp-approval-queue.ts",
-      "rewrite": "copied",
-      "sha256": "56c51b8bc43a2302276d966a8df65322611e30999868d4e94f3c81bf4a6b8e0d"
     },
     ".xezar/pipeline/browsers/agent-browser.md": {
       "kitBlob": "7423c3f813d311bde33416f209f38b1b1e12c4e7",
@@ -497,16 +491,16 @@
       "rewrite": "generated"
     },
     ".xezar/routing.json": {
-      "kitBlob": "34815c58a354f0cd0adec344880d8fe1e0dbb36c",
+      "kitBlob": "6c63451a6969c7dcf8c3326a336fc5e9425e12c6",
       "kitSource": "routing.json",
       "rewrite": "adapted",
-      "sha256": "c4c304b1bb0781d3fcd986db4d95dc414c31c866ad41da17016ad8ff9501c5d4"
+      "sha256": "fc71d4bb244dbbb1c607ca8ebc27c86aa9fd9264468f2e67b57bd649ecd3bbb8"
     },
     ".xezar/routing.schema.json": {
-      "kitBlob": "e5dda092e0313a6032bda363682c59bdf2a42cc7",
+      "kitBlob": "179f09e6240b6f212ed9cea817a065366f123c87",
       "kitSource": "routing.schema.json",
       "rewrite": "copied",
-      "sha256": "7a319b99d60335e621abd5935ea83895ae4338c12cd45fd273a041c1760f5068"
+      "sha256": "358f719d1b326b182050020bc34aa82baa109dd0c60cf818ab7c299eaf06cb73"
     },
     ".xezar/skills/xezar-acceptance.md": {
       "kitBlob": "3c9242901ff5bda14682f2c0fcc858e849520289",
@@ -569,10 +563,10 @@
       "sha256": "311d1774ad7ed6c285bdff9ae92d7460a60326f07bac71a5d421d07989463017"
     },
     ".xezar/skills/xezar-handoff-draft-pr.md": {
-      "kitBlob": "3bafd329defb14985432929e77f20f887fd10608",
+      "kitBlob": "303618457145285c1d15333ecf8a03f40de0351d",
       "kitSource": "skills/xezar-handoff-draft-pr.md",
       "rewrite": "copied",
-      "sha256": "b6f1ae5f33d12acf91bf201e0929f5b8fc6eefa8bc155762c77dbdc4bfc0bc28"
+      "sha256": "182995a9b9701418d13ebae30ba24689cb48a38878b81c3617ef97c1ab62d21b"
     },
     ".xezar/skills/xezar-implementation.md": {
       "kitBlob": "d25faeae5fc0adf5a80e4dc191c3b03773eecaab",
@@ -635,10 +629,10 @@
       "sha256": "fe9891c18c0cac9f8db44cba8159422062387ffc52c9c0a01f039adf59b25e92"
     },
     ".xezar/skills/xezar-qa.md": {
-      "kitBlob": "4ff8ec1b8d9d00699b62cff6a84104d748f4db2f",
+      "kitBlob": "8c56665b0016ca601d498e8fcacb48eaaf90fe3c",
       "kitSource": "skills/xezar-qa.md",
       "rewrite": "copied",
-      "sha256": "47c8c8665beae19fc018627b22db710391c809091ba2aadb247290423ac17ae4"
+      "sha256": "cc25cbb6421cade26060be911c2c33955368427f56a3323beaf74e9b3b13f12b"
     },
     ".xezar/skills/xezar-quality-gates.md": {
       "kitBlob": "967342af0d229ff7c852cfff2ad503269f004501",
@@ -719,10 +713,10 @@
       "sha256": "e195574b615fc4219663b53327456396944ac1a93bb4d0147b5e18ea99aa34c4"
     },
     ".xezar/skills/xezar-ux-design.md": {
-      "kitBlob": "b6e55ea33552dc8bd001bd810f6dda7fec5b1d4f",
+      "kitBlob": "264c81c87ae51e39b066c59312ac4b28b72fbeab",
       "kitSource": "skills/xezar-ux-design.md",
       "rewrite": "copied",
-      "sha256": "d27ee0ecf5243e5ebc8a3c99084977f36384db20b3c03a80f010f6902a80f3ff"
+      "sha256": "32205eea34f32521164558cf66d0bc6c56aed7ca71b14c3341a36127743feb71"
     },
     ".xezar/skills/xezar-visual-asset.md": {
       "kitBlob": "27fcf4f528ead3a6ea2dbf1f633a1659ce583927",

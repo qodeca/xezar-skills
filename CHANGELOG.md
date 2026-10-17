@@ -558,6 +558,52 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A review never judges another project's app on a busy port (#217).** On Linux a QA step opened
+`localhost:3000`, which an orphan server from another project held, and saw that app's data.
+`review-run.sh start --port <n>` now refuses a port something already answers on, names its pid and
+folder, waits until its own app listens and prints `review-listening=<n>`; QA and design review
+open only that port. test-kit-catalog D-review runs it, and FACT I24 pins the two roles.
+
+**The leader never dispatches a lane `route.mjs` removed (#215).** On the Windows upgrade row,
+`route.mjs` removed every Claude lane and the leader ran `claude/opus` on an unlisted login without
+saying so. The routing doc and the leader guide now say only a `lane=` line is dispatched, on a
+login from its `logins=`, and a stop reports each `removed=` reason; FACT I23 pins it.
+
+**A config guard failure no longer hides the checks after it (#214).** `repository-checks.sh`
+stopped at a failing config guard, which every upgrade that changes the browser entry hits until
+its PR merges, so the changelog, link and contract checks never ran. Its status is now applied at
+the end, like drift and local-tree; FACT 23 pins it.
+
+**The leader checks the merge-time routing ban before it merges (#206).** A Linux design PR a pi
+lane repaired merged with Codex reviews only, although the ban now named `qwen-write-claude-review`
+asks for a Claude or Astra review: it is the one ban checked at merge, and nothing checked it. A
+commit names no lane, so no script can; the leader's merge rule now has it read the merge-time bans
+and hold them against its own dispatch records, and FACT I22 keeps every such ban named there.
+
+**A design-only PR never closes its issue (#207).** A Linux design PR closed its issue on merge
+from "(the one that closes #5)", while the implementation was still running. The handoff skill now
+says a design-only PR links its issue with "Refs" only; the merge policy
+(`lib/project-policy.mjs`), which the leader now runs with the PR's files and closing references
+before the merge tool and the integration preflight feeds them, refuses a design-only PR that would
+close an issue. FACT I21 runs the policy on design-only and mixed PRs.
+
+**A design review that passes with follow-ups applies `design-approved` (#205).** The label step
+named only PASS, while the role says PASS WITH FOLLOW-UPS is never written as PASS, so a Linux
+design review passed and asked for no label. It now says "On PASS or PASS WITH FOLLOW-UPS – both
+approve"; FACT I20 checks every role with that verdict.
+
+**The DeepSeek lanes run on Qwen Code, and the kit needs engine 0.30.0 (#204).** Engine 0.30.0
+runs Claude Code, Codex and Qwen Code only, and refuses to start while a setting still names pi or
+OpenCode. The shipped routing is defaults version 5: `qwen/deepseek-flash`, `qwen/deepseek-v4-pro`,
+`qwen/deepseek-v4-flash-vision` and `qwen/qwen38-flash-next-mlx-mixed-4-8bit` take the pi lanes'
+places, and `route.mjs` and the schema accept only `claude`, `codex` and `qwen`. Qwen Code holds a
+reading step read-only, so V4 Pro now reviews read-only and no shipped lane needs
+`fullShellReviews`; Flash is text only there, so it left the screen rows and `localisation`. `catalog-check.mjs` refuses a workflow step whose `runner:` is pi or OpenCode
+(#211). The pi approval add-on and the pi leader client template are gone; `xez-onboard` offers a Qwen Code
+template instead. The upgrade note is keyed by the engine's refusal and points at the xezar guide
+page "Moving from pi or OpenCode to Qwen Code". Versions 1–4 of the defaults stay unchanged for the
+upgrade comparison.
+
 **Onboarding carries on with one login, as its docs say (#132).** A fresh agent set Xezar up on
 Windows from the docs alone and was stopped by the preflight row check ("no lane in this row's order
 is usable now") although the bootstrap prompt and the preflight's own one-login warning both say to

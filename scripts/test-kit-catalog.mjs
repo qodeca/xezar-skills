@@ -37,7 +37,7 @@
 // The ids are the section numbers above (1, 1b, 2, 3, 3b, 3c, 4 … 10) and the stream letters below
 // (B, C, D-refusals, D-data, D-review, F, H, U, R, 122-route) (scripts/lib/sections.mjs).
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -134,7 +134,7 @@ try {
 } // section 1
 
 // --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
-// The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
+// The engine's shared read-only lock (Codex, Qwen Code) allows a pipe only into an argument-free
 // `bash <script>`, so a reader writes by piping ONE JSON request into the bare script. Two halves:
 // every pipe the kit's docs teach has nothing after the script's name, and the JSON form works.
 if (S.section("1b")) {
@@ -1110,7 +1110,7 @@ if (S.section("B")) {
       writeFileSync(join(project, `.xezar/${name}.json`), JSON.stringify(copy));
       return `.xezar/${name}.json`;
     };
-    const env = { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex,pi" };
+    const env = { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex,qwen" };
     const run = (file, ...args) => {
       const out = execFileSync("node", [ROUTE, "--file", file, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env });
       printed.push(...out.split("\n").filter(Boolean));
@@ -1124,14 +1124,19 @@ if (S.section("B")) {
     const shipped = stage("routing-shipped", routing);
 
     // Golden: no --author, every row, without and with a fresh lane cache.
-    const frozen = JSON.parse(readFileSync(join(root, SKILL, "references/routing-defaults/3.json"), "utf8"));
+    // The engine no longer runs pi (0.30.0), so version 3's pi lanes are staged under the qwen runner
+    // with their model names kept, and the output is mapped back: the pin stays the 3.1.0 hash, so
+    // only the runner name may differ, never a line's shape.
+    const frozenText = readFileSync(join(root, SKILL, "references/routing-defaults/3.json"), "utf8");
+    const frozen = JSON.parse(frozenText.replace(/"pi\//g, '"qwen/').replace(/"tool": "pi"/g, '"tool": "qwen"').replace(/"pi": \{/g, '"qwen": {'));
+    const asPi = (out) => out.replace(/qwen\//g, "pi/").replace(/runner=qwen /g, "runner=pi ");
     const old = stage("routing", frozen);
     const ids = frozen.rows.map((r) => r.id);
-    let golden = run(old, ...ids);
+    let golden = asPi(run(old, ...ids));
     const cacheDir = join(project, ".local/xezar/runtime");
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { "claude/sonnet": { available: false, reason: "quota" } } }));
-    golden += run(old, ...ids).replace(/checkedAt=\S+/g, "checkedAt=<now>");
+    golden += asPi(run(old, ...ids)).replace(/checkedAt=\S+/g, "checkedAt=<now>");
     rmSync(join(project, ".local"), { recursive: true, force: true });
     const GOLDEN = "dc1e715b6a94c6ac1e598380da61cfd2786ba7c3a21bd2ab428de93135e25e65";
     if (createHash("sha256").update(golden).digest("hex") !== GOLDEN) fail("route without --author no longer prints byte-identical output (golden hash of every row of routing-defaults/3.json differs) -- the leader parses these lines");
@@ -1332,6 +1337,12 @@ if (S.section("D-refusals")) {
       'step "handoff": an agent step has no timeout', "a handoff step with no timeout");
     refusal("code-review.yaml", (t) => t.replace("    timeout: 2h\n", "    timeout: none\n"),
       'timeout "none" is not a positive duration', "an agent step with timeout: none");
+    // #211: a step that names a runner the engine floor no longer runs stops the engine at start.
+    for (const runner of ["pi", "opencode"])
+      refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", `    skill: xezar-handoff-draft-pr\n    runner: ${runner}\n    timeout: 15m\n`),
+        `step "handoff": names runner "${runner}", which the engine no longer runs`, `a step with runner: ${runner}`);
+    refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n    runner: qwen\n    timeout: 15m\n"),
+      "(it passed)", "a step with runner: qwen (it must pass)");
     refusal("design.yaml", (t) => t.replace("mcp__chrome-devtools__get_css_styles", "mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__evaluate_script"),
       "grants mcp__chrome-devtools__evaluate_script, which only the review and QA workflows may hold", "evaluate_script in the design workflow");
     for (const name of ["qa.yaml", "code-review.yaml", "security-review.yaml"]) {
@@ -1387,6 +1398,7 @@ if (S.section("D-review")) {
   const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
   let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
   let leftPid = null; // the one a second, ended run left running (#166), stopped there too
+  let holder = null; // another project's server on the port a review wants (#217), stopped there too
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1773,6 +1785,34 @@ if (S.section("D-review")) {
     rr("stop", "web");
     declareRole("qa");
 
+    // #217: another project's server holds the port the review's app wants. `start --port` refuses
+    // before it launches anything, and names the holder; on a free port it waits until the app listens.
+    const freePort = () => Number(execFileSync(process.execPath, ["-e", 'const s = require("node:net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); })'], { encoding: "utf8" }).trim());
+    const answers = (port) => {
+      try { execFileSync(process.execPath, ["-e", 'const c = require("node:net").connect(Number(process.argv[1]), "127.0.0.1"); c.on("connect", () => process.exit(0)); c.on("error", () => process.exit(1))', String(port)], { stdio: "ignore" }); return true; } catch { return false; }
+    };
+    // A probe that closes at once is a TCP reset on Windows: a server with no socket error handler
+    // crashes on it and frees the port (#218).
+    const listen = (port) => `require("node:net").createServer((s) => s.on("error", () => {})).listen(${port}, "127.0.0.1")`;
+    const busyPort = freePort();
+    holder = spawn(process.execPath, ["-e", listen(busyPort)], { stdio: "ignore" });
+    for (let i = 0; i < 50 && !answers(busyPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    const busy = rr("start", "web", "--port", String(busyPort), "node", "-e", listen(busyPort));
+    if (busy.status !== 1 || !busy.out.includes(`port ${busyPort} is already in use by`) || busy.out.includes("review-started="))
+      fail(`review-run.sh start --port launches the app on a port another project's server holds (#217):\n${busy.status} ${busy.out}`);
+    holder.kill();
+    holder = null;
+    const ownPort = freePort();
+    const own = rr("start", "web", "--port", String(ownPort), "node", "-e", listen(ownPort));
+    reviewPid = (own.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (own.status !== 0 || !own.out.includes(`review-listening=${ownPort} name=web`))
+      fail(`review-run.sh start --port does not report the port its own app listens on (#217):\n${own.status} ${own.out}`);
+    rr("stop", "web");
+    const gone = rr("start", "gone", "--port", String(freePort()), "node", "-e", "0");
+    if (gone.status !== 1 || !gone.out.includes("ended before it listened on port"))
+      fail(`review-run.sh start --port reports success for an app that ended before it listened (#217):\n${gone.status} ${gone.out}`);
+    if (rr("start", "web", "--port", "http", "node", "-e", "0").status !== 1) fail("review-run.sh start --port takes a value that is not a port (#217)");
+
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
     // A child can rewrite the head record too; the recorded head must still be a commit of the PR on GitHub.
@@ -1847,6 +1887,7 @@ if (S.section("D-review")) {
     for (const p of [reviewPid, leftPid]) {
       if (p) try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", p], { stdio: "ignore" }); } catch {}
     }
+    holder?.kill();
     rmSync(run, { recursive: true, force: true });
   }
 }
@@ -2155,23 +2196,30 @@ if (S.section("U")) {
 if (S.section("R")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { check } = await import(pathToFileURL(ROUTE).href);
-  const P = "pi/deepseek-api/deepseek-v4-pro";
-  const F = "pi/deepseek-api/deepseek-flash";
+  const P = "qwen/deepseek-v4-pro";
+  const F = "qwen/deepseek-flash";
   const byId = Object.fromEntries(routing.rows.map((r) => [r.id, r]));
   const lanesOfRow = (id) => byId[id]?.lanes ?? [];
   const toolOf = (id) => routing.lanes[id]?.tool;
 
-  // The lane's facts, as the owner's pi config states them (images: no).
-  const want = { tool: "pi", model: "deepseek-api/deepseek-v4-pro", vendor: "deepseek", tier: "strong", vision: false, imageGeneration: false, local: false, enforcesToolLimits: false, advisoryOnly: false, fullShellReviews: true };
-  const lane = routing.lanes[P];
-  if (!lane) fail(`${ROUTING} has no lane ${P}`);
-  else for (const [k, v] of Object.entries(want)) if (lane[k] !== v) fail(`${ROUTING}: ${P}.${k} is ${JSON.stringify(lane[k])}, expected ${JSON.stringify(v)}`);
-
-  // Screen rows: no V4 Pro (no vision); Flash is the no-Claude fallback wherever it can do the work.
-  for (const id of ["design-review", "browser-qa", "ui-design", "ux-design", "ui-implementation", "ui-tests", "generated-images", "diagrams"]) {
-    if (lanesOfRow(id).includes(P)) fail(`${ROUTING}: screen row ${id} lists ${P}, which cannot see a screen`);
-    if (id !== "generated-images" && lanesOfRow(id).at(-1) !== F) fail(`${ROUTING}: screen row ${id} does not end with ${F}, its no-Claude fallback`);
+  // The lanes' facts through Qwen Code (#204): both text only, and the Qwen runner holds a reading
+  // step read-only, so V4 Pro judges without the full-shell relaxation.
+  const want = {
+    [P]: { tool: "qwen", model: "deepseek-v4-pro", vendor: "deepseek", tier: "strong", vision: false, imageGeneration: false, local: false, enforcesToolLimits: true, advisoryOnly: false, fullShellReviews: undefined },
+    [F]: { tool: "qwen", model: "deepseek-flash", vendor: "deepseek", tier: "cheap", vision: false, imageGeneration: false, local: false, enforcesToolLimits: true, advisoryOnly: false },
+  };
+  for (const [id, facts] of Object.entries(want)) {
+    const lane = routing.lanes[id];
+    if (!lane) fail(`${ROUTING} has no lane ${id}`);
+    else for (const [k, v] of Object.entries(facts)) if (lane[k] !== v) fail(`${ROUTING}: ${id}.${k} is ${JSON.stringify(lane[k])}, expected ${JSON.stringify(v)}`);
   }
+
+  // Screen rows: no DeepSeek lane, since neither sees a screen through Qwen Code; diagrams draws
+  // from text, so Flash stays its no-Claude fallback there.
+  for (const id of ["design-review", "browser-qa", "ui-design", "ux-design", "ui-implementation", "ui-tests", "generated-images"]) {
+    for (const ds of [P, F]) if (lanesOfRow(id).includes(ds)) fail(`${ROUTING}: screen row ${id} lists ${ds}, which cannot see a screen`);
+  }
+  if (lanesOfRow("diagrams").at(-1) !== F) fail(`${ROUTING}: row diagrams does not end with ${F}, its no-Claude fallback`);
   // DeepSeek-first rows: first choice, the other DeepSeek model, then every Codex lane before any Claude lane.
   const deepseekFirst = (id, first, second) => {
     const l = lanesOfRow(id);
@@ -2183,9 +2231,8 @@ if (S.section("R")) {
   };
   for (const id of ["mechanical-docs", "bounded-bug-fix", "merge-chain", "dependency-maintenance"]) deepseekFirst(id, F, P);
   deepseekFirst("evidence-pass", F, null); // a strong lane is banned there
-  // localisation checks screens, so V4 Pro (no vision) stays out; Flash leads (owner, #89).
-  deepseekFirst("localisation", F, null);
-  if (lanesOfRow("localisation").includes(P) || !(byId.localisation?.never ?? []).some((n) => n.vision === false)) fail(`${ROUTING}: localisation lists ${P} or lost its vision ban`);
+  // localisation checks screens, so no text-only DeepSeek lane may take it, and its vision ban stays.
+  if (lanesOfRow("localisation").some((l) => l === P || l === F) || !(byId.localisation?.never ?? []).some((n) => n.vision === false)) fail(`${ROUTING}: localisation lists a DeepSeek lane or lost its vision ban`);
   if (JSON.stringify(byId["design-system"]?.lanes) !== '["claude/opus","codex/gpt-6-sol"]') fail(`${ROUTING}: design-system changed; the owner kept it as it was (#89)`);
   for (const id of ["docs-writing", "unit-tests", "integration-tests", "observability", "hotfix", "review-response-one"]) deepseekFirst(id, P, F);
   // Opus-first rows keep Opus first and take V4 Pro right after their last Codex lane.
@@ -2206,11 +2253,15 @@ if (S.section("R")) {
     mutate(f);
     if (!check(f).errors.some((e) => e.includes(expect))) fail(`route check accepts ${what} (expected "${expect}")`);
   };
-  refused((f) => { byIdOf(f)["business-analysis"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row only reads`, "V4 Pro in a reading row that is not a review");
-  refused((f) => { byIdOf(f)["release"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row is security and release`, "V4 Pro in a security row that writes");
-  refused((f) => { delete f.lanes[P].fullShellReviews; }, `"${P}" does not enforce a step's tool limits`, "V4 Pro in a review row without fullShellReviews");
-  refused((f) => { f.lanes[F].fullShellReviews = true; }, "a lane with tier: cheap never reviews with a full shell", "fullShellReviews on a cheap lane");
-  refused((f) => { f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
+  // No shipped lane needs the relaxation now, so each case first makes V4 Pro an owner's lane that
+  // does not enforce tool limits, the shape the relaxation exists for.
+  const shell = (f) => { f.lanes[P].enforcesToolLimits = false; f.lanes[P].fullShellReviews = true; };
+  refused((f) => { shell(f); byIdOf(f)["business-analysis"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row only reads`, "V4 Pro in a reading row that is not a review");
+  refused((f) => { shell(f); byIdOf(f)["release"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row is security and release`, "V4 Pro in a security row that writes");
+  refused((f) => { shell(f); delete f.lanes[P].fullShellReviews; }, `"${P}" does not enforce a step's tool limits`, "V4 Pro in a review row without fullShellReviews");
+  refused((f) => { f.lanes[F].enforcesToolLimits = false; f.lanes[F].fullShellReviews = true; }, "a lane with tier: cheap never reviews with a full shell", "fullShellReviews on a cheap lane");
+  refused((f) => { shell(f); f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
+  if (check((() => { const f = structuredClone(routing); shell(f); return f; })()).errors.length) fail("route check refuses V4 Pro with fullShellReviews in the review rows, the relaxation the owner accepted (#89)");
   function byIdOf(f) { return Object.fromEntries(f.rows.map((r) => [r.id, r])); }
 
   const lab = mkdtempSync(join(tempRoot(), "kit-route-r-"));
@@ -2229,36 +2280,36 @@ if (S.section("R")) {
     const lanesOf = (out) => out.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
     const esc = P.replace(/[/.]/g, "\\$&");
 
-    // A machine with pi and the model: V4 Pro is first in a mid-size row.
-    if (lanesOf(run("claude,codex,pi", "unit-tests"))[0] !== P) fail(`route unit-tests does not start with ${P} on a machine that has it`);
-    // A machine without pi at all: no V4 Pro lane, with the reason.
-    const noPi = run("claude,codex", "unit-tests");
-    if (lanesOf(noPi).includes(P) || !new RegExp(`^removed=${esc} reason=the pi program is not installed here$`, "m").test(noPi)) fail(`route gives ${P} on a machine without pi:\n${noPi}`);
-    // A machine whose pi config lacks the model: the leader's lane cache, written from list_models,
+    // A machine with qwen and the model: V4 Pro is first in a mid-size row.
+    if (lanesOf(run("claude,codex,qwen", "unit-tests"))[0] !== P) fail(`route unit-tests does not start with ${P} on a machine that has it`);
+    // A machine without qwen at all: no V4 Pro lane, with the reason.
+    const noQwen = run("claude,codex", "unit-tests");
+    if (lanesOf(noQwen).includes(P) || !new RegExp(`^removed=${esc} reason=the qwen program is not installed here$`, "m").test(noQwen)) fail(`route gives ${P} on a machine without qwen:\n${noQwen}`);
+    // A machine whose Qwen Code settings lack the model: the leader's lane cache, written from list_models,
     // marks it unavailable, and route drops it – the owner's off switch.
     const cacheDir = join(project, ".local/xezar/runtime");
     mkdirSync(cacheDir, { recursive: true });
-    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { [P]: { available: false, reason: "not in list_models for pi" } } }));
-    const noModel = run("claude,codex,pi", "unit-tests", "full-cold-review", "security-review");
-    if (lanesOf(noModel).includes(P) || !new RegExp(`^removed=${esc} reason=unavailable in the lane cache: not in list_models for pi$`, "m").test(noModel)) fail(`route gives ${P} on a machine whose pi config lacks the model:\n${noModel}`);
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { [P]: { available: false, reason: "not in list_models for qwen" } } }));
+    const noModel = run("claude,codex,qwen", "unit-tests", "full-cold-review", "security-review");
+    if (lanesOf(noModel).includes(P) || !new RegExp(`^removed=${esc} reason=unavailable in the lane cache: not in list_models for qwen$`, "m").test(noModel)) fail(`route gives ${P} on a machine whose Qwen Code settings lack the model:\n${noModel}`);
     writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
 
     // Reviews: for a Claude author V4 Pro is the first independent lane, then Astra.
-    const claudeAuthor = lanesOf(run("claude,codex,pi", "full-cold-review", "--author", "claude/opus"));
+    const claudeAuthor = lanesOf(run("claude,codex,qwen", "full-cold-review", "--author", "claude/opus"));
     if (claudeAuthor.join(",") !== `${P},codex/gpt-6-astra`) fail(`route full-cold-review --author claude/opus gave [${claudeAuthor}], expected ${P} then codex/gpt-6-astra`);
     // For DeepSeek-written work Sonnet comes before Astra. V4 Pro, another DeepSeek model, stays on
     // every review row it is listed in, security rows included (owner decision, 3.1.0 confirmations).
-    const dsAuthor = lanesOf(run("claude,codex,pi", "scoped-recheck", "--author", F));
+    const dsAuthor = lanesOf(run("claude,codex,qwen", "scoped-recheck", "--author", F));
     if (dsAuthor[0] !== "claude/sonnet" || !dsAuthor.includes("codex/gpt-6-astra")) fail(`route scoped-recheck --author ${F} gave [${dsAuthor}], expected claude/sonnet first and codex/gpt-6-astra offered`);
     for (const row of copy.rows.filter((r) => r.lanes?.includes(P) && r.neverAuthor === true)) {
-      const out = run("claude,codex,pi", row.id, "--author", F);
+      const out = run("claude,codex,qwen", row.id, "--author", F);
       if (!lanesOf(out).includes(P)) fail(`route ${row.id} --author ${F} drops ${P}; a same-vendor lane on another model may review on every row:\n${out}`);
     }
     // The author's own model is still removed, on a security row too.
-    const flashSelf = run("claude,codex,pi", "security-review", "--author", P);
+    const flashSelf = run("claude,codex,qwen", "security-review", "--author", P);
     if (lanesOf(flashSelf).includes(P) || !new RegExp(`^removed=${esc} reason=author-chain: shared model with ${esc}$`, "m").test(flashSelf)) fail(`route security-review --author ${P} keeps the author's own model:\n${flashSelf}`);
     // V4 Pro reviews in a security row when nothing of its vendor wrote the work.
-    if (!lanesOf(run("claude,codex,pi", "security-review", "--author", "codex/gpt-6-sol")).includes(P)) fail(`route security-review does not offer ${P} for a Codex author`);
+    if (!lanesOf(run("claude,codex,qwen", "security-review", "--author", "codex/gpt-6-sol")).includes(P)) fail(`route security-review does not offer ${P} for a Codex author`);
   } catch (error) {
     fail(`the #89 route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
   } finally {
@@ -2269,10 +2320,10 @@ if (S.section("R")) {
 
 // --- #122: route finds the agent programs the way this OS names them -----------------------------
 // No KIT_TEST_ROUTE_TOOLS: route.mjs looks each program up itself, on a PATH that holds only a
-// fixture folder – executable `claude`, `codex` and `pi` off Windows; `claude.exe`, `codex.cmd`,
-// `pi.cmd` and an extensionless `opencode` on Windows, where an extensionless file is no program.
-// node starts by its own path, and with --file route needs neither git nor gh, so nothing else on
-// this machine (an npm-global opencode beside node, say) can answer for the fixture.
+// fixture folder – executable `claude` and `codex` off Windows; `claude.exe`, `codex.cmd` and an
+// extensionless `qwen` on Windows, where an extensionless file is no program. node starts by its
+// own path, and with --file route needs neither git nor gh, so nothing else on this machine (an
+// npm-global qwen beside node, say) can answer for the fixture.
 if (S.section("122-route")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { installedPrograms } = await import(pathToFileURL(ROUTE).href);
@@ -2287,20 +2338,17 @@ if (S.section("122-route")) {
   try {
     const bin = join(lab, "bin");
     mkdirSync(bin);
-    const programs = process.platform === "win32" ? ["claude.exe", "codex.cmd", "pi.cmd", "opencode"] : ["claude", "codex", "pi"];
+    const programs = process.platform === "win32" ? ["claude.exe", "codex.cmd", "qwen"] : ["claude", "codex"];
     for (const name of programs) { writeFileSync(join(bin, name), ""); chmodSync(join(bin, name), 0o755); }
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
     writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
     writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
       { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
-    const O = "opencode/kimi-k2";
+    const O = "qwen/deepseek-v4-pro";
     const copy = structuredClone(routing);
     copy.tools.claude.rotation = ["acct-one"];
     copy.tools.codex.rotation = ["acct-three"];
-    copy.tools.opencode = { usesLogins: false };
-    copy.lanes[O] = { tool: "opencode", model: "kimi-k2", vendor: "moonshot", tier: "mid", vision: false, imageGeneration: false, local: false, enforcesToolLimits: false, advisoryOnly: false };
-    copy.rows.find((row) => row.id === "unit-tests").lanes.push(O);
     writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["PATH", "KIT_TEST_ROUTE_TOOLS"].includes(key.toUpperCase())));
     env.PATH = bin;
@@ -2308,10 +2356,10 @@ if (S.section("122-route")) {
     const lanes = out.split("\n").filter((line) => line.startsWith("lane=")).map((line) => line.split(" ")[0].slice(5));
     if (!lanes.includes("claude/sonnet") || /^removed=claude\//m.test(out))
       fail(`route does not find the claude program on Windows (claude.exe) or on this OS's PATH, so it drops the Claude lanes:\n${out}`);
-    for (const lane of ["codex/gpt-6-sol", "pi/deepseek-api/deepseek-flash"])
+    for (const lane of ["codex/gpt-6-sol"])
       if (!lanes.includes(lane)) fail(`route does not find the ${lane.split("/")[0]} program in the fixture folder (on Windows a .cmd), so it drops ${lane}:\n${out}`);
-    if (lanes.includes(O) || !/^removed=opencode\/kimi-k2 reason=the opencode program is not installed here$/m.test(out))
-      fail(`route keeps an opencode lane on a machine without the opencode program${process.platform === "win32" ? " (an extensionless opencode is not one)" : ""}:\n${out}`);
+    if (lanes.includes(O) || !/^removed=qwen\/deepseek-v4-pro reason=the qwen program is not installed here$/m.test(out))
+      fail(`route keeps a qwen lane on a machine without the qwen program${process.platform === "win32" ? " (an extensionless qwen is not one)" : ""}:\n${out}`);
   } catch (error) {
     fail(`the #122 route programs fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
   } finally {

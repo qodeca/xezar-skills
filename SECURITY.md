@@ -81,21 +81,19 @@ operator did not intend.
   retiring it means proving a live onboarding run gets there, and that run is still owed.
   Shrinking the last case on the strength of a capability nobody has watched work is the wrong
   direction to be wrong in.
-- **One reviewer without a proven read-only lock is accepted and recorded rather than found:** the
-  onboarding kit's shipped routing lets the DeepSeek lane `pi/deepseek-api/deepseek-v4-pro`
-  (marked `fullShellReviews`) judge in these reading rows only: `scoped-recheck`,
-  `full-cold-review`, `acceptance-verification`, `architecture-review`, `security-review` and
-  `verify-strong-claim`. It may also be the other-vendor reviewer of a risk-high change when
-  Claude has no budget – DeepSeek work included, as long as another model wrote it. It is in no
-  screen or QA row (`browser-qa`: it has no image input) and not in the `release`, `deploy` or
-  `rollback` rows; a change that puts it in a reading row not listed here is not covered by
-  this entry. The pi runner applies a reading step's command list through an extension whose
-  lock is not yet proven live (qodeca/xezar#935), so the kit counts that reviewer as holding a full shell: it could edit files,
-  commit or push. The review-and-QA protection still applies – a verdict or an own label is refused
-  when the reviewed tree changed. The owner accepted it (#89), and `DECISIONS.md` → "Reviews fall
-  to DeepSeek when Claude has no budget" states what it gives away. A second full-shell reviewer, a
-  cheap, local or advisory-only one, one in a reading row that is not a review, or one in a security
-  row that writes, is still a finding.
+- **No shipped reviewer holds a full shell; the relaxation that would allow one is accepted and
+  recorded rather than found:** the onboarding kit's shipped routing marks no lane
+  `fullShellReviews`, so it lets no lane judge in these reading rows only: (none). Its DeepSeek
+  reviewer `qwen/deepseek-v4-pro` runs under Qwen Code, which holds a reading step read-only
+  (qodeca/xezar#1044), and judges like the Claude and Codex lanes. Until #204 it ran on pi as
+  `pi/deepseek-api/deepseek-v4-pro` with a full shell. `route.mjs` still accepts the
+  `fullShellReviews` mark, in a review row or a security row that only reads, for an owner who adds
+  a lane whose runner does not hold it read-only; that owner takes on the risk this relaxation
+  gave away, and the review-and-QA protection still applies – a verdict or an own label is refused
+  when the reviewed tree changed. The owner accepted the relaxation (#89), and `DECISIONS.md` →
+  "Reviews fall to DeepSeek when Claude has no budget" states what it gives away. A shipped lane
+  marked `fullShellReviews`, or such a lane that is cheap, local or advisory-only, in a reading row
+  that is not a review, or in a security row that writes, is a finding.
 - **One integrity check stands where an authorisation boundary would be, accepted and recorded
   rather than found:** a repair of an existing pull request reaches GitHub only through the
   kit's `push-check.sh`, which pushes the run's sealed, checked commit to that pull request's own

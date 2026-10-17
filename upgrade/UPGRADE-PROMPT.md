@@ -427,10 +427,9 @@ Walk the `Actions:` of every upgrade entry in the range, oldest first:
   TOML literal-string key in single quotes, `[projects.'c:\users\me\app']`, in
   `%USERPROFILE%\.codex\config.toml` unless `CODEX_HOME` is set; a mixed-case key is untested, and
   a path holding a `'` takes the double-quoted form with every `\` doubled.
-  `install-pi-extension:<project path>` applies only when a routing lane is `pi/…` and a file in
-  the `extensions/` folder of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`)
-  names the `pi-mcp-adapter:tool-approval-request` event and differs from `<project path>`: the
-  owner replaces that file with `<project path>`.
+  `install-pi-extension:<project path>` belonged to the pi add-on, which the kit no longer ships
+  (engine 0.30.0 runs no pi, #204); no current entry names it, and if an older note does, it is
+  done – list it as not needed.
 - An action outside this list is refused: report it as an unknown action and do not guess.
 
 Then read every entry on `unblockedEntries` (its heading and line in the clone's
@@ -503,8 +502,8 @@ do item 4:
 4. **Run the project's own gate check:** `bash <project>/.xezar/checks/repository-checks.sh`.
    This is the one place you run the project's own code; the owner sees the permission prompt.
    It runs the drift check again, so the same `unconfirmed-patch` result is expected there too.
-   A drift or local-tree failure does not stop it: every later check still runs, and the script
-   fails at the end on their status. So read the whole output, not only the drift and local-tree
+   A drift, local-tree or config guard failure does not stop it: every later check still runs, and
+   the script fails at the end on their status. So read the whole output, not only the drift and local-tree
    lines: a failure from any other check (catalog, route, config guard, changelog, fenced quotes,
    documented output, links, the contract test) is a fault of its own and is reported, even when
    the only drift finding is `unconfirmed-patch`.
@@ -556,7 +555,7 @@ the owner may want `plan.json`.
 | Permission change | the merge would add an allow rule, hook, MCP server, tool grant, or Codex rule or trust | – | **always stop and ask**; the report gets a "permission changes" section with before and after |
 | New in kit | not installed, and neither the manifest nor the register records it | adds it; stages theirs when a placeholder value is unknown; skips an optional descriptor the project did not install | check that it fits the project's config |
 | Removed from kit | installed, gone upstream, and in the base index | deletes it when it is unchanged from its base (`delete`); keeps it when it was edited locally (`keep`) | flag every kept one in the report |
-| Owner-shaped | the owner-shaped files listed above | gives facts only | merge by meaning: new config keys follow step 6; owner values never change; `routing.json` merges three ways against the defaults of its `defaults.version` (the clone's `skills/xez-onboard-opinionated/references/routing-defaults/<n>.json`); the leader guide keeps its `## Owner's rules` section untouched; JSON and TOML merge key by key |
+| Owner-shaped | the owner-shaped files listed above | gives facts only | merge by meaning: new config keys follow step 6; owner values never change; `routing.json` merges three ways against the defaults of its `defaults.version` (the clone's `skills/xez-onboard-opinionated/references/routing-defaults/<n>.json`), and its `tools.*.rotation` lists are account names – carry them over without printing them (rule 7); the leader guide keeps its `## Owner's rules` section untouched; JSON and TOML merge key by key |
 | Per-machine | any gitignored or untracked file | never writes it | list the change as a per-machine action for the owner |
 | Never touched | `.xezar/pipeline/overrides/**`, application code, campaign notes | – | – |
 | Refused | an unsafe path: absolute, with `..`, a symlink or under one, or outside the project | lists it; never reads or writes it | stop (`unsafe-path`): tell the owner which path and why |

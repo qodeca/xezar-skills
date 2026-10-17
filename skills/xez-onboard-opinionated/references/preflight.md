@@ -128,7 +128,7 @@ Three facts, each with its own fix. All three are **fixable stops**:
 | Pass when | Otherwise tell the owner |
 |---|---|
 | `command -v xezar` finds the binary | `npm install -g @qodeca/xezar` |
-| `xezar --version` is 0.19.0 or later — the version this kit was tested against | the same command; it upgrades |
+| `xezar --version` is 0.30.0 or later — the version this kit was tested against | the same command; it upgrades |
 | `.xezar/workspace.json` exists — the engine's single-project marker | the start line below |
 
 ```bash
@@ -165,7 +165,7 @@ asked again in this run.
 
 **Then check that every routing row can run here.** For each row of this skill's
 `kit/routing.json` that is not handled by the leader, at least one of its lanes must be usable on
-this machine: its runner's program is installed (`claude`, `codex`, `pi`), and, for a runner that
+this machine: its runner's program is installed (`claude`, `codex`, `qwen`), and, for a runner that
 uses logins, `.xezar/agent-accounts.json` holds at least one account of that provider. A row none of
 whose runner programs is installed is a **stop**: name the row and the runners that would serve it,
 because a row the leader can never dispatch is work that silently waits forever. A row whose only

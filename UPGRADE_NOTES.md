@@ -23,6 +23,198 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-16 – xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode)
+
+Applies to any repository onboarded by `xez-onboard-opinionated` before kit 3.2.0. From kit 3.2.0
+the kit needs engine 0.30.0 or later (`compat.json`), and that engine runs Claude Code, Codex and
+Qwen Code only.
+
+**Symptom – `xezar` refuses to start** with this message, and lists each file and field it found:
+
+```text
+xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode).
+Found <N> values in <M> files:
+  <file>: <field> = "pi", in the item with id "<id>"
+Fix: change each value to qwen, claude or codex, or remove it. Then start xezar again.
+xezar changed nothing. The xezar guide page "Moving from pi or OpenCode to Qwen Code" shows each step.
+```
+
+The engine reads the workflows, its config and its task records at start, so this refusal appears
+only when one of them names pi or OpenCode – a workflow step with `runner: pi`, a saved default
+agent, an old task record. No kit version shipped a `runner:` line, and the engine does not read
+`.xezar/routing.json`: in a stock kit project the engine starts, and each task routed to a `pi/` or
+`opencode/` lane is refused when it is created.
+
+**What to do.** Follow the xezar guide page "Moving from pi or OpenCode to Qwen Code" for the
+engine's own settings and task records – there is no converter. Then, in the project, copy
+`.xezar/checks/route.mjs` **first**: an older one refuses the `qwen` runner and so the whole new
+routing file. Copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`, and merge
+`.xezar/routing.json` with the defaults version 5. Each pi lane becomes the Qwen Code lane of the
+same model, and your own edits stay:
+
+| Was | Is |
+|---|---|
+| `pi/deepseek-api/deepseek-flash` | `qwen/deepseek-flash` |
+| `pi/deepseek-api/deepseek-v4-pro` | `qwen/deepseek-v4-pro` |
+| `pi/dgx-spark/deepseek-v4-flash-vision` | `qwen/deepseek-v4-flash-vision` |
+| `pi/mac-m4/qwen38-flash-next-mlx-mixed-4-8bit` | `qwen/qwen38-flash-next-mlx-mixed-4-8bit` |
+
+What a lane can do through its runner – `vision`, `imageGeneration`, `enforcesToolLimits`,
+`fullShellReviews` and the `model` name – comes from the defaults version 5, not from your old pi
+lane, because pi's answer says nothing about Qwen Code's: Qwen Code passes no images on the
+`qwen38` lane, so `vision` stays `false` there even where you had set `true` on the pi lane. List
+each such value you replaced in the upgrade report; your row orders, `never` entries and notes stay.
+A lane of your own on `pi/` or `opencode/` moves to `qwen`, `claude` or `codex`, or goes; a row you
+reordered by hand that the new defaults also reorder is a routing clash – stop and ask the owner.
+Copy `.xezar/checks/catalog-check.mjs`: it now refuses a workflow step whose `runner:` is not
+`claude`, `codex` or `qwen`, so a `runner: pi` line a merge kept fails the gate instead of the
+engine start. Delete `.xezar/pi/`: the kit no longer ships the pi approval add-on. On each machine that runs
+DeepSeek steps, install Qwen Code and add the models to its settings; a machine without a model
+gets no lane for it, and the work falls back in row order. Flash is text only through Qwen Code, so
+it leaves the screen rows and `localisation`; V4 Pro now reviews read-only, so no shipped lane
+needs `fullShellReviews`.
+
+**What you lose by skipping it.** On engine 0.30.0 every task routed to a `pi/` or `opencode/` lane
+is refused when it is created – in the shipped defaults that is most simple and mid-size work and
+the last reviewer of every review row – and the engine does not start at all while a workflow, its
+config or a task record names pi or OpenCode. An older engine does not run kit 3.2.0.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge; .xezar/checks/catalog-check.mjs; .xezar/pi/extensions/mcp-approval-queue.ts =delete
+Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
+```
+
+## 2026-10-17 – a QA or design review judges another project's app, which held the port
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A QA or design review step started the PR's app with `review-run.sh start`, but the
+browser showed data the PR never had. Another project's server, left running on the same machine,
+held the port: the PR's app could not bind, and the step tested the other app.
+
+**What to do.** Copy `.xezar/checks/review-run.sh`, `.xezar/skills/xezar-qa.md` and
+`.xezar/skills/xezar-ux-design.md`. `start <name> --port <port> …` now refuses when something already
+answers on that port, and names its pid and folder; it waits until the app listens and prints
+`review-listening=<port>`. The two roles open only that port, and report each check that needed
+the app as not run after a refusal.
+
+**What you lose by skipping it.** A review can PASS a pull request against a different app.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/review-run.sh; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
+```
+
+## 2026-10-16 – the leader runs a lane that `route.mjs` removed, on a login nobody listed
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `route.mjs` prints `removed=` for a lane – for example every `claude/` lane, because
+`tools.claude.rotation` names logins this machine does not have – and the leader still dispatches
+that lane on another login, and its report does not say so.
+
+**What to do.** Copy `.xezar/docs/routing.md` and merge the new sentence into
+`.xezar/docs/leader-guide.md`: only a `lane=` line is dispatched, never a `removed=` lane or a
+login outside its `logins=`; with no `lane=` left, the leader stops and reports each `removed=`
+reason.
+
+**What you lose by skipping it.** Work runs on accounts the routing never listed, and the run report
+hides it.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/docs/routing.md; .xezar/docs/leader-guide.md =merge
+```
+
+## 2026-10-16 – an upgrade's repository checks stop at the config guard and skip the rest
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `bash .xezar/checks/repository-checks.sh` prints the config guard's failure and
+nothing after it: the changelog, fenced-quote, documented-output, link and contract checks never
+run. Every upgrade that changes the browser entry in `.codex/config.toml` fails the guard until its
+pull request merges, so the upgrade's verification was partial.
+
+**What to do.** Copy `.xezar/checks/repository-checks.sh`: a config guard failure, like a drift or
+local-tree one, now lets the later checks run and print, and still fails the script at the end.
+
+**What you lose by skipping it.** An upgrade, or anyone reading the gate, sees checks as unknown
+that never ran whenever the guard fails.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/repository-checks.sh
+```
+
+## 2026-10-16 – a PR a DeepSeek lane wrote or repaired merges with no Claude or Astra review
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A PR that a pi lane (a Qwen lane from 3.2.0) wrote or repaired merges after reviews on
+other lanes only, although the routing ban `pi-write-claude-review` (now
+`qwen-write-claude-review`) asks for a review on a Claude lane or on `codex/gpt-6-astra` first.
+The ban is marked `"checkedAt": "merge"`, but `route.mjs` prints only dispatch bans, no merge check
+reads routing, and a commit does not name the lane that made it.
+
+**What to do.** Merge the new sentences of the merge rule into `.xezar/docs/leader-guide.md`:
+before the merge tool, the leader reads every merge-time ban in `.xezar/routing.json` and holds it
+against its own dispatch records, and a merge the ban does not clear is a blocker until that review
+runs.
+
+**What you lose by skipping it.** DeepSeek-written work can merge with no review by a model of
+another vendor that the owner asked for.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/docs/leader-guide.md =merge
+```
+
+## 2026-10-16 – a design-only PR closes its issue when it merges
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A design PR (every file under `paths.designs`) merges and its issue closes as
+completed, while the implementation has not started. GitHub closes every issue in the PR's
+`closingIssuesReferences`, and it finds one in any sentence that puts a closing word next to the
+number – also "(the one that closes #5)". No merge check read the closing references.
+
+**What to do.** Copy `.xezar/checks/lib/project-policy.mjs`, `.xezar/checks/integration-preflight.sh`
+and `.xezar/skills/xezar-handoff-draft-pr.md`. Merge the new sentence of the merge rule into
+`.xezar/docs/leader-guide.md`: before the merge tool the leader runs
+`gh pr view <n> --json labels,files,closingIssuesReferences | node .xezar/checks/lib/project-policy.mjs`,
+which refuses a design-only PR that closes an issue. The PR template's "Closes #123" hint stays: it
+is right for the PR that delivers the issue, and the handoff now writes "Refs" on a design-only
+one. Reopen any issue a design PR closed.
+
+**What you lose by skipping it.** Issues close before their work exists, and the board says done
+while the implementation is still running.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/lib/project-policy.mjs; .xezar/checks/integration-preflight.sh; .xezar/skills/xezar-handoff-draft-pr.md; .xezar/docs/leader-guide.md =merge
+```
+
+## 2026-10-16 – a design review passes with follow-ups, but the PR never gets `design-approved`
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A design review posts "Verdict: PASS WITH FOLLOW-UPS" and writes its verdict, but
+asks for no label, so the design gate holds a PR that passed and the leader sends a second review
+of the same head. The role said "On PASS, add `design-approved`" and also that PASS WITH
+FOLLOW-UPS is never written as PASS, and a reviewer read the two together as "no label".
+
+**What to do.** Copy `.xezar/skills/xezar-ux-design.md`: its label step now says "On PASS or PASS
+WITH FOLLOW-UPS – both approve". QA has only PASS and FAIL, so `xezar-qa.md` needs nothing.
+
+**What you lose by skipping it.** Some passing design reviews leave the PR waiting, and each costs
+a second review run.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-16 – a Codex QA or design review FAILs with no chrome-devtools tool although the tools are there
 
 Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
@@ -148,37 +340,6 @@ has it, a pi QA or design review of a UI change FAILs and the leader routes it t
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/skills/xezar-acceptance.md; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
-```
-
-## 2026-10-15 – a pi QA or design review cannot use chrome-devtools: every call says the user declined approval
-
-Applies to any repository onboarded by `xez-onboard-opinionated` whose `.xezar/routing.json` names
-a `pi/` lane, on a machine where a pi add-on answers MCP approvals.
-
-**Symptom – a pi QA or design review gets "The user declined approval to run MCP tool …" on every
-chrome-devtools call**, then FAILs with no browser evidence, although nobody declined anything.
-pi-mcp-adapter hands every MCP tool call to the first add-on that claims its
-`pi-mcp-adapter:tool-approval-request` event – even for a server whose `approveTools` is off – and
-an add-on that asks a person denies when no person can answer, as in a xezar step. pi loads the
-owner's add-ons before a project's, so a project cannot fix this on its own.
-
-**What to do.** On every machine that runs pi steps, list the files in the `extensions/` folder
-of pi's agent dir (`$PI_CODING_AGENT_DIR`, otherwise `~/.pi/agent`) that name that event. Replace
-the one you find with `.xezar/pi/extensions/mcp-approval-queue.ts`, which the upgrade copies into
-the project. It keeps one-at-a-time prompts with Deny first and denies with no person there, and
-allows without asking only a chrome-devtools tool that the main checkout's `.codex/config.toml`
-lists in `enabled_tools` (never the copy in a pull request's worktree under review) and that the
-kit itself ships – so never evaluate_script or an upload, whatever a file says.
-With no such add-on, change nothing. The add-on is the owner's: the upgrade never writes pi's
-agent dir.
-
-**What you lose by skipping it.** On that machine no pi step can use the browser, so every UI
-change pays for a failed pi review before another lane passes it.
-
-```upgrade
-Applies-to: <3.1.0
-Files: .xezar/pi/extensions/mcp-approval-queue.ts
-Actions: per-machine=install-pi-extension:.xezar/pi/extensions/mcp-approval-queue.ts
 ```
 
 ## 2026-10-15 – Codex does not trust the project, so a Codex step has no chrome-devtools server

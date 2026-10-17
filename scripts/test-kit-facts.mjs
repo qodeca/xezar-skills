@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -737,7 +737,7 @@ if (S.section("17")) {
   if (reserved["codex/gpt-6-astra"]?.escalation !== true || JSON.stringify(reserved["codex/gpt-6-astra"]?.rows) !== '["generated-images","diagrams","security-review"]')
     fail(fact, "kit/routing.json", "codex/gpt-6-astra is no longer reserved to generated-images, diagrams and security-review, plus escalation");
   const route = read(`${SKILL}/kit/checks/route.mjs`);
-  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude", "codex"\]\);$/m.test(route))
+  if (!/const FILE_BANS = \["local-never-writes", "tool-limits"\];/.test(route) || !/out\.push\(\["security-minimum", `"\$\{id\}" is a cheap lane`\]\)/.test(route) || !/^const ENFORCING_RUNNERS = new Set\(\["claude", "codex", "qwen"\]\);$/m.test(route))
     fail(fact, "kit/checks/route.mjs", "no longer enforces the file bans, the security minimums and the enforcing-runner list itself -- a project's file could drop them");
   if (!read(`${SKILL}/kit/checks/lib/security-scan.mjs`).includes("/^\\.xezar\\/routing(\\.schema)?\\.json$/"))
     fail(fact, "kit/checks/lib/security-scan.mjs", "TRUST_BOUNDARIES no longer names .xezar/routing.json -- a PR could reroute its own review as an ordinary edit");
@@ -882,7 +882,12 @@ if (S.section("23")) {
   // The guard starts with the other background checks and is judged at its own place (#132 speed
   // bar): both halves must be there, or a changed browser entry passes the gate.
   const repositoryChecks = read(`${SKILL}/kit/checks/repository-checks.sh`);
-  if (!/^started config-guard bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(repositoryChecks) || !/^finished config-guard$/m.test(repositoryChecks)) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base and judges it, so a changed browser entry passes the gate");
+  if (!/^started config-guard bash "\$SCRIPT_DIR\/config-guard\.sh" browser --from-base$/m.test(repositoryChecks) || !/^finished config-guard \|\| config_guard_rc=\$\?$/m.test(repositoryChecks)) fail(fact, "kit/checks/repository-checks.sh", "no longer runs config-guard.sh browser --from-base and judges it, so a changed browser entry passes the gate");
+  // A guard failure does not stop the later checks (#214) – an upgrade that changes the browser
+  // entry fails it until its PR merges, and step 7.4 reads every later check – but it is still the
+  // script's exit status at the end.
+  if (!/^  exit "\$config_guard_rc"$/m.test(repositoryChecks) || !/\|\| \[ "\$config_guard_rc" -ne 0 \]; then$/m.test(repositoryChecks))
+    fail(fact, "kit/checks/repository-checks.sh", "no longer fails at the end on a config-guard failure it let the later checks run past");
   checked.push(fact);
 }
 
@@ -1463,13 +1468,16 @@ if (S.section("R1")) {
   const need = [
     ["no-self-review", /^A review, re-check or QA runs on a different model from the one that wrote the work\.$/, "is no longer word for word the ban #89 keeps"],
     ["local-never-writes", /^A lane with local: true is in no row with writes: true\.$/, "is no longer word for word the ban #89 keeps"],
-    ["pi-write-claude-review", /^What a pi lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
-    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, pi\/deepseek-api\/deepseek-v4-pro may be that reviewer, full shell and all, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
+    ["qwen-write-claude-review", /^What a Qwen lane wrote merges only after a review on a Claude lane, claude\/sonnet first, or else on codex\/gpt-6-astra\. Another DeepSeek model may review DeepSeek work, never the author's own, but that review alone does not clear the merge\.$/, "is relaxed further than #89 and the owner's 3.1.0 confirmation decided (Sonnet first, then Astra; a DeepSeek review of DeepSeek work never clears the merge alone)"],
+    ["high-risk-other-vendor", /^A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login\. When no Claude lane has budget, qwen\/deepseek-v4-pro may be that reviewer, of DeepSeek work too when another model wrote it\.$/, "is relaxed further than #89 decided (V4 Pro only, and only when no Claude lane has budget)"],
     ["tool-limits", /^A lane with enforcesToolLimits: false is in no reading row \(writes: false and not runsCode\) and in no security-and-release row\. One exception: a lane with fullShellReviews: true may be in a review row, or a security row that only reads\.$/, "is relaxed further than #89 decided (fullShellReviews, review rows and security rows that only read)"],
   ];
   for (const [id, re, detail] of need) if (!re.test(rule(id))) fail(fact, "kit/routing.json", `ban ${id} ${detail}`);
   const marked = Object.entries(routing.lanes).filter(([, l]) => l.fullShellReviews === true).map(([id]) => id);
-  if (marked.join(",") !== "pi/deepseek-api/deepseek-v4-pro") fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; the owner accepted pi/deepseek-api/deepseek-v4-pro alone`);
+  // Since #204 the DeepSeek reviewer runs under Qwen Code, which holds it read-only, so no shipped
+  // lane needs the relaxation; the owner accepted it for the pi lane alone, and that lane is gone.
+  if (marked.length) fail(fact, "kit/routing.json", `the shipped lanes marked fullShellReviews are [${marked}]; none is accepted since qwen/deepseek-v4-pro holds a reading step read-only (#204)`);
+  if (routing.lanes["qwen/deepseek-v4-pro"]?.enforcesToolLimits !== true) fail(fact, "kit/routing.json", "qwen/deepseek-v4-pro does not enforce tool limits, so it would judge with a full shell that no entry accepts");
 
   const route = read(`${SKILL}/kit/checks/route.mjs`);
   if (!/^const FULL_SHELL_FORBIDDEN = \[\["tier", "cheap"\], \["local", true\], \["advisoryOnly", true\]\];$/m.test(route)
@@ -1478,13 +1486,13 @@ if (S.section("R1")) {
     fail(fact, "kit/checks/route.mjs", "no longer holds the fullShellReviews exception to judging rows and to strong, non-local lanes that give verdicts");
 
   const security = read("SECURITY.md");
-  if (!/One reviewer without a proven read-only lock is accepted and recorded[\s\S]*?pi\/deepseek-api\/deepseek-v4-pro[\s\S]*?full shell[\s\S]*?The owner accepted it \(#89\)[\s\S]*?"Reviews fall\s+to DeepSeek when Claude has no budget"/.test(security))
-    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell V4 Pro reviewer that the owner accepted (#89) and that points at its DECISIONS.md entry");
+  if (!/No shipped reviewer holds a full shell; the relaxation that would allow one is accepted and\s+recorded[\s\S]*?qwen\/deepseek-v4-pro[\s\S]*?read-only[\s\S]*?The owner accepted the relaxation \(#89\)[\s\S]*?"Reviews fall to DeepSeek when Claude has no budget"/.test(security))
+    fail(fact, "SECURITY.md", "has no accepted-risk entry for the full-shell relaxation the owner accepted (#89) that says no shipped reviewer holds a full shell and points at its DECISIONS.md entry");
   // The entry lists the reading rows the full-shell lane judges in, and SECURITY.md outranks the
   // routing file, so the list must be exactly the rows the routing gives it: a wider list would
   // pre-accept a placement the owner never accepted, and a row named as excluded must be one it is
   // truly absent from.
-  const accepted = security.split("One reviewer without a proven read-only lock")[1]?.split(/\n- \*\*/)[0] ?? "";
+  const accepted = security.split("No shipped reviewer holds a full shell")[1]?.split(/\n- \*\*/)[0] ?? "";
   const listed = (accepted.match(/judge in these reading rows only:([\s\S]*?)\./)?.[1]?.match(/`([a-z0-9-]+)`/g) ?? []).map((x) => x.slice(1, -1)).sort();
   const actual = routing.rows.filter((r) => r.writes === false && marked.some((m) => r.lanes.includes(m))).map((r) => r.id).sort();
   if (listed.join(",") !== actual.join(","))
@@ -1497,7 +1505,7 @@ if (S.section("R1")) {
   const decisions = read("DECISIONS.md");
   const entry = decisions.split(/^## Reviews fall to DeepSeek when Claude has no budget$/m)[1]?.split(/^## /m)[0] ?? "";
   if (!entry) fail(fact, "DECISIONS.md", "has no \"Reviews fall to DeepSeek when Claude has no budget\" entry, which SECURITY.md cites");
-  else for (const id of ["tool-limits", "pi-write-claude-review", "high-risk-other-vendor"]) {
+  else for (const id of ["tool-limits", "qwen-write-claude-review", "high-risk-other-vendor"]) {
     if (!new RegExp(`\\*\\*\`${id}\`\\.\\*\\*[\\s\\S]*?Given\\s+away:`).test(entry)) fail(fact, "DECISIONS.md", `the #89 entry does not say what relaxing ${id} gives away`);
   }
   checked.push(fact);
@@ -2476,6 +2484,114 @@ if (S.section("I15")) {
 }
 
 // ---------------------------------------------------------------------------
+// FACT I24 -- a review opens only the port its own start reported (#217). On Linux a QA step reached
+// another project's orphan server on localhost:3000 and judged that app. review-run.sh refuses a busy
+// port and waits for its own listener (test-kit-catalog D-review runs it); the roles must use it.
+if (S.section("I24")) {
+  const fact = "FACT I24: QA and design review start the app with --port and open only the port review-listening= names";
+  for (const doc of [`${SKILL}/kit/skills/xezar-qa.md`, `${SKILL}/kit/skills/xezar-ux-design.md`]) {
+    const text = read(doc);
+    if (!/start <name> --port <port>/.test(text) || !text.includes("review-listening=<port>"))
+      fail(fact, doc, "does not start the app with --port and open only the port review-listening= names");
+    if (!text.includes("report each check that needed the app as not run"))
+      fail(fact, doc, "does not say a refused start means the app was not reached");
+  }
+  checked.push(fact);
+}
+
+// FACT I23 -- the leader never dispatches a lane route.mjs removed (#215). In the Windows upgrade
+// row route.mjs removed every claude lane (the rotation named another machine's logins), and the
+// leader ran claude/opus on a login outside the rotation without saying so; the Linux leader, with
+// the same routing, stopped. Both the leader guide and the routing doc say only `lane=` dispatches.
+// ---------------------------------------------------------------------------
+if (S.section("I23")) {
+  const fact = "FACT I23: only a lane= line is dispatched, never a removed= lane or a login outside logins=, and a stop reports why";
+  const doc = `${SKILL}/kit/docs/routing.md`;
+  if (!read(doc).includes("**Only a `lane=` line is dispatchable (#215).** A lane on a `removed=` line is never dispatched – not on another login, not by hand – and a login outside the lane's `logins=` is never used."))
+    fail(fact, doc, "does not forbid dispatching a removed= lane or a login outside logins=");
+  if (!/When no `lane=` line is left, stop and report each `removed=` reason/.test(read(doc)))
+    fail(fact, doc, "does not say to stop and report the removed= reasons when no lane= is left");
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  if (!read(tpl).includes("A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used"))
+    fail(fact, tpl, "does not forbid dispatching a lane route.mjs removed");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I22 -- the leader checks every merge-time routing ban before the merge tool (#206). The ban
+// `qwen-write-claude-review` (pi-write-claude-review then) is marked checkedAt "merge", but route.mjs
+// prints only dispatch bans, no merge check reads routing, and a commit names no lane: a Linux design
+// PR a pi lane repaired merged with Codex reviews only. Every merge ban in the shipped routing must
+// be named in the leader's merge rule, with the dispatch records it is checked against.
+// ---------------------------------------------------------------------------
+if (S.section("I22")) {
+  const fact = "FACT I22: the leader's merge rule names every merge-time routing ban and checks it against its dispatch records";
+  const routing = JSON.parse(read(`${SKILL}/kit/routing.json`));
+  const tpl = `${SKILL}/kit/leader-guide.template.md`;
+  const text = read(tpl);
+  const merge = routing.globalBans.filter((b) => b.checkedAt === "merge").map((b) => b.id);
+  if (!merge.length) fail(fact, `${SKILL}/kit/routing.json`, "has no merge-time ban, so this fact checks nothing – drop it with the ban");
+  if (!/read every `globalBans` entry with `"checkedAt": "merge"` in `\.xezar\/routing\.json` and hold it against your own dispatch records/.test(text))
+    fail(fact, tpl, "does not tell the leader to check the merge-time routing bans against its dispatch records before the merge tool");
+  for (const id of merge) if (!text.includes(`\`${id}\``)) fail(fact, tpl, `does not name the merge-time ban ${id}`);
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I21 -- a design-only PR never closes its issue (#207). GitHub closes every issue in a PR's
+// closingIssuesReferences on merge, also from "(the one that closes #5)": a Linux design PR closed
+// its issue before any implementation. The handoff says "Refs" only, and the merge policy – which the
+// leader runs before the merge tool and the integration preflight feeds – refuses one that closes.
+// RUN, not only read: the policy is imported and fed design-only and mixed PRs.
+// ---------------------------------------------------------------------------
+if (S.section("I21")) {
+  const fact = "FACT I21: a design-only PR links its issue with Refs only, and the merge policy refuses one that closes it";
+  const where = `${SKILL}/kit/checks/lib/project-policy.mjs`;
+  const { projectPolicy } = await import(pathToFileURL(join(root, where)).href);
+  const pr = (files, closes) => ({ labels: [], files: files.map((path) => ({ path })), closingIssuesReferences: closes.map((number) => ({ number })) });
+  const designs = "docs/designs";
+  if (!projectPolicy(pr(["docs/designs/count/index.html", "docs/designs/count/README.md"], [5]), { designs }).refused?.includes("closes #5"))
+    fail(fact, where, "merges a design-only PR that closes its issue");
+  if (!projectPolicy(pr(["docs/designs/count/index.html"], []), { designs }).passed)
+    fail(fact, where, "refuses a design-only PR that closes nothing");
+  if (!projectPolicy(pr(["docs/designs/count/index.html", "src/count.ts"], [5]), { designs }).passed)
+    fail(fact, where, "refuses an implementation PR that closes its issue");
+  if (!projectPolicy(pr(["docs/designs-old/a.html"], [5]), { designs }).passed)
+    fail(fact, where, "reads a sibling folder that starts with the designs path as a design");
+  if (!projectPolicy({ labels: [] }, { designs }).passed)
+    fail(fact, where, "refuses a PR whose input carries no file list (the REST answer)");
+  const preflight = read(`${SKILL}/kit/checks/integration-preflight.sh`);
+  if (!/pr view "\$PR" --repo "\$REPO" --json files,closingIssuesReferences/.test(preflight))
+    fail(fact, `${SKILL}/kit/checks/integration-preflight.sh`, "does not give the merge policy the PR's files and closing references");
+  if (!read(`${SKILL}/kit/leader-guide.template.md`).includes("gh pr view <n> --json labels,files,closingIssuesReferences | node .xezar/checks/lib/project-policy.mjs"))
+    fail(fact, `${SKILL}/kit/leader-guide.template.md`, "does not run the merge policy with the PR's files and closing references before the merge tool");
+  if (!read(`${SKILL}/kit/skills/xezar-handoff-draft-pr.md`).includes("link the issue with `Refs #<n>` only"))
+    fail(fact, `${SKILL}/kit/skills/xezar-handoff-draft-pr.md`, "does not tell a design-only PR to link its issue with Refs only");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
+// FACT I20 -- a review that passes with follow-ups still applies its approval label (#205). A role
+// whose verdicts include PASS WITH FOLLOW-UPS says that verdict is never written as PASS, so a label
+// step that said only "On PASS" read as "not on PASS WITH FOLLOW-UPS": a Linux design review passed
+// and left the PR without design-approved. Every role with both names every passing verdict there.
+// ---------------------------------------------------------------------------
+if (S.section("I20")) {
+  const fact = "FACT I20: a role whose verdicts include PASS WITH FOLLOW-UPS applies its approval label on that verdict too";
+  const { readdirSync } = await import("node:fs");
+  for (const file of readdirSync(join(root, SKILL, "kit/skills")).filter((f) => /^xezar-.*\.md$/.test(f))) {
+    const where = `${SKILL}/kit/skills/${file}`;
+    const text = read(where);
+    if (!text.includes("PASS WITH FOLLOW-UPS")) continue;
+    for (const m of text.matchAll(/On PASS([^,:]*)[,:] add `([a-z-]+-approved)`/g))
+      if (!/^ or PASS WITH FOLLOW-UPS\b/.test(m[1])) fail(fact, where, `applies ${m[2]} "On PASS" only, so a PASS WITH FOLLOW-UPS leaves the PR without it`);
+  }
+  if (!/On PASS or PASS WITH FOLLOW-UPS – both approve – add `design-approved`/.test(read(`${SKILL}/kit/skills/xezar-ux-design.md`)))
+    fail(fact, `${SKILL}/kit/skills/xezar-ux-design.md`, "does not apply design-approved on PASS WITH FOLLOW-UPS");
+  checked.push(fact);
+}
+
+// ---------------------------------------------------------------------------
 // FACT I19 -- a Codex browser step looks its tools up before it reports them missing (#199). In
 // Codex code mode the MCP tools are not in the direct tool list; they are reachable only through
 // `ALL_TOOLS` inside `exec`, so "only when your own tool list lacks it" made a Codex QA step FAIL
@@ -2528,80 +2644,30 @@ if (S.section("I17")) {
 }
 
 // ---------------------------------------------------------------------------
-// FACT I16 -- a pi step can use the project's browser tools unattended (#185). pi-mcp-adapter hands
-// every MCP call to the first add-on that claims its approval event, and the owner's add-on (loaded
-// before any project one) denied every call with no person there, so a pi QA had no browser. The kit
-// ships that add-on with one rule added: a chrome-devtools tool the project's .codex/config.toml
-// lists is allowed without asking; every other call keeps the old rules. RUN, not only read: the
-// decision functions are imported from the kit file and fed the kit's own Codex config.
+// FACT I16 -- the kit ships nothing for pi (#204, replacing #185's pi add-on check). From engine
+// 0.30.0 the engine runs no pi, so the approval add-on, its onboarding check and its owner step
+// went with it; a project upgraded from an earlier kit has the copy deleted, and nothing asks the
+// owner to install it again.
 // ---------------------------------------------------------------------------
 if (S.section("I16")) {
-  const fact = "FACT I16: the kit's pi add-on allows only the browser tools .codex/config.toml lists, and asks or denies the rest";
-  const addon = `${SKILL}/kit/pi/extensions/mcp-approval-queue.ts`;
-  const src = read(addon);
-  if (!src.includes('if (!ask) return "deny";') || !src.includes('const OPTIONS = ["Deny", "Allow once"];'))
-    fail(fact, addon, "no longer denies with no person there, or no longer offers Deny first – the owner's rules it was imported with");
-  const m = await import(pathToFileURL(join(root, addon)).href);
-  const allow = m.browserAllowlist(read(`${SKILL}/kit/codex/config.toml`));
-  const ask = (server, tool) => m.allowedWithoutAsking({ serverName: server, originalToolName: tool }, allow);
-  if (!Array.isArray(allow) || !allow.includes("new_page") || !allow.includes("emulate"))
-    fail(fact, addon, `does not read the chrome-devtools enabled_tools of the kit's .codex/config.toml (${JSON.stringify(allow)})`);
-  if (ask("chrome-devtools", "new_page") !== "allow_once")
-    fail(fact, addon, "does not allow a listed chrome-devtools tool without asking, so a pi step has no browser unattended");
-  for (const [server, tool] of [["chrome-devtools", "evaluate_script"], ["chrome-devtools", "upload_file"], ["searxng", "new_page"]])
-    if (ask(server, tool) !== undefined) fail(fact, addon, `allows ${server}/${tool} without asking, which .codex/config.toml does not list`);
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "new_page" }, undefined) !== undefined)
-    fail(fact, addon, "allows a browser tool with no project allowlist");
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "new_page", signal: AbortSignal.abort() }, allow) !== undefined)
-    fail(fact, addon, "allows a cancelled request");
-  if (!/allowlist = projectAllowlist\(ctx\.cwd\);/.test(src))
-    fail(fact, addon, "does not read the allowlist once at session start, so a step that edits .codex/config.toml mid-run widens it");
-  // The ceiling: only the kit's shipped tool names, whatever a config file lists.
-  if (JSON.stringify([...m.SHIPPED_BROWSER_TOOLS].sort()) !== JSON.stringify([...(allow ?? [])].sort()))
-    fail(fact, addon, "SHIPPED_BROWSER_TOOLS is not the chrome-devtools list the kit's .codex/config.toml ships");
-  if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, ["evaluate_script", "new_page"]) !== undefined)
-    fail(fact, addon, "allows evaluate_script without asking when a config lists it – the shipped-tools ceiling is gone");
-  // The source: the main checkout, never the worktree a review runs in (the PR head's own config).
-  const { execFileSync } = await import("node:child_process");
-  const lab = mkdtempSync(join(tempRoot(), "kit-pi-approval-"));
-  try {
-    const g = (cwd, ...args) => execFileSync("git", ["-c", "user.email=t@example.invalid", "-c", "user.name=t", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    const toml = (tools) => `[mcp_servers.chrome-devtools]\nenabled_tools = [${tools.map((t) => `"${t}"`).join(", ")}]\n`;
-    const main = join(lab, "main");
-    mkdirSync(join(main, ".xezar"), { recursive: true });
-    mkdirSync(join(main, ".codex"), { recursive: true });
-    g(lab, "init", "-q", "main");
-    writeFileSync(join(main, ".xezar", "routing.json"), "{}\n");
-    writeFileSync(join(main, ".codex", "config.toml"), toml(["new_page", "evaluate_script"]));
-    g(main, "add", "-A");
-    g(main, "commit", "-q", "-m", "base");
-    const wt = join(lab, "wt");
-    g(main, "worktree", "add", "-q", "-b", "pr", wt);
-    writeFileSync(join(wt, ".codex", "config.toml"), toml(["new_page", "upload_file", "list_pages"]));
-    const fromWt = m.projectAllowlist(wt);
-    if (JSON.stringify(fromWt) !== JSON.stringify(["new_page"]))
-      fail(fact, addon, `reads the allowlist from the session's worktree, or skips the ceiling: a worktree under review got ${JSON.stringify(fromWt)}, not the main checkout's ["new_page"]`);
-    if (m.allowedWithoutAsking({ serverName: "chrome-devtools", originalToolName: "evaluate_script" }, fromWt) !== undefined)
-      fail(fact, addon, "allows evaluate_script without asking because the main checkout lists it");
-    const notGit = join(lab, "plain");
-    mkdirSync(join(notGit, ".xezar"), { recursive: true });
-    writeFileSync(join(notGit, ".xezar", "routing.json"), "{}\n");
-    if (m.projectAllowlist(notGit) !== undefined)
-      fail(fact, addon, "allows browser tools in a folder that is no git checkout");
-  } catch (error) {
-    fail(fact, addon, `the worktree check did not run: ${error?.message ?? error}`);
-  } finally {
-    rmSync(lab, { recursive: true, force: true });
-  }
-  if (!read(`${SKILL}/references/write.md`).includes("| `kit/pi/extensions/mcp-approval-queue.ts` | `.xezar/pi/extensions/mcp-approval-queue.ts`"))
-    fail(fact, `${SKILL}/references/write.md`, "does not copy the pi add-on into the project");
+  const fact = "FACT I16: the kit ships no pi add-on, onboarding never checks one, and an upgrade deletes the old copy";
+  const { existsSync } = await import("node:fs");
+  if (existsSync(join(root, SKILL, "kit/pi")))
+    fail(fact, `${SKILL}/kit/pi`, "still ships pi files, which no engine from 0.30.0 loads");
+  if (/kit\/pi\/|\.xezar\/pi\//.test(read(`${SKILL}/references/write.md`)))
+    fail(fact, `${SKILL}/references/write.md`, "still copies a pi file into the project");
   const verify = read(`${SKILL}/references/verify.md`).replace(/\s*\n\s*/g, " ");
-  if (!verify.includes("**pi approval add-on, when a routing row names a `pi/` lane.** Read only") || !verify.includes("· pi approval add-on, when a row names a `pi/` lane ·"))
-    fail(fact, `${SKILL}/references/verify.md`, "does not check which add-on answers pi's MCP approvals");
-  if (!read(`${SKILL}/references/report-templates.md`).includes("<when the pi approval add-on check is ❌:>"))
-    fail(fact, `${SKILL}/references/report-templates.md`, "\"Setup complete\" does not tell the owner to replace the pi add-on when the check is ❌");
-  if (!/```upgrade\r?\nApplies-to: <3\.1\.0\r?\nFiles: \.xezar\/pi\/extensions\/mcp-approval-queue\.ts\r?\nActions: per-machine=install-pi-extension:\.xezar\/pi\/extensions\/mcp-approval-queue\.ts\r?\n```/.test(read("UPGRADE_NOTES.md")))
-    fail(fact, "UPGRADE_NOTES.md", "has no 3.1.0 block that copies the pi add-on and lists per-machine=install-pi-extension for the owner");
+  if (/pi approval add-on/.test(verify))
+    fail(fact, `${SKILL}/references/verify.md`, "still checks which add-on answers pi's MCP approvals");
+  if (/pi approval add-on/.test(read(`${SKILL}/references/report-templates.md`)))
+    fail(fact, `${SKILL}/references/report-templates.md`, "\"Setup complete\" still tells the owner to replace a pi add-on");
+  if (existsSync(join(root, "skills/xez-onboard/templates/pi-mcp.json")))
+    fail(fact, "skills/xez-onboard/templates/pi-mcp.json", "still ships a pi leader client template");
+  const notes = read("UPGRADE_NOTES.md");
+  if (!/```upgrade\r?\nApplies-to: <3\.2\.0\r?\nFiles: [^\n]*\.xezar\/pi\/extensions\/mcp-approval-queue\.ts =delete[^\n]*\r?\nActions: [^\n]*engine-min=0\.30\.0/.test(notes))
+    fail(fact, "UPGRADE_NOTES.md", "has no 3.2.0 block that deletes the old pi add-on copy and asks for engine 0.30.0");
+  if (/Actions: [^\n]*per-machine=install-pi-extension:/.test(notes))
+    fail(fact, "UPGRADE_NOTES.md", "still asks the owner to install the pi add-on the kit no longer ships");
   checked.push(fact);
 }
 

@@ -1457,13 +1457,13 @@ breaks(
   "does not check that Codex trusts the project",
 );
 
-// The kit's pi add-on allows only the browser tools .codex/config.toml lists (#185, FACT I16).
+// The kit ships nothing for pi, and the upgrade deletes the old add-on copy (#204, FACT I16).
 breaks(
-  "a pi add-on that allows any chrome-devtools tool without asking is rejected",
-  "skills/xez-onboard-opinionated/kit/pi/extensions/mcp-approval-queue.ts",
-  (s) => s.replace("return allowlist.includes(tool) && SHIPPED_BROWSER_TOOLS.includes(tool) ? \"allow_once\" : undefined;", () => "return \"allow_once\";"),
+  "an onboarding write step that copies a pi file into the project again is rejected",
+  "skills/xez-onboard-opinionated/references/write.md",
+  (s) => `${s}\n| \`kit/pi/extensions/mcp-approval-queue.ts\` | \`.xezar/pi/extensions/mcp-approval-queue.ts\` |\n`,
   facts("I16"),
-  "allows chrome-devtools/evaluate_script without asking",
+  "still copies a pi file into the project",
 );
 
 // With no campaign open, the leader's records have one place (#181, FACT I13).
@@ -1482,6 +1482,33 @@ breaks(
   (s) => s.replace(" – is not evidence, because nothing limits what it runs", () => " – is evidence too, though nothing limits what it runs"),
   facts("I15"),
   "does not say a browser script of the step's own is not evidence",
+);
+
+// The leader checks the merge-time routing bans before the merge tool (#206, FACT I22).
+breaks(
+  "a leader guide whose merge rule no longer names the merge-time ban is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace("Today that is `qwen-write-claude-review`: ", () => ""),
+  facts("I22"),
+  "does not name the merge-time ban qwen-write-claude-review",
+);
+
+// The merge policy refuses a design-only PR that closes its issue (#207, FACT I21).
+breaks(
+  "a merge policy that lets a design-only PR close its issue is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/project-policy.mjs",
+  (s) => s.replace("  if(closes)return {refused:closes};\n", () => ""),
+  facts("I21"),
+  "merges a design-only PR that closes its issue",
+);
+
+// A design review that passes with follow-ups still applies design-approved (#205, FACT I20).
+breaks(
+  "a design review that applies design-approved on PASS only is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-ux-design.md",
+  (s) => s.replace("On PASS or PASS WITH FOLLOW-UPS – both approve – add", () => "On PASS, add"),
+  facts("I20"),
+  "applies design-approved \"On PASS\" only",
 );
 
 // A Codex browser step looks its tools up in ALL_TOOLS before it reports them missing (#199, FACT I19).
@@ -1755,6 +1782,33 @@ breaks(
   "catalog-check accepts a handoff step with no timeout",
 );
 
+// The leader never dispatches a lane route.mjs removed (#215, FACT I23).
+breaks(
+  "a leader guide that lets the leader dispatch a removed lane is rejected",
+  "skills/xez-onboard-opinionated/kit/leader-guide.template.md",
+  (s) => s.replace(" A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used;", () => ""),
+  facts("I23"),
+  "does not forbid dispatching a lane route.mjs removed",
+);
+
+// #214: a config-guard failure lets the later checks run but still fails repository-checks.
+breaks(
+  "a repository-checks that drops a config-guard failure it ran past is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace('  exit "$config_guard_rc"\n', () => '  exit 0\n'),
+  facts("23"),
+  "no longer fails at the end on a config-guard failure",
+);
+
+// #211: catalog-check refuses a workflow step whose runner the engine no longer runs.
+breaks(
+  "a catalog check that accepts runner: pi is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/catalog-check.mjs",
+  (s) => s.replace('const ENGINE_RUNNERS = new Set(["claude", "codex", "qwen"]);', () => 'const ENGINE_RUNNERS = new Set(["claude", "codex", "qwen", "pi", "opencode"]);'),
+  catalog("D-refusals"),
+  "catalog-check accepts a step with runner: pi",
+);
+
 breaks(
   "a kit handoff step without a timeout is rejected",
   "skills/xez-onboard-opinionated/kit/workflows/bug-fix.yaml",
@@ -1827,6 +1881,36 @@ breaks(
   (s) => s.replace('echo "review-head=$(cat "$state/head") pr=$1 already checked out"\n        exit 0', 'refuse "one reviewed head per run"'),
   catalog("D-review"),
   "refuses to confirm the PR its prepare step checked out",
+);
+
+// A review never tests another project's app on a busy port (#217, FACT I24).
+breaks(
+  "a QA role that opens the app without start --port is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("Start it with `start <name> --port <port> <program> <args>`", "Start it with `start <name> <program> <args>`"),
+  facts("I24"),
+  "does not start the app with --port",
+);
+breaks(
+  "a review-run.sh start --port that launches on a port another server holds is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('if [ -n "$port" ] && port_answers "$port"; then', 'if false; then'),
+  catalog("D-review"),
+  "launches the app on a port another project's server holds",
+);
+breaks(
+  "a review-run.sh start --port that does not wait for its own listener is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('[ -z "$port" ] || await_listener "$started" "$port" "$name"', ':'),
+  catalog("D-review"),
+  "does not report the port its own app listens on",
+);
+breaks(
+  "a review-run.sh start --port that reports an app that ended before it listened is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('ended before it listened on port', 'ended early on port'),
+  catalog("D-review"),
+  "reports success for an app that ended before it listened",
 );
 
 // A cancelled review step's server is stopped by the next review, safely (#166).

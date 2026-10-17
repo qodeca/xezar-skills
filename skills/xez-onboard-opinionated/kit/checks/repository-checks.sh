@@ -25,7 +25,8 @@ skip() { printf 'repository-checks: skipped %s (%s)\n' "$1" "$2"; }
 # starts a node or a bash, about half a second on Windows; one after another they were most of a
 # Windows gate's last command (#132 speed bar). The verdict is still the one a run in order gives:
 # the first failing check, in the listed order, ends the script with its own exit status, and
-# nothing listed after it runs in the foreground or is printed. The drift check and the changelog
+# nothing listed after it runs in the foreground or is printed – except local-tree, drift and the
+# config guard, whose failures are applied at the end so the later checks still print. The drift check and the changelog
 # check run in the foreground, in their place. The config guard starts with the others, because its
 # fetch of the base branch is most of its time and none of them reads a remote-tracking ref (the
 # route check reads the routing file in the working tree); its output and exit status still come
@@ -82,8 +83,11 @@ else
   skip route-check "no .xezar/routing.json in this project"
 fi
 
-# The browser entry guard, started above: its output and exit status, here, in their place.
-finished config-guard
+# The browser entry guard, started above: its output, here, in its place. Like drift, a failure
+# does not stop the later checks (#214): an upgrade that changes the browser entry fails it until
+# its pull request merges, and the checks after it must still be printed. Applied at the end.
+config_guard_rc=0
+finished config-guard || config_guard_rc=$?
 
 # `--diff-base auto` refuses a direct Unreleased edit (`# Unreleased`, or `## [Unreleased]` in a
 # Keep a Changelog file): inside the gate run it resolves the attempt's own base; run bare it uses
@@ -123,14 +127,18 @@ else
   skip xezar-contract "no contract test installed beside these checks"
 fi
 
-if [ "$local_tree_rc" -ne 0 ] || [ "$drift_rc" -ne 0 ]; then
+if [ "$local_tree_rc" -ne 0 ] || [ "$drift_rc" -ne 0 ] || [ "$config_guard_rc" -ne 0 ]; then
   if [ "$local_tree_rc" -ne 0 ]; then
     printf 'repository-checks: local-tree failed (exit %s)\n' "$local_tree_rc" >&2
   fi
   if [ "$drift_rc" -ne 0 ]; then
     printf 'repository-checks: manifest-drift failed (exit %s)\n' "$drift_rc" >&2
   fi
+  if [ "$config_guard_rc" -ne 0 ]; then
+    printf 'repository-checks: config-guard failed (exit %s)\n' "$config_guard_rc" >&2
+  fi
   printf 'repository-checks: every other check passed\n' >&2
   if [ "$local_tree_rc" -ne 0 ]; then exit "$local_tree_rc"; fi
-  exit "$drift_rc"
+  if [ "$drift_rc" -ne 0 ]; then exit "$drift_rc"; fi
+  exit "$config_guard_rc"
 fi
