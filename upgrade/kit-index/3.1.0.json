@@ -170,10 +170,10 @@
       "sha256": "cc8328db6979a057d01195cb5828126046b437734e2fa7e930a1af4adda65421"
     },
     ".xezar/checks/lib/gate-parallel.mjs": {
-      "kitBlob": "d7e35c0f9273a0601ef6871a46d90c11c53ce426",
+      "kitBlob": "37510a9de0bbd496ba2eeb2636e7e7c0feecd834",
       "kitSource": "checks/lib/gate-parallel.mjs",
       "rewrite": "copied",
-      "sha256": "a85fc6c70a95eec0997bc58cbc00df55d320ac4e93d31c8db10c47a56433492f"
+      "sha256": "3410e515d0d78454e760e2ef7763517abb527805b5d32eb769960d9d6c616473"
     },
     ".xezar/checks/lib/gate-record.sh": {
       "kitBlob": "f3284180e174e819e5baebc42c999c0324a816d4",
@@ -212,10 +212,10 @@
       "sha256": "033d4c0e739f4d1fd8f30d5fc1e58d79473eb7f96907e3548ab6ff3db177491c"
     },
     ".xezar/checks/lib/windows-process.mjs": {
-      "kitBlob": "d477027eda1a7095d8af5c37691e089bc50f77c7",
+      "kitBlob": "370fabf64222451a9cef3b9ec0085a2aca0ac51d",
       "kitSource": "checks/lib/windows-process.mjs",
       "rewrite": "copied",
-      "sha256": "78c486e1b68c7565731fed1fb954329e4b7bc5e1f856b55a077dd4dc16576aaa"
+      "sha256": "0fa86c49553c1c92e70de72c6bb79402d0911c96b3b805e11ca69bc3193c2b50"
     },
     ".xezar/checks/lib/windows-programs.mjs": {
       "kitBlob": "50fbfb487a5c6ab14395874fa7870141e5a72605",

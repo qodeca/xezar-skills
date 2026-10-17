@@ -85,6 +85,26 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – on Windows a gate command fails on a quoted path with a space, and passes alone
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** On Windows (Git Bash) a gate step fails inside `repo-gates.sh` with
+`No such file or directory` on part of a quoted path that holds a space, and its output starts
+with `MSYS=noglob`. The same command passes when it runs alone.
+
+**What to do.** Copy `.xezar/checks/lib/windows-process.mjs` and
+`.xezar/checks/lib/gate-parallel.mjs`. The gate worker still starts with `MSYS=noglob`, which
+keeps its own command line whole, but it puts your `MSYS` back before it runs the gate command.
+
+**What you lose by skipping it.** On Windows a gate fails for a reason that is not in your code,
+and nobody can reproduce it by running the command alone.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/lib/windows-process.mjs; .xezar/checks/lib/gate-parallel.mjs
+```
+
 ## 2026-10-17 – a QA or design review judges another project's app, which held the port
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

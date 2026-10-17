@@ -3137,6 +3137,22 @@ breaks(
   "the kit's Git Bash resolver disagrees",
 );
 
+// A gate command never inherits the worker's MSYS=noglob (#216).
+breaks(
+  "a Windows gate worker that leaks MSYS=noglob into the gate command is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/gate-parallel.mjs",
+  (s) => s.replace("${windows.restoreMsys(process.env)}${worker}", "${worker}"),
+  facts("W-stop"),
+  "runs each gate command with the worker's MSYS=noglob",
+);
+breaks(
+  "an MSYS restore that does not quote the caller's value is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
+  (s) => s.replace(`\`export MSYS='\${String(msys).replaceAll("'", "'\\\\''")}'; \``, "`export MSYS=${msys}; `"),
+  facts("W-stop"),
+  "runs with MSYS=",
+);
+
 breaks(
   "a Windows tree stop that ignores start times is rejected",
   "skills/xez-onboard-opinionated/kit/checks/lib/windows-process.mjs",
