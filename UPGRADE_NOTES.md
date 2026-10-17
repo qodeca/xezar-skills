@@ -85,6 +85,25 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – the browser config guard says the entry "matches" a base branch that has none
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `bash .xezar/checks/config-guard.sh browser --from-base` prints
+`ok — browser: the chrome-devtools entry matches origin/<base>` on a branch that adds the first
+chrome-devtools entry, although the base branch has none to match.
+
+**What to do.** Copy `.xezar/checks/config-guard.sh`. It now says that the base has no entry yet,
+and that the security review and a human merge judge the first one. What passes and what is refused
+does not change.
+
+**What you lose by skipping it.** The gate log claims a comparison that never happened.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/config-guard.sh
+```
+
 ## 2026-10-17 – on Windows a gate command fails on a quoted path with a space, and passes alone
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

@@ -86,10 +86,10 @@
       "sha256": "a23c761509d48a5c10f67329539de3c888cb8b72636832390bdf45ce7e3aa26a"
     },
     ".xezar/checks/config-guard.sh": {
-      "kitBlob": "a8724018e7d250743241ffefe19866eb5ddcee5c",
+      "kitBlob": "5ffb68f6e9da8cd37f6e4b9b1554849e47fe9aae",
       "kitSource": "checks/config-guard.sh",
       "rewrite": "copied",
-      "sha256": "d6843d917b09842b4e3889f27aeb1cf68d9e23429a1a63f4f3efdbfd8763bc87"
+      "sha256": "0271a041f60dfd8f7d15ba372504a67faecc924da5bb6e26f58129764ba9e7f5"
     },
     ".xezar/checks/deploy-guard.sh": {
       "kitBlob": "1222e25890f9b6e80103732c7b3533feec8b7ff9",

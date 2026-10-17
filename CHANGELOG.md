@@ -558,6 +558,11 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**The browser config guard no longer says "matches" when the base has no entry (#222).** A branch
+that adds the first chrome-devtools entry passed with `the chrome-devtools entry matches
+origin/<base>`. It still passes – the first entry is the setup or upgrade pull request's, which the
+security review and a human merge judge – but the gate now says so; test-kit-catalog section 7 pins it.
+
 **An upgrade to 3.2.0 asks for no pi model (#220).** The 3.1.0 DeepSeek entry still put
 `add-runner-model:pi/deepseek-api/deepseek-v4-pro` on the owner checklist of a 3.0.x project upgrading
 straight to 3.2.0, where engine 0.30.0 runs no pi. It is dropped: the 3.2.0 entry moves the lane to

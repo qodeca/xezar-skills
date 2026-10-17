@@ -833,6 +833,9 @@ if (S.section("7")) {
     const codex = readFileSync(join(KIT, "codex/config.toml"), "utf8");
     put(".mcp.json", mcp);
     put(".codex/config.toml", codex);
+    // A first entry is not a match (#222): the gate says the base has none, and leaves it to review.
+    const first = guard("config-guard.sh", "browser", "--from-base");
+    expect("a branch that adds the first browser entry is left to the security review, and says so", first, 0, "has no chrome-devtools entry yet in .mcp.json, .codex/config.toml");
     git("add", "-A");
     git("commit", "--quiet", "-m", "browser");
     git("push", "--quiet", "origin", "main");
