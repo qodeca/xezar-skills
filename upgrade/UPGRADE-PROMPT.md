@@ -419,8 +419,9 @@ Walk the `Actions:` of every upgrade entry in the range, oldest first:
 - `restart-leader`, `restart-engine` – owner checklist, under "after the merge".
 - `engine-min=<v>` – already checked in step 3; repeat the result in the report.
 - `per-machine=<verb>:<detail>` – owner checklist, under "on every machine that runs the leader
-  or reviews". Never apply it. `add-runner-model:<runner>/<provider>/<model>` means "add
-  `<provider>/<model>` to that runner's model config"; `trust-codex-project:<absolute-project-path>`
+  or reviews". Never apply it. `add-runner-model:<lane>` names a routing lane, `<runner>/<model>`, and means "add `<model>` to
+  that runner's model config" – for Qwen Code an entry in `modelProviders` of
+  `~/.qwen/settings.json` (#220); `trust-codex-project:<absolute-project-path>`
   means the project's absolute path, and applies only when a routing lane is `codex/…`. On native
   Windows the owner writes that path as Windows prints it, in lower case, the way Codex writes it
   when the owner accepts its trust prompt (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'` in Git Bash), as a

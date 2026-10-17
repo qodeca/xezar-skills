@@ -85,6 +85,25 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – the browser config guard says the entry "matches" a base branch that has none
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `bash .xezar/checks/config-guard.sh browser --from-base` prints
+`ok — browser: the chrome-devtools entry matches origin/<base>` on a branch that adds the first
+chrome-devtools entry, although the base branch has none to match.
+
+**What to do.** Copy `.xezar/checks/config-guard.sh`. It now says that the base has no entry yet,
+and that the security review and a human merge judge the first one. What passes and what is refused
+does not change.
+
+**What you lose by skipping it.** The gate log claims a comparison that never happened.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/config-guard.sh
+```
+
 ## 2026-10-17 – on Windows a gate command fails on a quoted path with a space, and passes alone
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
@@ -899,18 +918,16 @@ and QA wait for a Claude login to come back; `route.mjs` never offers
 the whole new routing file. Then copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`,
 and merge `.xezar/routing.json` with the defaults version 4: the new lane, the new row orders and
 never entries, the three ban texts and the notes, keeping your own edits. On a routing clash – a
-row you reordered by hand that the new defaults also reorder – stop and ask the owner. On each
-machine that should use V4 Pro, add `deepseek-api/deepseek-v4-pro` to pi's model config; a machine
-without it simply gets no V4 Pro lane.
+row you reordered by hand that the new defaults also reorder – stop and ask the owner. Add no
+pi model: engine 0.30.0 runs no pi, and the 3.2.0 entry moves this lane to Qwen Code
+(`qwen/deepseek-v4-pro`) and names its model step (#220).
 
 **What you lose by skipping it.** Every review still waits for a Claude or Astra login, simple and
-mid-size work keeps spending Claude and Codex budget, and the lane the owner added to pi gets no
-work.
+mid-size work keeps spending Claude and Codex budget, and the V4 Pro lane gets no work.
 
 ```upgrade
 Applies-to: <3.1.0
 Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge
-Actions: per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro
 ```
 
 ### 12. Single-root freshness – a root `node_modules` edited in place still counts as current

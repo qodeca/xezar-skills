@@ -457,7 +457,8 @@ Never copied, because each depends on an answer:
   nothing to follow. Headings: Purpose · Screens · States · Open decisions · Developer handoff ·
   Design review. The `design-system` workflow owns the list from then on.
 - **`CLAUDE.md`** at the root, **`.xezar/CLAUDE.md`**, and the gitignored **`.claude/CLAUDE.md`**
-  with this project's path and campaign name. An `@`-import of a missing file is a real failure,
+  with this project's path and campaign name – those two facts only, never a leader rule: every task
+  worktree session reads it too (`kit/docs/leader-context-loading.md`). An `@`-import of a missing file is a real failure,
   so seed every file it imports in the same step.
 
 ## 3. The leader's context loader

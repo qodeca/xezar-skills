@@ -3675,6 +3675,24 @@ breaks(
   "section '4x' is not declared",
 );
 
+// The browser guard says what it compared (#222).
+breaks(
+  "a browser config guard that calls a first entry a match is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
+  (s) => s.replace('new) added="${added:+$added, }$file" ;;', 'new) ;;'),
+  catalog("7"),
+  "a branch that adds the first browser entry is left to the security review, and says so",
+);
+
+// An upgrade to 3.2.0 never asks the owner for a pi model (#220).
+breaks(
+  "an upgrade note that still asks a 3.2.0 upgrade for a pi model is rejected",
+  "UPGRADE_NOTES.md",
+  (s) => s.replace("Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge\n```", "Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.md; .xezar/routing.json =merge\nActions: per-machine=add-runner-model:pi/deepseek-api/deepseek-v4-pro\n```"),
+  upgrade("13a"),
+  "asks the owner to add a pi model",
+);
+
 breaks(
   "a declared section that never runs is refused",
   UPGRADE_MJS,
