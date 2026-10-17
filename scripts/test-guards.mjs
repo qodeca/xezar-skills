@@ -1883,6 +1883,15 @@ breaks(
   "refuses to confirm the PR its prepare step checked out",
 );
 
+// A review's stop reaches the server a wrapper started (#223).
+breaks(
+  "a review-run.sh stop that kills only the wrapper's pid is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('    set -m\n    nohup "$@"', '    nohup "$@"'),
+  catalog("D-review"),
+  "an orphan that holds the port",
+);
+
 // A review never tests another project's app on a busy port (#217, FACT I24).
 breaks(
   "a QA role that opens the app without start --port is rejected",

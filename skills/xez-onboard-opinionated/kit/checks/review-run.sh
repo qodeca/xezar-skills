@@ -169,18 +169,20 @@ tracked_changes() {
   git status --porcelain --untracked-files=no 2>/dev/null
 }
 
+# Stop one started command and everything it started (#223): `start` gives it its own process
+# group, so a wrapper's child – the `node` server under `npm start` – is stopped with it instead
+# of living on as an orphan that holds the port.
 stop_one() {
   local pidfile="$1" pid
   pid="$(cat "$pidfile" 2>/dev/null)" || return 0
-  if printf '%s' "$pid" | grep -Eq '^[1-9][0-9]*$' && kill -0 "$pid" 2>/dev/null; then
-    kill "$pid" 2>/dev/null
-    sleep 1
-    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+  # The group may outlive its leader: a wrapper that exited leaves its server in the group.
+  if printf '%s' "$pid" | grep -Eq '^[1-9][0-9]*$' && { kill -0 "$pid" 2>/dev/null || kill -0 -- "-$pid" 2>/dev/null; }; then
+    stop_tree "$pid"
   fi
   rm -f "$pidfile"
 }
 
-# Stop a command and everything it started. `run_limited` gives the command its own process group,
+# Stop a command and everything it started. `run_limited` and `start` give the command its own process group,
 # so a signal to the group reaches its children as well. On Windows (Git Bash, Cygwin) a native
 # program is not in that group: taskkill /T stops its Windows process tree.
 stop_tree() {
@@ -492,8 +494,11 @@ case "$sub" in
       refuse "port $port is already in use by $(port_holders "$port") – not this run's app (#217). Never test what answers there: report each check that needed the app as not run, and name this line"
     fi
     no_credentials
+    # Its own process group (#223), so `stop` and `finish` reach what it starts, as `run` does.
+    set -m
     nohup "$@" >"$state/$name.log" 2>&1 </dev/null &
     started=$!
+    set +m
     printf '%s\n' "$started" >"$state/$name.pid"
     echo "review-started=$name pid=$started log=$state/$name.log"
     [ -z "$port" ] || await_listener "$started" "$port" "$name"

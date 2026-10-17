@@ -1402,6 +1402,7 @@ if (S.section("D-review")) {
   let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
   let leftPid = null; // the one a second, ended run left running (#166), stopped there too
   let holder = null; // another project's server on the port a review wants (#217), stopped there too
+  let childPidFile = null; // the server a started wrapper spawned (#223), stopped there too
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1815,6 +1816,21 @@ if (S.section("D-review")) {
     if (gone.status !== 1 || !gone.out.includes("ended before it listened on port"))
       fail(`review-run.sh start --port reports success for an app that ended before it listened (#217):\n${gone.status} ${gone.out}`);
     if (rr("start", "web", "--port", "http", "node", "-e", "0").status !== 1) fail("review-run.sh start --port takes a value that is not a port (#217)");
+    // #223: `npm start` is a wrapper; the server is its child. `stop` must stop the child as well,
+    // or it lives on as an orphan that holds the port for the next project's review.
+    const childPort = freePort();
+    // The child writes its pid, so `finally` stops it even when `stop` did not (no stray server).
+    childPidFile = join(run, "child.pid");
+    const server = `${listen(childPort)}; require("node:fs").writeFileSync(${JSON.stringify(childPidFile)}, String(process.pid))`;
+    const wrapper = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(server)}], { stdio: "inherit" }); setInterval(() => {}, 1e9)`;
+    const wrapped = rr("start", "web", "--port", String(childPort), "node", "-e", wrapper);
+    reviewPid = (wrapped.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (wrapped.status !== 0 || !wrapped.out.includes(`review-listening=${childPort}`))
+      fail(`review-run.sh start --port does not accept a wrapper whose child listens (#223):\n${wrapped.status} ${wrapped.out}`);
+    rr("stop", "web");
+    for (let i = 0; i < 50 && answers(childPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    if (answers(childPort)) fail(`review-run.sh stop leaves the child of a started wrapper running on port ${childPort}, an orphan that holds the port (#223)`);
+    else reviewPid = null;
 
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
@@ -1891,6 +1907,7 @@ if (S.section("D-review")) {
       if (p) try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", p], { stdio: "ignore" }); } catch {}
     }
     holder?.kill();
+    if (childPidFile) try { process.kill(Number(readFileSync(childPidFile, "utf8"))); } catch {}
     rmSync(run, { recursive: true, force: true });
   }
 }

@@ -85,6 +85,27 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – a review's app server keeps running after the review ended, and holds the port
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** After a QA or design review that started the app with a wrapper –
+`review-run.sh start app --port 3000 npm start` – the app server still runs, with no parent, and
+holds the port. The next review on that machine, in any project, is refused with
+`port 3000 is already in use`.
+
+**What to do.** Copy `.xezar/checks/review-run.sh`. `start` now runs the command in its own
+process group, and `stop`, `finish` and the clean-up of ended runs stop that whole group – the
+wrapper and the server it started – as `run` already did.
+
+**What you lose by skipping it.** Every `npm start` review leaves a server behind, and each later
+review on that machine needs a re-run on another port until somebody stops it by hand.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/review-run.sh
+```
+
 ## 2026-10-17 – the browser config guard says the entry "matches" a base branch that has none
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
