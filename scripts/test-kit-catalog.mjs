@@ -1791,7 +1791,9 @@ if (S.section("D-review")) {
     const answers = (port) => {
       try { execFileSync(process.execPath, ["-e", 'const c = require("node:net").connect(Number(process.argv[1]), "127.0.0.1"); c.on("connect", () => process.exit(0)); c.on("error", () => process.exit(1))', String(port)], { stdio: "ignore" }); return true; } catch { return false; }
     };
-    const listen = (port) => `require("node:net").createServer().listen(${port}, "127.0.0.1")`;
+    // A probe that closes at once is a TCP reset on Windows: a server with no socket error handler
+    // crashes on it and frees the port (#218).
+    const listen = (port) => `require("node:net").createServer((s) => s.on("error", () => {})).listen(${port}, "127.0.0.1")`;
     const busyPort = freePort();
     holder = spawn(process.execPath, ["-e", listen(busyPort)], { stdio: "ignore" });
     for (let i = 0; i < 50 && !answers(busyPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
