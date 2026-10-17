@@ -118,6 +118,17 @@ export function withNoglob(env) {
 }
 
 /**
+ * The shell text that puts the caller's MSYS back inside a worker (#216): `unset MSYS; `, or
+ * `export MSYS='<value>'; `. `noglob` is for the worker's own command line only; a gate command
+ * that inherits it runs a Git `sh` that no longer reads quotes, so a quoted path with a space
+ * splits. The engine's check step does the same (qodeca/xezar#1023, #1078).
+ */
+export function restoreMsys(env) {
+  const msys = envGet(env, 'MSYS');
+  return msys === undefined ? 'unset MSYS; ' : `export MSYS='${String(msys).replaceAll("'", "'\\''")}'; `;
+}
+
+/**
  * What the scheduler needs on Windows: { ok: true, bash, ps, powershell, env }, or
  * { ok: false, reason } with one plain sentence. bash is Git's usr\bin\bash.exe (no wrapper, so
  * the worker's pid is bash's own, which the scheduler stops by identity); a check script started

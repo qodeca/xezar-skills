@@ -558,6 +558,12 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**On Windows a gate command no longer inherits `MSYS=noglob` (#216).** The gate worker starts with
+`noglob` so its own command line stays whole, and the gate command inherited it: Git's `sh` then
+stops reading quotes, and a quoted path with a space split. qodeca/xezar failed `npm test` in 4 of
+4 local gate runs on it (qodeca/xezar#1078). The worker now puts the caller's `MSYS` back first,
+as the engine's check step does; FACT W-stop pins it.
+
 **A review never judges another project's app on a busy port (#217).** On Linux a QA step opened
 `localhost:3000`, which an orphan server from another project held, and saw that app's data.
 `review-run.sh start --port <n>` now refuses a port something already answers on, names its pid and

@@ -1722,6 +1722,19 @@ if (S.section("W-stop")) {
   const noKill = await round(psLive, () => null, { killRoot: true });
   if (noKill.result.ok || noKill.result.reason !== "PowerShell did not run the kill")
     fail(fact, where, `a stop round whose kill script never ran reported ${JSON.stringify(noKill.result)}`);
+  // #216: noglob is for the worker's own command line. The gate command runs with the caller's MSYS
+  // – unset, or the exact value – or a Git sh under it splits a quoted path with a space.
+  const { spawnSync } = await import("node:child_process");
+  for (const caller of [undefined, "winsymlinks:nativestrict", "a'b c"]) {
+    const env = { ...process.env, MSYS: "noglob" };
+    const text = wp.restoreMsys(caller === undefined ? {} : { MSYS: caller });
+    const back = spawnSync(bashPath(), ["-c", `${text}printf '%s' "${"$"}{MSYS-<unset>}"`], { encoding: "utf8", env });
+    if (back.stdout !== (caller ?? "<unset>"))
+      fail(fact, where, `a gate command whose caller had MSYS=${JSON.stringify(caller ?? null)} runs with MSYS=${JSON.stringify(back.stdout)} (#216)`);
+  }
+  const scheduler = "kit/checks/lib/gate-parallel.mjs";
+  if (!read(`${SKILL}/${scheduler}`).includes("${windows.restoreMsys(process.env)}${worker}"))
+    fail(fact, scheduler, "runs each gate command with the worker's MSYS=noglob instead of the caller's MSYS (#216)");
   checked.push(fact);
 }
 
