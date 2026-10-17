@@ -558,6 +558,17 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A review's first step works on the PR head `prepare` checked out (#225).** The `prepare` step
+checks the PR's head out detached, and `worktree-setup.sh --readonly-init` then refused it with
+`branch.owned-by-run`, so every review that names its PR failed its first instruction (Linux and
+Windows, engine 0.30.0). The read-only preflight accepts a detached HEAD in the run's own worktree;
+the strict preflight that every write runs still refuses it. test-kit-catalog D-review runs both.
+
+**A review can move the app off a busy port (#226).** `review-run.sh start --port <n>` only checked
+and waited, and `env` is refused, so a QA step could not leave a busy default port. It now gives the
+command `PORT=<n>`, and the QA and design review roles say to start again on another free port.
+test-kit-catalog D-review starts a server that reads `PORT`; FACT I24 pins the roles.
+
 **A review's stop reaches the server a wrapper started (#223).** `review-run.sh start` saved the
 wrapper's pid – `npm` under `npm start` – and `stop` and `finish` killed only that, so the
 `node` server lived on as an orphan and held the port; on Linux the next project's QA was refused by

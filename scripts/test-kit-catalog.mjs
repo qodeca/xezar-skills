@@ -1413,7 +1413,10 @@ if (S.section("D-review")) {
     mkdirSync(join(repo, ".xezar"));
     cpSync(join(KIT, "checks"), join(repo, ".xezar/checks"), { recursive: true });
     writeFileSync(join(repo, ".xezar/config.json"), '{"baseBranch":"main"}\n');
-    writeFileSync(join(repo, ".gitignore"), ".local/\n");
+    // The ignore rules and the contract an onboarded project has, so the preflight a review runs
+    // judges only what the test is about (#225).
+    writeFileSync(join(repo, ".gitignore"), ".local/\nnode_modules/\ndist/\ncoverage/\n");
+    writeFileSync(join(repo, "AGENTS.md"), "# Agents\n");
     writeFileSync(join(repo, "README.md"), "base\n");
     git(repo, "add", "-A");
     git(repo, "commit", "--quiet", "-m", "base");
@@ -1621,6 +1624,14 @@ if (S.section("D-review")) {
     const prepared = rr("prepare");
     delete env.XEZ_PR_NUMBER;
     if (prepared.status !== 0 || !prepared.out.includes("already checked out")) fail(`review-run.sh prepare does not confirm the PR the run names (#160):\n${prepared.status} ${prepared.out}`);
+    // #225: the skill's first instruction after `prepare` initialises evidence read-only, on the
+    // detached PR head. It is accepted there; a write (strict mode) on a detached HEAD is not.
+    const init = sh(wt, "worktree-setup.sh", ["--readonly-init"]);
+    if (init.status !== 0)
+      fail(`worktree-setup.sh --readonly-init refuses the detached PR head that prepare checked out, so every review fails its first instruction (#225):\n${init.status} ${init.out}`);
+    const strict = sh(wt, "worktree-preflight.sh");
+    if (strict.status === 0 || !strict.out.includes("branch.owned-by-run"))
+      fail(`worktree-preflight.sh accepts a detached HEAD in strict mode, where a write would land on no branch (#225):\n${strict.status} ${strict.out}`);
     // #151: a verdict that says the checkout was confined must rest on this run's checkout record.
     const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
     if (!existsSync(record) || !readFileSync(record, "utf8").startsWith(`ok exit=0 pr=5 head=${prHead}`))
@@ -1816,6 +1827,14 @@ if (S.section("D-review")) {
     if (gone.status !== 1 || !gone.out.includes("ended before it listened on port"))
       fail(`review-run.sh start --port reports success for an app that ended before it listened (#217):\n${gone.status} ${gone.out}`);
     if (rr("start", "web", "--port", "http", "node", "-e", "0").status !== 1) fail("review-run.sh start --port takes a value that is not a port (#217)");
+    // #226: the port reaches the command as PORT, so a review can move the app off a busy default.
+    const envPort = freePort();
+    const fromEnv = rr("start", "web", "--port", String(envPort), "node", "-e", listen("Number(process.env.PORT)"));
+    reviewPid = (fromEnv.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (fromEnv.status !== 0 || !fromEnv.out.includes(`review-listening=${envPort}`))
+      fail(`review-run.sh start --port does not pass the port to the command as PORT (#226):\n${fromEnv.status} ${fromEnv.out}`);
+    rr("stop", "web");
+    reviewPid = null;
     // #223: `npm start` is a wrapper; the server is its child. `stop` must stop the child as well,
     // or it lives on as an orphan that holds the port for the next project's review.
     const childPort = freePort();

@@ -1883,6 +1883,37 @@ breaks(
   "refuses to confirm the PR its prepare step checked out",
 );
 
+// A review can move the app off a busy port (#226).
+breaks(
+  "a review-run.sh start --port that does not pass PORT is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('[ -z "$port" ] || export PORT="$port"', ':'),
+  catalog("D-review"),
+  "does not pass the port to the command as PORT",
+);
+breaks(
+  "a QA role that does not say start passes PORT is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("`start` gives the command `PORT=<port>`, which most dev servers read, so", "So"),
+  facts("I24"),
+  "does not say start passes PORT",
+);
+// A review's first instruction works on the PR head prepare checked out (#225).
+breaks(
+  "a preflight that refuses a read-only review's detached PR head is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-preflight.sh",
+  (s) => s.replace('if [ "$BRANCH" = "HEAD" ] && [ "$MODE" = "allow-root" ]; then', 'if false; then'),
+  catalog("D-review"),
+  "refuses the detached PR head that prepare checked out",
+);
+breaks(
+  "a preflight that accepts a detached HEAD in strict mode is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-preflight.sh",
+  (s) => s.replace('if [ "$BRANCH" = "HEAD" ] && [ "$MODE" = "allow-root" ]; then', 'if [ "$BRANCH" = "HEAD" ]; then'),
+  catalog("D-review"),
+  "accepts a detached HEAD in strict mode",
+);
+
 // A review's stop reaches the server a wrapper started (#223).
 breaks(
   "a review-run.sh stop that kills only the wrapper's pid is rejected",

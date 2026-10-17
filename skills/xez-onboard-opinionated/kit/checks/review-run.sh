@@ -28,7 +28,8 @@
 #                                             `prepare` and `start` first stop what an ended run's
 #                                             `start` left running (#166; stop_ended_runs below).
 #                                             With --port: refused when the port is already in use,
-#                                             then waits until the command listens there (#217, below)
+#                                             exports PORT=<n> to the command (#226), then waits
+#                                             until the command listens there (#217, below)
 #   review-run.sh stop [<name>]               stop one started command, or all of them
 #   review-run.sh verify-unchanged            exit 0 only when the tracked tree equals the
 #                                             reviewed head (below); prints review-tree=<status>
@@ -494,6 +495,9 @@ case "$sub" in
       refuse "port $port is already in use by $(port_holders "$port") – not this run's app (#217). Never test what answers there: report each check that needed the app as not run, and name this line"
     fi
     no_credentials
+    # The port goes to the command as PORT, which most dev servers read (#226): `env` is a refused
+    # program, so this is the only way a review can move the app off a busy default port.
+    [ -z "$port" ] || export PORT="$port"
     # Its own process group (#223), so `stop` and `finish` reach what it starts, as `run` does.
     set -m
     nohup "$@" >"$state/$name.log" 2>&1 </dev/null &
