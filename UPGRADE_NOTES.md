@@ -85,6 +85,30 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – every review fails its first step with `branch.owned-by-run`, and a busy port cannot be avoided
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A code review, security review, re-check, acceptance or QA step that names its PR
+fails `worktree-setup.sh --readonly-init` with
+`branch.owned-by-run] branch is "HEAD" but this worktree is run …`, and then keeps its evidence
+wherever it chooses. Or a QA step whose app's default port is busy cannot start the app on another
+port: `review-run.sh start --port <n>` only checks and waits.
+
+**What to do.** Copy `.xezar/checks/worktree-preflight.sh`, `.xezar/checks/review-run.sh`,
+`.xezar/skills/xezar-qa.md` and `.xezar/skills/xezar-ux-design.md`. The read-only preflight now
+accepts the detached PR head the `prepare` step checks out; a write, which runs the strict
+preflight, still refuses it. `start --port <n>` now gives the command `PORT=<n>`, and the QA and
+design review roles start again on another free port when the default is busy.
+
+**What you lose by skipping it.** Every review starts with a refused step and improvised evidence,
+and a busy port turns a QA step into a FAIL for missing evidence.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/worktree-preflight.sh; .xezar/checks/review-run.sh; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-17 – a review's app server keeps running after the review ended, and holds the port
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.

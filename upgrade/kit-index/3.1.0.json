@@ -272,10 +272,10 @@
       "sha256": "e4d0f3916412c7054ddaaadfd507f41cc7dbf31a1c8ab2a9f2c1ae793baada89"
     },
     ".xezar/checks/review-run.sh": {
-      "kitBlob": "57fc465b496d119bd9d5019ba42d81664cc0c64b",
+      "kitBlob": "540cde7944ca442de7169b45fff6423dd3b29ef4",
       "kitSource": "checks/review-run.sh",
       "rewrite": "copied",
-      "sha256": "c625a85492f7cd0d6d3dd85ffbb03870883eab576fc4e7f2133216bd84bc402e"
+      "sha256": "12c858cd8bc3c353afe5ecbbc849a45adf9fabdb479e6c65f3ef957eedafa0cf"
     },
     ".xezar/checks/root-sync-preflight.sh": {
       "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
@@ -314,10 +314,10 @@
       "sha256": "9bbffccaf43a699aa68fdfa35ed32381087d4199d898ad96506726885befb368"
     },
     ".xezar/checks/worktree-preflight.sh": {
-      "kitBlob": "ab70454cc83be6644d988bd4b7eeb6b687e2cfde",
+      "kitBlob": "24421c98594dbb596c74596f1ce409675ef7402c",
       "kitSource": "checks/worktree-preflight.sh",
       "rewrite": "copied",
-      "sha256": "0804bc336494c1471a4e93d7281f64924ad38f697712001ffe14e0187ba43814"
+      "sha256": "d83a3baaab6bf0b1524639103e3de724aae7125a1f28b6dd7fda9673ee6c98c7"
     },
     ".xezar/checks/worktree-setup.sh": {
       "kitBlob": "b9cc62e6e6d252ae8c1153bc97d150e17af2516b",
@@ -629,10 +629,10 @@
       "sha256": "fe9891c18c0cac9f8db44cba8159422062387ffc52c9c0a01f039adf59b25e92"
     },
     ".xezar/skills/xezar-qa.md": {
-      "kitBlob": "8c56665b0016ca601d498e8fcacb48eaaf90fe3c",
+      "kitBlob": "80cb664e09457e0017d76f7fd0154be3735f2d6c",
       "kitSource": "skills/xezar-qa.md",
       "rewrite": "copied",
-      "sha256": "cc25cbb6421cade26060be911c2c33955368427f56a3323beaf74e9b3b13f12b"
+      "sha256": "faa30822bff547657153af10fb268121c2a797f612fd691242d878a2fb5d1247"
     },
     ".xezar/skills/xezar-quality-gates.md": {
       "kitBlob": "967342af0d229ff7c852cfff2ad503269f004501",
@@ -713,10 +713,10 @@
       "sha256": "e195574b615fc4219663b53327456396944ac1a93bb4d0147b5e18ea99aa34c4"
     },
     ".xezar/skills/xezar-ux-design.md": {
-      "kitBlob": "264c81c87ae51e39b066c59312ac4b28b72fbeab",
+      "kitBlob": "b092eb35afe6f82c453d683a9e76e599e8a57000",
       "kitSource": "skills/xezar-ux-design.md",
       "rewrite": "copied",
-      "sha256": "32205eea34f32521164558cf66d0bc6c56aed7ca71b14c3341a36127743feb71"
+      "sha256": "29f4baaf3bf47563e6702a9443e8315be295459a3821c8fceede7c1d97fac3a4"
     },
     ".xezar/skills/xezar-visual-asset.md": {
       "kitBlob": "27fcf4f528ead3a6ea2dbf1f633a1659ce583927",

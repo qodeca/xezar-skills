@@ -2508,6 +2508,8 @@ if (S.section("I24")) {
       fail(fact, doc, "does not start the app with --port and open only the port review-listening= names");
     if (!text.includes("report each check that needed the app as not run"))
       fail(fact, doc, "does not say a refused start means the app was not reached");
+    if (!text.includes("`PORT=<port>`") || !/another free `--port`/.test(text))
+      fail(fact, doc, "does not say start passes PORT, so a busy default port means another --port (#226)");
   }
   checked.push(fact);
 }

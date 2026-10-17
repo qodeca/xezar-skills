@@ -186,8 +186,14 @@ if [ "$IS_WORKTREE" -eq 1 ]; then
     # own worktree and branch. A pull request from before worktree mode is a
     # leader-coordinated migration, not something a run decides for itself — see
     # `.xezar/skills/xezar-review-response.md`.
+    #
+    # One state is not another branch: a read-only review whose `prepare` step checked its PR's
+    # head out DETACHED (#225). It writes no branch, so nothing is lost on reclaim, and every write
+    # runs this preflight in strict mode, where a detached HEAD is still refused.
     expected="$(expected_task_branch)"
-    if [ "$BRANCH" != "$expected" ]; then
+    if [ "$BRANCH" = "HEAD" ] && [ "$MODE" = "allow-root" ]; then
+      info "detached HEAD accepted: this workflow is read-only, and a review checks its PR out detached"
+    elif [ "$BRANCH" != "$expected" ]; then
       fail branch.owned-by-run "branch is \"$BRANCH\" but this worktree is run $leaf, whose branch is \"$expected\". Xezar restores only its own branch, so work on any other one is lost on reclaim. Resume the run that owns the branch instead of switching this one."
     fi
   fi
