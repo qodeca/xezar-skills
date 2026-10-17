@@ -22,10 +22,13 @@
 #   review-run.sh run <program> [<args>…]     run one project command here, in the foreground
 #                                             with no stdin; after 300 s (XEZ_REVIEW_RUN_SECONDS) it is
 #                                             stopped with all it started: review-run=timeout, exit 124 (#172)
-#   review-run.sh start <name> <program> […]  start one long-running command (a dev server) in the
+#   review-run.sh start <name> [--port <n>] <program> […]
+#                                             start one long-running command (a dev server) in the
 #                                             background; its log is <evidence>/review/<name>.log
 #                                             `prepare` and `start` first stop what an ended run's
-#                                             `start` left running (#166; stop_ended_runs below)
+#                                             `start` left running (#166; stop_ended_runs below).
+#                                             With --port: refused when the port is already in use,
+#                                             then waits until the command listens there (#217, below)
 #   review-run.sh stop [<name>]               stop one started command, or all of them
 #   review-run.sh verify-unchanged            exit 0 only when the tracked tree equals the
 #                                             reviewed head (below); prints review-tree=<status>
@@ -78,6 +81,16 @@
 # and verdict-write.sh refuses a verdict that claims `review-run=confined` without a `confined`
 # record, so a review cannot report an exit 3 it never ran (#151).
 #
+# A busy port (#217). Another project's server, left running on the same machine, can hold the
+# port a review's app wants. The app then fails to bind, and the browser reaches the OTHER app: one
+# QA step saw another project's todos. `stop_ended_runs` cannot help – that server is no run of this
+# project. So `start --port <n>` refuses before it launches anything when something already answers
+# on localhost:<n>, and names its pid and folder where this machine shows them. After launch it waits
+# up to 120 s (XEZ_REVIEW_START_SECONDS) until the port answers and prints `review-listening=<n>`;
+# it stops the command and refuses when the command ends first, when the time runs out, or when the
+# listener this machine shows is not the command or one of its children. Open only the port that
+# line names.
+#
 # Exit: the command's own status for `run`, or 124 when it ran out of time; 0 ok, 1 refused or changed, 2 usage, 3 confined
 # (`checkout` only: this step's sandbox cannot write git, so the PR cannot be checked out here).
 set -uo pipefail
@@ -94,7 +107,7 @@ refuse() {
 }
 
 usage() {
-  echo "usage: review-run.sh checkout <pr> | prepare | install | run <program> [<args>…] | start <name> <program> [<args>…] | stop [<name>] | verify-unchanged | finish" >&2
+  echo "usage: review-run.sh checkout <pr> | prepare | install | run <program> [<args>…] | start <name> [--port <n>] <program> [<args>…] | stop [<name>] | verify-unchanged | finish" >&2
   exit 2
 }
 
@@ -113,6 +126,9 @@ cd "$TASK_CWD" || exit 1
 # tests; a review step's shell cannot set it.
 RUN_LIMIT="${XEZ_REVIEW_RUN_SECONDS:-300}"
 printf '%s' "$RUN_LIMIT" | grep -Eq '^[1-9][0-9]{0,5}$' || refuse "XEZ_REVIEW_RUN_SECONDS=\"$RUN_LIMIT\" is not a number of seconds"
+# How long `start --port` waits for the port to answer (#217); the same rule as above.
+START_LIMIT="${XEZ_REVIEW_START_SECONDS:-120}"
+printf '%s' "$START_LIMIT" | grep -Eq '^[1-9][0-9]{0,5}$' || refuse "XEZ_REVIEW_START_SECONDS=\"$START_LIMIT\" is not a number of seconds"
 
 REFUSED_PROGRAMS="git gh sudo su bash sh zsh dash ksh fish env eval exec xargs nohup command timeout nice cmd powershell pwsh wsl winpty git-bash start mintty git-cmd"
 
@@ -218,6 +234,88 @@ process_cwd() {
   elif command -v lsof >/dev/null 2>&1; then
     lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
   fi
+}
+
+# Exit 0 when something answers on localhost:<port>, over IPv4 or IPv6 (#217).
+port_answers() {
+  node -e '
+    const net = require("node:net");
+    const port = Number(process.argv[1]);
+    let left = 2, hit = false;
+    for (const host of ["127.0.0.1", "::1"]) {
+      const s = net.connect({ host, port });
+      let done = false;
+      const end = (ok) => { if (done) return; done = true; hit ||= ok; s.destroy(); if (--left === 0) process.exit(hit ? 0 : 1); };
+      s.setTimeout(1000);
+      s.on("connect", () => end(true));
+      s.on("error", () => end(false));
+      s.on("timeout", () => end(false));
+    }
+  ' "$1" 2>/dev/null
+}
+
+# The pids listening on TCP <port>, one per line, where this machine shows them: lsof, then ss. On
+# Windows (Git Bash) netstat names a Windows pid, which only names the holder.
+port_pids() {
+  case "${OSTYPE:-}" in
+    msys* | cygwin*)
+      netstat -ano 2>/dev/null | tr -d '\r' | awk -v p=":$1" '$1 == "TCP" && $4 == "LISTENING" && substr($2, length($2) - length(p) + 1) == p { print $5 }' | sort -u
+      return
+      ;;
+  esac
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | sort -u
+  elif command -v ss >/dev/null 2>&1; then
+    ss -ltnpH "sport = :$1" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u
+  fi
+}
+
+# "pid <p> in <folder>" for each listener on <port>, or a plain "a process this machine does not show".
+port_holders() {
+  local pids p out=""
+  pids="$(port_pids "$1")"
+  for p in $pids; do out="${out:+$out, }pid $p in $(process_cwd "$p" || true)"; done
+  printf '%s' "${out:-a process this machine does not show}" | sed 's/ in $//; s/ in ,/,/g'
+}
+
+# Exit 0 when <pid> is <root> or one of its children, walking parent pids (Linux and macOS).
+in_tree() {
+  local p="$1" root="$2" i=0
+  while [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null && [ "$i" -lt 64 ]; do
+    [ "$p" = "$root" ] && return 0
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# After `start --port` launched <pid> (#217): wait until the port answers, then check that the
+# listener this machine shows belongs to it. Stops <pid> and refuses on every other outcome.
+await_listener() {
+  local pid="$1" port="$2" name="$3" waited=0 pids p
+  while ! port_answers "$port"; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$state/$name.pid"
+      refuse "\"$name\" ended before it listened on port $port – see $state/$name.log; the app was not reached, so report each check that needed it as not run"
+    fi
+    if [ "$waited" -ge "$START_LIMIT" ]; then
+      stop_one "$state/$name.pid"
+      refuse "\"$name\" did not listen on port $port within ${START_LIMIT}s and was stopped – see $state/$name.log; report each check that needed it as not run"
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  case "${OSTYPE:-}" in msys* | cygwin*) ;; *)
+    pids="$(port_pids "$port")"
+    for p in $pids; do
+      if ! in_tree "$p" "$pid"; then
+        stop_one "$state/$name.pid"
+        refuse "port $port answers, but its listener is $(port_holders "$port"), not \"$name\" (pid $pid) or one of its children – another app holds the port, so this one was not reached (#217)"
+      fi
+    done
+    ;;
+  esac
+  echo "review-listening=$port name=$name"
 }
 
 # A step the leader cancels never reaches `finish`, so a command its `start` began lives on and
@@ -378,15 +476,27 @@ case "$sub" in
     valid_name "$1"
     name="$1"
     shift
+    port=""
+    if [ "$1" = "--port" ]; then
+      port="${2:-}"
+      printf '%s' "$port" | grep -Eq '^[1-9][0-9]{0,4}$' && [ "$port" -le 65535 ] || refuse "\"$port\" is not a port (1 to 65535)"
+      shift 2
+      [ $# -ge 1 ] || usage
+    fi
     check_program "$1"
     stop_ended_runs
     if [ -f "$state/$name.pid" ] && kill -0 "$(cat "$state/$name.pid")" 2>/dev/null; then
       refuse "\"$name\" is already running"
     fi
+    if [ -n "$port" ] && port_answers "$port"; then
+      refuse "port $port is already in use by $(port_holders "$port") – not this run's app (#217). Never test what answers there: report each check that needed the app as not run, and name this line"
+    fi
     no_credentials
     nohup "$@" >"$state/$name.log" 2>&1 </dev/null &
-    printf '%s\n' "$!" >"$state/$name.pid"
-    echo "review-started=$name pid=$! log=$state/$name.log"
+    started=$!
+    printf '%s\n' "$started" >"$state/$name.pid"
+    echo "review-started=$name pid=$started log=$state/$name.log"
+    [ -z "$port" ] || await_listener "$started" "$port" "$name"
     ;;
   stop)
     [ $# -le 1 ] || usage

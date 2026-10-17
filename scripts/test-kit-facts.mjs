@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2484,6 +2484,21 @@ if (S.section("I15")) {
 }
 
 // ---------------------------------------------------------------------------
+// FACT I24 -- a review opens only the port its own start reported (#217). On Linux a QA step reached
+// another project's orphan server on localhost:3000 and judged that app. review-run.sh refuses a busy
+// port and waits for its own listener (test-kit-catalog D-review runs it); the roles must use it.
+if (S.section("I24")) {
+  const fact = "FACT I24: QA and design review start the app with --port and open only the port review-listening= names";
+  for (const doc of [`${SKILL}/kit/skills/xezar-qa.md`, `${SKILL}/kit/skills/xezar-ux-design.md`]) {
+    const text = read(doc);
+    if (!/start <name> --port <port>/.test(text) || !text.includes("review-listening=<port>"))
+      fail(fact, doc, "does not start the app with --port and open only the port review-listening= names");
+    if (!text.includes("report each check that needed the app as not run"))
+      fail(fact, doc, "does not say a refused start means the app was not reached");
+  }
+  checked.push(fact);
+}
+
 // FACT I23 -- the leader never dispatches a lane route.mjs removed (#215). In the Windows upgrade
 // row route.mjs removed every claude lane (the rotation named another machine's logins), and the
 // leader ran claude/opus on a login outside the rotation without saying so; the Linux leader, with

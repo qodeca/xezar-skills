@@ -558,6 +558,12 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A review never judges another project's app on a busy port (#217).** On Linux a QA step opened
+`localhost:3000`, which an orphan server from another project held, and saw that app's data.
+`review-run.sh start --port <n>` now refuses a port something already answers on, names its pid and
+folder, waits until its own app listens and prints `review-listening=<n>`; QA and design review
+open only that port. test-kit-catalog D-review runs it, and FACT I24 pins the two roles.
+
 **The leader never dispatches a lane `route.mjs` removed (#215).** On the Windows upgrade row,
 `route.mjs` removed every Claude lane and the leader ran `claude/opus` on an unlisted login without
 saying so. The routing doc and the leader guide now say only a `lane=` line is dispatched, on a

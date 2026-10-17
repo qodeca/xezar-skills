@@ -1883,6 +1883,36 @@ breaks(
   "refuses to confirm the PR its prepare step checked out",
 );
 
+// A review never tests another project's app on a busy port (#217, FACT I24).
+breaks(
+  "a QA role that opens the app without start --port is rejected",
+  "skills/xez-onboard-opinionated/kit/skills/xezar-qa.md",
+  (s) => s.replace("Start it with `start <name> --port <port> <program> <args>`", "Start it with `start <name> <program> <args>`"),
+  facts("I24"),
+  "does not start the app with --port",
+);
+breaks(
+  "a review-run.sh start --port that launches on a port another server holds is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('if [ -n "$port" ] && port_answers "$port"; then', 'if false; then'),
+  catalog("D-review"),
+  "launches the app on a port another project's server holds",
+);
+breaks(
+  "a review-run.sh start --port that does not wait for its own listener is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('[ -z "$port" ] || await_listener "$started" "$port" "$name"', ':'),
+  catalog("D-review"),
+  "does not report the port its own app listens on",
+);
+breaks(
+  "a review-run.sh start --port that reports an app that ended before it listened is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
+  (s) => s.replace('ended before it listened on port', 'ended early on port'),
+  catalog("D-review"),
+  "reports success for an app that ended before it listened",
+);
+
 // A cancelled review step's server is stopped by the next review, safely (#166).
 breaks(
   "a review-run.sh start that leaves an ended run's server running is rejected",

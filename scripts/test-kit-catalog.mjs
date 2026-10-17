@@ -37,7 +37,7 @@
 // The ids are the section numbers above (1, 1b, 2, 3, 3b, 3c, 4 … 10) and the stream letters below
 // (B, C, D-refusals, D-data, D-review, F, H, U, R, 122-route) (scripts/lib/sections.mjs).
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -1398,6 +1398,7 @@ if (S.section("D-review")) {
   const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
   let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
   let leftPid = null; // the one a second, ended run left running (#166), stopped there too
+  let holder = null; // another project's server on the port a review wants (#217), stopped there too
   try {
     const repo = join(run, "repo");
     const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
@@ -1784,6 +1785,32 @@ if (S.section("D-review")) {
     rr("stop", "web");
     declareRole("qa");
 
+    // #217: another project's server holds the port the review's app wants. `start --port` refuses
+    // before it launches anything, and names the holder; on a free port it waits until the app listens.
+    const freePort = () => Number(execFileSync(process.execPath, ["-e", 'const s = require("node:net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); })'], { encoding: "utf8" }).trim());
+    const answers = (port) => {
+      try { execFileSync(process.execPath, ["-e", 'const c = require("node:net").connect(Number(process.argv[1]), "127.0.0.1"); c.on("connect", () => process.exit(0)); c.on("error", () => process.exit(1))', String(port)], { stdio: "ignore" }); return true; } catch { return false; }
+    };
+    const listen = (port) => `require("node:net").createServer().listen(${port}, "127.0.0.1")`;
+    const busyPort = freePort();
+    holder = spawn(process.execPath, ["-e", listen(busyPort)], { stdio: "ignore" });
+    for (let i = 0; i < 50 && !answers(busyPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    const busy = rr("start", "web", "--port", String(busyPort), "node", "-e", listen(busyPort));
+    if (busy.status !== 1 || !busy.out.includes(`port ${busyPort} is already in use by`) || busy.out.includes("review-started="))
+      fail(`review-run.sh start --port launches the app on a port another project's server holds (#217):\n${busy.status} ${busy.out}`);
+    holder.kill();
+    holder = null;
+    const ownPort = freePort();
+    const own = rr("start", "web", "--port", String(ownPort), "node", "-e", listen(ownPort));
+    reviewPid = (own.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (own.status !== 0 || !own.out.includes(`review-listening=${ownPort} name=web`))
+      fail(`review-run.sh start --port does not report the port its own app listens on (#217):\n${own.status} ${own.out}`);
+    rr("stop", "web");
+    const gone = rr("start", "gone", "--port", String(freePort()), "node", "-e", "0");
+    if (gone.status !== 1 || !gone.out.includes("ended before it listened on port"))
+      fail(`review-run.sh start --port reports success for an app that ended before it listened (#217):\n${gone.status} ${gone.out}`);
+    if (rr("start", "web", "--port", "http", "node", "-e", "0").status !== 1) fail("review-run.sh start --port takes a value that is not a port (#217)");
+
     git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
     if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
     // A child can rewrite the head record too; the recorded head must still be a commit of the PR on GitHub.
@@ -1858,6 +1885,7 @@ if (S.section("D-review")) {
     for (const p of [reviewPid, leftPid]) {
       if (p) try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", p], { stdio: "ignore" }); } catch {}
     }
+    holder?.kill();
     rmSync(run, { recursive: true, force: true });
   }
 }

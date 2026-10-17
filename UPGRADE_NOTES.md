@@ -85,6 +85,27 @@ Files: .xezar/checks/route.mjs; .xezar/routing.schema.json; .xezar/docs/routing.
 Actions: engine-min=0.30.0; restart-engine; per-machine=add-runner-model:qwen/deepseek-flash; per-machine=add-runner-model:qwen/deepseek-v4-pro
 ```
 
+## 2026-10-17 – a QA or design review judges another project's app, which held the port
+
+Applies to any repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** A QA or design review step started the PR's app with `review-run.sh start`, but the
+browser showed data the PR never had. Another project's server, left running on the same machine,
+held the port: the PR's app could not bind, and the step tested the other app.
+
+**What to do.** Copy `.xezar/checks/review-run.sh`, `.xezar/skills/xezar-qa.md` and
+`.xezar/skills/xezar-ux-design.md`. `start <name> --port <port> …` now refuses when something already
+answers on that port, and names its pid and folder; it waits until the app listens and prints
+`review-listening=<port>`. The two roles open only that port, and report each check that needed
+the app as not run after a refusal.
+
+**What you lose by skipping it.** A review can PASS a pull request against a different app.
+
+```upgrade
+Applies-to: <3.2.0
+Files: .xezar/checks/review-run.sh; .xezar/skills/xezar-qa.md; .xezar/skills/xezar-ux-design.md
+```
+
 ## 2026-10-16 – the leader runs a lane that `route.mjs` removed, on a login nobody listed
 
 Applies to any repository onboarded by `xez-onboard-opinionated`.
