@@ -18,7 +18,7 @@ switches on exists yet. After setup you start the **leader** differently – see
 
 You need Node 22 or later, `git`, the GitHub CLI logged in, and a repository with a GitHub
 remote. On native Windows you also need Git for Windows (Git Bash), `jq` on `PATH`, long paths
-switched on, and xezar 0.20.0 or newer, the first engine that runs natively on Windows. Pasted the prompt into a plain `claude` session
+switched on, and xezar 0.30.0 or newer, which the kit needs on every system (0.20.0 was the first engine that runs natively on Windows). Pasted the prompt into a plain `claude` session
 instead? It still does the first steps, then gives you the line above and picks up where it
 stopped.
 
