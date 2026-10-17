@@ -29,10 +29,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
+import { relPosix, toLF } from "./lib/platform.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CHECK = process.argv.includes("--check");
+
+// Every copy is read with LF line endings, so a CRLF checkout (core.autocrlf on Windows) is in
+// sync exactly when its LF form is (#122). Paths are written with "/", the form the allowlist keys use.
+const readText = (path) => toLF(readFileSync(path, "utf8"));
 
 // Files that legitimately do not carry a given block -- a skill that emits no chaining
 // reference line has no marker contract to keep in sync. Each is named in
@@ -179,7 +184,7 @@ let checked = 0;
 
 for (const block of BLOCKS) {
   const canonPath = join(root, block.canonical);
-  const canonText = readFileSync(canonPath, "utf8");
+  const canonText = readText(canonPath);
   const canon = extract(canonText, block.id);
 
   if (!canon) {
@@ -206,8 +211,8 @@ for (const block of BLOCKS) {
   }
 
   for (const abs of globSync(join(root, block.files)).sort()) {
-    const rel = relative(root, abs);
-    const text = readFileSync(abs, "utf8");
+    const rel = relPosix(root, abs);
+    const text = readText(abs);
     const found = extract(text, block.id);
 
     if (!found) {
@@ -235,7 +240,7 @@ for (const block of TAIL_BLOCKS) {
     const at = text.indexOf(`\n${block.heading}\n`);
     return at === -1 ? null : { body: text.slice(at + 1), a: at + 1 };
   };
-  const canon = tail(readFileSync(join(root, block.canonical), "utf8"));
+  const canon = tail(readText(join(root, block.canonical)));
   if (!canon) {
     console.error(`canonical copy ${block.canonical} has no "${block.heading}" heading`);
     problems += 1;
@@ -253,8 +258,8 @@ for (const block of TAIL_BLOCKS) {
     }
   }
   for (const abs of globSync(join(root, block.files)).sort()) {
-    const rel = relative(root, abs);
-    const text = readFileSync(abs, "utf8");
+    const rel = relPosix(root, abs);
+    const text = readText(abs);
     const found = tail(text);
     if (!found) continue;
     checked += 1;

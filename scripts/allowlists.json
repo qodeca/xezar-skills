@@ -67,6 +67,26 @@
       }
     }
   },
+  "npmLiteral": {
+    "$binds": "scripts/lint.sh -> npm_allow",
+    "entries": {
+      "skills/xez-onboard-opinionated/kit/skills/xezar-implementation.md": {
+        "why": "Its body still says to implement \"in the correct npm workspace\", a fact about the engine's own repository; #59 fixed only the testing and dependency roles and the shared tail, so this body waits for its own focused fix.",
+        "who": "collection maintainers",
+        "expires": "2027-03-31"
+      },
+      "skills/xez-onboard-opinionated/kit/skills/xezar-quality-gates.md": {
+        "why": "Its body still names the npm install and typecheck gates of the engine's own gate list; #59 fixed only the testing and dependency roles and the shared tail, so this body waits for its own focused fix.",
+        "who": "collection maintainers",
+        "expires": "2027-03-31"
+      },
+      "skills/xez-onboard-opinionated/kit/skills/xezar-release-publish.md": {
+        "why": "This role publishes the engine's own npm package, so its body must name npm; it is renewed or removed when the release roles become toolchain-neutral.",
+        "who": "collection maintainers",
+        "expires": "2027-03-31"
+      }
+    }
+  },
   "gateOptOut": {
     "$binds": "scripts/check-gate-list.mjs -> OPT_OUT",
     "entries": {
@@ -74,7 +94,12 @@
         "why": "Needs the `codex` CLI and a full-access sandbox. A CI runner has neither, and granting full access to a pull request's own code is exactly what CI must not do.",
         "who": "collection maintainers",
         "expires": "2027-09-20"
-      }
+      },
+    "test:guards": {
+      "why": "Runs nightly (.github/workflows/nightly-guards.yml); too slow for every PR – owner decision 2026-09-27.",
+      "who": "collection maintainers",
+      "expires": "2027-09-27"
+    }
     }
   }
 }

@@ -1,0 +1,31 @@
+{
+  "name": "base-unknown",
+  "situation": "Base unknown: the owner copied an early draft of the 3.1.0 register guide (.xezar/docs/local-patches.md) before it shipped and added a project section. No kit version before 3.1.0 has the file. Registered and confirmed.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/docs/local-patches.md",
+      "fromTarget": {
+        "drop": "**Undoing a patch.** Restore the kit's file, remove the `patch` key, and remove the path from the\nentry (the whole entry when it was the last path). An upgrade that finds the change already\nupstream drafts this removal for you.\n\n",
+        "append": "\n## This project\n\nWidget keeps its local patches few. Ask in the widget-dev channel before adding a new entry.\n"
+      }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – early copy of the register guide\n- Files: .xezar/docs/local-patches.md\n- Reason: copied from the 3.1.0 draft to start our register early, with a project section\n- Upstream: qodeca/xezar-skills#55\n- Since: 2026-09-01\n- Confirmed: yes\n",
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
+}

@@ -101,9 +101,11 @@ if ! printf '%s' "$INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
 fi
 
 GATE=$(printf '%s' "$INPUT" | jq -r '.gate // ""')
+# The letters are spelled out: a range such as a-z follows the locale's collation in some shells
+# (macOS's sh, which is bash 3.2), where it matches upper-case letters too.
 case "$GATE" in
   "") echo "gate-status: \"gate\" is required." >&2; exit 2 ;;
-  *[!a-z0-9-]* | [!a-z]*)
+  *[!abcdefghijklmnopqrstuvwxyz0123456789-]* | [!abcdefghijklmnopqrstuvwxyz]*)
     echo "gate-status: \"gate\" must match ^[a-z][a-z0-9-]*\$ (got: $GATE). A name with a space or an upper-case letter breaks the case statement consumers branch on." >&2
     exit 2 ;;
 esac

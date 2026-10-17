@@ -52,6 +52,16 @@ can quietly stop being loaded.
    branch. The leader guide is a record file, which is why branch protection on this setup is
    configured without admin enforcement.
 
+   **A rule is owner content, not a local patch** — record it as such. When
+   `.xezar/onboarding.json` has a `manifestVersion` of 2 or more and an entry for
+   `.xezar/docs/leader-guide.md` with no `patch` key, hash the guide **before** inserting: if it
+   matches the entry's `sha256`, write the SHA-256 of the guide as committed into that `sha256`,
+   change nothing else in the manifest, and commit both files together, so
+   `.xezar/checks/manifest-drift.mjs` stays green. If it does not match, the guide already carries
+   an unrecorded edit: leave the digest alone and name the mismatch in the report — refreshing it
+   would bless an edit nobody recorded. A version-1 manifest, or an entry with a `patch`, is left
+   untouched.
+
 6. **Report** using `references/report-templates.md`: the rule as written, its section, the
    commit, and the plain statement that it takes effect at the leader's next session start,
    resume, clear or compaction — not in any session already running.

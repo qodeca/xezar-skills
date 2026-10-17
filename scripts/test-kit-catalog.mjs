@@ -8,7 +8,7 @@
 // that validator: a workflow that is installed and valid and named by no routing row. The leader
 // picks work by a row's trigger sentence, so such a workflow can never be selected by anything.
 //
-// Nine checks, each one a way the kit went wrong or could:
+// Ten checks, each one a way the kit went wrong or could:
 //
 //   1. the kit's own validator passes on the kit, staged the way a project holds it;
 //   2. the validator's list of maintained skills IS the set of skill files -- a name left off
@@ -26,16 +26,35 @@
 //   8. the tidiness check's own list of engine names is the engine's published 0.19.0 list, and
 //      it takes a name a newer engine adds from `xezar state-names --json`, RUN with a stand-in;
 //   9. the documented-output check, RUN on the kit staged as a project, outside a leader session –
-//      which is how every gate runs it.
+//      which is how every gate runs it;
+//  10. the leader launcher, RUN with `claude` stubbed: it takes the socket the engine names by
+//      project id, and stops with its message when there is none; on native Windows it takes a
+//      live pipe an engine marker names, and skips a stale marker or one naming another pipe.
 //
 // Run: node scripts/test-kit-catalog.mjs
+//      node scripts/test-kit-catalog.mjs --only <id> [--only <id>]   (those sections only – never a gate result)
+//      node scripts/test-kit-catalog.mjs --sections                  (the section ids, as one JSON line)
+// The ids are the section numbers above (1, 1b, 2, 3, 3b, 3c, 4 … 10) and the stream letters below
+// (B, C, D-refusals, D-data, D-review, F, H, U, R, 122-route) (scripts/lib/sections.mjs).
 
-import { execFileSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { bashPath, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, restrict, tempRoot } from "./lib/test-harness.mjs";
+import { sections } from "./lib/sections.mjs";
+
+const S = sections(
+  "test-kit-catalog.mjs",
+  ["1", "1b", "2", "3", "3b", "3c", "4", "5", "6", "7", "8", "9", "10",
+    "B", "C", "D-refusals", "D-data", "D-review", "F", "H", "U", "R", "122-route"],
+  { exclusive: { "10": "named pipes and a socket" } },
+);
+
+prepareTestPlatform({ symlinks: true });
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = "skills/xez-onboard-opinionated";
@@ -45,13 +64,22 @@ const ROUTING = `${SKILL}/kit/routing.json`;
 let problems = 0;
 const fail = (message) => {
   problems += 1;
+  S.trace(message);
   console.error(`FAIL  ${message}`);
+};
+
+/** `env` with OSTYPE set to `ostype` and any other spelling of the key dropped: bash keeps an OSTYPE it finds in its environment. */
+const withOstype = (env, ostype) => {
+  const next = { ...env };
+  for (const key of Object.keys(next)) if (key.toUpperCase() === "OSTYPE") delete next[key];
+  return { ...next, OSTYPE: ostype };
 };
 
 // --- 1. The kit's own validator, on the kit ---------------------------------------------------
 // Staged as `<tmp>/.xezar/{workflows,skills,checks}` because that is the only layout the
 // validator reads. The config is the smallest one it accepts.
-const stage = mkdtempSync(join(tmpdir(), "kit-catalog-"));
+if (S.section("1")) {
+const stage = mkdtempSync(join(tempRoot(), "kit-catalog-"));
 try {
   mkdirSync(join(stage, ".xezar"));
   for (const dir of ["workflows", "skills", "checks"]) {
@@ -84,25 +112,42 @@ try {
     }
     if (!/runs a reading step's command outside its sandbox/.test(out)) fail(`catalog-check accepts a Codex prefix_rule with ${label}, which runs a reading step's command outside its sandbox`);
   }
+  // #122 (Windows): the same kit checked out with CRLF line endings (core.autocrlf) passes too.
+  // Every text file the validator parses is rewritten with CRLF in the stage, never in the kit.
+  writeFileSync(codexRule, '# reading only\nprefix_rule(pattern=["git", "push"], decision="forbidden")\n');
+  const toCrlf = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) toCrlf(path);
+      else if (entry.isFile() && /\.(md|yaml|rules)$/.test(entry.name)) writeFileSync(path, readFileSync(path, "utf8").replace(/\r?\n/g, "\r\n"));
+    }
+  };
+  toCrlf(stage);
+  try {
+    execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" });
+  } catch (error) {
+    fail(`the kit's catalog-check refuses the kit checked out with CRLF line endings:\n${(error.stdout ?? "") + (error.stderr ?? "")}`);
+  }
 } finally {
   rmSync(stage, { recursive: true, force: true });
 }
+} // section 1
 
 // --- 1b. The reading roles' write scripts, from a pipe --------------------------------------------
-// The engine's shared read-only lock (pi, Codex) allows a pipe only into an argument-free
+// The engine's shared read-only lock (Codex, Qwen Code) allows a pipe only into an argument-free
 // `bash <script>`, so a reader writes by piping ONE JSON request into the bare script. Two halves:
 // every pipe the kit's docs teach has nothing after the script's name, and the JSON form works.
-{
+if (S.section("1b")) {
   const docs = [...readdirSync(join(KIT, "skills")).map((f) => `skills/${f}`), ...readdirSync(join(KIT, "docs")).map((f) => `docs/${f}`)]
     .filter((f) => f.endsWith(".md"));
   for (const rel of docs) {
     const text = readFileSync(join(KIT, rel), "utf8");
-    for (const m of text.matchAll(/\|\s*bash \.xezar\/checks\/([a-z-]+\.sh)[ \t]+([^`\s|][^`\n]*)`/g))
-      fail(`kit/${rel} teaches "| bash .xezar/checks/${m[1]} ${m[2].trim()}": the engine's lock refuses a pipe into a script with arguments; pipe one JSON request into the bare script`);
+    for (const m of text.matchAll(/\|\s*bash ((?:\.xezar|\.local\/xezar\/cache\/kit)\/checks\/[a-z-]+\.sh)[ \t]+([^`\s|][^`\n]*)`/g))
+      fail(`kit/${rel} teaches "| bash ${m[1]} ${m[2].trim()}": the engine's lock refuses a pipe into a script with arguments; pipe one JSON request into the bare script`);
     if (/printf '%s'/.test(text)) fail(`kit/${rel} teaches printf, which no reading step's allowlist holds; build the text with jq -n`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-writers-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-writers-"));
   try {
     const repo = join(lab, "repo");
     mkdirSync(join(repo, ".xezar"), { recursive: true });
@@ -114,10 +159,10 @@ try {
     const log = join(lab, "gh.log");
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\nprintf 'ARGS %s\\n' "$*" >>"${log}"\ncase " $* " in *" --body-file - "*) { printf 'BODY '; cat; echo; } >>"${log}" ;; esac\nexit 0\n`);
     chmodSync(join(bin, "gh"), 0o755);
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: join(lab, "handoff"), XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review" };
     const pipe = (script, request, extra = {}) => {
       try {
-        execFileSync("bash", [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
+        execFileSync(bashPath(), [`.xezar/checks/${script}`], { cwd: repo, env: { ...env, ...extra }, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" });
         return 0;
       } catch (error) {
         return error.status;
@@ -134,16 +179,117 @@ try {
       fail("gh-write.sh lets a JSON label request lift a blocking label");
     if (pipe("gh-write.sh", { action: "comment", kind: "pr", number: "12; rm -rf /", body: "x" }) !== 1)
       fail("gh-write.sh accepts a JSON request whose number is not a number");
+    // The ids come from the step's environment and recordedAt from the clock (#172): a reader
+    // cannot run `date`, and a typed time was hours off, so one it types is replaced.
+    const stamped = (text) => {
+      let p;
+      try { p = JSON.parse(text); } catch { return false; }
+      return text.endsWith("}\n") && JSON.stringify(Object.keys(p).sort()) === '["recordedAt","stepId","taskId","verdict"]' &&
+        p.verdict === "APPROVE" && p.taskId === "run-1" && p.stepId === "review" &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(p.recordedAt) && Math.abs(Date.now() - Date.parse(p.recordedAt)) < 10 * 60 * 1000;
+    };
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }) !== 0 ||
-        (existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : "") !== '{"verdict":"APPROVE","taskId":"run-1","stepId":"review"}\n')
-      fail("verdict-write.sh does not write a JSON packet request as the verdict packet, stamped with the step's taskId and stepId");
+        !stamped(existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : ""))
+      fail("verdict-write.sh does not write a JSON packet request as the verdict packet, stamped with the step's taskId and stepId and the clock's recordedAt");
+    rmSync(join(lab, "handoff.verdict.json"), { force: true });
+    if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE", recordedAt: "2026-10-15T12:00:00Z" } }) !== 0 ||
+        !stamped(existsSync(join(lab, "handoff.verdict.json")) ? readFileSync(join(lab, "handoff.verdict.json"), "utf8") : ""))
+      fail("verdict-write.sh keeps the recordedAt a reviewer typed instead of stamping the clock's (#172)");
     rmSync(join(lab, "handoff.verdict.json"), { force: true });
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, { XEZ_STEP_ID: "" }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
       fail("verdict-write.sh writes a packet with XEZ_STEP_ID unset, which the engine would refuse");
     if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE", taskId: "run-2" } }) !== 1 || existsSync(join(lab, "handoff.verdict.json")))
       fail("verdict-write.sh overwrites or accepts a packet that names another task instead of refusing it");
+    // The engine refuses a finding id or fingerprint over 64 characters, and drops the whole packet
+    // with it (#178). The writer keeps one of 64 as written and replaces a longer one with the first
+    // 16 hex characters of its sha256 – the same on every run, so a fingerprint stays stable – and
+    // says so. An empty one has nothing stable to hash and is refused.
+    {
+      const written = (request) => {
+        rmSync(join(lab, "handoff.verdict.json"), { force: true });
+        let out = "";
+        try { out = execFileSync(bashPath(), [".xezar/checks/verdict-write.sh"], { cwd: repo, env, input: JSON.stringify(request), encoding: "utf8", stdio: "pipe" }); }
+        catch (error) { return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? ""), packet: null }; }
+        const file = join(lab, "handoff.verdict.json");
+        return { status: 0, out, packet: existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null };
+      };
+      for (const k of ["id", "fingerprint"]) {
+        const packet = (value) => ({ kind: "packet", packet: { verdict: "APPROVE", findings: [{ id: "f1", severity: "major", title: "t", [k]: value }] } });
+        const at64 = "a".repeat(64), at65 = `major:${"b".repeat(59)}`;
+        const short = createHash("sha256").update(at65).digest("hex").slice(0, 16);
+        const kept = written(packet(at64));
+        if (kept.status !== 0 || kept.packet?.findings?.[0]?.[k] !== at64 || kept.out.includes("note:"))
+          fail(`verdict-write.sh changes or refuses a finding ${k} of 64 characters, which the engine allows (#178):\n${kept.out}`);
+        const first = written(packet(at65)), second = written(packet(at65));
+        if (first.status !== 0 || first.packet?.findings?.[0]?.[k] !== short || second.packet?.findings?.[0]?.[k] !== short || !first.out.includes(`finding 1 ${k} had 65 characters`))
+          fail(`verdict-write.sh does not replace a finding ${k} of 65 characters with the same short hash on every run and say so, so the engine drops the whole packet (#178):\n${first.out}`);
+        const empty = written(packet(""));
+        if (empty.status !== 1 || empty.packet)
+          fail(`verdict-write.sh accepts an empty finding ${k}, which the engine refuses with the whole packet (#178):\n${empty.out}`);
+      }
+      rmSync(join(lab, "handoff.verdict.json"), { force: true });
+    }
     if (pipe("verdict-write.sh", { kind: "packet", packet: "not an object" }) !== 1)
       fail("verdict-write.sh accepts a packet request whose packet is not an object");
+
+    // #122: jq on native Windows ends every line it writes with CRLF, and jq 1.6 there has no
+    // --binary. A stand-in jq, first on PATH, runs the real one (on Windows the harness's LF jq)
+    // and turns every LF into CRLF, and refuses -b/--binary as jq 1.6 does. Under it, with
+    // OSTYPE=msys (the kit strips jq's CRs under Git Bash or Cygwin only), and under the plain jq
+    // with the host's own OSTYPE, labels, a comment body with a CR inside, and evidence text arrive
+    // byte for byte. Off Windows a CR a label really holds is still refused, as before #122.
+    const crlfDir = join(lab, "crlf-jq");
+    mkdirSync(crlfDir);
+    const shQuote = (s) => `'${s.replaceAll("'", "'\\''")}'`;
+    const realJq = execFileSync(bashPath(), ["-c", "command -v jq"], { encoding: "utf8", env }).trim();
+    const crlfFilter = 'const c = []; process.stdin.on("data", (d) => c.push(d)).on("end", () => { const out = []; for (const b of Buffer.concat(c)) { if (b === 10) out.push(13); out.push(b); } process.stdout.write(Buffer.from(out)); });';
+    writeFileSync(join(crlfDir, "jq"), [
+      "#!/usr/bin/env bash",
+      'for a in "$@"; do case "$a" in -b | --binary) echo "jq: Unknown arguments: $a" >&2; exit 2 ;; esac; done',
+      `${shQuote(realJq)} "$@" | ${shQuote(process.execPath.replaceAll("\\", "/"))} -e ${shQuote(crlfFilter)}`,
+      'exit "${PIPESTATUS[0]}"',
+      "",
+    ].join("\n"));
+    chmodSync(join(crlfDir, "jq"), 0o755);
+    const crlfEnv = { PATH: prependPath(env, [crlfDir]).PATH };
+    const probe = execFileSync(bashPath(), ["-c", "jq -r .a <<<'{\"a\":\"x\"}' | od -An -c | tr -d ' '; jq -b -n 1 2>&1; true"], { encoding: "utf8", env: { ...env, ...crlfEnv } });
+    if (!probe.startsWith("x\\r\\n") || !probe.includes("jq: Unknown arguments")) fail(`the CRLF jq stand-in does not write CRLF and refuse -b: ${JSON.stringify(probe)}`);
+    const msysCrlfEnv = withOstype({ ...env, ...crlfEnv }, "msys");
+    rmSync(log, { force: true });
+    let crRefusal = { status: 0, out: "" };
+    try {
+      execFileSync(bashPath(), [".xezar/checks/gh-write.sh"], { cwd: repo, env: withOstype(env, "linux-gnu"), input: JSON.stringify({ action: "label", kind: "issue", number: 7, add: ["risk-low\r"] }), encoding: "utf8", stdio: "pipe" });
+    } catch (error) {
+      crRefusal = { status: error.status, out: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+    }
+    if (crRefusal.status !== 1 || !crRefusal.out.includes("is not a label name") || read() !== "")
+      fail(`gh-write.sh off Windows (OSTYPE=linux-gnu) accepts a label that holds a CR, which it refused before #122 (exit ${crRefusal.status}):\n${crRefusal.out}${read()}`);
+    const evidenceDir = join(repo, ".local/xezar/tasks/run-1");
+    const readOr = (file) => (existsSync(file) ? readFileSync(file, "latin1") : "<missing>");
+    for (const [label, extra] of [["the plain jq", {}], ["a CRLF jq", msysCrlfEnv]]) {
+      rmSync(log, { force: true });
+      const labelled = pipe("gh-write.sh", { action: "label", kind: "issue", number: 7, add: ["risk-low"], remove: ["risk-high"] }, extra);
+      if (labelled !== 0 || read() !== "ARGS issue edit 7 --repo acme/widget --add-label risk-low --remove-label risk-high\n")
+        fail(`gh-write.sh refuses or mangles the label request adding "risk-low" under ${label} (exit ${labelled}):\n${JSON.stringify(read())}`);
+      rmSync(log, { force: true });
+      const commented = pipe("gh-write.sh", { action: "comment", kind: "pr", number: 12, body: "a\nb\r\nc" }, extra);
+      if (commented !== 0 || !read().endsWith("BODY a\nb\r\nc\n"))
+        fail(`gh-write.sh does not post a comment body with a CR inside byte for byte under ${label} (exit ${commented}):\n${JSON.stringify(read())}`);
+      rmSync(evidenceDir, { recursive: true, force: true });
+      const evidence = pipe("verdict-write.sh", { kind: "evidence", name: "notes.md", text: "x\r\ny\n" }, extra);
+      if (evidence !== 0 || readOr(join(evidenceDir, "notes.md")) !== "x\r\ny\n")
+        fail(`verdict-write.sh does not write evidence text under ${label} byte for byte (exit ${evidence}): ${JSON.stringify(readOr(join(evidenceDir, "notes.md")))}`);
+      const script = pipe("verdict-write.sh", { kind: "evidence", name: "serve.mjs", text: "x\n" }, extra);
+      if (script !== 1 || existsSync(join(evidenceDir, "serve.mjs")))
+        fail(`verdict-write.sh writes evidence named serve.mjs under ${label}, a script a reading step could then run (#166) (exit ${script})`);
+      const blocked = pipe("verdict-write.sh", { kind: "blocked", text: "why\n" }, extra);
+      if (blocked !== 0 || readOr(join(evidenceDir, "BLOCKED")) !== "why\n")
+        fail(`verdict-write.sh does not write blocked text under ${label} byte for byte (exit ${blocked}): ${JSON.stringify(readOr(join(evidenceDir, "BLOCKED")))}`);
+      rmSync(join(lab, "handoff.verdict.json"), { force: true });
+      if (pipe("verdict-write.sh", { kind: "packet", packet: { verdict: "APPROVE" } }, extra) !== 0 ||
+          !stamped(readOr(join(lab, "handoff.verdict.json"))))
+        fail(`verdict-write.sh does not write a JSON packet request under ${label} as the stamped verdict packet: ${JSON.stringify(readOr(join(lab, "handoff.verdict.json")))}`);
+    }
   } finally {
     rmSync(lab, { recursive: true, force: true });
   }
@@ -156,6 +302,7 @@ const skillFiles = readdirSync(join(KIT, "skills"))
   .filter((name) => /^xezar-.*\.md$/.test(name))
   .map((name) => name.replace(/\.md$/, ""))
   .sort();
+if (S.section("2")) {
 if (!listed) {
   fail("catalog-check.mjs no longer declares MAINTAINED_SKILLS as a Set literal this test can read");
 } else {
@@ -167,6 +314,7 @@ if (!listed) {
     if (!skillFiles.includes(name)) fail(`MAINTAINED_SKILLS names "${name}", and kit/skills/ has no such file`);
   }
 }
+} // section 2
 
 // --- 3. Workflows and routing rows name each other ---------------------------------------------
 // The rows live in `kit/routing.json`. A row may name more than one workflow file.
@@ -175,6 +323,7 @@ const rows = routing.rows.map((row) => ({ id: row.id, workflows: row.workflows, 
 const workflowFiles = readdirSync(join(KIT, "workflows")).filter((name) => name.endsWith(".yaml")).sort();
 const routed = new Set(rows.flatMap((row) => row.workflows));
 
+if (S.section("3")) {
 if (rows.length === 0) fail(`${ROUTING} has no rows`);
 for (const name of workflowFiles) {
   if (!routed.has(name)) fail(`kit/workflows/${name} is named by no routing row -- installed, valid, and unreachable`);
@@ -182,9 +331,10 @@ for (const name of workflowFiles) {
 for (const name of routed) {
   if (!workflowFiles.includes(name)) fail(`${ROUTING} routes to ${name}, and kit/workflows/ has no such file`);
 }
+} // section 3
 
 // --- 3b. The routing file passes its own check, and agrees with the schema and the catalog -------
-{
+if (S.section("3b")) {
   const ROUTE = join(KIT, "checks/route.mjs");
   const { KNOWN, readingRow, check } = await import(pathToFileURL(ROUTE).href);
   try {
@@ -234,7 +384,7 @@ for (const name of routed) {
   }
 
   // --rows is the classification view: it must carry no lane and no login.
-  const lab = mkdtempSync(join(tmpdir(), "kit-route-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-"));
   try {
     const out = execFileSync("node", [ROUTE, "--file", join(KIT, "routing.json"), "--rows"], { cwd: lab, encoding: "utf8", stdio: "pipe" });
     for (const lane of Object.keys(routing.lanes)) if (out.includes(lane)) fail(`route --rows leaks lane data: "${lane}"`);
@@ -366,8 +516,8 @@ for (const name of routed) {
 // --- 3c. The kit's node scripts run when reached through a link, or a path with a space ----------
 // A script that asks "am I the main module" by comparing an unresolved path does nothing at all,
 // and exits 0, when `.xezar/checks` is a link -- which reads as a pass.
-{
-  const lab = mkdtempSync(join(tmpdir(), "kit-main-"));
+if (S.section("3c")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-main-"));
   try {
     const real = join(lab, "with space", "checks");
     mkdirSync(join(lab, "with space"), { recursive: true });
@@ -425,6 +575,7 @@ const COUNT_SITES = [
   `docs/skills/xez-onboard-opinionated.md`,
 ];
 const EXPECTED = { rows: rows.length, classes: classes.length };
+if (S.section("4")) {
 for (const site of COUNT_SITES) {
   const lines = readFileSync(join(root, site), "utf8").split("\n");
   lines.forEach((line, index) => {
@@ -438,10 +589,12 @@ for (const site of COUNT_SITES) {
     }
   });
 }
+} // section 4
 
 // --- 5. The config grammar keeps its four answers apart --------------------------------------------
 // A guarded workflow refuses on an empty list, so "empty" is load-bearing. The failure this pins
 // is the quiet one: a misspelt key, or a value of the wrong shape, reading as "none configured".
+if (S.section("5")) {
 const { judge, GRAMMAR } = await import(pathToFileURL(join(KIT, "checks/lib/config-grammar.mjs")).href);
 const CASES = [
   ["ok", "deploy.environments", { deploy: { environments: ["staging=deploy.yml"] } }],
@@ -476,6 +629,7 @@ for (const name of workflowFiles) {
     if (!GRAMMAR[match[1]]) fail(`kit/workflows/${name} guards on "${match[1]}", and the grammar has no such key`);
   }
 }
+} // section 5
 
 // --- 6. A guard step sits where it is worth something ------------------------------------------
 // `catalog-check.mjs` orders the six named phases and lets any other check step sit anywhere, so
@@ -487,6 +641,7 @@ const stepsOf = (text) =>
     command: (/^    command: (.*)$/m.exec(block) ?? [])[1] ?? "",
     isAgent: /^    prompt: /m.test(block),
   }));
+if (S.section("6")) {
 for (const name of workflowFiles) {
   const steps = stepsOf(readFileSync(join(KIT, "workflows", name), "utf8"));
   const ids = steps.map((step) => step.id);
@@ -522,14 +677,15 @@ for (const name of workflowFiles) {
     fail("kit/workflows/deploy.yaml declares an onFail -- a failed deploy is never dispatched twice by a machine");
   }
 }
+} // section 6
 
 // --- 7. The guard scripts, run -------------------------------------------------------------------
 // A bare remote and a clone, the way a project holds them. The scripts run from the kit with the
 // clone as the working directory; the run id comes from XEZ_TASK_ID, as it does for an agent step.
 // Every case names the distinctive words of the refusal, not just its exit status: a guard that
 // fails for another reason is not the guard working.
-{
-  const lab = mkdtempSync(join(tmpdir(), "kit-guards-"));
+if (S.section("7")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-guards-"));
   const work = join(lab, "work");
   const TASK = "fixture-task-1";
   const evidence = join(work, ".local/xezar/tasks", TASK);
@@ -546,7 +702,7 @@ for (const name of workflowFiles) {
   };
   const guard = (name, ...args) => {
     try {
-      const out = execFileSync("bash", [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
+      const out = execFileSync(bashPath(), [join(KIT, "checks", name), ...args], { cwd: work, env, encoding: "utf8", stdio: "pipe" });
       return { code: 0, out };
     } catch (error) {
       return { code: error.status ?? -1, out: (error.stdout ?? "") + (error.stderr ?? "") };
@@ -677,6 +833,9 @@ for (const name of workflowFiles) {
     const codex = readFileSync(join(KIT, "codex/config.toml"), "utf8");
     put(".mcp.json", mcp);
     put(".codex/config.toml", codex);
+    // A first entry is not a match (#222): the gate says the base has none, and leaves it to review.
+    const first = guard("config-guard.sh", "browser", "--from-base");
+    expect("a branch that adds the first browser entry is left to the security review, and says so", first, 0, "has no chrome-devtools entry yet in .mcp.json, .codex/config.toml");
     git("add", "-A");
     git("commit", "--quiet", "-m", "browser");
     git("push", "--quiet", "origin", "main");
@@ -702,7 +861,7 @@ for (const name of workflowFiles) {
 // hold every name of the engine's published 0.19.0 list (the fixture is `xezar state-names --json`
 // at that version, byte for byte), and a name only a newer engine prints must pass when that engine
 // is on PATH -- and must still fail, as a stray file, when it is not.
-{
+if (S.section("8")) {
   const tree = readFileSync(join(KIT, "checks/local-tree.sh"), "utf8");
   const words = (name) => (new RegExp(`^  ${name}="([^"]*)"$`, "m").exec(tree)?.[1] ?? "").split(/\s+/).filter(Boolean);
   const dirs = new Set([...words("ENGINE_DIRS"), ...words("ALLOWED")]);
@@ -715,7 +874,7 @@ for (const name of workflowFiles) {
     if (!known) fail(`local-tree.sh does not know the engine's ${entry.kind} "${entry.name}" (xezar state-names at 0.19.0) -- every project's gate would fail on it`);
   }
 
-  const lab = mkdtempSync(join(tmpdir(), "kit-local-tree-"));
+  const lab = mkdtempSync(join(tempRoot(), "kit-local-tree-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar/checks"), { recursive: true });
@@ -729,7 +888,7 @@ for (const name of workflowFiles) {
     const standIn = (body) => { writeFileSync(join(bin, "xezar"), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, "xezar"), 0o755); };
     const run = () => {
       try {
-        return { code: 0, out: execFileSync("bash", [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } }) };
+        return { code: 0, out: execFileSync(bashPath(), [join(project, ".xezar/checks/local-tree.sh")], { encoding: "utf8", stdio: "pipe", env: prependPath(process.env, [bin]) }) };
       } catch (error) { return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") }; }
     };
     const newer = structuredClone(published);
@@ -743,6 +902,15 @@ for (const name of workflowFiles) {
     if (without.code === 0 || !without.out.includes("future-engine-state.json (file at the top level)")) fail(`local-tree.sh without the engine's list passed a name it does not know:\n${without.out}`);
     standIn(`echo '{"schemaVersion":1,"scope":"local-xezar-top-level","names":[{"name":"../x","kind":"file"},{"name":"future-engine-state.json","kind":"socket"}]}'`);
     if (run().code === 0) fail("local-tree.sh took a name from engine output that is not a plain file or folder name");
+    // The global layout (no .xezar/workspace.json): engine 0.19.0 still writes its run state at the
+    // top of .local/xezar/ (projectDataDir). With no engine on PATH, the kit's own list must pass it.
+    rmSync(join(project, ".xezar/workspace.json"));
+    rmSync(join(project, ".local/xezar/future-engine-state.json"));
+    for (const d of ["runs", "tmp", "writer-claims"]) mkdirSync(join(project, ".local/xezar", d), { recursive: true });
+    for (const f of ["runs.json", "ui-state.json", "launch-key"]) writeFileSync(join(project, ".local/xezar", f), "{}\n");
+    standIn("exit 1");
+    const global = run();
+    if (global.code !== 0) fail(`local-tree.sh calls the engine's own run state loose in a project with no .xezar/workspace.json:\n${global.out}`);
   } catch (error) {
     fail(`local-tree fixture could not be built or run: ${error.message}`);
   } finally {
@@ -754,8 +922,8 @@ for (const name of workflowFiles) {
 // The leader loader is silent unless `XEZAR_LEADER=1`, and a gate never runs in the leader's session.
 // Its fixture once ran the loader without the flag, so it failed in every onboarded project's gate
 // and in no test here, because nothing here ran it.
-{
-  const lab = mkdtempSync(join(tmpdir(), "kit-documented-output-"));
+if (S.section("9")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-documented-output-"));
   try {
     const project = join(lab, "project");
     mkdirSync(join(project, ".xezar"), { recursive: true });
@@ -776,11 +944,1475 @@ for (const name of workflowFiles) {
   }
 }
 
+// --- 10. The leader launcher finds the engine's socket, run ----------------------------------------
+// The engine names its socket after the project id (lower-cased, other characters turned into '-'),
+// not the folder. The launcher once looked only for `<folder>.sock`, so in a folder named
+// `My Proj` it said the engine was not running while the engine ran. Run it with `claude` stubbed
+// on PATH: a socket named by the engine is accepted, no socket stops it with its message.
+if (S.section("10")) {
+  const { createServer } = await import("node:net");
+  const { randomBytes } = await import("node:crypto");
+  const { spawnSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kl-"));
+  const server = createServer();
+  const pipeServers = [];
+  try {
+    const project = join(lab, "My Proj");
+    mkdirSync(join(project, "scripts"), { recursive: true });
+    cpSync(join(KIT, "scripts/xezar-leader.sh"), join(project, "scripts/xezar-leader.sh"));
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const record = join(lab, "claude-args");
+    writeFileSync(join(bin, "claude"), `#!/usr/bin/env bash\nprintf '%s\\n' "XEZAR_LEADER=$XEZAR_LEADER" "$@" > "${record}"\nexit 0\n`);
+    chmodSync(join(bin, "claude"), 0o755);
+    const env = prependPath(process.env, [bin]);
+    // Output is stdout and stderr on success too: the launcher warns on stderr and still starts.
+    const launch = (launchEnv = env) => {
+      rmSync(record, { force: true });
+      const result = spawnSync(bashPath(), [join(project, "scripts/xezar-leader.sh"), "--extra"], { cwd: lab, env: launchEnv, encoding: "utf8" });
+      if (result.error) throw result.error;
+      return { code: result.status, out: `${result.stdout}${result.stderr}` };
+    };
+    const started = () => {
+      const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
+      return args.includes("XEZAR_LEADER=1") && args.includes("--settings") && args.includes("--extra");
+    };
+    const stopped = (result) => result.code !== 0 && result.out.includes("the engine is not running here") && !existsSync(record);
+
+    const none = launch();
+    if (!stopped(none))
+      fail(`xezar-leader.sh with no socket in .local/xezar/ipc/ did not stop with "the engine is not running here" (exit ${none.code}):\n${none.out}`);
+
+    const ipc = join(project, ".local/xezar/ipc");
+    mkdirSync(ipc, { recursive: true });
+
+    // #122 (Windows): the engine on native Windows listens on a named pipe and names it in
+    // `.local/xezar/ipc/<id>.pipe` (a draft contract, DECISIONS.md). On win32 these are real named
+    // pipes; elsewhere Node binds the same name as a socket file in the project folder (a `\` is a
+    // filename byte there) and OSTYPE says msys, so the Windows rule runs on every OS. bash keeps an
+    // OSTYPE it finds in its environment, and the launcher tells Windows by OSTYPE alone, as the
+    // kit's other scripts do.
+    const ostypeAs = (ostype) => withOstype(env, ostype);
+    const windowsEnv = process.platform === "win32" ? env : ostypeAs("msys");
+    const linuxEnv = ostypeAs("linux-gnu");
+    const pipeName = (prefix) => `\\\\.\\pipe\\${prefix}-${randomBytes(16).toString("hex")}`;
+    const listenPipe = async (name) => {
+      const pipe = createServer();
+      pipeServers.push(pipe);
+      const here = process.cwd();
+      process.chdir(project); // off Windows the name is relative: bind it where the launcher runs
+      try {
+        await new Promise((resolve, reject) => { pipe.once("error", reject); pipe.listen(name, resolve); });
+      } finally {
+        process.chdir(here);
+      }
+    };
+    const markers = ["stale", "foreign", "command", "live", "second"].map((m) => join(ipc, `${m}.pipe`));
+    const [staleMarker, foreignMarker, commandMarker, liveMarker, secondMarker] = markers;
+
+    writeFileSync(staleMarker, `${pipeName("xezar-mcp")}\n`);
+    const stale = launch(windowsEnv);
+    if (!stopped(stale))
+      fail(`xezar-leader.sh accepts a stale pipe marker (a pipe nothing listens on) as a running engine (exit ${stale.code}):\n${stale.out}`);
+
+    const foreign = pipeName("other");
+    await listenPipe(foreign);
+    writeFileSync(foreignMarker, `${foreign}\n`);
+    writeFileSync(commandMarker, "$(touch owned)\n");
+    const wrongName = launch(windowsEnv);
+    if (!stopped(wrongName))
+      fail(`xezar-leader.sh accepts a marker that names another program's pipe, not one of the engine's shape (exit ${wrongName.code}):\n${wrongName.out}`);
+    if (existsSync(join(project, "owned")) || existsSync(join(lab, "owned")))
+      fail("xezar-leader.sh ran the text of a pipe marker; a marker is data");
+
+    const live = pipeName("xezar-mcp");
+    await listenPipe(live);
+    writeFileSync(liveMarker, live);
+    const offWindows = launch(linuxEnv);
+    if (!stopped(offWindows))
+      fail(`xezar-leader.sh reads a pipe marker outside Windows, where the engine opens a socket (exit ${offWindows.code}):\n${offWindows.out}`);
+    const piped = launch(windowsEnv);
+    if (piped.code !== 0 || !started() || piped.out.includes("warning"))
+      fail(`xezar-leader.sh on Windows does not accept the engine's live pipe beside a stale and a foreign marker (exit ${piped.code}):\n${piped.out}`);
+
+    const second = pipeName("xezar-mcp");
+    await listenPipe(second);
+    writeFileSync(secondMarker, `${second}\n`);
+    const older = new Date(Date.now() - 60_000);
+    utimesSync(liveMarker, older, older);
+    const two = launch(windowsEnv);
+    if (two.code !== 0 || !started() || !two.out.includes("xezar-leader: warning: 2 engine pipes answer") || !two.out.includes("the newest, .local/xezar/ipc/second.pipe"))
+      fail(`xezar-leader.sh with two live engine pipes does not take the newest marker with a warning (exit ${two.code}):\n${two.out}`);
+    for (const marker of markers) if (!existsSync(marker)) fail(`xezar-leader.sh deleted the pipe marker ${marker}; the engine replaces its own markers`);
+
+    // The socket case below must not pass on a pipe: close them and drop their markers.
+    await Promise.all(pipeServers.splice(0).map((pipe) => new Promise((resolve) => pipe.close(() => resolve()))));
+    for (const marker of markers) rmSync(marker, { force: true });
+
+    // A real socket, bound through a relative path so a long temp folder cannot pass the limit.
+    if (process.platform === "win32") {
+      // #122: on Windows Node binds named pipes only. Git's perl makes the MSYS socket file that the
+      // launcher's `[ -S ]` sees (spike S-5); the file outlives perl. This keeps the socket rule
+      // proven on Windows too; the engine's own Windows endpoint is the pipe above.
+      execFileSync(bashPath(), ["-c", 'cd "$1" && perl -MIO::Socket::UNIX -e \'IO::Socket::UNIX->new(Local => shift, Listen => 1) or die qq{bind: $!\\n}\' my-proj.sock', "sock", ipc], { env, stdio: "pipe" });
+    } else {
+      const here = process.cwd();
+      process.chdir(ipc);
+      try {
+        await new Promise((resolve, reject) => { server.once("error", reject); server.listen("my-proj.sock", resolve); });
+      } finally {
+        process.chdir(here);
+      }
+    }
+    const found = launch();
+    const args = existsSync(record) ? readFileSync(record, "utf8").split("\n") : [];
+    if (found.code !== 0 || !args.includes("XEZAR_LEADER=1") || !args.includes("--settings") || !args.includes("--extra"))
+      fail(`xezar-leader.sh does not accept the engine's socket .local/xezar/ipc/my-proj.sock in folder "My Proj" (exit ${found.code}, claude got [${args.filter(Boolean)}]):\n${found.out}`);
+  } catch (error) {
+    fail(`the leader launcher fixture could not run: ${error.message}`);
+  } finally {
+    server.close();
+    for (const pipe of pipeServers) pipe.close();
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+// --- 3.1.0 stream anchors -------------------------------------------------------
+// Each 3.1.0 stream adds its cases between its own start and end lines, never elsewhere,
+// so parallel PRs do not touch the same lines. The release PR removes the markers.
+// 3.1.0-stream-A:start
+// 3.1.0-stream-A:end
+
+// 3.1.0-stream-B:start
+// --- #50: the author chain in route.mjs --------------------------------------------------------
+// `route <row> --author <lane> [--repair <lane>]…` removes every lane that is not independent of
+// the chain; without `--author` the output is byte-identical to 3.0.x (the golden hash below was
+// taken from the 3.0.3 script on the frozen defaults copy 3.json, so it changes only when the
+// no-author output does). Every line either form prints parses as NAME=value after the first `=`.
+if (S.section("B")) {
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { KNOWN, check } = await import(pathToFileURL(ROUTE).href);
+  const { createHash } = await import("node:crypto");
+  const schema = JSON.parse(readFileSync(join(KIT, "routing.schema.json"), "utf8"));
+  const a = [...(KNOWN.vendorExclusion ?? [])].sort().join(",");
+  const b = Object.keys(schema.properties.vendorExclusions?.items?.properties ?? {}).sort().join(",");
+  if (!a || a !== b) fail(`route.mjs KNOWN.vendorExclusion is [${a}] and routing.schema.json says [${b}] -- the script and the schema must name the same keys`);
+
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-chain-"));
+  const printed = [];
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const stage = (name, file) => {
+      const copy = structuredClone(file);
+      copy.tools.claude.rotation = ["acct-one", "acct-two"];
+      copy.tools.codex.rotation = ["acct-three"];
+      writeFileSync(join(project, `.xezar/${name}.json`), JSON.stringify(copy));
+      return `.xezar/${name}.json`;
+    };
+    const env = { ...process.env, KIT_TEST_ROUTE_TOOLS: "claude,codex,qwen" };
+    const run = (file, ...args) => {
+      const out = execFileSync("node", [ROUTE, "--file", file, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+      printed.push(...out.split("\n").filter(Boolean));
+      return out;
+    };
+    const runCode = (file, ...args) => {
+      try { execFileSync("node", [ROUTE, "--file", file, ...args], { cwd: project, encoding: "utf8", stdio: "pipe", env }); return { code: 0, err: "" }; }
+      catch (error) { return { code: error.status, err: error.stderr ?? "" }; }
+    };
+    const lanesOf = (out) => out.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
+    const shipped = stage("routing-shipped", routing);
+
+    // Golden: no --author, every row, without and with a fresh lane cache.
+    // The engine no longer runs pi (0.30.0), so version 3's pi lanes are staged under the qwen runner
+    // with their model names kept, and the output is mapped back: the pin stays the 3.1.0 hash, so
+    // only the runner name may differ, never a line's shape.
+    const frozenText = readFileSync(join(root, SKILL, "references/routing-defaults/3.json"), "utf8");
+    const frozen = JSON.parse(frozenText.replace(/"pi\//g, '"qwen/').replace(/"tool": "pi"/g, '"tool": "qwen"').replace(/"pi": \{/g, '"qwen": {'));
+    const asPi = (out) => out.replace(/qwen\//g, "pi/").replace(/runner=qwen /g, "runner=pi ");
+    const old = stage("routing", frozen);
+    const ids = frozen.rows.map((r) => r.id);
+    let golden = asPi(run(old, ...ids));
+    const cacheDir = join(project, ".local/xezar/runtime");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { "claude/sonnet": { available: false, reason: "quota" } } }));
+    golden += asPi(run(old, ...ids)).replace(/checkedAt=\S+/g, "checkedAt=<now>");
+    rmSync(join(project, ".local"), { recursive: true, force: true });
+    const GOLDEN = "dc1e715b6a94c6ac1e598380da61cfd2786ba7c3a21bd2ab428de93135e25e65";
+    if (createHash("sha256").update(golden).digest("hex") !== GOLDEN) fail("route without --author no longer prints byte-identical output (golden hash of every row of routing-defaults/3.json differs) -- the leader parses these lines");
+    if (/escalation-eligible=|author-chain/.test(golden)) fail("route prints author-chain lines without --author");
+
+    // A Claude-authored PR on full-cold-review gets a non-Claude lane, never a Claude lane.
+    const vendorOf = (id) => routing.lanes[id]?.vendor;
+    const modelOf = (id) => routing.lanes[id]?.engineModel ?? routing.lanes[id]?.model;
+    for (const author of ["claude/opus", "claude/sonnet"]) {
+      const out = run(shipped, "full-cold-review", "--author", author);
+      const got = lanesOf(out);
+      if (!got.length && !/^wait=no-independent-lane$/m.test(out)) fail(`route full-cold-review --author ${author} gave no lane and no wait=no-independent-lane:\n${out}`);
+      if (got.some((id) => vendorOf(id) === "anthropic")) fail(`route full-cold-review --author ${author} still offers a Claude lane: [${got}]`);
+      if (!/^removed=claude\/opus reason=author-chain: shared (model|vendor) with claude\/\S+$/m.test(out)) fail(`route full-cold-review --author ${author} does not say why it removed claude/opus:\n${out}`);
+      for (const id of got) if (routing.reservedLanes[id]?.escalation && !new RegExp(`^escalation-eligible=${id.replace(/[/.]/g, "\\$&")}$`, "m").test(out)) fail(`route lists escalation lane ${id} as eligible without an escalation-eligible line`);
+      if (/ by=hand$/m.test(out)) fail("route still prints an escalation lane as by=hand when an author chain is given");
+    }
+    // Nothing independent left: wait, never an invented fallback.
+    const noCodex = execFileSync("node", [ROUTE, "--file", shipped, "full-cold-review", "--author", "claude/opus"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude" } });
+    printed.push(...noCodex.split("\n").filter(Boolean));
+    if (lanesOf(noCodex).length || !/^wait=no-independent-lane$/m.test(noCodex)) fail(`route full-cold-review for a Claude author with no codex program gave a lane instead of wait=no-independent-lane:\n${noCodex}`);
+
+    // A repair chain excludes every model in it on every row; a vendor only through vendorExclusions,
+    // security rows included (owner decision, 3.1.0 confirmations).
+    const chain = ["claude/opus", "codex/gpt-6-sol"];
+    const review = run(shipped, "acceptance-verification", "--author", chain[0], "--repair", chain[1]);
+    const reviewLanes = lanesOf(review);
+    if (reviewLanes.some((id) => chain.map(modelOf).includes(modelOf(id)))) fail(`route acceptance-verification keeps a lane that shares a model with the repair chain: [${reviewLanes}]`);
+    if (!/^removed=codex\/gpt-6-sol reason=author-chain: shared model with codex\/gpt-6-sol$/m.test(review)) fail(`route does not remove the repairer's own model:\n${review}`);
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
+    const sec = execFileSync("node", [ROUTE, "--file", shipped, "security-review", "--author", "codex/gpt-6-sol", "--repair", "claude/sonnet"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude,codex" } });
+    printed.push(...sec.split("\n").filter(Boolean));
+    if (lanesOf(sec).some((id) => vendorOf(id) === "anthropic")) fail(`route security-review keeps a Claude lane although vendorExclusions names anthropic and the chain has a Claude lane:\n${sec}`);
+    if (!/^lane=codex\/gpt-6-astra /m.test(sec) || /^wait=/m.test(sec)) fail(`route security-review drops codex/gpt-6-astra for a chain with another OpenAI model; a same-vendor lane on another model is allowed on a security row:\n${sec}`);
+    const secOne = run(shipped, "security-review", "--author", "codex/gpt-5.6-terra");
+    if (/^removed=codex\/gpt-6-astra reason=author-chain/m.test(secOne) || !/^lane=claude\/opus /m.test(secOne) || !/^lane=codex\/gpt-6-astra /m.test(secOne)) fail(`route security-review removes the author's vendor on a security row, which only vendorExclusions may do:\n${secOne}`);
+
+    // The vendor exclusion is data: dropped, a Claude lane may review Claude's work again; extended, it bites.
+    const off = structuredClone(routing);
+    delete off.vendorExclusions;
+    const offOut = run(stage("routing-off", off), "full-cold-review", "--author", "claude/opus");
+    if (lanesOf(offOut)[0] !== "claude/sonnet") fail(`route with no vendorExclusions does not offer claude/sonnet for a claude/opus author:\n${offOut}`);
+    const more = structuredClone(routing);
+    more.vendorExclusions = [...(more.vendorExclusions ?? []), { vendor: "openai" }];
+    const moreOut = run(stage("routing-more", more), "full-cold-review", "--author", "codex/gpt-6-sol");
+    if (lanesOf(moreOut).includes("codex/gpt-6-astra")) fail(`route ignores a vendorExclusions entry a project added:\n${moreOut}`);
+    // --check validates the key.
+    for (const [bad, expect] of [[[{ vendor: "nobody" }], "is the vendor of no lane"], [{ vendor: "anthropic" }, "must be a list"], [[{ vendor: "anthropic" }, { vendor: "anthropic" }], "is named twice"]]) {
+      const broken = structuredClone(routing);
+      broken.vendorExclusions = bad;
+      if (!check(broken).errors.some((e) => e.includes(expect))) fail(`route check accepts vendorExclusions ${JSON.stringify(bad)} (expected "${expect}")`);
+    }
+
+    // An unknown lane in the chain, or a chain without an author, is a usage error: exit 2.
+    for (const args of [["full-cold-review", "--author", "claude/no-such"], ["full-cold-review", "--author", "claude/opus", "--repair", "nobody"], ["full-cold-review", "--repair", "claude/opus"], ["--rows", "--author", "claude/opus"]]) {
+      const r = runCode(shipped, ...args);
+      if (r.code !== 2) fail(`route ${args.join(" ")} exits ${r.code}, expected 2 (a usage error):\n${r.err}`);
+    }
+
+    // Grammar: every line either form prints is a comment or NAME=value, parsed after the first `=`.
+    for (const l of printed) {
+      if (l.startsWith("# ")) continue;
+      const i = l.indexOf("=");
+      if (i < 1 || !/^[a-z][a-z-]*$/.test(l.slice(0, i))) fail(`route printed a line that does not parse as NAME=value: ${JSON.stringify(l)}`);
+    }
+  } catch (error) {
+    fail(`the author-chain route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-B:end
+
+// 3.1.0-stream-C:start
+// --- C. A project's own .claude settings (#69) --------------------------------------------------
+// C1: the kit's docs quote only the kit's own SessionStart entry, so a project that adds hooks of
+// its own keeps the quote and documented-output checks green, while a change to the kit's entry
+// still fails the quote check. C2: a widening Bash rule in the untracked settings.local.json warns
+// and a committed one fails; a browser grant outside the kit's tool list fails in either file.
+if (S.section("C")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-claude-settings-"));
+  const out = (error) => (error.stdout ?? "") + (error.stderr ?? "");
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    for (const dir of ["checks", "docs"]) cpSync(join(KIT, dir), join(project, ".xezar", dir), { recursive: true });
+    mkdirSync(join(project, ".claude"));
+    cpSync(join(KIT, "claude/settings.json"), join(project, ".claude/settings.json"));
+    const g = (...a) => execFileSync("git", ["-C", project, ...a], { stdio: "pipe" });
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", project], { stdio: "pipe" });
+    g("add", "-A");
+    g("-c", "user.name=kit", "-c", "user.email=kit@example.invalid", "commit", "--quiet", "-m", "kit");
+    const env = { ...process.env };
+    delete env.XEZAR_LEADER;
+    const check = (name) => execFileSync("node", [join(project, `.xezar/checks/${name}`), project], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    const settingsPath = join(project, ".claude/settings.json");
+    const kitSettings = JSON.parse(readFileSync(settingsPath, "utf8"));
+    const own = { type: "command", command: "bash scripts/project-hook.sh", timeout: 5 };
+    const withOwnHooks = structuredClone(kitSettings);
+    withOwnHooks.hooks.PreToolUse = [{ matcher: "Bash", hooks: [own] }];
+    withOwnHooks.hooks.SessionStart.unshift({ matcher: "startup", hooks: [own] });
+    writeFileSync(settingsPath, `${JSON.stringify(withOwnHooks, null, 2)}\n`);
+    for (const name of ["fenced-quotes.mjs", "documented-output.mjs"]) {
+      try {
+        check(name);
+      } catch (error) {
+        fail(`a project's own second hook in .claude/settings.json turns ${name} red:\n${out(error)}`);
+      }
+    }
+    const changed = structuredClone(withOwnHooks);
+    changed.hooks.SessionStart[1].hooks[0].timeout = 30;
+    writeFileSync(settingsPath, `${JSON.stringify(changed, null, 2)}\n`);
+    let quoteOut = "";
+    try {
+      check("fenced-quotes.mjs");
+    } catch (error) {
+      quoteOut = out(error);
+    }
+    if (!quoteOut.includes("fenced quote differs from .claude/settings.json#entry:hooks.SessionStart"))
+      fail("fenced-quotes accepts a changed kit SessionStart hook entry in .claude/settings.json");
+  } catch (error) {
+    fail(`the .claude settings quote fixture could not be built or run: ${error.message}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+
+  const stage = mkdtempSync(join(tempRoot(), "kit-catalog-settings-"));
+  try {
+    mkdirSync(join(stage, ".xezar"));
+    for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(stage, ".xezar", dir), { recursive: true });
+    writeFileSync(join(stage, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    cpSync(join(KIT, "claude"), join(stage, ".claude"), { recursive: true });
+    const kitFiles = Object.fromEntries(["settings.json", "settings.local.json"].map((f) => [f, JSON.parse(readFileSync(join(KIT, "claude", f), "utf8"))]));
+    const catalog = () => {
+      try {
+        return { code: 0, out: execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), stage], { encoding: "utf8", stdio: "pipe" }) };
+      } catch (error) {
+        return { code: error.status ?? 1, out: out(error) };
+      }
+    };
+    const withRule = (file, rule) => {
+      for (const [name, body] of Object.entries(kitFiles)) {
+        const copy = structuredClone(body);
+        if (name === file) {
+          copy.permissions ??= {};
+          copy.permissions.allow = [...(copy.permissions.allow ?? []), rule];
+        }
+        writeFileSync(join(stage, ".claude", name), `${JSON.stringify(copy, null, 2)}\n`);
+      }
+      return catalog();
+    };
+    const widening = "Bash(make deploy:*)";
+    let r = withRule("settings.local.json", widening);
+    if (r.code !== 0) fail(`catalog-check fails the repository check on a widening rule in settings.local.json, an untracked file:\n${r.out}`);
+    else if (!r.out.includes(`WARNING .claude/settings.local.json: permissions.allow has "${widening}", which widens every reading step's shell on this machine`) || !r.out.includes("xezar-leader-settings.json"))
+      fail(`catalog-check does not warn, with the fix, on a widening rule in settings.local.json:\n${r.out}`);
+    r = withRule("settings.json", widening);
+    if (r.code === 0 || !r.out.includes(`.claude/settings.json: permissions.allow has "${widening}", which widens every reading step's shell`))
+      fail(`catalog-check accepts a widening Bash rule in committed .claude/settings.json:\n${r.out}`);
+    for (const file of ["settings.json", "settings.local.json"]) {
+      for (const grant of ["mcp__chrome-devtools__emulate", "mcp__chrome-devtools__evaluate_script", "mcp__chrome-devtools", "mcp__chrome-devtools__*"]) {
+        r = withRule(file, grant);
+        if (r.code === 0 || !r.out.includes(`permissions.allow has "${grant}", a browser grant outside the allowed chrome-devtools tools`))
+          fail(`catalog-check accepts browser grant ${grant} in .claude/${file}`);
+      }
+    }
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-C:end
+
+// 3.1.0-stream-D:start
+// #52: every agent step carries a timeout, and the kit's validator refuses one without.
+// D13 (replaces #63's read-only QA): every review and QA step may run the change through
+// review-run.sh and holds every chrome-devtools tool; the review-only browser tools stay out of
+// every other workflow; review preflights run strict; a verdict needs an unchanged tree.
+if (S.section("D-refusals")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-stream-d-"));
+  try {
+    mkdirSync(join(lab, ".xezar"));
+    for (const dir of ["workflows", "skills", "checks"]) cpSync(join(KIT, dir), join(lab, ".xezar", dir), { recursive: true });
+    writeFileSync(join(lab, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    const wf = (name) => join(lab, ".xezar/workflows", name);
+    const refusal = (name, mutate, expect, what) => {
+      const original = readFileSync(wf(name), "utf8");
+      const changed = mutate(original);
+      if (changed === original) { fail(`stream D fixture: the ${what} mutation of ${name} matched nothing`); return; }
+      writeFileSync(wf(name), changed);
+      let out = "(it passed)";
+      try { execFileSync("node", [join(KIT, "checks/catalog-check.mjs"), lab], { encoding: "utf8", stdio: "pipe" }); }
+      catch (error) { out = (error.stdout ?? "") + (error.stderr ?? ""); }
+      finally { writeFileSync(wf(name), original); }
+      if (!out.includes(expect)) fail(`catalog-check accepts ${what}:\n${out}`);
+    };
+    refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n"),
+      'step "handoff": an agent step has no timeout', "a handoff step with no timeout");
+    refusal("code-review.yaml", (t) => t.replace("    timeout: 2h\n", "    timeout: none\n"),
+      'timeout "none" is not a positive duration', "an agent step with timeout: none");
+    // #211: a step that names a runner the engine floor no longer runs stops the engine at start.
+    for (const runner of ["pi", "opencode"])
+      refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", `    skill: xezar-handoff-draft-pr\n    runner: ${runner}\n    timeout: 15m\n`),
+        `step "handoff": names runner "${runner}", which the engine no longer runs`, `a step with runner: ${runner}`);
+    refusal("bug-fix.yaml", (t) => t.replace("    skill: xezar-handoff-draft-pr\n    timeout: 15m\n", "    skill: xezar-handoff-draft-pr\n    runner: qwen\n    timeout: 15m\n"),
+      "(it passed)", "a step with runner: qwen (it must pass)");
+    refusal("design.yaml", (t) => t.replace("mcp__chrome-devtools__get_css_styles", "mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__evaluate_script"),
+      "grants mcp__chrome-devtools__evaluate_script, which only the review and QA workflows may hold", "evaluate_script in the design workflow");
+    for (const name of ["qa.yaml", "code-review.yaml", "security-review.yaml"]) {
+      refusal(name, (t) => t.replace(', "bash .local/xezar/cache/kit/checks/review-run.sh"', ""),
+        "cannot run the change it judges (D13)", `a ${name} review step without review-run.sh`);
+      // A checkout replaces the tracked .xezar/checks/ with the PR's own copies, so a review step
+      // that runs a kit script from there runs the PR's script.
+      refusal(name, (t) => t.replace('"bash .local/xezar/cache/kit/checks/verdict-write.sh"', '"bash .xezar/checks/verdict-write.sh"'),
+        "runs the copy a checkout replaces with the pull request's own", `a ${name} review step running verdict-write.sh from the tracked tree`);
+      refusal(name, (t) => t.replace(", mcp__chrome-devtools__lighthouse_audit", ""),
+        "lacks mcp__chrome-devtools__lighthouse_audit", `a ${name} review step without every browser tool`);
+      refusal(name, (t) => t.replace("allowedTools: [Read, Grep, Glob, Bash,", "allowedTools: [Read, Grep, Glob, Bash, Edit,"),
+        "its allowedTools must be listed and hold only", `a ${name} review step that can edit`);
+      refusal(name, (t) => t.replace('command: ".xezar/checks/worktree-preflight.sh"\n', 'command: ".xezar/checks/worktree-preflight.sh --allow-root"\n'),
+        "runs worktree-preflight.sh with --allow-root", `a ${name} preflight back on --allow-root`);
+    }
+    // The prompt is an instruction too: naming the tracked path sends the reviewer to the PR's script.
+    refusal("security-review.yaml", (t) => t.replace("Read git only through bash .local/xezar/cache/kit/checks/git-read.sh", "Read git only through .xezar/checks/git-read.sh"),
+      "its prompt names \".xezar/checks/\"", "a security-review prompt that names the tracked .xezar/checks/git-read.sh");
+    refusal("qa.yaml", (t) => t.replace(/\n    bashAllowlist: \[[^\n]*\]/, ""),
+      "it has no bashAllowlist", "a qa.yaml review step with no bashAllowlist");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+if (S.section("D-data")) {
+  // The shipped data, read directly: a validator that passes is only half the claim.
+  for (const name of ["qa", "design-review", "code-review", "security-review", "architecture-review", "acceptance-verification"]) {
+    const text = readFileSync(join(KIT, "workflows", `${name}.yaml`), "utf8");
+    if (!text.includes('"bash .local/xezar/cache/kit/checks/review-run.sh"')) fail(`kit/workflows/${name}.yaml: the review step cannot run the change (no review-run.sh)`);
+    if (/^\s+prompt: .*\.xezar\/checks\//m.test(text)) fail(`kit/workflows/${name}.yaml: the review prompt names the tracked .xezar/checks/, which the checkout replaces`);
+    if (/^\s+bashAllowlist: \[.*"bash \.xezar\/checks\//m.test(text)) fail(`kit/workflows/${name}.yaml: the review step runs a kit script from the tracked .xezar/checks/, which the checkout replaces`);
+    if (!text.includes("mcp__chrome-devtools__evaluate_script")) fail(`kit/workflows/${name}.yaml: the review step lacks the full browser tool set`);
+    if (text.includes("worktree-preflight.sh --allow-root")) fail(`kit/workflows/${name}.yaml: the preflight step is not the strict worktree-preflight.sh`);
+    if (/^\s*- id: finish$/m.test(text)) fail(`kit/workflows/${name}.yaml ends with a check step, which silences XEZ:ASK and XEZ:DONE`);
+    // #160 (qodeca/xezar#1006): a check step, outside every agent sandbox, checks the PR out before
+    // the agent – a Codex reading step cannot write git itself.
+    const prepare = text.indexOf('command: "bash .local/xezar/cache/kit/checks/review-run.sh prepare"');
+    const agent = text.search(/^\s+prompt: /m);
+    if (prepare < 0 || agent < 0 || prepare > agent || prepare < text.indexOf("worktree-preflight.sh"))
+      fail(`kit/workflows/${name}.yaml: no review-run.sh prepare check step between the preflight and the agent, so a sandboxed reviewer reviews no checked-out head (#160)`);
+  }
+  const verdictWrite = readFileSync(join(KIT, "checks/verdict-write.sh"), "utf8");
+  if (!verdictWrite.includes('bash "$SCRIPT_DIR/review-run.sh" finish')) fail("kit/checks/verdict-write.sh no longer runs review-run.sh finish before a verdict packet");
+  const descriptor = readFileSync(join(KIT, "pipeline/browsers/chrome-devtools.md"), "utf8");
+  if (!/hold every chrome-devtools tool[\s\S]*granted by their own tool lists only/.test(descriptor)) {
+    fail("kit/pipeline/browsers/chrome-devtools.md no longer says the review and QA workflows hold every tool, through their own tool lists only");
+  }
+}
+if (S.section("D-review")) {
+  // RUN, not read: review-run.sh, the verdict-scoped labels in gh-write.sh and the unchanged-tree
+  // check in verdict-write.sh, in a throwaway repository with a task worktree and a stand-in gh.
+  const run = mkdtempSync(join(tempRoot(), "kit-review-run-"));
+  let reviewPid = null; // the background command `review-run.sh start` runs, stopped in `finally`
+  let leftPid = null; // the one a second, ended run left running (#166), stopped there too
+  let holder = null; // another project's server on the port a review wants (#217), stopped there too
+  let childPidFile = null; // the server a started wrapper spawned (#223), stopped there too
+  try {
+    const repo = join(run, "repo");
+    const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();
+    execFileSync("git", ["-c", "init.defaultBranch=main", "init", "--quiet", repo], { stdio: "pipe" });
+    git(repo, "config", "user.email", "t@example.com");
+    git(repo, "config", "user.name", "t");
+    git(repo, "remote", "add", "origin", "https://github.com/acme/widget.git");
+    mkdirSync(join(repo, ".xezar"));
+    cpSync(join(KIT, "checks"), join(repo, ".xezar/checks"), { recursive: true });
+    writeFileSync(join(repo, ".xezar/config.json"), '{"baseBranch":"main"}\n');
+    // The ignore rules and the contract an onboarded project has, so the preflight a review runs
+    // judges only what the test is about (#225).
+    writeFileSync(join(repo, ".gitignore"), ".local/\nnode_modules/\ndist/\ncoverage/\n");
+    writeFileSync(join(repo, "AGENTS.md"), "# Agents\n");
+    writeFileSync(join(repo, "README.md"), "base\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "--quiet", "-m", "base");
+    // PR 5 was branched before the project took this kit: its .xezar/checks/ has no review-run.sh,
+    // and a verdict-write.sh and gh-write.sh that do whatever the PR says. The checkout puts those
+    // in the worktree; the review must still run the kit step's copies.
+    git(repo, "checkout", "--quiet", "-b", "pr-5");
+    writeFileSync(join(repo, "README.md"), "change\n");
+    rmSync(join(repo, ".xezar/checks/review-run.sh"));
+    writeFileSync(join(repo, ".xezar/checks/verdict-write.sh"), "#!/usr/bin/env bash\ncat >/dev/null\necho tampered >\"$XEZ_HANDOFF_FILE.verdict.json\"\n");
+    writeFileSync(join(repo, ".xezar/checks/gh-write.sh"), "#!/usr/bin/env bash\ncat >/dev/null\ngh tampered\n");
+    git(repo, "commit", "--quiet", "-am", "change");
+    const prHead = git(repo, "rev-parse", "HEAD");
+    // PR 6 tracks a file where the review's own scripts live, which git overwrites on checkout.
+    git(repo, "checkout", "--quiet", "-b", "pr-6", "main");
+    mkdirSync(join(repo, ".local/xezar/cache/kit/checks"), { recursive: true });
+    writeFileSync(join(repo, ".local/xezar/cache/kit/checks/verdict-write.sh"), "#!/usr/bin/env bash\necho tampered\n");
+    git(repo, "add", "-f", ".local/xezar/cache/kit/checks/verdict-write.sh");
+    git(repo, "commit", "--quiet", "-m", "ship a review script");
+    const evilHead = git(repo, "rev-parse", "HEAD");
+    git(repo, "checkout", "--quiet", "main");
+    rmSync(join(repo, ".local/xezar/cache"), { recursive: true, force: true });
+    const wt = join(repo, ".local/xezar/worktrees/run-1");
+    git(repo, "worktree", "add", "--quiet", "-b", "xez/run-1", wt, "main");
+
+    // The engine's runs index: the run's frozen workflow definition, where gh-write.sh reads the
+    // step's verdictRole (a request's own role is never trusted). Engine 0.19.0 writes it at the TOP
+    // of its data directory as one JSON array of runs (runs/store.ts, `join(dataDir, 'runs.json')`),
+    // and a run's id is its worktree's directory name.
+    const runsIndex = join(repo, ".local/xezar/runs.json");
+    const declareRole = (verdictRole) => {
+      mkdirSync(dirname(runsIndex), { recursive: true });
+      writeFileSync(runsIndex, JSON.stringify([{ id: "run-1", workflow: "qa", workflowDef: { steps: [{ id: "review", ...(verdictRole ? { verdictRole } : {}) }] } }]));
+    };
+    declareRole("qa");
+
+    const bin = join(run, "bin");
+    mkdirSync(bin);
+    const log = join(run, "gh.log");
+    // The labels PR 5 carries, one per line, for `gh pr view --json labels` (#171).
+    const prLabels = join(run, "pr-labels");
+    writeFileSync(prLabels, "needs-qa\n");
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\ncase "$1 $2 $3" in\n  "pr checkout 6") git checkout --quiet --detach ${evilHead} ;;\n  "pr checkout "*) git checkout --quiet --detach ${prHead} ;;\n  "pr view "*) case "$*" in *labels*) cat "${prLabels}" ;; *) echo ${prHead} ;; esac ;;\n  *) printf 'ARGS %s\\n' "$*" >>"${log}" ;;\nesac\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    const handoff = join(run, "handoff");
+    const env = { ...prependPath(process.env, [bin]), XEZ_HANDOFF_FILE: handoff, XEZ_TASK_ID: "run-1", XEZ_STEP_ID: "review", GH_TOKEN: "operator-secret-token", GITHUB_TOKEN: "operator-secret-token", SSH_AUTH_SOCK: "/tmp/operator-agent.sock" };
+    // A review step runs every kit script from the kit step's copy (its allowlist names nothing else);
+    // `tracked` is the copy in the tracked tree, for a checkout that has no kit-step copy.
+    const TRUSTED = ".local/xezar/cache/kit/checks";
+    const sh = (cwd, script, args = [], input = "", dir = TRUSTED) => {
+      try {
+        const out = execFileSync(bashPath(), [`${dir}/${script}`, ...args], { cwd, env, input, encoding: "utf8", stdio: "pipe" });
+        return { status: 0, out };
+      } catch (error) {
+        return { status: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+      }
+    };
+    const rr = (...args) => sh(wt, "review-run.sh", args);
+    const verdictLabel = (head, add = ["qa-approved"], role = "qa", remove = ["needs-qa"]) =>
+      sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add, remove, verdict: { role, head } }));
+    const packet = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass" } }));
+    const ghLog = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+
+    // The kit step: bootstrap copies the primary's checks/ outside the tracked tree.
+    const kit = execFileSync(bashPath(), [join(repo, ".xezar/checks/bootstrap.sh")], { cwd: wt, env, encoding: "utf8", stdio: "pipe" });
+    const kitCopy = join(wt, TRUSTED);
+    const same = (rel) => existsSync(join(kitCopy, rel)) && readFileSync(join(kitCopy, rel), "utf8") === readFileSync(join(KIT, "checks", rel), "utf8");
+    if (!kit.includes("REVIEW TOOLS:") || !same("verdict-write.sh") || !same("lib/common.sh"))
+      fail(`the kit step does not copy the primary's checks/ to ${TRUSTED}:\n${kit}`);
+
+    if (sh(repo, "review-run.sh", ["verify-unchanged"], "", ".xezar/checks").status !== 1) fail("review-run.sh runs in the project's main checkout");
+    for (const argv of [["git", "status"], ["/usr/bin/env", "ls"], ["bash", "-c", "true"], ["gh", "pr", "merge", "5"]]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    // #122: the same programs under another spelling – a Windows path, another case, a Windows
+    // program extension, an 8.3 short name – and a path that names no program at all. A Windows
+    // path names no real folder, so a refusal that went missing starts nothing (WSL's bash.exe
+    // lives in System32).
+    for (const argv of [
+      ["/usr/bin/bash", "-c", "true"], ["bash.exe", "-c", "true"], ["BASH", "-c", "true"],
+      ["C:\\no-such-dir\\Git\\bin\\BASH.EXE", "-c", "true"], ["C:/no-such-dir/bash.exe"],
+      ["git.CMD", "status"], ["env.com", "ls"], ["sh.bat"], ["GIT-BA~1.EXE"], ["C:\\tools\\"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs "${argv.join(" ")}"`);
+    }
+    // #122: the Windows shells and launchers, each of which runs another program unseen. A full path
+    // names no real folder and a bare name carries arguments that end it at once, so a refusal that
+    // went missing fails here fast: a real git-bash.exe opens a terminal window, and wsl.exe can wait
+    // for a distribution that is not installed. start, mintty and git-cmd each open a window, so
+    // they appear only as full paths.
+    for (const argv of [
+      ["cmd", "/c", "exit"], ["C:\\no-such-dir\\CMD.EXE", "/c", "exit"],
+      ["powershell", "-NoProfile", "-Command", "exit"], ["C:\\no-such-dir\\WindowsPowerShell\\v1.0\\powershell.exe"],
+      ["pwsh.EXE", "-NoProfile", "-Command", "exit"], ["C:/no-such-dir/wsl.exe", "--version"],
+      ["winpty", "--version"], ["C:/no-such-dir/git-bash.exe"],
+      ["C:/no-such-dir/START"], ["C:\\no-such-dir\\usr\\bin\\MinTTY.exe"], ["C:/no-such-dir/git-cmd.EXE"],
+    ]) {
+      if (rr("run", ...argv).status !== 1) fail(`review-run.sh runs the Windows launcher "${argv.join(" ")}"`);
+    }
+    if (rr("run", "node", "-e", "").status !== 0) fail("review-run.sh refuses to run a plain project command");
+    // #172: `run` has a time limit. A command that outlives it – here one that starts a child and
+    // both wait a minute – is stopped with the child, prints review-run=timeout and exits 124; one
+    // that ends in time keeps its own exit status.
+    {
+      const hangPid = join(run, "hang.pid");
+      const hang = `const { spawn } = require("child_process"); const c = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { stdio: "ignore" }); require("fs").writeFileSync(${JSON.stringify(hangPid)}, String(c.pid)); setTimeout(() => {}, 60000);`;
+      env.XEZ_REVIEW_RUN_SECONDS = "3";
+      const started = Date.now();
+      const hung = rr("run", "node", "-e", hang);
+      const took = Date.now() - started;
+      const childPid = Number(existsSync(hangPid) ? readFileSync(hangPid, "utf8") : 0);
+      let childAlive = false;
+      try { if (childPid) { process.kill(childPid, 0); childAlive = true; } } catch { childAlive = false; }
+      if (childAlive) try { process.kill(childPid, "SIGKILL"); } catch {}
+      if (hung.status !== 124 || !hung.out.includes("review-run=timeout after 3s") || took > 30000)
+        fail(`review-run.sh run does not stop a command that outlives its time limit (#172): exit ${hung.status} after ${took} ms:\n${hung.out}`);
+      if (!childPid || childAlive) fail(`review-run.sh run's time limit leaves running what the stopped command started (#172): child pid ${childPid || "not recorded"}`);
+      const quick = rr("run", "node", "-e", "process.exit(7)");
+      if (quick.status !== 7) fail(`review-run.sh run under a time limit does not keep a command's own exit status: ${quick.status}\n${quick.out}`);
+      // A cancelled step gets a signal to its whole process group. The command runs in a group of
+      // its own, so review-run.sh must pass the cancel on, or the command outlives the step. Git Bash
+      // stops a native child with its parent, and a group signal there is not the same, so this runs
+      // on Linux and macOS.
+      if (process.platform !== "win32") {
+        rmSync(hangPid, { force: true });
+        // The pid file holds the child and the command itself, so a failed check can stop both.
+        const cancelHang = hang.split("String(c.pid)").join("c.pid + \" \" + process.pid");
+        const cancel = [
+          "set -m", '"$BASH" "$RR" run node -e "$HANG" >/dev/null 2>&1 &', "rp=$!", "set +m",
+          'for i in $(seq 1 100); do [ -s "$PIDF" ] && break; sleep 0.1; done',
+          'kill -TERM -- "-$rp"', 'wait "$rp"; echo "status=$?"',
+        ].join("\n");
+        let out = "";
+        try { out = execFileSync(bashPath(), ["-c", cancel], { cwd: wt, env: { ...env, RR: `${TRUSTED}/review-run.sh`, HANG: cancelHang, PIDF: hangPid }, encoding: "utf8", stdio: "pipe" }); }
+        catch (error) { out = (error.stdout ?? "") + (error.stderr ?? ""); }
+        const [cancelPid, commandPid] = (existsSync(hangPid) ? readFileSync(hangPid, "utf8") : "0 0").split(" ").map(Number);
+        let cancelAlive = false;
+        try { if (cancelPid) { process.kill(cancelPid, 0); cancelAlive = true; } } catch { cancelAlive = false; }
+        for (const pid of [cancelPid, commandPid]) try { if (pid) process.kill(pid, "SIGKILL"); } catch {}
+        if (!cancelPid || cancelAlive || !out.includes("status=143"))
+          fail(`review-run.sh run does not pass a cancel of its step on to the command it runs (#172): child pid ${cancelPid || "not recorded"}, alive ${cancelAlive}:\n${out}`);
+      }
+      env.XEZ_REVIEW_RUN_SECONDS = "soon";
+      if (rr("run", "node", "-e", "").status !== 1) fail("review-run.sh accepts a time limit that is not a number of seconds");
+      delete env.XEZ_REVIEW_RUN_SECONDS;
+    }
+    // The program-name list is not the boundary: whatever `run` starts may start git or gh itself,
+    // so it must not inherit the operator's credentials.
+    const child = rr("run", "node", "-e", "process.stdout.write([process.env.GH_TOKEN, process.env.GITHUB_TOKEN, process.env.SSH_AUTH_SOCK ?? '', process.env.GIT_TERMINAL_PROMPT].join(' '))");
+    if (child.status !== 0 || child.out.includes("operator-secret-token") || child.out.includes("operator-agent.sock") || !child.out.endsWith(" 0"))
+      fail(`a child of review-run.sh run still sees the operator's git or gh credentials:\n${child.out}`);
+    // The last credential.helper git sees must be the empty one that clears every helper before it.
+    const probe = rr("run", "node", "-e", "const v = require('child_process').execFileSync('git', ['config', '--get-all', 'credential.helper'], { encoding: 'utf8' }).split(String.fromCharCode(10)); v.pop(); process.stdout.write(JSON.stringify(v.at(-1)))");
+    if (probe.status !== 0 || probe.out !== '""') fail(`git inside review-run.sh run still has a credential helper: ${probe.out}`);
+    const clean = rr("verify-unchanged");
+    if (clean.status !== 0 || !clean.out.includes("review-tree=unchanged")) fail(`review-run.sh fails an untouched worktree:\n${clean.out}`);
+    // #160: a run that names no PR – XEZ_PR_NUMBER absent – prepares nothing and says so.
+    delete env.XEZ_PR_NUMBER;
+    const noPr = rr("prepare");
+    if (noPr.status !== 0 || !noPr.out.includes("review-run=no-pr") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1" || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh prepare with no PR number does not exit 0 with review-run=no-pr and leave the tree alone (#160):\n${noPr.status} ${noPr.out}`);
+    // A backend that confines a reading step to its worktree and its own folders (engine 0.19.0's
+    // confined Codex step) cannot write the git directories a checkout needs. Seen live under
+    // `codex sandbox -P :workspace`: the fetch and the checkout both die on "Operation not
+    // permitted". review-run.sh must say so plainly (exit 3), not half-fail as a refusal.
+    if (process.getuid?.() !== 0) {
+      const privateGitDir = git(wt, "rev-parse", "--absolute-git-dir");
+      for (const [what, dir] of [["the worktree's own git directory", privateGitDir], ["the shared git directory", join(repo, ".git")]]) {
+        const restore = restrict(dir, "no-write");
+        let confined;
+        try { confined = rr("checkout", "5"); } finally { restore(); }
+        if (confined.status !== 3 || !confined.out.includes("review-run=confined") || !confined.out.includes("report every check that needed running as not run")
+          || git(wt, "rev-parse", "HEAD") === prHead || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+          fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not exit 3 with review-run=confined and leave the tree alone:\n${confined.status} ${confined.out}`);
+        const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
+        if (!existsSync(record) || !readFileSync(record, "utf8").startsWith("confined exit=3 pr=5"))
+          fail(`review-run.sh checkout in a sandbox that cannot write ${what} does not record "confined exit=3" (#151)`);
+      }
+    }
+    // A head that tracks a file where the review's scripts live has just replaced them: refused,
+    // the checkout undone and the scripts copied again from the primary checkout.
+    const evil = rr("checkout", "6");
+    if (evil.status !== 1 || !evil.out.includes("tracks files under .local/xezar/cache/kit/") || git(wt, "symbolic-ref", "--short", "HEAD") !== "xez/run-1"
+      || !same("verdict-write.sh") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh checkout keeps a PR head that replaced the review's own scripts:\n${evil.status} ${evil.out}`);
+    // #160: the same refusal from the prepare check step tells the leader it is not a verdict.
+    env.XEZ_PR_NUMBER = "6";
+    const evilPrepare = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
+    if (evilPrepare.status !== 1 || !evilPrepare.out.includes("this is the prepare check step, not a verdict") || existsSync(join(repo, ".local/xezar/tasks/run-1/review/head")))
+      fail(`review-run.sh prepare does not say that its refusal is not a verdict (#160):\n${evilPrepare.status} ${evilPrepare.out}`);
+    // #160: the workflow check step checks the PR the run names out, through prepare.
+    env.XEZ_PR_NUMBER = "5";
+    const checkout = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
+    if (checkout.status !== 0 || git(wt, "rev-parse", "HEAD") !== prHead) fail(`review-run.sh checkout does not check the PR's head out:\n${checkout.out}`);
+    if (existsSync(join(wt, ".xezar/checks/review-run.sh")) || !readFileSync(join(wt, ".xezar/checks/verdict-write.sh"), "utf8").includes("tampered"))
+      fail("stream D fixture: the checked-out PR head does not carry the old kit (no review-run.sh, a tampered verdict-write.sh)");
+    // #160: the workflow's prepare step may have checked this PR out already. The same PR at the same
+    // head is confirmed; another PR is a second head, refused.
+    const again = rr("checkout", "5");
+    if (again.status !== 0 || !again.out.includes("already checked out")) fail(`review-run.sh refuses to confirm the PR its prepare step checked out (#160):\n${again.status} ${again.out}`);
+    if (rr("checkout", "6").status !== 1) fail("review-run.sh checks a second head out in one run");
+    env.XEZ_PR_NUMBER = "5";
+    const prepared = rr("prepare");
+    delete env.XEZ_PR_NUMBER;
+    if (prepared.status !== 0 || !prepared.out.includes("already checked out")) fail(`review-run.sh prepare does not confirm the PR the run names (#160):\n${prepared.status} ${prepared.out}`);
+    // #225: the skill's first instruction after `prepare` initialises evidence read-only, on the
+    // detached PR head. It is accepted there; a write (strict mode) on a detached HEAD is not.
+    const init = sh(wt, "worktree-setup.sh", ["--readonly-init"]);
+    if (init.status !== 0)
+      fail(`worktree-setup.sh --readonly-init refuses the detached PR head that prepare checked out, so every review fails its first instruction (#225):\n${init.status} ${init.out}`);
+    const strict = sh(wt, "worktree-preflight.sh");
+    if (strict.status === 0 || !strict.out.includes("branch.owned-by-run"))
+      fail(`worktree-preflight.sh accepts a detached HEAD in strict mode, where a write would land on no branch (#225):\n${strict.status} ${strict.out}`);
+    // #151: a verdict that says the checkout was confined must rest on this run's checkout record.
+    const record = join(repo, ".local/xezar/tasks/run-1/review/checkout");
+    if (!existsSync(record) || !readFileSync(record, "utf8").startsWith(`ok exit=0 pr=5 head=${prHead}`))
+      fail(`review-run.sh checkout does not record "ok exit=0" for a checkout that worked (#151)`);
+    const claim = () => sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "fail", limits: "checkout 5 exited 3 with review-run=confined" } }));
+    const okClaim = claim();
+    if (okClaim.status !== 1 || !okClaim.out.includes("this run's checkout recorded \"ok exit=0") || existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh writes a verdict that says confined after a checkout that worked (#151):\n${okClaim.status} ${okClaim.out}`);
+    const saved = readFileSync(record);
+    rmSync(record);
+    const noRecord = claim();
+    writeFileSync(record, saved);
+    if (noRecord.status !== 1 || !noRecord.out.includes("this run has no checkout record") || existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh writes a verdict that says confined when this run ran no checkout (#151):\n${noRecord.status} ${noRecord.out}`);
+    // The plain word is not the claim: an honest verdict may say the change is confined to a file.
+    const plain = sh(wt, "verdict-write.sh", [], JSON.stringify({ kind: "packet", packet: { verdict: "pass", summary: "the change is confined to src/store.mjs" } }));
+    if (plain.status !== 0 || !existsSync(`${handoff}.verdict.json`))
+      fail(`verdict-write.sh refuses an honest verdict that only uses the word "confined" (#151):\n${plain.status} ${plain.out}`);
+    rmSync(`${handoff}.verdict.json`);
+    // A day, not 30 s (#123): under load the steps up to the probe below can outlast a short sleep,
+    // which would then end by itself and pass the probe even when `finish` stopped nothing.
+    // `finally` stops it whatever happens, so the length costs nothing.
+    const started = rr("start", "srv", "sleep", "86400");
+    const pid = (started.out.match(/pid=(\d+)/) ?? [])[1];
+    reviewPid = pid ?? null;
+    if (started.status !== 0 || !pid) fail(`review-run.sh start does not start a background command:\n${started.out}`);
+
+    writeFileSync(join(wt, "README.md"), "edited by the review\n");
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a tree whose tracked file changed");
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved after the review changed a tracked file");
+    if (packet().status !== 1 || existsSync(`${handoff}.verdict.json`)) fail("verdict-write.sh writes a verdict after the review changed a tracked file");
+    writeFileSync(join(wt, "README.md"), "change\n");
+
+    if (verdictLabel("0".repeat(40)).status !== 1) fail("gh-write.sh grants qa-approved for a head that is not the PR's");
+    if (verdictLabel(prHead, ["design-approved"]).status !== 1) fail("gh-write.sh lets a qa verdict add design-approved");
+    // The role is the step's, from the engine's runs index – never the request's word.
+    if (verdictLabel(prHead, ["design-approved"], "design-review", ["needs-design"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a qa step claim a design-review verdict");
+    declareRole("code-review");
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a code-review step grant qa-approved");
+    declareRole(undefined);
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a step that declares no verdictRole grant qa-approved");
+    rmSync(runsIndex);
+    if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved when the engine's runs index cannot be read");
+    declareRole("qa");
+    // A gate label is lifted only with its approval label, in the same request.
+    if (verdictLabel(prHead, []).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a verdict request remove needs-qa without adding qa-approved");
+    // A Continue (a leader's answer, or the engine's usage-limit auto-resume) runs under a synthetic
+    // `continue-N` step id no definition names. The engine's `takeStepVerdict` resolves its role
+    // through the record step that owns the same session, then the definition's last agent step;
+    // gh-write.sh must resolve it the same way. Record steps have the real runs index's shape: a
+    // check step carries no sessionId, and a Continue shares its owner's.
+    const continueRun = (verdictRole, { session = "sess-review", withDef = true } = {}) => {
+      const defSteps = [{ id: "kit", command: "bash .xezar/checks/bootstrap.sh" }, { id: "preflight", command: "bash .xezar/checks/preflight.sh" }, { id: "review", ...(verdictRole ? { verdictRole } : {}) }];
+      const steps = [
+        { id: "kit", kind: "check", status: "done" },
+        { id: "preflight", kind: "check", status: "done" },
+        { id: "review", kind: "agent", status: "done", sessionId: "sess-review" },
+        { id: "continue-1", kind: "agent", status: "running", ...(session ? { sessionId: session } : {}) },
+      ];
+      writeFileSync(runsIndex, JSON.stringify([{ id: "run-1", workflow: "qa", status: "running", steps, ...(withDef ? { workflowDef: { steps: defSteps } } : {}) }]));
+    };
+    env.XEZ_STEP_ID = "continue-1";
+    try {
+      continueRun("code-review");
+      if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh lets a Continue of a code-review step grant qa-approved");
+      continueRun("qa", { withDef: false });
+      if (verdictLabel(prHead).status !== 1 || ghLog() !== "") fail("gh-write.sh grants qa-approved on a Continue of a run with no workflowDef");
+      continueRun("qa");
+      const continued = verdictLabel(prHead);
+      if (continued.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
+        fail(`gh-write.sh refuses a qa verdict on a Continue (continue-1) whose session the qa review step owns:\n${continued.out}`);
+      rmSync(log, { force: true });
+      // A fresh session no step owns (a backend switch) extends the run's tail: the last agent step.
+      continueRun("qa", { session: "sess-fresh" });
+      const tail = verdictLabel(prHead);
+      if (tail.status !== 0 || !ghLog().includes("--add-label qa-approved"))
+        fail(`gh-write.sh refuses a qa verdict on a fresh-session Continue of a run whose last agent step declares qa:\n${tail.out}`);
+      rmSync(log, { force: true });
+    } finally {
+      env.XEZ_STEP_ID = "review";
+      declareRole("qa");
+    }
+    const granted = verdictLabel(prHead);
+    if (granted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa"))
+      fail(`gh-write.sh refuses a qa verdict's own labels on an unchanged tree:\n${granted.out}\n${ghLog()}`);
+    // #171: a PASS also lifts the failed label an earlier FAIL of the same role left – only with its
+    // approval label, only for the reviewed head, and only when the PR carries it.
+    rmSync(log, { force: true });
+    writeFileSync(prLabels, "needs-qa\nqa-failed\n");
+    const lifted = verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "qa-failed"]);
+    if (lifted.status !== 0 || !ghLog().includes("pr edit 5 --repo acme/widget --add-label qa-approved --remove-label needs-qa --remove-label qa-failed"))
+      fail(`gh-write.sh does not lift qa-failed with a qa PASS (#171):\n${lifted.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
+    if (verdictLabel(prHead, [], "qa", ["qa-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a verdict request remove qa-failed without adding qa-approved (#171)");
+    if (verdictLabel("0".repeat(40), ["qa-approved"], "qa", ["needs-qa", "qa-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lifts qa-failed for a head that is not the PR's (#171)");
+    if (verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "design-failed"]).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a qa verdict lift design-failed (#171)");
+    if (sh(wt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, remove: ["qa-failed"] })).status !== 1 || ghLog() !== "")
+      fail("gh-write.sh lets a request with no verdict remove qa-failed (#171)");
+    writeFileSync(prLabels, "needs-qa\n");
+    const notCarried = verdictLabel(prHead, ["qa-approved"], "qa", ["needs-qa", "qa-failed"]);
+    if (notCarried.status !== 0 || ghLog().includes("qa-failed") || !ghLog().includes("--add-label qa-approved --remove-label needs-qa"))
+      fail(`gh-write.sh asks gh to remove a qa-failed the PR does not carry, which gh refuses where the label is not defined (#171):\n${notCarried.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
+    declareRole("design-review");
+    writeFileSync(prLabels, "design-approved\ndesign-failed\n");
+    const design = verdictLabel(prHead, ["design-approved"], "design-review", ["needs-design", "design-failed"]);
+    declareRole("qa");
+    if (design.status !== 0 || !ghLog().includes("--add-label design-approved --remove-label needs-design --remove-label design-failed"))
+      fail(`gh-write.sh does not lift design-failed with a design-review PASS (#171):\n${design.out}\n${ghLog()}`);
+    rmSync(log, { force: true });
+    const written = packet();
+    if (written.status !== 0 || !existsSync(`${handoff}.verdict.json`)) fail(`verdict-write.sh refuses a verdict from an unchanged tree:\n${written.out}`);
+    else if (readFileSync(`${handoff}.verdict.json`, "utf8").includes("tampered")) fail("the verdict was written by the PR's own verdict-write.sh, not the kit step's copy");
+    // Through bash's kill, as in `finally` (#123): on Windows `$!` is an MSYS pid, which Node's
+    // process.kill cannot see – a probe through it passed even when nothing was stopped.
+    let probeExit = 0;
+    try {
+      execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null', "_", pid], { stdio: "ignore" });
+    } catch (error) {
+      probeExit = error.status ?? -1;
+    }
+    if (probeExit === 0) fail("review-run.sh finish (run by verdict-write.sh) leaves a started command running");
+    else if (probeExit === 1) reviewPid = null; // gone: `finally` must not signal a pid the system may reuse
+    else fail(`the probe for review-run.sh's started command could not run (bash exit ${probeExit})`);
+
+    // #166: a cancelled review step never reaches `finish`, so what its `start` began lives on. The
+    // next review's prepare or start stops it – only when the engine's index says that run ended,
+    // and only while the process still runs in the ended run's own worktree.
+    const alive = (p) => {
+      try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null', "_", p], { stdio: "ignore" }); return true; } catch { return false; }
+    };
+    const wt2 = join(repo, ".local/xezar/worktrees/run-2");
+    git(repo, "worktree", "add", "--quiet", "-b", "xez/run-2", wt2, "main");
+    env.XEZ_TASK_ID = "run-2";
+    const left = sh(wt2, "review-run.sh", ["start", "srv", "sleep", "86400"], "", ".xezar/checks");
+    env.XEZ_TASK_ID = "run-1";
+    leftPid = (left.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (left.status !== 0 || !leftPid) fail(`review-run.sh start does not start a background command in a second run:\n${left.out}`);
+    const indexRuns = (status) => writeFileSync(runsIndex, JSON.stringify([
+      { id: "run-1", status: "running", workflow: "qa", workflowDef: { steps: [{ id: "review", verdictRole: "qa" }] } },
+      { id: "run-2", status, workflow: "design-review" },
+    ]));
+    indexRuns("running");
+    const beside = rr("start", "web", "sleep", "86400");
+    const webPid = (beside.out.match(/pid=(\d+)/) ?? [])[1];
+    reviewPid = webPid ?? null;
+    if (beside.status !== 0 || !alive(leftPid)) fail(`review-run.sh start stops what a run that is still running started (#166):\n${beside.out}`);
+    rr("stop", "web");
+    indexRuns("cancelled");
+    const swept = rr("start", "web", "sleep", "86400");
+    reviewPid = (swept.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (swept.status !== 0 || alive(leftPid) || !swept.out.includes("which run run-2 started and left running when it ended"))
+      fail(`review-run.sh start leaves running what a cancelled run's start began (#166):\n${swept.status} ${swept.out}`);
+    else leftPid = null;
+    // A pid file whose pid now belongs to a process outside the ended run's worktree is left alone.
+    const strayFile = join(repo, ".local/xezar/tasks/run-2/review/srv.pid");
+    writeFileSync(strayFile, `${reviewPid}\n`);
+    const stray = rr("prepare");
+    if (!alive(reviewPid) || !stray.out.includes("not that run's worktree – left alone"))
+      fail(`review-run.sh prepare stops a process outside the ended run's worktree (#166):\n${stray.status} ${stray.out}`);
+    rmSync(strayFile, { force: true });
+    rr("stop", "web");
+    declareRole("qa");
+
+    // #217: another project's server holds the port the review's app wants. `start --port` refuses
+    // before it launches anything, and names the holder; on a free port it waits until the app listens.
+    const freePort = () => Number(execFileSync(process.execPath, ["-e", 'const s = require("node:net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); })'], { encoding: "utf8" }).trim());
+    const answers = (port) => {
+      try { execFileSync(process.execPath, ["-e", 'const c = require("node:net").connect(Number(process.argv[1]), "127.0.0.1"); c.on("connect", () => process.exit(0)); c.on("error", () => process.exit(1))', String(port)], { stdio: "ignore" }); return true; } catch { return false; }
+    };
+    // A probe that closes at once is a TCP reset on Windows: a server with no socket error handler
+    // crashes on it and frees the port (#218).
+    const listen = (port) => `require("node:net").createServer((s) => s.on("error", () => {})).listen(${port}, "127.0.0.1")`;
+    const busyPort = freePort();
+    holder = spawn(process.execPath, ["-e", listen(busyPort)], { stdio: "ignore" });
+    for (let i = 0; i < 50 && !answers(busyPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    const busy = rr("start", "web", "--port", String(busyPort), "node", "-e", listen(busyPort));
+    if (busy.status !== 1 || !busy.out.includes(`port ${busyPort} is already in use by`) || busy.out.includes("review-started="))
+      fail(`review-run.sh start --port launches the app on a port another project's server holds (#217):\n${busy.status} ${busy.out}`);
+    holder.kill();
+    holder = null;
+    const ownPort = freePort();
+    const own = rr("start", "web", "--port", String(ownPort), "node", "-e", listen(ownPort));
+    reviewPid = (own.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (own.status !== 0 || !own.out.includes(`review-listening=${ownPort} name=web`))
+      fail(`review-run.sh start --port does not report the port its own app listens on (#217):\n${own.status} ${own.out}`);
+    rr("stop", "web");
+    const gone = rr("start", "gone", "--port", String(freePort()), "node", "-e", "0");
+    if (gone.status !== 1 || !gone.out.includes("ended before it listened on port"))
+      fail(`review-run.sh start --port reports success for an app that ended before it listened (#217):\n${gone.status} ${gone.out}`);
+    if (rr("start", "web", "--port", "http", "node", "-e", "0").status !== 1) fail("review-run.sh start --port takes a value that is not a port (#217)");
+    // #226: the port reaches the command as PORT, so a review can move the app off a busy default.
+    const envPort = freePort();
+    const fromEnv = rr("start", "web", "--port", String(envPort), "node", "-e", listen("Number(process.env.PORT)"));
+    reviewPid = (fromEnv.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (fromEnv.status !== 0 || !fromEnv.out.includes(`review-listening=${envPort}`))
+      fail(`review-run.sh start --port does not pass the port to the command as PORT (#226):\n${fromEnv.status} ${fromEnv.out}`);
+    rr("stop", "web");
+    reviewPid = null;
+    // #223: `npm start` is a wrapper; the server is its child. `stop` must stop the child as well,
+    // or it lives on as an orphan that holds the port for the next project's review.
+    const childPort = freePort();
+    // The child writes its pid, so `finally` stops it even when `stop` did not (no stray server).
+    childPidFile = join(run, "child.pid");
+    const server = `${listen(childPort)}; require("node:fs").writeFileSync(${JSON.stringify(childPidFile)}, String(process.pid))`;
+    const wrapper = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(server)}], { stdio: "inherit" }); setInterval(() => {}, 1e9)`;
+    const wrapped = rr("start", "web", "--port", String(childPort), "node", "-e", wrapper);
+    reviewPid = (wrapped.out.match(/pid=(\d+)/) ?? [])[1] ?? null;
+    if (wrapped.status !== 0 || !wrapped.out.includes(`review-listening=${childPort}`))
+      fail(`review-run.sh start --port does not accept a wrapper whose child listens (#223):\n${wrapped.status} ${wrapped.out}`);
+    rr("stop", "web");
+    for (let i = 0; i < 50 && answers(childPort); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    if (answers(childPort)) fail(`review-run.sh stop leaves the child of a started wrapper running on port ${childPort}, an orphan that holds the port (#223)`);
+    else reviewPid = null;
+
+    git(wt, "commit", "--quiet", "--allow-empty", "-m", "a review commit");
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a worktree whose HEAD moved");
+    // A child can rewrite the head record too; the recorded head must still be a commit of the PR on GitHub.
+    const headRecord = join(repo, ".local/xezar/tasks/run-1/review/head");
+    writeFileSync(headRecord, `${git(wt, "rev-parse", "HEAD")}\n`);
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a review commit whose head record was rewritten to match it");
+    git(wt, "checkout", "--quiet", "--detach", prHead);
+    rmSync(headRecord);
+    if (rr("verify-unchanged").status !== 1) fail("review-run.sh passes a checkout whose head record was removed");
+
+    // The REAL shape: a trimmed copy of an engine 0.19.0 runs index (task text, prompts and paths
+    // stripped; ids, workflow and workflowDef.steps kept). Each run gets a worktree named by its id,
+    // and gh-write.sh must read back the role that run's review step declares.
+    const realRuns = JSON.parse(readFileSync(join(root, "scripts/fixtures/xezar-runs-index-0.19.0.json"), "utf8"));
+    if (!Array.isArray(realRuns)) fail("scripts/fixtures/xezar-runs-index-0.19.0.json is not an array of runs");
+    const realIndex = JSON.stringify(realRuns);
+    const oldIndex = join(repo, ".local/xezar/runtime/runs.json");
+    const roleSeen = (runId) => {
+      const runWt = join(repo, ".local/xezar/worktrees", runId);
+      if (!existsSync(runWt)) git(repo, "worktree", "add", "--quiet", "--detach", runWt, "main");
+      const saved = env.XEZ_TASK_ID;
+      env.XEZ_TASK_ID = runId;
+      try {
+        const out = sh(runWt, "gh-write.sh", [], JSON.stringify({ action: "label", kind: "pr", number: 5, add: ["design-approved"], remove: ["needs-design"], verdict: { role: "design-review", head: prHead } }), ".xezar/checks").out;
+        // A step declaring design-review passes the role check and is refused later (it checked no
+        // head out); any other step is refused naming the role it declares.
+        return (out.match(/declares verdictRole (\S+)/) ?? [null, "design-review"])[1];
+      } finally {
+        env.XEZ_TASK_ID = saved;
+      }
+    };
+    const logBefore = ghLog();
+    writeFileSync(runsIndex, realIndex);
+    for (const r of realRuns) {
+      const declared = (r.workflowDef?.steps ?? []).find((s) => s.id === "review")?.verdictRole ?? "none";
+      const seen = roleSeen(r.id);
+      if (seen !== declared) fail(`gh-write.sh reads verdictRole ${seen} for the ${r.workflow} run of a real runs index; its review step declares ${declared}`);
+    }
+    if (ghLog() !== logBefore) fail(`gh-write.sh ran gh for a verdict nobody checked a head out for:\n${ghLog()}`);
+    // The index at the path the kit once read (`.local/xezar/runtime/runs.json`) is not the engine's.
+    rmSync(runsIndex);
+    mkdirSync(dirname(oldIndex), { recursive: true });
+    writeFileSync(oldIndex, realIndex);
+    const designRun = realRuns.find((r) => r.workflow === "design-review");
+    if (roleSeen(designRun.id) !== "none") fail("gh-write.sh reads the runs index from .local/xezar/runtime/, where the engine never writes it");
+    rmSync(oldIndex);
+
+    // gate-record.sh reads the same index for its one migration exception: a producer-less gates
+    // check step of a run whose FROZEN gates command predates `--producer gates`, while the
+    // workflow file declares it. Real shape, with the flag stripped from the frozen command.
+    const implRun = structuredClone(realRuns.find((r) => r.workflow === "feature-implementation"));
+    const gatesStep = implRun.workflowDef.steps.find((s) => s.id === "gates");
+    gatesStep.command = gatesStep.command.replace(" --producer gates", "");
+    const producerCwd = join(run, "producer-cwd");
+    mkdirSync(join(producerCwd, ".xezar/workflows"), { recursive: true });
+    writeFileSync(join(producerCwd, ".xezar/workflows/feature-implementation.yaml"), "command: .xezar/checks/repo-gates.sh --fast --producer gates\n");
+    const producer = () => {
+      const probeEnv = { ...process.env, MAIN_ROOT: repo, TASK_ID: implRun.id, TASK_CWD: producerCwd };
+      delete probeEnv.XEZ_TASK_ID;
+      return execFileSync(bashPath(), ["-c", '. "$1" && gate_resolve_producer ""', "_", join(repo, ".xezar/checks/lib/gate-record.sh")], { env: probeEnv, encoding: "utf8", stdio: "pipe" });
+    };
+    writeFileSync(runsIndex, JSON.stringify([implRun]));
+    if (producer() !== "gates") fail("gate-record.sh does not find a pre-flag run's frozen gates step in the engine's runs index");
+    rmSync(runsIndex);
+    writeFileSync(oldIndex, JSON.stringify([implRun]));
+    if (producer() !== "author") fail("gate-record.sh reads the runs index from .local/xezar/runtime/, where the engine never writes it");
+  } catch (error) {
+    fail(`the review-run fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    // A failing run leaves no day-long sleep behind. Through bash's kill: `$!` is a Git Bash
+    // (MSYS) pid on Windows, which Node's process.kill cannot reach; elsewhere it is the real pid.
+    for (const p of [reviewPid, leftPid]) {
+      if (p) try { execFileSync(bashPath(), ["-c", 'kill -0 "$1" 2>/dev/null && kill "$1"', "_", p], { stdio: "ignore" }); } catch {}
+    }
+    holder?.kill();
+    if (childPidFile) try { process.kill(Number(readFileSync(childPidFile, "utf8"))); } catch {}
+    rmSync(run, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-D:end
+
+// 3.1.0-stream-E:start
+// 3.1.0-stream-E:end
+
+// 3.1.0-stream-F:start
+// --- #57 changelog formats: Keep a Changelog, and a base branch read from config -------------
+// Every fixture is a throwaway repository whose base branch is `develop`, with a `main` that is
+// older than it: a check that still falls back to `main` sees the base's own commits as this
+// branch's edits, and refuses a branch that only wrote a fragment.
+if (S.section("F")) {
+  const lab = mkdtempSync(join(tempRoot(), "kit-changelog-"));
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  delete env.GATE_BASE_SHA;
+  const CHECK = join(KIT, "checks", "changelog-check.sh");
+  const FRAG = join(KIT, "checks", "changelog-fragments.mjs");
+  const exec = (cwd, cmd, args) => {
+    try {
+      return { code: 0, out: execFileSync(cmd, args, { cwd, env, encoding: "utf8", stdio: "pipe" }) };
+    } catch (error) {
+      return { code: error.status ?? -1, out: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+  };
+  const expect = (label, got, code, words) => {
+    if (got.code !== code || !got.out.includes(words)) {
+      fail(`changelog #57: ${label} -- expected exit ${code} saying "${words}", got exit ${got.code}:\n${got.out.trim()}`);
+    }
+  };
+  const repo = (name, changelog, config) => {
+    const dir = join(lab, name);
+    mkdirSync(join(dir, "changelog.d"), { recursive: true });
+    mkdirSync(join(dir, ".xezar/pipeline"), { recursive: true });
+    const git = (...args) => execFileSync("git", args, { cwd: dir, env, encoding: "utf8", stdio: "pipe" }).trim();
+    git("init", "--quiet", "-b", "main");
+    git("config", "user.name", "kit");
+    git("config", "user.email", "kit@example.invalid");
+    writeFileSync(join(dir, "CHANGELOG.md"), changelog);
+    writeFileSync(join(dir, "changelog.d/README.md"), "Fragments go here.\n");
+    writeFileSync(join(dir, ".xezar/pipeline/config.json"), `${JSON.stringify(config)}\n`);
+    git("add", "-A");
+    git("commit", "--quiet", "-m", "initial");
+    return { dir, git, put: (file, text) => writeFileSync(join(dir, file), text), read: (file) => readFileSync(join(dir, file), "utf8") };
+  };
+  try {
+    // Keep a Changelog, base `develop` from .xezar/pipeline/config.json.
+    const KAC = "# Changelog\n\n## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- First release.\n";
+    const k = repo("kac", KAC, { baseBranch: "develop" });
+    k.git("checkout", "--quiet", "-b", "develop");
+    // A direct Unreleased bullet that predates fragments, on the BASE: legal there, and exactly what
+    // a `main` fallback would misread as the pull request's own edit.
+    k.put("CHANGELOG.md", KAC.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Changed\n\n- Legacy bullet on develop.\n"));
+    k.git("commit", "--quiet", "-am", "legacy unreleased bullet");
+    const developSha = k.git("rev-parse", "--short=12", "HEAD");
+    const check = (...args) => exec(k.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
+
+    expect("the format is detected from a Keep a Changelog file", exec(k.dir, "node", [FRAG, "--format-of"]), 0, "format=keep-a-changelog");
+
+    // A pull request that writes a fragment is accepted, measured from the configured `develop`.
+    k.git("checkout", "--quiet", "-b", "feature-fragment");
+    k.put("changelog.d/41.md", "## ✨ Features\n\n- **A house heading** maps onto Added. (#41)\n");
+    k.put("changelog.d/42.md", "## Fixed\n\n- **A Keep a Changelog group** is taken as it is. (#42)\n");
+    k.git("add", "-A");
+    k.git("commit", "--quiet", "-m", "fragments");
+    const accepted = check("--diff-base", "auto", "--fragments", "changelog.d");
+    expect("a fragment-only branch is accepted against the configured base", accepted, 0, `diff base ${developSha}`);
+    expect("a fragment-only branch passes in keep-a-changelog mode", accepted, 0, "(keep-a-changelog)");
+
+    // A pull request that edits `## [Unreleased]` directly is refused.
+    k.git("checkout", "--quiet", "-b", "feature-direct", "develop");
+    k.put("CHANGELOG.md", k.read("CHANGELOG.md").replace("- Legacy bullet on develop.\n", "- Legacy bullet on develop.\n- A direct edit.\n"));
+    k.git("commit", "--quiet", "-am", "direct edit");
+    expect("a direct `## [Unreleased]` edit is refused", check("--diff-base", "auto"), 1, "the '## [Unreleased]' section of CHANGELOG.md was edited directly");
+
+    // A fragment heading Keep a Changelog has no group for is refused, naming the groups it has.
+    k.git("checkout", "--quiet", "feature-fragment");
+    k.put("changelog.d/43.md", "## Highlights\n\n- Prose with no Keep a Changelog group.\n");
+    expect("a fragment under `## Highlights` is refused in keep-a-changelog mode", check("--fragments", "changelog.d"), 1, "is not a Keep a Changelog group");
+    rmSync(join(k.dir, "changelog.d/43.md"));
+
+    // The fold releases `## [Unreleased]`: fragments land under Added and Fixed, the legacy bullet
+    // is kept, a fresh empty Unreleased opens above, and every fragment is deleted.
+    expect("the keep-a-changelog fold runs", exec(k.dir, "node", [FRAG, "--fold", "--version", "1.1.0", "--date", "2026-09-27", "--fragments", "changelog.d"]), 0, "folded 2 fragment(s)");
+    const folded = k.read("CHANGELOG.md");
+    const want = "# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-09-27\n\n### Added\n\n- **A house heading** maps onto Added. (#41)\n\n### Changed\n\n- Legacy bullet on develop.\n\n### Fixed\n\n- **A Keep a Changelog group** is taken as it is. (#42)\n\n## [1.0.0] - 2026-01-01\n";
+    if (!folded.startsWith(want)) fail(`changelog #57: the keep-a-changelog fold wrote an unexpected file:\n${folded}`);
+    expect("the folded file passes --require-version", check("--require-version", "1.1.0"), 0, "one \"## [1.1.0] - \" heading");
+    expect("the verify step passes on a complete fold", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 0, "verified — 2 fragment(s)");
+    // ...and catches an entry the fold lost: a fragment bullet, then a line that was there before.
+    k.put("CHANGELOG.md", folded.replace("- **A house heading** maps onto Added. (#41)\n", ""));
+    expect("the verify step catches a lost fragment entry", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "changelog.d/41.md is missing from the 1.1.0 section");
+    k.put("CHANGELOG.md", folded.replace("- Legacy bullet on develop.\n", ""));
+    expect("the verify step catches a lost changelog line", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "a line of the changelog before the fold is missing after it");
+    k.put("CHANGELOG.md", folded);
+    k.put("changelog.d/44.md", "## Added\n\n- Left behind.\n");
+    expect("the verify step catches a fragment left behind", exec(k.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 1, "a fragment left behind");
+    // Content still under Unreleased after a release is refused.
+    k.put("CHANGELOG.md", folded.replace("## [Unreleased]\n", "## [Unreleased]\n\n- Stray.\n"));
+    expect("--require-version refuses content left under Unreleased", check("--require-version", "1.1.0"), 1, "still has content under '## [Unreleased]'");
+
+    // An unknown changelog.format is refused, not read as "detect".
+    k.put(".xezar/pipeline/config.json", '{"baseBranch":"develop","changelog":{"format":"keepachangelog"}}\n');
+    expect("an unknown changelog.format is refused", check(), 2, "changelog.format in");
+
+    // The house format is unchanged: a direct `# Unreleased` edit refused, a fragment accepted and
+    // folded, with the base read from config here too.
+    const HOUSE = "# Unreleased\n\n## 🐛 Fixes\n\n- Old.\n\n# 1.0.0 (2026-01-01)\n\n## ✨ Features\n\n- First.\n\n---\n";
+    const h = repo("house", HOUSE, { baseBranch: "develop" });
+    h.git("checkout", "--quiet", "-b", "develop");
+    h.put("CHANGELOG.md", HOUSE.replace("- Old.\n", "- Old.\n- Legacy on develop.\n"));
+    h.git("commit", "--quiet", "-am", "legacy");
+    h.git("checkout", "--quiet", "-b", "feature-fragment");
+    h.put("changelog.d/7.md", "## 🐛 Fixes\n\n- Fragment. (#7)\n");
+    h.git("add", "-A");
+    h.git("commit", "--quiet", "-m", "fragment");
+    const hcheck = (...args) => exec(h.dir, bashPath(), [CHECK, "--file", "CHANGELOG.md", ...args]);
+    expect("house: a fragment-only branch is accepted against the configured base", hcheck("--diff-base", "auto", "--fragments", "changelog.d"), 0, "no direct edit of CHANGELOG.md");
+    h.git("checkout", "--quiet", "-b", "feature-direct", "develop");
+    h.put("CHANGELOG.md", h.read("CHANGELOG.md").replace("- Old.\n", "- Old.\n- Direct.\n"));
+    h.git("commit", "--quiet", "-am", "direct");
+    expect("house: a direct `# Unreleased` edit is still refused", hcheck("--diff-base", "auto"), 1, "the '# Unreleased' section of CHANGELOG.md was edited directly");
+    h.git("checkout", "--quiet", "feature-fragment");
+    expect("house: the fold still runs", exec(h.dir, "node", [FRAG, "--fold", "--version", "1.1.0", "--date", "2026-09-27", "--fragments", "changelog.d"]), 0, "folded 1 fragment(s)");
+    if (!h.read("CHANGELOG.md").includes("# Unreleased\n\n## 🐛 Fixes\n\n- Old.\n- Legacy on develop.\n\n# 1.1.0 (2026-09-27)\n\n## 🐛 Fixes\n\n- Fragment. (#7)\n\n---\n")) {
+      fail(`changelog #57: the house fold changed shape:\n${h.read("CHANGELOG.md")}`);
+    }
+    expect("house: the verify step passes", exec(h.dir, "node", [FRAG, "--verify", "--version", "1.1.0", "--before", "HEAD", "--fragments", "changelog.d"]), 0, "verified — 1 fragment(s)");
+    expect("house: the format is house", exec(h.dir, "node", [FRAG, "--format-of"]), 0, "format=house");
+  } catch (error) {
+    fail(`changelog #57: the fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-F:end
+
+// 3.1.0-stream-G:start
+// 3.1.0-stream-G:end
+
+// 3.1.0-stream-H:start
+// #54: a repair reaches GitHub only through push-check.sh, after the seal. The workflow's handoff
+// names the script, both role skills say to push only through it, readiness refuses the retired
+// DELIVERED record, and branch.owned-by-run is untouched. test-kit-facts.mjs FACT H1 runs the script.
+if (S.section("H")) {
+  const text = (rel) => readFileSync(join(KIT, rel), "utf8");
+  const wf = text("workflows/address-review-findings.yaml");
+  const handoff = /\n  - id: handoff\n[\s\S]*$/.exec(wf)?.[0] ?? "";
+  if (!handoff.includes("prompt:") || !handoff.includes(".xezar/checks/push-check.sh")) {
+    fail("kit/workflows/address-review-findings.yaml: the handoff step does not push through .xezar/checks/push-check.sh");
+  }
+  const ids = [...wf.matchAll(/^  - id: (\S+)$/gm)].map((m) => m[1]);
+  if (ids.join(",") !== "kit,preflight,setup,address,readiness,gates,evidence,handoff") {
+    fail(`kit/workflows/address-review-findings.yaml: steps are ${ids.join(",")}; the repair ends on the agent handoff, after evidence, with no new step`);
+  }
+  for (const rel of ["skills/xezar-review-response.md", "skills/xezar-handoff-draft-pr.md"]) {
+    const body = text(rel).split("\n## Shared contract")[0];
+    if (!body.includes("`.xezar/checks/push-check.sh --pr <n> --branch <the PR's headRefName>`")) {
+      fail(`kit/${rel}: does not say a repair pushes only through push-check.sh`);
+    }
+  }
+  const response = text("skills/xezar-review-response.md").split("\n## Shared contract")[0];
+  if (/record the delivery|as `DELIVERED`/.test(response) || !response.includes("never write a `DELIVERED` record")) {
+    fail("kit/skills/xezar-review-response.md: still tells a repair to push early and record DELIVERED");
+  }
+  const preflight = text("checks/worktree-preflight.sh");
+  if (!/elif \[ -n "\$delivery_record" \] && \[ -f "\$delivery_record" \]; then\n        fail scope\.delivery-record "[^\n]*That path is retired \(#54\)/.test(preflight)) {
+    fail("kit/checks/worktree-preflight.sh: readiness no longer refuses a DELIVERED record");
+  }
+  if (!preflight.includes('fail branch.owned-by-run "branch is \\"$BRANCH\\" but this worktree is run $leaf, whose branch is \\"$expected\\". Xezar restores only its own branch')) {
+    fail("kit/checks/worktree-preflight.sh: branch.owned-by-run changed; #54 keeps it as it is for every workflow");
+  }
+}
+// 3.1.0-stream-H:end
+
+// 3.1.0-stream-U:start
+// --- U1 (#55). The manifest drift check, RUN on throwaway projects -----------------------------
+// A fresh setup passes; a silent edit fails; a recorded and confirmed patch passes; `Confirmed: no`
+// fails; a patch with no register entry fails; a register entry with no manifest patch fails;
+// only the kit block of an owner file is hashed; a version-1 manifest is not enforced; a file that
+// cannot be parsed exits 2; and the register example in the kit's own format document parses.
+if (S.section("U")) {
+  const { createHash } = await import("node:crypto");
+  const sha = (text) => createHash("sha256").update(text).digest("hex");
+  const DRIFT = join(KIT, "checks/manifest-drift.mjs");
+  const lab = mkdtempSync(join(tempRoot(), "kit-drift-"));
+  const drift = (dir) => {
+    try {
+      return { code: 0, out: execFileSync("node", [DRIFT, dir], { encoding: "utf8", stdio: "pipe" }) };
+    } catch (error) {
+      return { code: error.status, out: (error.stdout ?? "") + (error.stderr ?? "") };
+    }
+  };
+  const COPIED = "copied check\n";
+  const OWNER = "# Owner's notes\n\n<!-- xezar:kit:start -->\nkit block\n<!-- xezar:kit:end -->\n";
+  const BLOCK = "<!-- xezar:kit:start -->\nkit block\n<!-- xezar:kit:end -->";
+  const entry = (text, origin, extra = {}) => ({ sha256: sha(text), origin, ...extra });
+  const project = (name, { manifest, register, tree = {} } = {}) => {
+    const dir = join(lab, name);
+    const write = (p, text) => {
+      mkdirSync(dirname(join(dir, p)), { recursive: true });
+      writeFileSync(join(dir, p), text);
+    };
+    write(".xezar/checks/x.sh", COPIED);
+    write("AGENTS.md", OWNER);
+    for (const [p, text] of Object.entries(tree)) write(p, text);
+    if (manifest !== undefined) write(".xezar/onboarding.json", typeof manifest === "string" ? manifest : JSON.stringify(manifest));
+    if (register !== undefined) write(".xezar/LOCAL-PATCHES.md", register);
+    return dir;
+  };
+  const v2 = (files) => ({
+    manifestVersion: 2,
+    version: "3.1.0",
+    files: {
+      ".xezar/checks/x.sh": entry(COPIED, "copied", { kitSource: "checks/x.sh", kitBlob: "0".repeat(40) }),
+      "AGENTS.md": entry(BLOCK, "owner-file-appended"),
+      ...files,
+    },
+  });
+  const lp = (confirmed, files = ".xezar/checks/x.sh") =>
+    `# Local patches\n\n## LP-1 – keep the local check\n- Files: ${files}\n- Reason: a test\n- Upstream: local only\n- Since: 2026-09-27\n- Confirmed: ${confirmed}\n`;
+  const expect = (label, dir, code, lines) => {
+    const result = drift(dir);
+    if (result.code !== code) fail(`manifest-drift: ${label} exits ${result.code}, not ${code}:\n${result.out}`);
+    for (const line of lines)
+      if (!result.out.split("\n").includes(line)) fail(`manifest-drift: ${label} does not print "${line}":\n${result.out}`);
+  };
+  try {
+    expect("a project with no manifest", project("none"), 0, ["drift-status=not-applicable"]);
+    expect("a version-1 manifest with drift", project("v1", { manifest: { version: "3.0.3", files: { ".xezar/checks/x.sh": { sha256: "1".repeat(64), origin: "copied" } } } }), 0, ["drift-status=not-applicable"]);
+    expect("a fresh setup", project("fresh", { manifest: v2({ ".xezar/config.json": entry("{}\n", "generated") }), tree: { ".xezar/config.json": "{}\n" } }), 0, ["drift-status=pass"]);
+    expect("a silent edit", project("silent", { manifest: v2(), tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift-status=fail", "drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    expect("a deleted file", project("deleted", { manifest: v2({ ".xezar/gone.md": entry("x", "copied") }) }), 1, ["drift=.xezar/gone.md origin=copied reason=missing"]);
+    const patched = v2();
+    patched.files[".xezar/checks/x.sh"].patch = "LP-1";
+    expect("a recorded, confirmed patch", project("recorded", { manifest: patched, register: lp("yes"), tree: { ".xezar/checks/x.sh": "patched\n" } }), 0, ["drift-status=pass"]);
+    expect("a patch with Confirmed: no", project("unconfirmed", { manifest: patched, register: lp("no"), tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unconfirmed-patch"]);
+    expect("a patch with no register", project("unregistered", { manifest: patched, tree: { ".xezar/checks/x.sh": "patched\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unregistered-patch"]);
+    expect("a patch whose entry does not list the file", project("unlisted", { manifest: patched, register: lp("yes", ".xezar/other.sh") }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=unregistered-patch", "drift=.xezar/other.sh origin=none reason=register-without-manifest"]);
+    expect("a register entry with no manifest patch", project("orphan", { manifest: v2(), register: lp("yes") }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=register-without-manifest"]);
+    expect("an owner edit outside the kit block", project("owner-outside", { manifest: v2(), tree: { "AGENTS.md": OWNER.replace("# Owner's notes", "# Owner's notes, edited") } }), 0, ["drift-status=pass"]);
+    expect("an edit inside the kit block", project("owner-inside", { manifest: v2(), tree: { "AGENTS.md": OWNER.replace("kit block", "kit block, edited") } }), 1, ["drift=AGENTS.md origin=owner-file-appended reason=hash-mismatch"]);
+    const outside = join(lab, "outside.sh");
+    writeFileSync(outside, COPIED);
+    const linked = project("linked", { manifest: v2() });
+    rmSync(join(linked, ".xezar/checks/x.sh"));
+    symlinkSync(outside, join(linked, ".xezar/checks/x.sh"));
+    expect("a tracked file replaced by a link", linked, 1, ["drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    expect("a manifest that is not JSON", project("broken", { manifest: "{" }), 2, []);
+    expect("a manifest path that climbs out", project("climb", { manifest: v2({ "../x": entry("x", "copied") }) }), 2, []);
+    expect("an unknown origin", project("origin", { manifest: v2({ ".xezar/y": entry("x", "patched") }), tree: { ".xezar/y": "x" } }), 2, []);
+    expect("a register id used twice", project("twice", { manifest: patched, register: lp("yes") + lp("yes").replace("# Local patches\n", "") }), 2, []);
+    expect("a register entry missing a field", project("field", { manifest: patched, register: lp("yes").replace("- Since: 2026-09-27\n", "") }), 2, []);
+    // #122 (Windows): text is compared with LF line endings (upgrade contract §1 → Digests), and a
+    // digest an earlier install recorded over the raw bytes of a CRLF file still passes.
+    const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
+    const crlfTree = { ".xezar/checks/x.sh": crlf(COPIED), "AGENTS.md": crlf(OWNER) };
+    expect("a CRLF checkout of an unchanged file", project("crlf", { manifest: v2(), tree: crlfTree }), 0, ["drift-status=pass"]);
+    const rawRecorded = v2();
+    rawRecorded.files[".xezar/checks/x.sh"].sha256 = sha(crlf(COPIED));
+    rawRecorded.files["AGENTS.md"].sha256 = sha(crlf(BLOCK));
+    expect("a CRLF file an earlier install recorded over its raw bytes", project("crlf-raw", { manifest: rawRecorded, tree: crlfTree }), 0, ["drift-status=pass"]);
+    expect("a CRLF edit", project("crlf-edit", { manifest: v2(), tree: { ".xezar/checks/x.sh": "copied check!\r\n" } }), 1, ["drift=.xezar/checks/x.sh origin=copied reason=hash-mismatch"]);
+    const BINARY = Buffer.from([0x89, 0x50, 0x0d, 0x0a, 0x00, 0x0a]);
+    expect("a binary file recorded over its raw bytes", project("binary", { manifest: v2({ ".xezar/logo.png": entry(BINARY, "copied") }), tree: { ".xezar/logo.png": BINARY } }), 0, ["drift-status=pass"]);
+    // The drift check's inline rule and the upgrade tool's lfText() hash the same bytes.
+    const { lfText } = await import(pathToFileURL(join(root, "upgrade/tools/lib/hash.mjs")).href);
+    const PARITY = [
+      ["binary with CRLF bytes", Buffer.concat([BINARY, Buffer.from("x\r\n")])],
+      ["a NUL byte past the first 8000 bytes", Buffer.concat([Buffer.alloc(9000, 0x61), Buffer.from([0x00]), Buffer.from("\r\n")])],
+      ["a lone CR beside a CRLF", Buffer.from("a\rb\r\n")],
+    ];
+    for (const [i, [label, bytes]] of PARITY.entries())
+      expect(`a file recorded as the upgrade tool's lfText digest (${label})`, project(`parity-${i}`, { manifest: v2({ ".xezar/p.bin": entry(lfText(bytes), "copied") }), tree: { ".xezar/p.bin": bytes } }), 0, ["drift-status=pass"]);
+    // The kit's own format document: its example entry must be one this check accepts.
+    const doc = readFileSync(join(KIT, "docs/local-patches.md"), "utf8");
+    const example = /```markdown\n([\s\S]*?)```/.exec(doc);
+    if (!example) fail("kit/docs/local-patches.md has no ```markdown register example");
+    else {
+      const files = /^- Files: (.+)$/m.exec(example[1])[1].split(",").map((p) => p.trim());
+      const id = /^## (LP-[0-9]+)/m.exec(example[1])[1];
+      const m = { manifestVersion: 2, version: "3.1.0", files: {} };
+      const tree = {};
+      for (const p of files) {
+        m.files[p] = { ...entry("x", "copied"), patch: id };
+        tree[p] = "patched";
+      }
+      expect("the register example in kit/docs/local-patches.md", project("doc-example", { manifest: m, register: example[1], tree }), 0, ["drift-status=pass"]);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-U:end
+
+// 3.1.0-stream-R:start
+// --- #89: the DeepSeek V4 Pro lane and the DeepSeek-first rows --------------------------------
+// The owner's row orders are data, so each group is pinned by its rule rather than by a copy of
+// the table; the one relaxation of tool limits is checked both ways (where it lets V4 Pro in, and
+// where it must not); and a machine without the model gets no V4 Pro lane from `route`.
+if (S.section("R")) {
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { check } = await import(pathToFileURL(ROUTE).href);
+  const P = "qwen/deepseek-v4-pro";
+  const F = "qwen/deepseek-flash";
+  const byId = Object.fromEntries(routing.rows.map((r) => [r.id, r]));
+  const lanesOfRow = (id) => byId[id]?.lanes ?? [];
+  const toolOf = (id) => routing.lanes[id]?.tool;
+
+  // The lanes' facts through Qwen Code (#204): both text only, and the Qwen runner holds a reading
+  // step read-only, so V4 Pro judges without the full-shell relaxation.
+  const want = {
+    [P]: { tool: "qwen", model: "deepseek-v4-pro", vendor: "deepseek", tier: "strong", vision: false, imageGeneration: false, local: false, enforcesToolLimits: true, advisoryOnly: false, fullShellReviews: undefined },
+    [F]: { tool: "qwen", model: "deepseek-flash", vendor: "deepseek", tier: "cheap", vision: false, imageGeneration: false, local: false, enforcesToolLimits: true, advisoryOnly: false },
+  };
+  for (const [id, facts] of Object.entries(want)) {
+    const lane = routing.lanes[id];
+    if (!lane) fail(`${ROUTING} has no lane ${id}`);
+    else for (const [k, v] of Object.entries(facts)) if (lane[k] !== v) fail(`${ROUTING}: ${id}.${k} is ${JSON.stringify(lane[k])}, expected ${JSON.stringify(v)}`);
+  }
+
+  // Screen rows: no DeepSeek lane, since neither sees a screen through Qwen Code; diagrams draws
+  // from text, so Flash stays its no-Claude fallback there.
+  for (const id of ["design-review", "browser-qa", "ui-design", "ux-design", "ui-implementation", "ui-tests", "generated-images"]) {
+    for (const ds of [P, F]) if (lanesOfRow(id).includes(ds)) fail(`${ROUTING}: screen row ${id} lists ${ds}, which cannot see a screen`);
+  }
+  if (lanesOfRow("diagrams").at(-1) !== F) fail(`${ROUTING}: row diagrams does not end with ${F}, its no-Claude fallback`);
+  // DeepSeek-first rows: first choice, the other DeepSeek model, then every Codex lane before any Claude lane.
+  const deepseekFirst = (id, first, second) => {
+    const l = lanesOfRow(id);
+    if (l[0] !== first) fail(`${ROUTING}: row ${id} starts with ${l[0]}, expected ${first}`);
+    if (second && l[1] !== second) fail(`${ROUTING}: row ${id} has ${l[1]} second, expected the other DeepSeek model ${second}`);
+    const lastCodex = l.map(toolOf).lastIndexOf("codex");
+    const firstClaude = l.map(toolOf).indexOf("claude");
+    if (lastCodex !== -1 && firstClaude !== -1 && firstClaude < lastCodex) fail(`${ROUTING}: row ${id} puts a Claude lane before a Codex lane: [${l}]`);
+  };
+  for (const id of ["mechanical-docs", "bounded-bug-fix", "merge-chain", "dependency-maintenance"]) deepseekFirst(id, F, P);
+  deepseekFirst("evidence-pass", F, null); // a strong lane is banned there
+  // localisation checks screens, so no text-only DeepSeek lane may take it, and its vision ban stays.
+  if (lanesOfRow("localisation").some((l) => l === P || l === F) || !(byId.localisation?.never ?? []).some((n) => n.vision === false)) fail(`${ROUTING}: localisation lists a DeepSeek lane or lost its vision ban`);
+  if (JSON.stringify(byId["design-system"]?.lanes) !== '["claude/opus","codex/gpt-6-sol"]') fail(`${ROUTING}: design-system changed; the owner kept it as it was (#89)`);
+  for (const id of ["docs-writing", "unit-tests", "integration-tests", "observability", "hotfix", "review-response-one"]) deepseekFirst(id, P, F);
+  // Opus-first rows keep Opus first and take V4 Pro right after their last Codex lane.
+  for (const id of ["analysis-specs-research", "architecture-decision", "spike", "deprecation-plan", "multi-file-implementation", "kit-refactor", "refactor", "migration", "regression-suite", "performance", "review-response-several", "diagnose-bug"]) {
+    const l = lanesOfRow(id);
+    if (l[0] !== "claude/opus") fail(`${ROUTING}: row ${id} no longer starts with claude/opus`);
+    if (l.indexOf(P) !== l.map(toolOf).lastIndexOf("codex") + 1) fail(`${ROUTING}: row ${id} does not take ${P} right after its Codex lanes: [${l}]`);
+  }
+  // Every non-screen review row ends with V4 Pro, the fallback after the Claude and Astra lanes.
+  for (const id of ["scoped-recheck", "full-cold-review", "architecture-review", "acceptance-verification", "security-review", "verify-strong-claim"]) {
+    if (lanesOfRow(id).at(-1) !== P) fail(`${ROUTING}: review row ${id} does not end with ${P}: [${lanesOfRow(id)}]`);
+  }
+
+  // The tool-limits relaxation, both ways: in a judging row yes, in any other reading row or a
+  // security row that writes no, and never on a cheap, local or advisory-only lane.
+  const refused = (mutate, expect, what) => {
+    const f = structuredClone(routing);
+    mutate(f);
+    if (!check(f).errors.some((e) => e.includes(expect))) fail(`route check accepts ${what} (expected "${expect}")`);
+  };
+  // No shipped lane needs the relaxation now, so each case first makes V4 Pro an owner's lane that
+  // does not enforce tool limits, the shape the relaxation exists for.
+  const shell = (f) => { f.lanes[P].enforcesToolLimits = false; f.lanes[P].fullShellReviews = true; };
+  refused((f) => { shell(f); byIdOf(f)["business-analysis"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row only reads`, "V4 Pro in a reading row that is not a review");
+  refused((f) => { shell(f); byIdOf(f)["release"].lanes.push(P); }, `"${P}" does not enforce a step's tool limits, and this row is security and release`, "V4 Pro in a security row that writes");
+  refused((f) => { shell(f); delete f.lanes[P].fullShellReviews; }, `"${P}" does not enforce a step's tool limits`, "V4 Pro in a review row without fullShellReviews");
+  refused((f) => { f.lanes[F].enforcesToolLimits = false; f.lanes[F].fullShellReviews = true; }, "a lane with tier: cheap never reviews with a full shell", "fullShellReviews on a cheap lane");
+  refused((f) => { shell(f); f.lanes[P].fullShellReviews = "yes"; }, "fullShellReviews: must be true or false", "a fullShellReviews that is not a boolean");
+  if (check((() => { const f = structuredClone(routing); shell(f); return f; })()).errors.length) fail("route check refuses V4 Pro with fullShellReviews in the review rows, the relaxation the owner accepted (#89)");
+  function byIdOf(f) { return Object.fromEntries(f.rows.map((r) => [r.id, r])); }
+
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-r-"));
+  try {
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const copy = structuredClone(routing);
+    copy.tools.claude.rotation = ["acct-one"];
+    copy.tools.codex.rotation = ["acct-three"];
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    const run = (tools, ...args) => execFileSync("node", [ROUTE, "--file", ".xezar/routing.json", ...args], {
+      cwd: project, encoding: "utf8", stdio: "pipe", env: { ...process.env, KIT_TEST_ROUTE_TOOLS: tools } });
+    const lanesOf = (out) => out.split("\n").filter((l) => l.startsWith("lane=")).map((l) => l.split(" ")[0].slice(5));
+    const esc = P.replace(/[/.]/g, "\\$&");
+
+    // A machine with qwen and the model: V4 Pro is first in a mid-size row.
+    if (lanesOf(run("claude,codex,qwen", "unit-tests"))[0] !== P) fail(`route unit-tests does not start with ${P} on a machine that has it`);
+    // A machine without qwen at all: no V4 Pro lane, with the reason.
+    const noQwen = run("claude,codex", "unit-tests");
+    if (lanesOf(noQwen).includes(P) || !new RegExp(`^removed=${esc} reason=the qwen program is not installed here$`, "m").test(noQwen)) fail(`route gives ${P} on a machine without qwen:\n${noQwen}`);
+    // A machine whose Qwen Code settings lack the model: the leader's lane cache, written from list_models,
+    // marks it unavailable, and route drops it – the owner's off switch.
+    const cacheDir = join(project, ".local/xezar/runtime");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: { [P]: { available: false, reason: "not in list_models for qwen" } } }));
+    const noModel = run("claude,codex,qwen", "unit-tests", "full-cold-review", "security-review");
+    if (lanesOf(noModel).includes(P) || !new RegExp(`^removed=${esc} reason=unavailable in the lane cache: not in list_models for qwen$`, "m").test(noModel)) fail(`route gives ${P} on a machine whose Qwen Code settings lack the model:\n${noModel}`);
+    writeFileSync(join(cacheDir, "lanes.json"), JSON.stringify({ schemaVersion: 1, checkedAt: new Date().toISOString(), lanes: {} }));
+
+    // Reviews: for a Claude author V4 Pro is the first independent lane, then Astra.
+    const claudeAuthor = lanesOf(run("claude,codex,qwen", "full-cold-review", "--author", "claude/opus"));
+    if (claudeAuthor.join(",") !== `${P},codex/gpt-6-astra`) fail(`route full-cold-review --author claude/opus gave [${claudeAuthor}], expected ${P} then codex/gpt-6-astra`);
+    // For DeepSeek-written work Sonnet comes before Astra. V4 Pro, another DeepSeek model, stays on
+    // every review row it is listed in, security rows included (owner decision, 3.1.0 confirmations).
+    const dsAuthor = lanesOf(run("claude,codex,qwen", "scoped-recheck", "--author", F));
+    if (dsAuthor[0] !== "claude/sonnet" || !dsAuthor.includes("codex/gpt-6-astra")) fail(`route scoped-recheck --author ${F} gave [${dsAuthor}], expected claude/sonnet first and codex/gpt-6-astra offered`);
+    for (const row of copy.rows.filter((r) => r.lanes?.includes(P) && r.neverAuthor === true)) {
+      const out = run("claude,codex,qwen", row.id, "--author", F);
+      if (!lanesOf(out).includes(P)) fail(`route ${row.id} --author ${F} drops ${P}; a same-vendor lane on another model may review on every row:\n${out}`);
+    }
+    // The author's own model is still removed, on a security row too.
+    const flashSelf = run("claude,codex,qwen", "security-review", "--author", P);
+    if (lanesOf(flashSelf).includes(P) || !new RegExp(`^removed=${esc} reason=author-chain: shared model with ${esc}$`, "m").test(flashSelf)) fail(`route security-review --author ${P} keeps the author's own model:\n${flashSelf}`);
+    // V4 Pro reviews in a security row when nothing of its vendor wrote the work.
+    if (!lanesOf(run("claude,codex,qwen", "security-review", "--author", "codex/gpt-6-sol")).includes(P)) fail(`route security-review does not offer ${P} for a Codex author`);
+  } catch (error) {
+    fail(`the #89 route fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+// 3.1.0-stream-R:end
+
+// --- #122: route finds the agent programs the way this OS names them -----------------------------
+// No KIT_TEST_ROUTE_TOOLS: route.mjs looks each program up itself, on a PATH that holds only a
+// fixture folder – executable `claude` and `codex` off Windows; `claude.exe`, `codex.cmd` and an
+// extensionless `qwen` on Windows, where an extensionless file is no program. node starts by its
+// own path, and with --file route needs neither git nor gh, so nothing else on this machine (an
+// npm-global qwen beside node, say) can answer for the fixture.
+if (S.section("122-route")) {
+  const ROUTE = join(KIT, "checks/route.mjs");
+  const { installedPrograms } = await import(pathToFileURL(ROUTE).href);
+  const kitPrograms = await import(pathToFileURL(join(KIT, "checks/lib/windows-programs.mjs")).href);
+  // The Windows branch on every OS: the finder sees a fake C:\bin that holds claude.exe only.
+  const fakeEnv = { PATH: "C:\\bin" };
+  const fakeWindows = { findProgram: (name) => kitPrograms.findProgram(name, { env: fakeEnv, exists: (p) => p.toLowerCase() === "c:\\bin\\claude.exe" }) };
+  const fromFake = [...installedPrograms(fakeEnv, fakeWindows)].sort().join(",");
+  if (fromFake !== "claude") fail(`route.mjs does not find the claude program on Windows, where it is claude.exe: found [${fromFake}]`);
+
+  const lab = mkdtempSync(join(tempRoot(), "kit-route-programs-"));
+  try {
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const programs = process.platform === "win32" ? ["claude.exe", "codex.cmd", "qwen"] : ["claude", "codex"];
+    for (const name of programs) { writeFileSync(join(bin, name), ""); chmodSync(join(bin, name), 0o755); }
+    const project = join(lab, "project");
+    mkdirSync(join(project, ".xezar"), { recursive: true });
+    writeFileSync(join(project, ".xezar/workspace.json"), "{}\n");
+    writeFileSync(join(project, ".xezar/agent-accounts.json"), JSON.stringify({ version: 1, accounts: [
+      { id: "acct-one", provider: "claude" }, { id: "acct-three", provider: "codex" }] }));
+    const O = "qwen/deepseek-v4-pro";
+    const copy = structuredClone(routing);
+    copy.tools.claude.rotation = ["acct-one"];
+    copy.tools.codex.rotation = ["acct-three"];
+    writeFileSync(join(project, ".xezar/routing.json"), JSON.stringify(copy));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["PATH", "KIT_TEST_ROUTE_TOOLS"].includes(key.toUpperCase())));
+    env.PATH = bin;
+    const out = execFileSync(process.execPath, [ROUTE, "--file", ".xezar/routing.json", "unit-tests"], { cwd: project, encoding: "utf8", stdio: "pipe", env });
+    const lanes = out.split("\n").filter((line) => line.startsWith("lane=")).map((line) => line.split(" ")[0].slice(5));
+    if (!lanes.includes("claude/sonnet") || /^removed=claude\//m.test(out))
+      fail(`route does not find the claude program on Windows (claude.exe) or on this OS's PATH, so it drops the Claude lanes:\n${out}`);
+    for (const lane of ["codex/gpt-6-sol"])
+      if (!lanes.includes(lane)) fail(`route does not find the ${lane.split("/")[0]} program in the fixture folder (on Windows a .cmd), so it drops ${lane}:\n${out}`);
+    if (lanes.includes(O) || !/^removed=qwen\/deepseek-v4-pro reason=the qwen program is not installed here$/m.test(out))
+      fail(`route keeps a qwen lane on a machine without the qwen program${process.platform === "win32" ? " (an extensionless qwen is not one)" : ""}:\n${out}`);
+  } catch (error) {
+    fail(`the #122 route programs fixture could not run: ${error.message}\n${error.stderr ?? ""}`);
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+}
+
+for (const p of S.finish()) fail(p);
 if (problems) {
   console.error(`\nkit catalog: ${problems} problem(s)`);
   process.exit(1);
 }
-console.log(
+if (S.targeted) console.log(S.targetedLine("Kit catalog"));
+else console.log(
   `Kit catalog OK (${workflowFiles.length} workflows, ${skillFiles.length} skills, ` +
   `${rows.length} rows over ${classes.length} classes; every workflow routed, every count in step, both guard scripts run).`,
 );

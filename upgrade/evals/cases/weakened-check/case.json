@@ -1,0 +1,15 @@
+{
+  "name": "weakened-check",
+  "situation": "A registered, confirmed local change weakens a safety check in a file 3.1.0 did not touch: the security stage always exits 0. The planner's line test does not catch it.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/checks/security-scan.sh",
+      "replace": {
+        "find": "exit \"$rc\"\n",
+        "with": "exit 0  # LP-1: advisory until the scanner understands our monorepo layout\n"
+      }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – security stage advisory\n- Files: .xezar/checks/security-scan.sh\n- Reason: the scanner refuses every change in our monorepo layout\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n"
+}

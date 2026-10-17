@@ -51,7 +51,7 @@ A compaction is not a fresh start. Re-attach to what was already running; do not
 
 Three loops, data in `.xezar/loops.json`, full text in `.xezar/docs/leader-context-loading.md`.
 Also know `.xezar/docs/campaign-notes.md` (the 120-line README target, why `future-campaign/` is never live) and
-`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs` and runs the row's `workflow=` as `source`, never a bare `xez-*` skill.
+`.xezar/docs/routing.md` — every dispatch picks its lane (a runner plus a model) with `route.mjs` and runs the row's `workflow=` as `source`, never a bare `xez-*` skill. A lane `route.mjs` printed as `removed=` is never dispatched, and a login outside its `logins=` is never used; with no `lane=` left, stop and report the `removed=` reasons (#215).
 
 | Loop | Role | Cadence | May dispatch |
 |---|---|---|---|
@@ -64,6 +64,7 @@ pending, so a double dispatch is impossible by construction. **Selection is by l
 overlap**; priority only breaks ties, never the other way round. Keep the file-ownership table
 current: `<runId first 8> owns <path glob>`, at every dispatch.
 After a kit PR merges, fast-forward the primary checkout (`git pull --ff-only`) before the next dispatch.
+**Dispatch at once** when ready work and headroom exist, instead of waiting for the next tick: that turn – never an L1 or L2 tick, which wakes L3 instead – counts as an L3 run, with every L3 check (ceilings, overlap, `route.mjs`, budget). **Before every dispatch, read quota** with `project_config` action `read_quota` (`check_quota` when stale), update the README budget table, and pick the login from that answer, never from memory or an old table.
 
 ## Owner-only decisions, and how to ask
 
@@ -99,11 +100,11 @@ caught only by the morning report; that cost was accepted knowingly, so do not t
 - Separate a **direction question** from a **verified defect**: different answers, different people.
 - Report the moment the work is done. Do **not** hold a review, a label or a comment back for a
   green run — say plainly that checks are still pending instead.
-- **Merging is the exception that keeps its gate.** Required checks must be genuinely green.
+- **Merging is the exception that keeps its gate.** Required checks must be genuinely green, and no label that `.xezar/checks/lib/project-policy.mjs` refuses may be on the PR: before the merge tool, run `gh pr view <n> --json labels,files,closingIssuesReferences | node .xezar/checks/lib/project-policy.mjs` in the main checkout, and anything but `{"passed":true}` is a refusal – it also refuses a design-only PR that would close its issue (#207). **A merge-time routing ban is yours to check, because no script can:** a commit names no lane, so before the merge tool read every `globalBans` entry with `"checkedAt": "merge"` in `.xezar/routing.json` and hold it against your own dispatch records, which name the lane of every task that pushed to the PR. Today that is `qwen-write-claude-review`: a PR a Qwen lane wrote or repaired merges only after a review on a Claude lane, `claude/sonnet` first, or on `codex/gpt-6-astra`; until one exists, the merge is a blocker – dispatch that review (#206). **A merge the engine refuses is a blocker, never a detour:** when the engine's merge tool (`handoff_git`, action `merge` or `merge_state`) refuses a PR, stop and report the refusal with its reason – never merge that PR with `gh pr merge`, a merge queue or any other path instead. Only a merge nothing refuses goes ahead: with a GitHub merge queue on the base branch, it goes through the queue (`gh pr merge --auto`), never update-branch in a loop (`.xezar/docs/close-out.md`). **Approval labels belong to the step that earned them, never to you:** never apply or remove `qa-approved`, `design-approved`, `needs-qa` or `needs-design` yourself, by `gh` or any script. A passing verdict whose own label write was refused is not a pass – dispatch the next lane the routing allows, or stop and report the refusal.
 
 ## What to log where, and the honesty rule
 
-| Record | Goes in |
+| Record | Goes in: the live campaign's folder; with no campaign open, `.local/xezar/scratch/leader/` |
 |---|---|
 | the owner's exact words | `decisions.md`, append-only, dated, channel named |
 | current state of the campaign | `README.md`, rewritten at every milestone |
@@ -148,8 +149,8 @@ Standing rules the owner added with `xez-add-rule`, each in their exact words wi
 - [ ] Loops compared against `.xezar/loops.json` and re-created if missing or drifted.
 - [ ] Unattended mode checked; unreadable is **not** `on`.
 - [ ] File-ownership table current **before dispatch**; next item by least file overlap, priority only a tie-break.
-- [ ] Lane taken from `route.mjs <row id>`, first with budget, never the author's; `wait` waits.
-- [ ] Every login verified before dispatch — **never** fall back to the reserved leader login,
+- [ ] Lane taken from `route.mjs <row id>` (plus `--author`/`--repair` lanes when the row judges someone's work), first with budget, never the author's; any `lane=` it prints is yours to choose, never parked; `wait` waits.
+- [ ] Quota read from `read_quota` before this dispatch; every login verified — **never** fall back to the reserved leader login,
       which runs no tasks. A missing login is a stop, not a reason to substitute.
 - [ ] Ceilings respected: 2 gate runs, 10 tasks, 4 metered-tool tasks, load at or below 18.
 - [ ] Nothing dispatched from L1 or L2.

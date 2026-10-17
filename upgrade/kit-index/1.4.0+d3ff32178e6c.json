@@ -1,0 +1,853 @@
+{
+  "commit": "d3ff32178e6cbd7ffe1afae1f182abf990a143fe",
+  "files": {
+    ".claude/settings.json": {
+      "kitBlob": "64104b14476e6b7c190932690b9312a2ed5853fb",
+      "kitSource": "claude/settings.json",
+      "rewrite": "copied",
+      "sha256": "71d7e6bfe8027c8d7d20777f411d16b1cfdb7e377152e180c6ab8aa4755d2d91"
+    },
+    ".claude/settings.local.json": {
+      "kitBlob": "d8918841d5e0aea1a2ab65471455373ed5939334",
+      "kitSource": "claude/settings.local.json",
+      "rewrite": "copied",
+      "sha256": "ab75f906d4b7254b565697203e31ed5ef243e16f971e812206809b6de4bfc2b3"
+    },
+    ".github/ISSUE_TEMPLATE/bug_report.yml": {
+      "kitBlob": "5f0fa344a3056c0c17aa5db7c13bf82d86b51692",
+      "kitSource": "github/ISSUE_TEMPLATE/bug_report.yml",
+      "rewrite": "adapted",
+      "sha256": "2d0cbc722e3d1604ed430f4e8af20e15ae07554230595296692dccbeae19d4c6"
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "kitBlob": "c72b494d909f3971b8ca3b5bb17a547581583c7a",
+      "kitSource": "github/ISSUE_TEMPLATE/config.yml",
+      "rewrite": "adapted",
+      "sha256": "636f2e66b725abbc30cfcd15ddd169dc73832d0d09a2ac4637c0a0dd2527d45b"
+    },
+    ".github/ISSUE_TEMPLATE/feature_request.yml": {
+      "kitBlob": "b0c2088358852315263926116c64fecdbe89e925",
+      "kitSource": "github/ISSUE_TEMPLATE/feature_request.yml",
+      "rewrite": "adapted",
+      "sha256": "12325605623ab3d3eb641ab17b00bc5ca11577b53dd2f930d5337e2ff53d79e1"
+    },
+    ".github/pull_request_template.md": {
+      "kitBlob": "628d84d2ac0ece1e6c8a4b8e8125faf7fa532d35",
+      "kitSource": "github/pull_request_template.md",
+      "rewrite": "adapted",
+      "sha256": "8f2e2132664cbdd0b1c3b4000a92edc0da3da23f5c26feeaec1e09418c9cdbf7"
+    },
+    ".mcp.json": {
+      "kitBlob": "85f41d78d750270d362f757845a935d9afa7d85c",
+      "kitSource": "mcp.json",
+      "rewrite": "adapted",
+      "sha256": "ee100fc2fc279d31836177ede8653423a1eeb8ee8933f080b9fd373c35987035"
+    },
+    ".xezar/.gitignore": {
+      "kitBlob": "f57a5ccd601e5dd59517b130f9f68e739fa74ac9",
+      "kitSource": "xezar.gitignore",
+      "rewrite": "copied",
+      "sha256": "da7154cd75edf1d8102d5fe46f0635f4a1aa114d81251eae17f80f88ae185e83"
+    },
+    ".xezar/checks/bootstrap.sh": {
+      "kitBlob": "46a1b30bd951dee327afca45992c240b0b72fdfd",
+      "kitSource": "checks/bootstrap.sh",
+      "rewrite": "copied",
+      "sha256": "e72b5b8b0f4e5cab7c3863ab0fa4bf129e2da80e69c7a5da3613c15a1e4aa3a6"
+    },
+    ".xezar/checks/catalog-check.mjs": {
+      "kitBlob": "44e81071e1701232caf0e692934fa96f73304a3b",
+      "kitSource": "checks/catalog-check.mjs",
+      "rewrite": "copied",
+      "sha256": "bebd16e52e6bfbd73ad1d5c4778602184eb26b1fa33aeb89122883497e8cf97e"
+    },
+    ".xezar/checks/changelog-check.sh": {
+      "kitBlob": "82cd9bdb35f0131c1aaeedab66555f6f5e5216fc",
+      "kitSource": "checks/changelog-check.sh",
+      "rewrite": "copied",
+      "sha256": "a9b73167fdb241d90e0852d8685c239005850a364bcaccc039262dc10105b8ce"
+    },
+    ".xezar/checks/changelog-fragments.mjs": {
+      "kitBlob": "8e94e4ead656323851c7f69de63e8ca3db9a4d7a",
+      "kitSource": "checks/changelog-fragments.mjs",
+      "rewrite": "copied",
+      "sha256": "47c25de586be3ed2f4820734032f18e6cf445c06891def78729a435c14d98278"
+    },
+    ".xezar/checks/ci-watch.sh": {
+      "kitBlob": "0ac5b8c07524b902436ec0595ff1ea9795e07fee",
+      "kitSource": "checks/ci-watch.sh",
+      "rewrite": "copied",
+      "sha256": "96da8d73074a97f88e3cae0075dc9b6afc8aee92ce78fdeaeff9c979e6d85b58"
+    },
+    ".xezar/checks/config-guard.sh": {
+      "kitBlob": "ed13986a949902abf999c1f2d549542c53cad177",
+      "kitSource": "checks/config-guard.sh",
+      "rewrite": "copied",
+      "sha256": "f845f4f84ecce8492ddf50f9fe97479c27d1528e09120491a55da15e570629c9"
+    },
+    ".xezar/checks/deploy-guard.sh": {
+      "kitBlob": "1222e25890f9b6e80103732c7b3533feec8b7ff9",
+      "kitSource": "checks/deploy-guard.sh",
+      "rewrite": "copied",
+      "sha256": "22baf6233fa33ef7d34e4e8b2a1a7c9df543180590a1f1abf8d05ec31306f62b"
+    },
+    ".xezar/checks/documented-output.allowlist.json": {
+      "kitBlob": "40827d45db9c3b606a53f1bb266b1aa46cf53912",
+      "kitSource": "checks/documented-output.allowlist.json",
+      "rewrite": "copied",
+      "sha256": "8970f1d813ea7129428797b62dd50fc4594dd93a79b7e89bf26047e1f6197456"
+    },
+    ".xezar/checks/documented-output.mjs": {
+      "kitBlob": "dc214ffe482eb8c414c5280c311fe135c7a5b60c",
+      "kitSource": "checks/documented-output.mjs",
+      "rewrite": "copied",
+      "sha256": "c77199bf83f0fd94d93993a05e47a19f9ff1bb2cde61beec026f61249b522a3a"
+    },
+    ".xezar/checks/dogfooding-fragments.mjs": {
+      "kitBlob": "d51e9bb0cb1ba543b25b39d5eae009e6328ad364",
+      "kitSource": "checks/dogfooding-fragments.mjs",
+      "rewrite": "copied",
+      "sha256": "9872b941854d633ce8ad4d482123f23b22616d2c007808f95ad057d0a7d2bd3e"
+    },
+    ".xezar/checks/fenced-quotes.mjs": {
+      "kitBlob": "427ca1247a559789c7cdfb4e63d8494a3022bcb9",
+      "kitSource": "checks/fenced-quotes.mjs",
+      "rewrite": "copied",
+      "sha256": "d477ddb83b47d99f9c97715eed2788b6a3a3d051b7fb5b2670691196801de85a"
+    },
+    ".xezar/checks/integration-preflight.sh": {
+      "kitBlob": "0aafae42b87df5a984f48d3cd1a6ac88f161033c",
+      "kitSource": "checks/integration-preflight.sh",
+      "rewrite": "copied",
+      "sha256": "f570db9c7ab72ed944bcb3c795f5843c8579ba8bf8cd8623362a0d03fc626006"
+    },
+    ".xezar/checks/leader-context.sh": {
+      "kitBlob": "2acb46165d7a95e33dbf8db7759ddd2631374479",
+      "kitSource": "checks/leader-context.sh",
+      "rewrite": "copied",
+      "sha256": "82e9c1c455e0cc8ff3f9b7679aeaa1fecd9276a7e21ed712c5e6463c433e1b07"
+    },
+    ".xezar/checks/lib/bootstrap.mjs": {
+      "kitBlob": "e579bc9a2f36080fc06d53e10148b1b245784363",
+      "kitSource": "checks/lib/bootstrap.mjs",
+      "rewrite": "copied",
+      "sha256": "3e033e7e77b845e3edacf20f6643d6a7877fddcec589d45e3fa473ee4702b8e9"
+    },
+    ".xezar/checks/lib/common.sh": {
+      "kitBlob": "0fb1bb8569225ef9dcb95dbde35fac65d9035815",
+      "kitSource": "checks/lib/common.sh",
+      "rewrite": "copied",
+      "sha256": "92a79f38cbde716713a8146a8e9cf0b6fc6a3fbdc166166a58da343a1e7d42f9"
+    },
+    ".xezar/checks/lib/config-grammar.mjs": {
+      "kitBlob": "f62a59ea6c3eeb02ad53962bf06f0e68a6e15492",
+      "kitSource": "checks/lib/config-grammar.mjs",
+      "rewrite": "copied",
+      "sha256": "604868c238f05bf95dc86f5a70925f158da46b31f66701b265f31b205571f694"
+    },
+    ".xezar/checks/lib/gate-parallel.mjs": {
+      "kitBlob": "566a7fbd0b552b3315c83c4a79a504877d9f0647",
+      "kitSource": "checks/lib/gate-parallel.mjs",
+      "rewrite": "copied",
+      "sha256": "ed1ed5c0439d14f68480ef4d5f672c0d05eee67e6a6ac118f74a16ce541b5038"
+    },
+    ".xezar/checks/lib/gate-record.sh": {
+      "kitBlob": "a31606088d6b1f4cb09f92cd550d3e97381b6f46",
+      "kitSource": "checks/lib/gate-record.sh",
+      "rewrite": "copied",
+      "sha256": "3eec3e82a6b5b7fc0a34b6917b8db0bcf6b7aed138e9fb16209b015be470f273"
+    },
+    ".xezar/checks/lib/gate-results.mjs": {
+      "kitBlob": "dfbe9299d2458c28e7ffa98877c8554dea771f91",
+      "kitSource": "checks/lib/gate-results.mjs",
+      "rewrite": "copied",
+      "sha256": "14fcbad4dee4c8a35e5cfe0c1f97d2c1ef4a39644182d102358ae64c7dca97fd"
+    },
+    ".xezar/checks/lib/manifest.mjs": {
+      "kitBlob": "31494a4810d2f435d203bef279dba07953b90564",
+      "kitSource": "checks/lib/manifest.mjs",
+      "rewrite": "copied",
+      "sha256": "bf56c855c988883e58353a6fb2acf55d3b920ef3debe465b0bc82ab7674d679c"
+    },
+    ".xezar/checks/lib/merge-intent.mjs": {
+      "kitBlob": "9a0c7f902abebca7166ca8d9672123383450e385",
+      "kitSource": "checks/lib/merge-intent.mjs",
+      "rewrite": "copied",
+      "sha256": "679af89dbebdd3254baf4b3c443092fd36ffe6fe89e32efa0bc7be9289a7f923"
+    },
+    ".xezar/checks/lib/project-policy.mjs": {
+      "kitBlob": "0be847279a582ce03d746b93e430796bd6cc2854",
+      "kitSource": "checks/lib/project-policy.mjs",
+      "rewrite": "copied",
+      "sha256": "5d771e1487f1b731946e12f8fbfbda377ef94d3731e62eb1a6925e8ae15ebdea"
+    },
+    ".xezar/checks/lib/security-scan.mjs": {
+      "kitBlob": "0a3c99348e427c79a8f46d6b0ec4f51f22a61b4c",
+      "kitSource": "checks/lib/security-scan.mjs",
+      "rewrite": "copied",
+      "sha256": "caf765ce6ece3ba3782fd50e19a041e3c6dc7cf21f822e0fdebf1cb7c282ba0e"
+    },
+    ".xezar/checks/local-tree.sh": {
+      "kitBlob": "d3c8a6e7c96be4107f82fa964f02a51c84f08f28",
+      "kitSource": "checks/local-tree.sh",
+      "rewrite": "copied",
+      "sha256": "245c8dcdba612e102c012c34662258411269040fa6142d5687670a36fb7b6661"
+    },
+    ".xezar/checks/merge-recovery.sh": {
+      "kitBlob": "b6b3a3e081c536a3eaea41c0199d556f4fe66afb",
+      "kitSource": "checks/merge-recovery.sh",
+      "rewrite": "copied",
+      "sha256": "a8d5028c997ed4a5ca14cd7509f12dceb5d479a610aba69abdeaa99d7ad91458"
+    },
+    ".xezar/checks/phase-record.sh": {
+      "kitBlob": "049e2306e9ff0b536ae792e819f31150a4177210",
+      "kitSource": "checks/phase-record.sh",
+      "rewrite": "copied",
+      "sha256": "df01a4b1ebc05c631438d64fb9e9bb547ff667dec4c54ed84e445c8f46fb50ab"
+    },
+    ".xezar/checks/repo-gates.sh": {
+      "kitBlob": "6d05735e6554553a9ce753cd8520aff10f86b3b2",
+      "kitSource": "checks/repo-gates.sh",
+      "rewrite": "adapted",
+      "sha256": "23abb6b05fd9132663f7e0084ea820f1da95ad846e0b35410ef14598526983c4"
+    },
+    ".xezar/checks/repository-checks.sh": {
+      "kitBlob": "e57eb3c97370adaad5accbeeec83018fb7acfe55",
+      "kitSource": "checks/repository-checks.sh",
+      "rewrite": "copied",
+      "sha256": "fd8ee0f05ac8ddc08391486fb014032b47395312feaa9492559dd6a3f19ae5a1"
+    },
+    ".xezar/checks/resume-complete.sh": {
+      "kitBlob": "5efb717df0007ed83bae960595ff2db8ca191672",
+      "kitSource": "checks/resume-complete.sh",
+      "rewrite": "copied",
+      "sha256": "bbdd25c0adbef83389eb58651fdc8e03fc20d29c4795b977a2dcc66629b3d8b2"
+    },
+    ".xezar/checks/root-sync-preflight.sh": {
+      "kitBlob": "d5a95970dc5075eb29dd0d8590fe9ba08e0c7afa",
+      "kitSource": "checks/root-sync-preflight.sh",
+      "rewrite": "copied",
+      "sha256": "4f1a9e7a35973e70cf837940a2a184f0436915404813e31bd0b2e28b22302e20"
+    },
+    ".xezar/checks/security-scan.sh": {
+      "kitBlob": "6b1607072cdef1cab80ac0714a5165eb0a7058dc",
+      "kitSource": "checks/security-scan.sh",
+      "rewrite": "copied",
+      "sha256": "8d5d99dda8ea2cef9a8f17e4f4733838f5828d100a8392047de23aebde3a7d41"
+    },
+    ".xezar/checks/verify-evidence.sh": {
+      "kitBlob": "1754bc2ebdcdf04cf3d815d157411eb2e97cc134",
+      "kitSource": "checks/verify-evidence.sh",
+      "rewrite": "copied",
+      "sha256": "9cd1bde0d564a0434d309cfd1888aed62f4bae13554a368c858ea723f50d3c78"
+    },
+    ".xezar/checks/worktree-git.sh": {
+      "kitBlob": "4c5e901c143cf2d1ea07261edbafc47564a4d3aa",
+      "kitSource": "checks/worktree-git.sh",
+      "rewrite": "copied",
+      "sha256": "9bbffccaf43a699aa68fdfa35ed32381087d4199d898ad96506726885befb368"
+    },
+    ".xezar/checks/worktree-preflight.sh": {
+      "kitBlob": "2b576a5cf9b63fc0403b1ff4d6839a4006791331",
+      "kitSource": "checks/worktree-preflight.sh",
+      "rewrite": "copied",
+      "sha256": "7e74c04407e4dde1f684a91072a79fd87f59c429723ee33ee84a48f8a8810149"
+    },
+    ".xezar/checks/worktree-setup.sh": {
+      "kitBlob": "56a9b00b2730015f2f164d3490a75fa9a3ce0ddd",
+      "kitSource": "checks/worktree-setup.sh",
+      "rewrite": "copied",
+      "sha256": "9eb7f5e718cfbc363259ea44d0af7bf56496108808cc24d47fa9dd6ca9d8839d"
+    },
+    ".xezar/config.json": {
+      "rewrite": "generated"
+    },
+    ".xezar/docs/README.md": {
+      "kitBlob": "18a90c3c30c2dc8ab5b598949d879a9663033916",
+      "kitSource": "docs/README.md",
+      "rewrite": "copied",
+      "sha256": "23931f6ac57121f0568d84a5b6ed4d5df5f9d7ce4fd66d14959835d805a721fe"
+    },
+    ".xezar/docs/account-limits.md": {
+      "kitBlob": "927352bbdd8ef826b1120c987a94e5c75aa886ce",
+      "kitSource": "docs/account-limits.md",
+      "rewrite": "copied",
+      "sha256": "8f735f7cb0e9a0044fdece8d43bcfd76064e1069c21ce0c8d31860f4e6328879"
+    },
+    ".xezar/docs/business-analysis.md": {
+      "kitBlob": "e3818fad6f693e725b29b97f70153c6b15904bfe",
+      "kitSource": "docs/business-analysis.md",
+      "rewrite": "copied",
+      "sha256": "0afb07ea22dd25e69aadcfe3ed3310c7799528ad057fc31d05419ec11880af6f"
+    },
+    ".xezar/docs/campaign-notes.md": {
+      "kitBlob": "db423d7015d99cdbf03cce3f0a4785c7748fc949",
+      "kitSource": "docs/campaign-notes.md",
+      "rewrite": "copied",
+      "sha256": "a22e16b28642fc3a2cb781901fdccbee4861c133020f1c6ded7863058a3deb12"
+    },
+    ".xezar/docs/close-out.md": {
+      "kitBlob": "ab5f49701caab17037cb7300e66b5c95d88d61c8",
+      "kitSource": "docs/close-out.md",
+      "rewrite": "copied",
+      "sha256": "913a4062ee0ae7c208c5247a8d1c28e0935c7777e9ea4aba771abcb5b5f1173a"
+    },
+    ".xezar/docs/documented-output.md": {
+      "kitBlob": "569b4affe9e489c6c2e2458586ce100a1fa80c73",
+      "kitSource": "docs/documented-output.md",
+      "rewrite": "copied",
+      "sha256": "51b958d3067eced28dda2f87cc4b05a14301970e297637445cd94c29cc4133f0"
+    },
+    ".xezar/docs/fenced-quotes.md": {
+      "kitBlob": "1f36b9afa832f823ef46438e50fe173684bde3ee",
+      "kitSource": "docs/fenced-quotes.md",
+      "rewrite": "copied",
+      "sha256": "bdcc3636e786abc5c83a6f0ca547a2b8c3cf8cb8148a91d2a34118ec13f4a781"
+    },
+    ".xezar/docs/leader-context-loading.md": {
+      "kitBlob": "e12ffab41df68895d65d045a26d3839656a8c00b",
+      "kitSource": "docs/leader-context-loading.md",
+      "rewrite": "copied",
+      "sha256": "13d0497c631afe4ffd260422fe436a818001a8e3974b45f4e7bee39d18ab043f"
+    },
+    ".xezar/docs/leader-guide.md": {
+      "rewrite": "generated"
+    },
+    ".xezar/docs/model-routing.md": {
+      "rewrite": "generated"
+    },
+    ".xezar/docs/parallel-tasks.md": {
+      "kitBlob": "77278e1c4f2fa239d4af4c84311b3f94d6c62ee3",
+      "kitSource": "docs/parallel-tasks.md",
+      "rewrite": "copied",
+      "sha256": "f4ebf08eb7a71db336d4c4713a11cdc2cbc2426841ee0162756f9bce204e75e4"
+    },
+    ".xezar/docs/phase-record.md": {
+      "kitBlob": "efd57e0be2a31b8d2d823f3072743f573b338311",
+      "kitSource": "docs/phase-record.md",
+      "rewrite": "copied",
+      "sha256": "e7981d2356763b546a83b7ae535a927f4d2cef9f572b0941e7397aa053c5d494"
+    },
+    ".xezar/docs/recovery.md": {
+      "kitBlob": "465fa327ab9ed5b9b59f4644fb420da95d5504ad",
+      "kitSource": "docs/recovery.md",
+      "rewrite": "copied",
+      "sha256": "8e9feb1dfbd31944310a8a570163cf9dcf4f667c33504a7f449d7992d3235593"
+    },
+    ".xezar/docs/ui-operations.md": {
+      "kitBlob": "30bf3f52bbe8015d2570cc90eecae8554050f370",
+      "kitSource": "docs/ui-operations.md",
+      "rewrite": "copied",
+      "sha256": "a3f1179c090f12d3f2d88fac2779f2e1aa3f722210d942f8c9e21aa31c93f4cb"
+    },
+    ".xezar/docs/worktrees.md": {
+      "kitBlob": "7f76af2e4a48ccf81459e9c945effa2a54d81cc3",
+      "kitSource": "docs/worktrees.md",
+      "rewrite": "copied",
+      "sha256": "5d354884529b74cd7ab9588502adaba0ca9a93ff4dadf4eab539df36fe54a2e2"
+    },
+    ".xezar/loops.json": {
+      "kitBlob": "cb3d14bd0699f288db1020e9bf47c49f20a8454c",
+      "kitSource": "loops.json",
+      "rewrite": "copied",
+      "sha256": "a8b51979883810dccfc20ba9461f7741fdf41c354ae26843d05259417baf0c8f"
+    },
+    ".xezar/pipeline/browsers/agent-browser.md": {
+      "kitBlob": "7423c3f813d311bde33416f209f38b1b1e12c4e7",
+      "kitSource": "pipeline/browsers/agent-browser.md",
+      "rewrite": "copied",
+      "sha256": "4bc3c837e4925f12e3216d20ae7dc60683d3c04358959b75c59b7c1210b3d97c"
+    },
+    ".xezar/pipeline/browsers/playwright.md": {
+      "kitBlob": "e8ba8da79f5d987243bc6f14e2b980bac7063534",
+      "kitSource": "pipeline/browsers/playwright.md",
+      "rewrite": "copied",
+      "sha256": "c9c1fded256173e110d015b3af93931f9fe0fcf4f30b8203a34e65b3d52b91b8"
+    },
+    ".xezar/pipeline/config.json": {
+      "rewrite": "generated"
+    },
+    ".xezar/pipeline/labels.json": {
+      "rewrite": "generated"
+    },
+    ".xezar/pipeline/security/osv-scanner.md": {
+      "kitBlob": "b27b7bd8b43424af163412bba1edfa85b915f47f",
+      "kitSource": "pipeline/security/osv-scanner.md",
+      "rewrite": "copied",
+      "sha256": "86d8946082faebb71da1cf08f7d78a60a4b5300571de0b372644db495acdb53e"
+    },
+    ".xezar/pipeline/toolchains/cargo.md": {
+      "kitBlob": "16f3c06eee8d7ea6ba97a8c960cf79504a212405",
+      "kitSource": "pipeline/toolchains/cargo.md",
+      "rewrite": "copied",
+      "sha256": "2cbd3b0fb645f090e891239253b386c121628db82a35525cf85e6675e0303879"
+    },
+    ".xezar/pipeline/toolchains/npm.md": {
+      "kitBlob": "22ab4d3b1659134d13d07ab2d2132aa0fa99e742",
+      "kitSource": "pipeline/toolchains/npm.md",
+      "rewrite": "copied",
+      "sha256": "05e64fdc03b71cdf74c0254dd2c4b8808b1ac9133e16432d154121c09b73ca8a"
+    },
+    ".xezar/pipeline/trackers/github.md": {
+      "rewrite": "generated"
+    },
+    ".xezar/skills/xezar-acceptance.md": {
+      "kitBlob": "fc32a71576ff66b38e66841cd869640ec6af08d1",
+      "kitSource": "skills/xezar-acceptance.md",
+      "rewrite": "copied",
+      "sha256": "c712ee57d7021f0f63f2ed0cac89dbb2626671f229f261fac8f3c6cc5481acad"
+    },
+    ".xezar/skills/xezar-architecture.md": {
+      "kitBlob": "a043c34f8bfc0956e149c5e289fc286b47879d1c",
+      "kitSource": "skills/xezar-architecture.md",
+      "rewrite": "copied",
+      "sha256": "e528a57ba16d75bb9633c2a3070276b7e1012f6bd2694d164234c9323e8df129"
+    },
+    ".xezar/skills/xezar-bug-investigation.md": {
+      "kitBlob": "a52c0712d87228ba78e3236b3747dbc01ef19514",
+      "kitSource": "skills/xezar-bug-investigation.md",
+      "rewrite": "copied",
+      "sha256": "2b4ba578194819b3eb8c60ea325c931b897b9e3e3f12a7a150c8e3aa738fc59b"
+    },
+    ".xezar/skills/xezar-business-analysis.md": {
+      "kitBlob": "712bb007782a3e25088a667f3b2780181d4ace63",
+      "kitSource": "skills/xezar-business-analysis.md",
+      "rewrite": "copied",
+      "sha256": "83b26b2ef33aad5748aa9d93da2eb2f88cb95f5155fb195118abfaa3b9bed070"
+    },
+    ".xezar/skills/xezar-code-review.md": {
+      "kitBlob": "1d38d563b4be2a5a1d4c1e8110012633d3becb67",
+      "kitSource": "skills/xezar-code-review.md",
+      "rewrite": "copied",
+      "sha256": "6fbf4573d908d0a5251495e3b6bcc2c087594fad3883b68b83298506a771a8e1"
+    },
+    ".xezar/skills/xezar-dependency-maintenance.md": {
+      "kitBlob": "c9b0bc398e1251f6d39bd350b4eaa56c70b120e7",
+      "kitSource": "skills/xezar-dependency-maintenance.md",
+      "rewrite": "copied",
+      "sha256": "62f36fabf83db75e007a5d0f3831ac316eab4769149cc3a9406a18d4ddd2abe7"
+    },
+    ".xezar/skills/xezar-deploy.md": {
+      "kitBlob": "da21864c2fa3e383769fa95f2f2e110acacfce42",
+      "kitSource": "skills/xezar-deploy.md",
+      "rewrite": "copied",
+      "sha256": "6126f5db2c7f134691b689b6408b8d810e1ad69900591f6bff098dd7fd309314"
+    },
+    ".xezar/skills/xezar-deprecation-plan.md": {
+      "kitBlob": "38988fbc5077f44c8d8c45ab2f994d60560c040d",
+      "kitSource": "skills/xezar-deprecation-plan.md",
+      "rewrite": "copied",
+      "sha256": "b3757bdd51cc1e75632cf1b68b7657e8e8e1d24e1073cac329b68d4af0cc6b54"
+    },
+    ".xezar/skills/xezar-design-system.md": {
+      "kitBlob": "d3de3ccc6a03a9f28da234cd1e6112c38e83b1ef",
+      "kitSource": "skills/xezar-design-system.md",
+      "rewrite": "copied",
+      "sha256": "48bb011d4b1a74c63ab2c714195926f3ad11c48f9fc12b317112b03bc270f6f9"
+    },
+    ".xezar/skills/xezar-docs-maintenance.md": {
+      "kitBlob": "cb0d31aa072f2bb27dfa3d020a4d95457a0e898d",
+      "kitSource": "skills/xezar-docs-maintenance.md",
+      "rewrite": "copied",
+      "sha256": "6960e01dae5fe20b6ba978cb41876ef12f8bffcb8ac85fb2cd06258f1c895171"
+    },
+    ".xezar/skills/xezar-handoff-draft-pr.md": {
+      "kitBlob": "bcc451b15e0c4bc7ceb345bc7bda7f392732a7ec",
+      "kitSource": "skills/xezar-handoff-draft-pr.md",
+      "rewrite": "copied",
+      "sha256": "8d81609e19f0b940228508fc497ec1cf07e2c1699d4ff9e54c78af9aecca5edc"
+    },
+    ".xezar/skills/xezar-implementation.md": {
+      "kitBlob": "1adb096bb62dd144b6484a62bf2fdc31633f9e9b",
+      "kitSource": "skills/xezar-implementation.md",
+      "rewrite": "copied",
+      "sha256": "cb221bce2140c46fe53a78c2bb592a9fabbd81d7bdac752fa9bb8e76c0caa751"
+    },
+    ".xezar/skills/xezar-integration-tests.md": {
+      "kitBlob": "af1a26db6cd67e6604d71649b30cb9befa57686b",
+      "kitSource": "skills/xezar-integration-tests.md",
+      "rewrite": "copied",
+      "sha256": "e1625103f146ef3de2c184c5ff8a57e28e135142e98cf47d8ac669d02cbc3de3"
+    },
+    ".xezar/skills/xezar-integration.md": {
+      "kitBlob": "405f92ba3db1110d92ef27ec26fc6908bd69e5c6",
+      "kitSource": "skills/xezar-integration.md",
+      "rewrite": "copied",
+      "sha256": "b685374626c36afc69253bda21965a2be2ffd3adc21fac4de704fc0e7ecdd64d"
+    },
+    ".xezar/skills/xezar-issue-create.md": {
+      "kitBlob": "ddb5f504e7c326498f7b250d80c76a0b454a4be7",
+      "kitSource": "skills/xezar-issue-create.md",
+      "rewrite": "copied",
+      "sha256": "2655d3ac3ecd74679d3b07b1381abfaac904594f4b0365ed26f2deb8e79a571d"
+    },
+    ".xezar/skills/xezar-issue-triage.md": {
+      "kitBlob": "3a1f6339e34fa28aee520feaa76d099b8500ecdf",
+      "kitSource": "skills/xezar-issue-triage.md",
+      "rewrite": "copied",
+      "sha256": "c70c3d1858398d5cb285acf747362a7181a14fa578e97c534ad151b33f1cb020"
+    },
+    ".xezar/skills/xezar-localisation.md": {
+      "kitBlob": "0c05cc14e6dae425dae5aa771a7f155be9f75b6a",
+      "kitSource": "skills/xezar-localisation.md",
+      "rewrite": "copied",
+      "sha256": "b7354002306ad97305b6b4b67745edbb95ece00df0243e6402e52cd71194e4ee"
+    },
+    ".xezar/skills/xezar-migration.md": {
+      "kitBlob": "3676be6670027fed09742641cf313db6a5287827",
+      "kitSource": "skills/xezar-migration.md",
+      "rewrite": "copied",
+      "sha256": "cc4c6848067549376e6651fef672b225cc4c464352f8db7a020a9d5110ac4281"
+    },
+    ".xezar/skills/xezar-observability.md": {
+      "kitBlob": "c3b5eb583b4fc0b9f26c24da004694638242614f",
+      "kitSource": "skills/xezar-observability.md",
+      "rewrite": "copied",
+      "sha256": "1c55080d46be9d85c7acc0c789dddfe4488220cc15194c76680f52686cb5e578"
+    },
+    ".xezar/skills/xezar-performance.md": {
+      "kitBlob": "b184895a6ff3c6214ddfc9d3b051d5981ca8cd03",
+      "kitSource": "skills/xezar-performance.md",
+      "rewrite": "copied",
+      "sha256": "44458caa3c4f3dfcb3286ae2c537fa59de881c0149f65ca31d965493d8858e55"
+    },
+    ".xezar/skills/xezar-planning-spec.md": {
+      "kitBlob": "f8caf9343a4ee651f0ff94ce2d1705c2ffdc5677",
+      "kitSource": "skills/xezar-planning-spec.md",
+      "rewrite": "copied",
+      "sha256": "54281038765725295b08b44ccd09ccc213da0689787bf35bc4cb04d88d59bca3"
+    },
+    ".xezar/skills/xezar-qa.md": {
+      "kitBlob": "15e8e7f29a3524baccb6b7db5bea57367674b0b3",
+      "kitSource": "skills/xezar-qa.md",
+      "rewrite": "copied",
+      "sha256": "a92c2021bdc36d92e70e3c9eb3b7eae179583fdb417c67ae6bb97015cff4455e"
+    },
+    ".xezar/skills/xezar-quality-gates.md": {
+      "kitBlob": "1ec99a99af975a18892244e4a0fe5b992cd73b43",
+      "kitSource": "skills/xezar-quality-gates.md",
+      "rewrite": "copied",
+      "sha256": "88c00ea7d90bf2dcfbea5877394c88fb2385c7be6f3ecf579f53ee0d246c2963"
+    },
+    ".xezar/skills/xezar-refactor.md": {
+      "kitBlob": "e41c9cb9cf8e41e826a2f150f338de35d573a65b",
+      "kitSource": "skills/xezar-refactor.md",
+      "rewrite": "copied",
+      "sha256": "c27a3e9abe3b8e10af6d1bad6a6e188155b6797c467fdb02a5a5fe1751e15c6d"
+    },
+    ".xezar/skills/xezar-regression-suite.md": {
+      "kitBlob": "c730d241e479929fe37c1b35d6a4bb4bdef82c16",
+      "kitSource": "skills/xezar-regression-suite.md",
+      "rewrite": "copied",
+      "sha256": "cc31c7a25d6397e7c7ac939ad730410a7a83c4c16d74d405d38fd22b6646ac79"
+    },
+    ".xezar/skills/xezar-release-changelog.md": {
+      "kitBlob": "f1e56edd7eac098f412d22efb7c1dc2cb2d5c013",
+      "kitSource": "skills/xezar-release-changelog.md",
+      "rewrite": "copied",
+      "sha256": "a42b0a5443327988f956acbda36c0b05e6b23e1a62f3c7f201935429afb465ef"
+    },
+    ".xezar/skills/xezar-release-prep.md": {
+      "kitBlob": "974809ac449c8bbbbd773ecab986fbf1847deed9",
+      "kitSource": "skills/xezar-release-prep.md",
+      "rewrite": "copied",
+      "sha256": "a3abdad9220e79704abbbf94b33775fc9f9223344c867fae69483b71dc847aba"
+    },
+    ".xezar/skills/xezar-release-publish.md": {
+      "kitBlob": "dbda832c4c9d4db06a7c75576202b6d36c2331a5",
+      "kitSource": "skills/xezar-release-publish.md",
+      "rewrite": "copied",
+      "sha256": "d985df32c6bfe8c155da77bbe8709708112595415c3af3fdeafbc42c01968391"
+    },
+    ".xezar/skills/xezar-research.md": {
+      "kitBlob": "4830789e358e7abd64508a231eedba26970c9242",
+      "kitSource": "skills/xezar-research.md",
+      "rewrite": "copied",
+      "sha256": "affb4e8cae9ad04a168f021e4c16515141ba4cf2b1573797a58dfef2a5792ab7"
+    },
+    ".xezar/skills/xezar-review-response.md": {
+      "kitBlob": "84db2d0caf346db4029940e7c05b794ba0847503",
+      "kitSource": "skills/xezar-review-response.md",
+      "rewrite": "copied",
+      "sha256": "2cff1dcc5c8ccecadf133098a818168c3f1d61b7e5c779eed96e83a9bd6a8ea2"
+    },
+    ".xezar/skills/xezar-security-review.md": {
+      "kitBlob": "765ae979fb56ec005841a72ebf349b4aab44bf0a",
+      "kitSource": "skills/xezar-security-review.md",
+      "rewrite": "copied",
+      "sha256": "008650ddb67a31b2b0188ba949d7d432673d90823e42d76bfd9ca0e5b6e82256"
+    },
+    ".xezar/skills/xezar-spike.md": {
+      "kitBlob": "dcf90f9d15a3db34dbf048e4b5dbe05036e463d9",
+      "kitSource": "skills/xezar-spike.md",
+      "rewrite": "copied",
+      "sha256": "a57d7ccde0f48af5d77a70d648c37b309323ad241eabd7f57d088fa0d9053808"
+    },
+    ".xezar/skills/xezar-testing.md": {
+      "kitBlob": "602d0b24cccc99664e059007d6fed178215a2fe1",
+      "kitSource": "skills/xezar-testing.md",
+      "rewrite": "copied",
+      "sha256": "16256bcb1012c054bcdff93081c7643d854e2717980675ebf9eaa515c3f30966"
+    },
+    ".xezar/skills/xezar-ui-design.md": {
+      "kitBlob": "7d5f25caa83928f1da4f5bac444a7b2f7f850303",
+      "kitSource": "skills/xezar-ui-design.md",
+      "rewrite": "copied",
+      "sha256": "814def07e4cc8b37308933294e8de360dd1e6bd17309dc6af3cceff045ab2f7a"
+    },
+    ".xezar/skills/xezar-ui-tests.md": {
+      "kitBlob": "bcf4bb151f428827e6ccf1b06926ad595865953b",
+      "kitSource": "skills/xezar-ui-tests.md",
+      "rewrite": "copied",
+      "sha256": "86cd8ef162c01e7a32146ef63dd1655ce0a7d585e4b5fd2da03841a8af18cd0c"
+    },
+    ".xezar/skills/xezar-ux-design.md": {
+      "kitBlob": "f06249013e1db23a407d04c59179a784fc9cc7fd",
+      "kitSource": "skills/xezar-ux-design.md",
+      "rewrite": "copied",
+      "sha256": "82e558b5a90bbf7eff6d15f21d74995d22f0c40bd1f61d6ce8c35ed6b22705d1"
+    },
+    ".xezar/skills/xezar-visual-asset.md": {
+      "kitBlob": "621b2adb59d966d05605de266ea2abecfd0f9155",
+      "kitSource": "skills/xezar-visual-asset.md",
+      "rewrite": "copied",
+      "sha256": "f9b3fc3f3f9fb07dfb1a9028690584e5718fd5d2657f4e71b144ef1084bbe23b"
+    },
+    ".xezar/workflows/acceptance-verification.yaml": {
+      "kitBlob": "2b60bc74e7287e23e030dfde1ff3424359ada87c",
+      "kitSource": "workflows/acceptance-verification.yaml",
+      "rewrite": "copied",
+      "sha256": "74766a2db5126e9efac45c04f29e594395bafd591896ffa69f975c67a7c37515"
+    },
+    ".xezar/workflows/address-review-findings.yaml": {
+      "kitBlob": "105c356862b483d983d5194b401f990d41b89910",
+      "kitSource": "workflows/address-review-findings.yaml",
+      "rewrite": "copied",
+      "sha256": "a65d279dfc15ded435c9d0be01dab98236da82f8d4430c7d58d25ccd7b7b5b93"
+    },
+    ".xezar/workflows/architecture-review.yaml": {
+      "kitBlob": "48a20d4e63429a0d01aff063919a0e03e86e5657",
+      "kitSource": "workflows/architecture-review.yaml",
+      "rewrite": "copied",
+      "sha256": "d9b70b0d44ec8c7c97759f4d383663c31b5c7a6e6eb34fbb5a1ad71277f861ec"
+    },
+    ".xezar/workflows/architecture.yaml": {
+      "kitBlob": "0b3fce99b3324ec5a86082ea621200344b7f6fff",
+      "kitSource": "workflows/architecture.yaml",
+      "rewrite": "copied",
+      "sha256": "93ed8e693d5e982a9ffcd11471f5d1f1ba998172153f5b987d4d6028215ba75e"
+    },
+    ".xezar/workflows/bug-fix.yaml": {
+      "kitBlob": "766302db3ce776cf9cf1644311be55664f6d76ff",
+      "kitSource": "workflows/bug-fix.yaml",
+      "rewrite": "copied",
+      "sha256": "077805b335d78aaad5c95da94a58015d638255392f45d3fff3c60fb547b3da69"
+    },
+    ".xezar/workflows/business-analysis.yaml": {
+      "kitBlob": "e3886c61b6cc906787906f5a89a14a2eee5791a4",
+      "kitSource": "workflows/business-analysis.yaml",
+      "rewrite": "copied",
+      "sha256": "ebc082375d68cc0edb3aad8b7bec37130d8459de46c884e1e89edf91dd79853c"
+    },
+    ".xezar/workflows/code-review.yaml": {
+      "kitBlob": "60bf1a861f2774640740e797190a6ec90cd3a494",
+      "kitSource": "workflows/code-review.yaml",
+      "rewrite": "copied",
+      "sha256": "02f8e2f846bdab9a2c0fe47039a87b419027b99b97996ed7e411c3e1dab909fc"
+    },
+    ".xezar/workflows/dependency-maintenance.yaml": {
+      "kitBlob": "ef844e1b547b356107ab220a185db7b417df64d0",
+      "kitSource": "workflows/dependency-maintenance.yaml",
+      "rewrite": "copied",
+      "sha256": "2f34e2cb4933c800bd59bb2158e073ad85a4482019322b3b9f330733c1cd7821"
+    },
+    ".xezar/workflows/deploy.yaml": {
+      "kitBlob": "27e2370def4f25f48f842a3dfc999d84cdb9fc3d",
+      "kitSource": "workflows/deploy.yaml",
+      "rewrite": "copied",
+      "sha256": "3ee937b8f493b3a01454174b6f6c3bcb536ce1bc9f8da6ffdc2461e31ffc6858"
+    },
+    ".xezar/workflows/deprecation-plan.yaml": {
+      "kitBlob": "51c2f7e245f891cf53a0665c9427d7ee0b58a843",
+      "kitSource": "workflows/deprecation-plan.yaml",
+      "rewrite": "copied",
+      "sha256": "a92710f5fabe8b0966e556caf3bd080626ef3416af55205ff8d87fb2941351d4"
+    },
+    ".xezar/workflows/design-review.yaml": {
+      "kitBlob": "6da1822cb28d5fa7671ef2ae89819125579898f8",
+      "kitSource": "workflows/design-review.yaml",
+      "rewrite": "copied",
+      "sha256": "87aaba6965fe377cac126f090d8350109dd9f2eea534d8fad09d59c71f1b87d9"
+    },
+    ".xezar/workflows/design-system.yaml": {
+      "kitBlob": "595cc8e2d32c8304a31a8b8b9df9420367f16cba",
+      "kitSource": "workflows/design-system.yaml",
+      "rewrite": "copied",
+      "sha256": "dc9b009e7083b6ba99601969e5a5d40a2308ef3a7a3bd14890dd21e2a385287e"
+    },
+    ".xezar/workflows/design.yaml": {
+      "kitBlob": "0cce44ca76f269ca63ff6713245c26d8bbda6430",
+      "kitSource": "workflows/design.yaml",
+      "rewrite": "copied",
+      "sha256": "4f3720032ea83439eef0fff13d1468839022d5fe7787d4aaaca970d88699f6ef"
+    },
+    ".xezar/workflows/docs-maintenance.yaml": {
+      "kitBlob": "f01e56f1dbaa2c9c0489bb51b36823f2172f02eb",
+      "kitSource": "workflows/docs-maintenance.yaml",
+      "rewrite": "copied",
+      "sha256": "84f4f764265c410acb26fb8f07117aa1e9aba32f555019755698ed74ea02bb24"
+    },
+    ".xezar/workflows/feature-implementation.yaml": {
+      "kitBlob": "45ffcdbb1dfa16dd061fd0691a1e75e5264f4423",
+      "kitSource": "workflows/feature-implementation.yaml",
+      "rewrite": "copied",
+      "sha256": "e03229fed20f905c521eff6ae9bc4560e1bcd10721e4ed9ec2c8ad801af9a005"
+    },
+    ".xezar/workflows/hotfix.yaml": {
+      "kitBlob": "4d2883eed40eaefd8082d12b0370a71a05bdff02",
+      "kitSource": "workflows/hotfix.yaml",
+      "rewrite": "copied",
+      "sha256": "4ad69c47254f3b13d62795c11b5c2d1a27e24dbd60741351d78970c211eb4dbd"
+    },
+    ".xezar/workflows/integration-tests.yaml": {
+      "kitBlob": "3fbdb5da08e2061a32479f2fc3db818607bd40ef",
+      "kitSource": "workflows/integration-tests.yaml",
+      "rewrite": "copied",
+      "sha256": "097ed7c92caea8ccda4630b096767ec4a5f1bdf971a422fbbc73094a74a17ca5"
+    },
+    ".xezar/workflows/integration.yaml": {
+      "kitBlob": "7d768b24a7f54392fd079d2480a3990745c34e5e",
+      "kitSource": "workflows/integration.yaml",
+      "rewrite": "copied",
+      "sha256": "05213da15be96747508f53aeceea0db734c60647c013ece91a97eeee9d348f00"
+    },
+    ".xezar/workflows/issue-triage.yaml": {
+      "kitBlob": "521a54afb59122dc36bc3c8c78a7bf65bbaca69c",
+      "kitSource": "workflows/issue-triage.yaml",
+      "rewrite": "copied",
+      "sha256": "981c9ee3179d770e38b613cd253d2f0de1fef8eb5ae64d7d693f2609a9356a5e"
+    },
+    ".xezar/workflows/localisation.yaml": {
+      "kitBlob": "1c565e3f48b7b190554d92b75cfee08069f2197c",
+      "kitSource": "workflows/localisation.yaml",
+      "rewrite": "copied",
+      "sha256": "2e33171d3d74ec41822cb8ace488a7b0b3ce67fa578194209231883fb52ec13f"
+    },
+    ".xezar/workflows/migration.yaml": {
+      "kitBlob": "666c85b38fcafebae9584efc8ab745ee9a836e6b",
+      "kitSource": "workflows/migration.yaml",
+      "rewrite": "copied",
+      "sha256": "1d0a9af6a3b22d986931e206fefa9436189decf3f03442aa24a859c0690a1249"
+    },
+    ".xezar/workflows/observability.yaml": {
+      "kitBlob": "d870a0912b351ae78cb2176a847cf9feac955495",
+      "kitSource": "workflows/observability.yaml",
+      "rewrite": "copied",
+      "sha256": "60d71eb90a64e0a2b2be310cc88f6f05a73683f8b7c84af4cb31d0b42a90b4a7"
+    },
+    ".xezar/workflows/performance.yaml": {
+      "kitBlob": "351ed66cc2a9285f21ae31626bda08e1339afa5e",
+      "kitSource": "workflows/performance.yaml",
+      "rewrite": "copied",
+      "sha256": "f8e158d5facd90d2bde2a7a4a4b401e2b206de2c0daada0bd55f0a72c92e537d"
+    },
+    ".xezar/workflows/plan-and-spec.yaml": {
+      "kitBlob": "210dd912b8fcd555989f5f4e109675f9bde536da",
+      "kitSource": "workflows/plan-and-spec.yaml",
+      "rewrite": "copied",
+      "sha256": "b990e9c7827a8096fc5d055b6857f6a94a3474560ca2028d4cab2571ed9ebef2"
+    },
+    ".xezar/workflows/qa.yaml": {
+      "kitBlob": "3d9a2bd4c3aa905f494125727fb1dfce0220fb2d",
+      "kitSource": "workflows/qa.yaml",
+      "rewrite": "copied",
+      "sha256": "6ac7246f2942309d141a123a81253b49cc78842ca035b49509a22d4cf574c7c6"
+    },
+    ".xezar/workflows/refactor.yaml": {
+      "kitBlob": "0a078e666510db4cb3451b4dd5da950b53e01d3d",
+      "kitSource": "workflows/refactor.yaml",
+      "rewrite": "copied",
+      "sha256": "480bbb455c7afb83a7632aa0f709d55244374f6abe2e980423f1363a9d3a4bd3"
+    },
+    ".xezar/workflows/regression-suite.yaml": {
+      "kitBlob": "f59efd9c14048b848d82e2626375858e2f6a4d61",
+      "kitSource": "workflows/regression-suite.yaml",
+      "rewrite": "copied",
+      "sha256": "c01dc6b3d0701a3ea3d423377af9e8f6e5322a79b4ef4d71316897f8f0798365"
+    },
+    ".xezar/workflows/release-prep.yaml": {
+      "kitBlob": "9f46ba254dfdd18fb2a6f028ae24714f8bbfc7c2",
+      "kitSource": "workflows/release-prep.yaml",
+      "rewrite": "copied",
+      "sha256": "efd81c05fd4dc072f532de653b5755d01efdaadf9b74284d98d5e370c4740e03"
+    },
+    ".xezar/workflows/release.yaml": {
+      "kitBlob": "71b32b55872250f64d7f70ee2dfad7b8f998f004",
+      "kitSource": "workflows/release.yaml",
+      "rewrite": "copied",
+      "sha256": "14744e8b5450f34df3f2ef038769ca31e628dd6f087c06e25d77a9be30cac027"
+    },
+    ".xezar/workflows/research.yaml": {
+      "kitBlob": "e9bc779608a2982383d8ca60716baa57d0abe4ae",
+      "kitSource": "workflows/research.yaml",
+      "rewrite": "copied",
+      "sha256": "153a5aed4dc5438e3e4f3868f5effcfa5b446f5bdf5425ecbb002a124fc937c1"
+    },
+    ".xezar/workflows/root-sync.yaml": {
+      "kitBlob": "82021fbd890a51d694a524af7b3acf3560582ad3",
+      "kitSource": "workflows/root-sync.yaml",
+      "rewrite": "copied",
+      "sha256": "5301499fc8ac1021c59f1b1a6c77a3f826d561e7583d8c062d69853b186c9a0d"
+    },
+    ".xezar/workflows/security-review.yaml": {
+      "kitBlob": "dfb420e6e94ed1d3a7a5f374cd042f875e6e02d6",
+      "kitSource": "workflows/security-review.yaml",
+      "rewrite": "copied",
+      "sha256": "61a810eacc7291c213adea0900e513139e80d83d33aec30fa00a44131c784636"
+    },
+    ".xezar/workflows/spike.yaml": {
+      "kitBlob": "0607f5812b49f8e088b216e0efedc81277af5cec",
+      "kitSource": "workflows/spike.yaml",
+      "rewrite": "copied",
+      "sha256": "e5470e2f4c4ae150e80b0e365c25de0bd3de481cceaa85293635c8b9a46713b3"
+    },
+    ".xezar/workflows/testing-and-verification.yaml": {
+      "kitBlob": "332d705b076a317b5f8eb9c027f83d7d662596ce",
+      "kitSource": "workflows/testing-and-verification.yaml",
+      "rewrite": "copied",
+      "sha256": "a8f6e6758f8e097cfe2ae056b765bf28ab16402edb0403392590edcc3eb11da8"
+    },
+    ".xezar/workflows/ui-design.yaml": {
+      "kitBlob": "11fab8966be69bf854d053d356b54da22da1b171",
+      "kitSource": "workflows/ui-design.yaml",
+      "rewrite": "copied",
+      "sha256": "bbc9801075c60d15d200ec05a7064b048cc5d6629dbdaca0694bc7466a8e9c9d"
+    },
+    ".xezar/workflows/ui-tests.yaml": {
+      "kitBlob": "6ad228230f33342bc95c342bc28169050833dbec",
+      "kitSource": "workflows/ui-tests.yaml",
+      "rewrite": "copied",
+      "sha256": "ed7f161377ae9b9e84998c2c697276e0d509ac46b166b9c2fd2217751af34b35"
+    },
+    ".xezar/workflows/visual-asset.yaml": {
+      "kitBlob": "349e2e9714a73055fd5843b5cd3b3f22125e042f",
+      "kitSource": "workflows/visual-asset.yaml",
+      "rewrite": "copied",
+      "sha256": "842142bbdff8abf96df03109807dfbbf82babf0930d7e231157de8703f30d055"
+    },
+    "CODE_REVIEW.md": {
+      "rewrite": "generated"
+    },
+    "SDLC.md": {
+      "rewrite": "generated"
+    },
+    "scripts/xezar-leader.sh": {
+      "kitBlob": "8d4869c9f61de019fcb3b4145ec643197c498232",
+      "kitSource": "scripts/xezar-leader.sh",
+      "rewrite": "copied",
+      "sha256": "31c6418bb41937c5c5a69fc704b2d590d3ada90e42b01d4de7698dcfc451c3db"
+    }
+  },
+  "tag": null,
+  "version": "1.4.0+d3ff32178e6c"
+}

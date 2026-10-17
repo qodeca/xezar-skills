@@ -32,7 +32,7 @@ install from.
 | D9 | **A `develop` branch.** All 3.1.0 work merges into `develop`. On release day, one PR moves `develop` → `main`. `main` stays the default branch, and live projects install from it. |
 | D10 | **#69: warning only.** A widening Bash rule in the private `.claude/settings.local.json` gives a warning, on that computer too, and never fails a check. The same rule in committed `.claude/settings.json` still fails. This is an owner-accepted risk: the review advised blocking on that computer. `DECISIONS.md` records it. |
 | D11 | **Unknown hand edits: Claude drafts, the owner approves.** When the upgrade finds a kit file changed with no register entry, Claude keeps the change and writes a register entry marked `Confirmed: no`. The drift check stays red until the owner confirms it. For a safety file (a trust-boundary path, a check, a workflow, routing, or permission settings), Claude stops and asks first. |
-| D12 | **#54 ships with its known limit written down.** The kit makes delivery an integrity check. A task running as the same user can still forge the target record. The owner signs this limit in `SECURITY.md`'s accepted list and in `DECISIONS.md`, and an engine issue asks for a run-scoped grant. |
+| D12 | **#54 ships as one push check, with its known limit written down.** A repair's fix reaches GitHub only through one kit script that checks the sealed commit, the live PR and the target branch. No leader record, claim, new step or config key (the heavier wave-1 design was rejected as over-engineering). It does not stop two runs repairing one PR at once, and a same-user process could still push by other means. The owner signs this limit in `SECURITY.md`'s accepted list and in `DECISIONS.md`. |
 
 ### Plan defaults (the owner can veto any of them)
 
@@ -52,8 +52,7 @@ install from.
   but only **after** the v1 and v2 schemas are written in `upgrade/CONTRACT.md`. Freezing an
   undefined format would make every later fix a breaking change.
 - **P6 – focused patches.** Each stream changes only what its issue needs, plus its tests, pins
-  and fragment. No wording sweeps, no clean-ups on the side
-  (`docs/memories/feedback-focused-patches.md`).
+  and fragment. No wording sweeps, no clean-ups on the side.
 - **P7 – no invented config values.** The upgrade adds a new config key only when the key has a
   documented default. Otherwise the key stays unset and goes on the owner checklist, with the
   question onboarding would have asked. A kit role with an unset key names it and stops
@@ -152,7 +151,7 @@ first. The rest of the order just keeps the rebases small.
 
 **Local gate runs.** The `scripts/test-guards.mjs` lock is per checkout, so worktrees can run it
 at the same time. `scripts/test-gate-status.mjs` is known to fail locally on macOS on `main` and
-to pass in CI (`docs/memories/release-302-work.md`). An agent reports that failure and does not
+to pass in CI. An agent reports that failure and does not
 try to fix it. CI is the authority.
 
 ## 5. Stream detail
@@ -343,22 +342,20 @@ clone dry run (§7) and linked in the PR: a run id, a log excerpt or a screensho
 
 ### Stream H – #54 sealed repair delivery
 
-- **Wave 1: a design note** in the issue. It covers:
-  - the repair-target record, the `start-repair` action and the `deliver` step;
-  - the conflict-repair path with no `ci-watch` wait;
-  - the D12 limit, stated plainly.
-
-  File the engine issue for a run-scoped grant.
-- **Wave 2: implement it** after B, D and E merge. `deliver` must:
-  1. re-read the PR live from the tracker: open, head in this repository (not a fork), base =
-     `baseBranch`, head = the recorded expected sha, and not a history or release branch;
-  2. push only the sha that passes `verify-evidence.sh --require-current`, as
-     `<sha>:refs/heads/<branch>` with no force, or with an explicit
-     `--force-with-lease=<branch>:<expected-sha>`, never the bare form;
-  3. confirm the remote tip with `git ls-remote`;
-  4. send the new head back through review: stale approvals do not count.
+- **Wave 1: a design note** in the issue (background only; its record, claim and `deliver` step
+  were superseded by the owner's lighter choice, D12).
+- **Wave 2: one push check.** A repair moves its own `xez/<id>` branch onto the PR head and commits
+  there, so readiness, the gates and the seal run on the real fix. The handoff pushes only through
+  `K/checks/push-check.sh --pr <n> --branch <head>`, which refuses unless:
+  1. HEAD is the sealed commit (`verify-evidence.sh --require-current` says ELIGIBLE, sealed sha =
+     HEAD);
+  2. the PR, read live with `gh pr view`, is open and in this repository, and the target is its
+     head branch;
+  3. the target is not HEAD, `main`, `master`, `release/*`, the configured base or the PR's base;
+  4. the push is a fast-forward, or `--force-with-lease=refs/heads/<head>:<sha>`, never bare.
+- Readiness refuses the old `DELIVERED` record. `branch.owned-by-run` stays unchanged.
 - The owner signs the D12 entry in `SECURITY.md`'s accepted list and in `DECISIONS.md` in the
-  same PR. `branch.owned-by-run` stays unchanged for every other workflow.
+  same PR.
 
 ### Stream U – the upgrade tool
 
@@ -379,6 +376,23 @@ needs the U2 interface. U5 grows alongside U3.
 - **U1 preflight:** the "no upgrade path yet" message in `R/preflight.md` changes to point at
   `upgrade/UPGRADE-PROMPT.md` in the **release PR** (wave 3), not before. The tag must exist
   first.
+
+### Stream R – #89 DeepSeek routing
+
+- **What.** A new lane `pi/deepseek-api/deepseek-v4-pro` (strong, no vision, no tool limits).
+  DeepSeek-first row orders: Flash first in the simple rows, V4 Pro first in the mid-size writing
+  rows, V4 Pro after the Codex lanes in the Opus-first rows, no V4 Pro in a screen row (Flash is
+  the no-Claude fallback there), V4 Pro last in every other review row.
+  - Three bans relax: `tool-limits`, through a new optional lane key `fullShellReviews`;
+    `pi-write-claude-review`; `high-risk-other-vendor`.
+  - The owner signs the accepted risk in `SECURITY.md` and `DECISIONS.md`.
+  - The shipped defaults stay version 4, edited in place (P1).
+- **Files.** `K/routing.json`, `R/routing-defaults/4.json`, `K/routing.schema.json`,
+  `K/checks/route.mjs`, `K/docs/routing.md`, `SECURITY.md`, `DECISIONS.md`, and the fragment
+  `docs/plans/3.1.0/notes/R.md`. The kit files are Stream B's, which has merged.
+- **Tests.** `test-kit-catalog.mjs`: the lane facts, every row group, the relaxation both ways, and
+  `route` without the model. `test-kit-facts.mjs`: the relaxed ban texts, the kept bans, and the
+  two records. `test-guards.mjs`: one break for each relaxed rule.
 
 ## 6. Upgrade tool design
 
@@ -530,9 +544,9 @@ In every other case, Claude decides and writes the reason in the report.
      commit, or refuse and explain.
 
    Then create branch `xezar/upgrade-<target>`.
-1. **Fetch and verify the tools.** Shallow-clone `qodeca/xezar-skills` at the target tag into a
-   temp folder.
-   - Verify it with `gh release verify v<target>` or `git verify-tag`, and check that `HEAD`
+1. **Fetch and verify the tools.** Clone `qodeca/xezar-skills` in full (not shallow: `apply.mjs`
+   reads old kit files from its history) at the target tag into a temp folder.
+   - Verify it with `gh release verify v<target>`, and check that `HEAD`
      equals the commit sha published with the release. This happens **before any Node code
      runs**.
    - The prompt is read from this verified clone, never from a URL.
@@ -566,7 +580,9 @@ In every other case, Claude decides and writes the reason in the report.
    - a safety line required by a 3.1.0 entry is missing.
 
    Then it writes manifest v2 and runs the drift check, the 3.1.0 kit catalog check and
-   `repository-checks.sh`. A red check is fixed or reported. It is never hidden.
+   `repository-checks.sh`, each from the clone and each against the project it was given (the
+   repository check takes the project as its argument). A red check is fixed or reported. It is
+   never hidden.
 8. **Report and commit.** Write `.xezar/upgrade-reports/<target>.md`:
    - what changed, per class;
    - each merge decision with its reason;

@@ -111,8 +111,9 @@ Three steps, in order:
    ordinary; record it and move on.
 2. **Which accounts or profiles each tool has**, and **which models each supports** — ask each
    tool to **list its models**, not only for its version and its default. Seen working:
-   `opencode models` and `pi --list-models`. Claude Code and Codex had **no** list command when
-   this was written — for those, read the model names the tool's own `--help` and config file
+   `opencode models`; Qwen Code lists its models in `modelProviders` of `~/.qwen/settings.json`
+   (the xezar guide page "Moving from pi or OpenCode to Qwen Code"). Claude Code and Codex had
+   **no** list command when this was written — for those, read the model names the tool's own `--help` and config file
    mention, and put them on the facts screen marked "read from config, please confirm". Never run
    a bare subcommand to find out: on one tool `models` was not a command and opened a chat
    instead. Record each result as `<tool>/<model>`, cloud or local, sees pictures or not — that
@@ -136,8 +137,8 @@ Three steps, in order:
 
 Then **map what was found onto the shipped routing** (`kit/routing.json`):
 
-- Each found tool is recorded under its engine runner ID – `claude`, `codex`, `pi` (and `opencode`,
-  recorded and switched off) – and each model as the lane `<runner>/<model>`.
+- Each found tool is recorded under its engine runner ID – `claude`, `codex`, `qwen` (and `opencode`,
+  recorded and switched off, where an engine still lists it) – and each model as the lane `<runner>/<model>`.
 - A found lane the defaults already have keeps its shipped tags. A found lane the defaults lack is
   put on routing screen 4 to be tagged by the owner, never guessed.
 - A shipped lane this machine does not have stays in the file; `route.mjs` removes it at dispatch

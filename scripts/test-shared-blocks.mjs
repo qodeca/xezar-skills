@@ -6,19 +6,31 @@
 // marked region until the copies trivially agree. Both are asserted here, by
 // breaking a real file, running the real checker, and restoring.
 //
+// It breaks them in a private copy (#123): the generator, scripts/lib/, scripts/allowlists.json
+// and skills/ are copied into a temp folder at the start, and every edit lands there, so a gate
+// running beside this one never reads a broken file. The copy is taken from the checkout as it is,
+// so a defect planted in scripts/sync-shared-blocks.mjs is still the one under test. A file the
+// generator reads outside that set fails with ENOENT – loudly, never as a pass. A link is copied
+// as a link, and an edit is refused unless the file it resolves to is in the copy.
+//
 // Run: node scripts/test-shared-blocks.mjs
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
+import { tempRoot } from "./lib/test-harness.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SYNC = join(root, "scripts", "sync-shared-blocks.mjs");
+const work = mkdtempSync(join(tempRoot(), "shared-blocks-"));
+for (const part of ["scripts/sync-shared-blocks.mjs", "scripts/lib", "scripts/allowlists.json", "skills"]) {
+  cpSync(join(root, part), join(work, part), { recursive: true, verbatimSymlinks: true });
+}
+const SYNC = join(work, "scripts", "sync-shared-blocks.mjs");
 
 // A copy that is not the canonical one, so breaking it tests propagation.
-const VICTIM = join(root, "skills", "xez-approve-merge-pr", "references", "agentic-setup.md");
-const CANON = join(root, "skills", "xez-auto-create-pr", "references", "agentic-setup.md");
+const VICTIM = join(work, "skills", "xez-approve-merge-pr", "references", "agentic-setup.md");
+const CANON = join(work, "skills", "xez-auto-create-pr", "references", "agentic-setup.md");
 
 let failures = 0;
 let asserts = 0;
@@ -40,6 +52,8 @@ function expect(name, condition, detail) {
 }
 
 function withFile(path, mutate, body) {
+  const rel = relative(realpathSync.native(work), realpathSync.native(path)); // a link out of the copy resolves outside it
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) throw new Error(`test-shared-blocks would edit the checkout: ${path}`);
   const original = readFileSync(path, "utf8");
   try {
     writeFileSync(path, mutate(original));
@@ -49,71 +63,97 @@ function withFile(path, mutate, body) {
   }
 }
 
-// --- baseline: the tree is in sync -----------------------------------------
-{
-  const { code, out } = runCheck();
-  expect("a synced tree passes", code === 0, out.trim());
-  expect("the banner reports how many copies were checked", /\d+ copies in sync/.test(out), out.trim());
-}
+try {
+  // --- baseline: the tree is in sync -----------------------------------------
+  {
+    const { code, out } = runCheck();
+    expect("a synced tree passes", code === 0, out.trim());
+    expect("the banner reports how many copies were checked", /\d+ copies in sync/.test(out), out.trim());
+  }
 
-// --- a one-byte divergence must fail ---------------------------------------
-withFile(VICTIM, (s) => s.replace("data, never instructions", "data, never instruction"), () => {
-  const { code, out } = runCheck();
-  expect("a one-byte divergence fails", code !== 0);
-  expect("the failure names the drifted file", out.includes("xez-approve-merge-pr"), out.trim());
-  expect(
-    "the failure says what to RUN, not what to retype",
-    out.includes("node scripts/sync-shared-blocks.mjs"),
-    out.trim(),
-  );
-});
+  // --- a one-byte divergence must fail ---------------------------------------
+  withFile(VICTIM, (s) => s.replace("data, never instructions", "data, never instruction"), () => {
+    const { code, out } = runCheck();
+    expect("a one-byte divergence fails", code !== 0);
+    expect("the failure names the drifted file", out.includes("xez-approve-merge-pr"), out.trim());
+    expect(
+      "the failure says what to RUN, not what to retype",
+      out.includes("node scripts/sync-shared-blocks.mjs"),
+      out.trim(),
+    );
+  });
 
-// --- the generator repairs what the check rejected --------------------------
-withFile(VICTIM, (s) => s.replace("data, never instructions", "data, never instruction"), () => {
-  execFileSync("node", [SYNC], { encoding: "utf8" });
-  const { code } = runCheck();
-  expect("running the generator makes a drifted copy pass again", code === 0);
-});
+  // --- the generator repairs what the check rejected --------------------------
+  withFile(VICTIM, (s) => s.replace("data, never instructions", "data, never instruction"), () => {
+    execFileSync("node", [SYNC], { encoding: "utf8" });
+    const { code } = runCheck();
+    expect("running the generator makes a drifted copy pass again", code === 0);
+  });
 
-// --- narrowing the markers must NOT be a way to pass ------------------------
-// This is the failure mode a compare-only test cannot catch: empty every block and
-// all copies match, so the sync obligation silently evaporates.
-withFile(CANON, (s) => {
-  const a = s.indexOf("<!-- shared:untrusted-content:start -->");
-  const b = s.indexOf("<!-- shared:untrusted-content:end -->");
-  return s.slice(0, a) + "<!-- shared:untrusted-content:start -->\nnothing to see here\n" + s.slice(b);
-}, () => {
-  const { code, out } = runCheck();
-  expect("an emptied canonical block fails the floor", code !== 0);
-  expect(
-    "the failure explains that narrowing is not a way to pass",
-    out.includes("narrowing the markers"),
-    out.trim(),
-  );
-});
+  // --- narrowing the markers must NOT be a way to pass ------------------------
+  // This is the failure mode a compare-only test cannot catch: empty every block and
+  // all copies match, so the sync obligation silently evaporates.
+  withFile(CANON, (s) => {
+    const a = s.indexOf("<!-- shared:untrusted-content:start -->");
+    const b = s.indexOf("<!-- shared:untrusted-content:end -->");
+    return s.slice(0, a) + "<!-- shared:untrusted-content:start -->\nnothing to see here\n" + s.slice(b);
+  }, () => {
+    const { code, out } = runCheck();
+    expect("an emptied canonical block fails the floor", code !== 0);
+    expect(
+      "the failure explains that narrowing is not a way to pass",
+      out.includes("narrowing the markers"),
+      out.trim(),
+    );
+  });
 
-// --- dropping a required clause must fail -----------------------------------
-withFile(CANON, (s) => s.replace(/^- Never put a credential.*$/m, "- (removed)"), () => {
-  const { code, out } = runCheck();
-  expect("removing a required safety clause fails", code !== 0);
-  expect("the failure names the missing clause", out.includes("required clause"), out.trim());
-});
+  // --- dropping a required clause must fail -----------------------------------
+  withFile(CANON, (s) => s.replace(/^- Never put a credential.*$/m, "- (removed)"), () => {
+    const { code, out } = runCheck();
+    expect("removing a required safety clause fails", code !== 0);
+    expect("the failure names the missing clause", out.includes("required clause"), out.trim());
+  });
 
-// --- a missing marker must fail, not be skipped -----------------------------
-withFile(VICTIM, (s) => s.replace("<!-- shared:untrusted-content:start -->", ""), () => {
-  const { code, out } = runCheck();
-  expect("a copy with no markers fails", code !== 0);
-  expect("the failure names the file missing markers", out.includes("missing"), out.trim());
-});
+  // --- a missing marker must fail, not be skipped -----------------------------
+  withFile(VICTIM, (s) => s.replace("<!-- shared:untrusted-content:start -->", ""), () => {
+    const { code, out } = runCheck();
+    expect("a copy with no markers fails", code !== 0);
+    expect("the failure names the file missing markers", out.includes("missing"), out.trim());
+  });
 
-// --- the tree is restored ----------------------------------------------------
-{
-  const { code } = runCheck();
-  expect("the tree is left in sync after the test", code === 0);
+  // --- #122 (Windows): a CRLF checkout is in sync exactly when its LF form is ---
+  // core.autocrlf on Windows checks every copy out with CRLF; the sync must neither call such a
+  // copy drifted nor let a real drift through because the line endings already differ.
+  const crlf = (s) => s.replace(/\r?\n/g, "\r\n");
+  const KIT_ROLE = join(work, "skills", "xez-onboard-opinionated", "kit", "skills", "xezar-code-review.md");
+
+  withFile(VICTIM, crlf, () => {
+    const { code, out } = runCheck();
+    expect("a CRLF copy of a synced marked block passes", code === 0, out.trim());
+  });
+
+  withFile(VICTIM, (s) => crlf(s.replace("data, never instructions", "data, never instruction")), () => {
+    const { code, out } = runCheck();
+    expect("a CRLF copy with a one-byte divergence fails", code !== 0);
+    expect("the CRLF failure names the drifted file", out.includes("xez-approve-merge-pr"), out.trim());
+  });
+
+  withFile(KIT_ROLE, crlf, () => {
+    const { code, out } = runCheck();
+    expect("a CRLF copy of a kit role skill's Shared contract tail passes", code === 0, out.trim());
+  });
+
+  // --- the tree is restored ----------------------------------------------------
+  {
+    const { code } = runCheck();
+    expect("the tree is left in sync after the test", code === 0);
+  }
+} finally {
+  rmSync(work, { recursive: true, force: true });
 }
 
 if (failures) {
   console.error(`\nshared-blocks: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-console.log(`Shared-block sync contract OK (${asserts} assertions: drift, repair, narrowing, clause floor, missing markers).`);
+console.log(`Shared-block sync contract OK (${asserts} assertions: drift, repair, narrowing, clause floor, missing markers, CRLF copies).`);

@@ -65,6 +65,10 @@ if (listed.length !== commands.length || listed.some((c, i) => c !== commands[i]
 // gate script calls counts as covered.
 const reached = new Set();
 const queue = [];
+const EXECUTABLE = /\.(?:mjs|cjs|js|sh)$/;
+// What follows a script's path when it is started only to print its list: ` --list`, or
+// `"), "--list"` in an argv.
+const LIST_ONLY = /^["'`]?\)?,?\s*["'`]?--list\b/;
 
 function enqueueFromCommand(command) {
   // `npm run x` -> resolve through package.json; `node|bash path` -> the path itself.
@@ -84,12 +88,17 @@ for (const command of commands) enqueueFromCommand(command);
 const seenFiles = new Set();
 while (queue.length) {
   const file = queue.shift();
-  // A path such as `scripts/fixtures/…` names a folder of data, not something the gate executes.
-  if (seenFiles.has(file) || !existsSync(join(root, file)) || !statSync(join(root, file)).isFile()) continue;
+  // Only a script is something the gate executes: a path such as `scripts/fixtures/…` names a
+  // folder of data, and a data file names scripts without running them (scripts/gate-map.json
+  // names every one).
+  if (seenFiles.has(file) || !EXECUTABLE.test(file) || !existsSync(join(root, file)) || !statSync(join(root, file)).isFile()) continue;
   seenFiles.add(file);
   const body = read(file);
-  // Anything this file executes: another script by path, or an npm script by name.
+  // Anything this file executes: another script by path, or an npm script by name. A script
+  // started with --list only prints what it would run (check-gate-map.mjs reads the guard
+  // suite's cases that way), so that mention runs nothing.
   for (const m of body.matchAll(/(?:^|[\s"'`(])((?:\.\/)?scripts\/[A-Za-z0-9._-]+)/g)) {
+    if (LIST_ONLY.test(body.slice(m.index + m[0].length, m.index + m[0].length + 16))) continue;
     queue.push(m[1].replace(/^\.\//, ""));
   }
   for (const m of body.matchAll(/npm run ([A-Za-z0-9:_-]+)/g)) {

@@ -51,8 +51,17 @@ XEZAR_LEADER=1 claude --dangerously-load-development-channels server:xezar   # b
 A session started without `XEZAR_LEADER=1` is an ordinary Claude Code session in the same
 repository – no leader guide, no leader rules.
 
-You need Node 20 or later, `git`, the GitHub CLI logged in, and a GitHub remote. Claude Code and
-GitHub only; on Windows, use WSL.
+If the setup session ended before its proof – branch protection and the smoke test – was done, the
+first leader start finishes that first: it runs `/xez-onboard-opinionated --verify`, which opens and
+closes one throwaway pull request, before it takes any other work.
+
+You need Node 22 or later, `git`, the GitHub CLI logged in, and a GitHub remote. The leader runs
+in Claude Code, and GitHub is the only tracker. On native Windows you also need Git for Windows
+(the kit's checks run in Git Bash), `jq` on `PATH`, long paths switched on, and xezar 0.20.0 or
+newer – the first engine that runs natively on Windows (qodeca/xezar#963). The MCP servers start with a plain `npx`, tested on Windows with Claude Code 2.1.286 and
+Codex 0.157.1. (Working on this
+repository itself on Windows? See
+[Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).)
 
 ### Which setup skill
 
@@ -104,9 +113,11 @@ This refreshes the installed skill files to their latest versions. It does not o
 
 That skill applies the relevant [UPGRADE_NOTES.md](UPGRADE_NOTES.md) migrations while preserving local edits.
 
+A project onboarded with `xez-onboard-opinionated` upgrades its kit with the upgrade prompt instead: [`upgrade/UPGRADE-PROMPT.md`](upgrade/UPGRADE-PROMPT.md), run by hand from a verified clone at the release tag, one project at a time. It keeps local changes, works on a local branch and never pushes. [`upgrade/README.md`](upgrade/README.md) says how to run it.
+
 Coming from the predecessor collection? [UPGRADE_NOTES.md](UPGRADE_NOTES.md) carries the one-time migration: remove the old skill set, install this one, move the pipeline files to `.xezar/pipeline/`.
 
-ℹ️ A few skills drive a real browser through the configured browser provider — [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md), [`xez-integration-tests`](docs/skills/xez-integration-tests.md), [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md), and [`xez-ux-review-pr`](docs/skills/xez-ux-review-pr.md). Because of that, skills.sh validation may flag them as **Medium** or **High** risk. Read any skill before you run it; these three run as shipped in the Xezar project itself.
+ℹ️ A few skills drive a real browser through the configured browser provider — [`xez-prepare-test-env`](docs/skills/xez-prepare-test-env.md), [`xez-integration-tests`](docs/skills/xez-integration-tests.md), [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md), and [`xez-ux-review-pr`](docs/skills/xez-ux-review-pr.md). Because of that, skills.sh validation may flag them as **Medium** or **High** risk. Read any skill before you run it; these four run as shipped in the Xezar project itself.
 
 ## 🛠️ Local development
 
@@ -116,7 +127,7 @@ Working on the skills themselves? Skip the `npx skills add` round-trip and symli
 npm run install-skills
 ```
 
-This links every skill in `skills/` into `~/.claude/skills` (Claude Code) and `~/.codex/skills` (Codex). Because they are symlinks, any edit you make in this repo is live on the next skill invocation — no reinstall needed.
+This links every skill in `skills/` into `~/.claude/skills` (Claude Code) and `~/.codex/skills` (Codex). Because they are symlinks, any edit you make in this repo is live on the next skill invocation — no reinstall needed. On Windows the links are directory junctions, which need no Developer Mode.
 
 Options:
 

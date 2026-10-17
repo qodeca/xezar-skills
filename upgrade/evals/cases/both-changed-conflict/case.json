@@ -1,0 +1,15 @@
+{
+  "name": "both-changed-conflict",
+  "situation": "Both changed, semantically conflicting: the owner made the dependency-freshness test always pass when CI_DEPS_CACHE=1 (harmless in 3.0.3, where it only changed a message); 3.1.0 makes gate reuse depend on that same freshness (fail closed, #53). The text merges cleanly. Registered and confirmed.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/checks/resume-complete.sh",
+      "replace": {
+        "find": "DEPS_FRESH=0\nif deps_are_fresh; then\n",
+        "with": "DEPS_FRESH=0\n# LP-1: our runners restore node_modules from a nightly cache whose stamp never matches; treat\n# the install as fresh here so the report stops telling agents to reinstall.\nif deps_are_fresh || [ \"${CI_DEPS_CACHE:-0}\" = 1 ]; then\n"
+      }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – trust the nightly dependency cache\n- Files: .xezar/checks/resume-complete.sh\n- Reason: the nightly cache restores node_modules but its stamp never matches, so every resume said the deps were stale\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n"
+}

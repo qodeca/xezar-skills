@@ -1,0 +1,32 @@
+{
+  "note": "Scripted customisations applied on top of a synthetic install by scripts/test-upgrade.mjs. The assertions are in expected.json, kept apart on purpose: removing a customisation here must make the test fail. `auto:untouched-check` is resolved at test time to the first .xezar/checks/*.sh the target kit did not change, so the patch stays local-only as the kit moves.",
+  "base": "3.0.3",
+  "customisations": [
+    {
+      "id": "override",
+      "path": ".xezar/pipeline/overrides/xezar-implementation.md",
+      "edit": { "create": "# Local override\n\n- Run the slow suite only on request.\n" }
+    },
+    {
+      "id": "config-value",
+      "path": ".xezar/pipeline/config.json",
+      "edit": { "jsonSet": { "key": ["validation", "commands"], "value": ["make lint", "make test", "make e2e"] } }
+    },
+    {
+      "id": "routing-row",
+      "path": ".xezar/routing.json",
+      "edit": { "jsonSet": { "key": ["rows", 0, "title"], "value": "Tracker only: labels and comments (owner wording)" } }
+    },
+    {
+      "id": "leader-rule",
+      "path": ".xezar/docs/leader-guide.md",
+      "edit": { "after": "## Owner's rules\n\n", "insert": "- Never merge on a Friday.\n" }
+    },
+    {
+      "id": "patched-check",
+      "path": "auto:untouched-check",
+      "edit": { "append": "# local: logs one more line for our CI\n" }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – one more log line in a check\n- Files: auto:untouched-check\n- Reason: our CI parser needs it\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n"
+}

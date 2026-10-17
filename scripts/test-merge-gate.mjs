@@ -12,6 +12,10 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
+import { shPath } from "./lib/platform.mjs";
+import { prepareTestPlatform } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(root, "skills", "xez-approve-merge-pr", "references", "merge-gate.sh");
@@ -47,7 +51,7 @@ const CLEAN = {
 function run(input) {
   const payload = typeof input === "string" ? input : JSON.stringify(input);
   try {
-    const stdout = execFileSync("sh", [SCRIPT], { input: payload, encoding: "utf8" });
+    const stdout = execFileSync(shPath(), [SCRIPT], { input: payload, encoding: "utf8" });
     return { code: 0, stdout };
   } catch (err) {
     return { code: err.status ?? -1, stdout: err.stdout ?? "" };

@@ -1,0 +1,21 @@
+{
+  "case": "routing-clash",
+  "situation": "Owner routing clash: the owner added a vendorExclusions list of their own (excluding openai) to .xezar/routing.json; 3.1.0 adds the same field with a different value (anthropic).",
+  "invariants": [
+    {
+      "type": "stop",
+      "path": ".xezar/routing.json",
+      "rules": [
+        "6",
+        "1"
+      ]
+    },
+    {
+      "type": "equalsStart",
+      "path": ".xezar/routing.json"
+    },
+    {
+      "type": "baseUntouched"
+    }
+  ]
+}

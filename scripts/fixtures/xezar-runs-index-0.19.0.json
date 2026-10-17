@@ -1,0 +1,112 @@
+[
+  {
+    "id": "4891745f-cc3d-4af2-a15d-80b827232a66",
+    "workflow": "qa",
+    "status": "running",
+    "workflowDef": {
+      "name": "qa",
+      "steps": [
+        {
+          "id": "kit",
+          "command": "bash \"$(git rev-parse --path-format=absolute --git-common-dir)/../.xezar/checks/bootstrap.sh\""
+        },
+        {
+          "id": "preflight",
+          "command": ".xezar/checks/worktree-preflight.sh --allow-root"
+        },
+        {
+          "id": "review",
+          "verdictRole": "qa"
+        }
+      ]
+    }
+  },
+  {
+    "id": "94352907-3778-40b4-8a57-285820807921",
+    "workflow": "design-review",
+    "status": "running",
+    "workflowDef": {
+      "name": "design-review",
+      "steps": [
+        {
+          "id": "kit",
+          "command": "bash \"$(git rev-parse --path-format=absolute --git-common-dir)/../.xezar/checks/bootstrap.sh\""
+        },
+        {
+          "id": "preflight",
+          "command": ".xezar/checks/worktree-preflight.sh --allow-root"
+        },
+        {
+          "id": "review",
+          "verdictRole": "design-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "65e2da43-cb6e-4366-a332-a22dc1689c20",
+    "workflow": "code-review",
+    "status": "done",
+    "workflowDef": {
+      "name": "code-review",
+      "steps": [
+        {
+          "id": "kit",
+          "command": "bash \"$(git rev-parse --path-format=absolute --git-common-dir)/../.xezar/checks/bootstrap.sh\""
+        },
+        {
+          "id": "preflight",
+          "command": ".xezar/checks/worktree-preflight.sh --allow-root"
+        },
+        {
+          "id": "review",
+          "verdictRole": "code-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "f49dd107-8cf1-48cf-8917-14fe9f3a01cd",
+    "workflow": "feature-implementation",
+    "status": "done",
+    "workflowDef": {
+      "name": "feature-implementation",
+      "steps": [
+        {
+          "id": "kit",
+          "command": "bash \"$(git rev-parse --path-format=absolute --git-common-dir)/../.xezar/checks/bootstrap.sh\""
+        },
+        {
+          "id": "preflight",
+          "command": ".xezar/checks/worktree-preflight.sh"
+        },
+        {
+          "id": "setup",
+          "command": ".xezar/checks/worktree-setup.sh"
+        },
+        {
+          "id": "implement"
+        },
+        {
+          "id": "blocked",
+          "command": ".xezar/checks/blocked-stop.sh"
+        },
+        {
+          "id": "readiness",
+          "command": ".xezar/checks/worktree-preflight.sh --readiness"
+        },
+        {
+          "id": "gates",
+          "command": ".xezar/checks/repo-gates.sh --fast --producer gates"
+        },
+        {
+          "id": "evidence",
+          "command": ".xezar/checks/worktree-preflight.sh --record-gate-evidence"
+        },
+        {
+          "id": "handoff"
+        }
+      ]
+    }
+  }
+]

@@ -13,10 +13,13 @@
 // Run: node scripts/test-bootstrap.mjs
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, realpathSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { bashPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+
+prepareTestPlatform();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const KIT = join(root, "skills", "xez-onboard-opinionated", "kit");
@@ -32,7 +35,7 @@ const git = (cwd, ...args) =>
   execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main", ...args], { cwd, encoding: "utf8", stdio: "pipe" }).trim();
 const write = (file, text) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); };
 
-const lab = realpathSync(mkdtempSync(join(tmpdir(), "kit-bootstrap-")));
+const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-bootstrap-")));
 try {
   // origin holds the kit at v1; the primary clones it, then origin moves on to v2 without it.
   git(lab, "init", "--quiet", "--bare", "origin.git");
@@ -62,7 +65,7 @@ try {
     const env = { ...process.env };
     delete env.XEZ_TASK_ID;
     try {
-      return { code: 0, out: execFileSync("bash", [join(primary, ".xezar/checks/bootstrap.sh")], { cwd, env, encoding: "utf8", stdio: "pipe" }) };
+      return { code: 0, out: execFileSync(bashPath(), [join(primary, ".xezar/checks/bootstrap.sh")], { cwd, env, encoding: "utf8", stdio: "pipe" }) };
     } catch (err) {
       return { code: err.status ?? -1, out: (err.stdout ?? "") + (err.stderr ?? "") };
     }
@@ -72,6 +75,19 @@ try {
   const lagging = bootstrap(task("aaaaaaaa-lagging"));
   expect("a kit file that equals the fork base is kept while the primary lags", lagging.code === 0 && lagging.out.includes("(1 kept at the fork base)"),
     `exit ${lagging.code}: ${lagging.out.trim()}`);
+
+  // 1b. The review's own scripts (D13): every kit step copies the PRIMARY's checks/ outside the
+  // tracked tree, so a later checkout of a PR head cannot change what a review runs. A re-run (a
+  // resumed task) writes them again, over whatever is there.
+  const lagTask = join(primary, ".local/xezar/worktrees/aaaaaaaa-lagging");
+  const reviewCopy = join(lagTask, ".local/xezar/cache/kit/checks/repo-gates.sh");
+  const copied = () => { try { return readFileSync(reviewCopy, "utf8"); } catch { return "(missing)"; } };
+  expect("the kit step copies the primary's checks/ for the review", lagging.out.includes("REVIEW TOOLS:") && copied() === "echo v1\n",
+    `copy holds ${JSON.stringify(copied())}: ${lagging.out.trim()}`);
+  write(reviewCopy, "echo tampered\n");
+  const again = bootstrap(lagTask);
+  expect("a re-run kit step writes the review's scripts again", again.code === 0 && again.out.includes("KIT REUSED") && copied() === "echo v1\n",
+    `exit ${again.code}, copy holds ${JSON.stringify(copied())}: ${again.out.trim()}`);
 
   // 2. The branch changed a kit file itself: refused.
   const edited = task("bbbbbbbb-edited");
@@ -94,4 +110,4 @@ if (failures) {
   console.error(`\nbootstrap: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-console.log(`Kit bootstrap OK (${asserts} cases: a lagging primary is kept, a branch edit and a missing fork base are refused).`);
+console.log(`Kit bootstrap OK (${asserts} cases: a lagging primary is kept, the review's scripts are the primary's on every run, a branch edit and a missing fork base are refused).`);

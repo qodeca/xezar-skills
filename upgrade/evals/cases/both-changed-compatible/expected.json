@@ -1,0 +1,79 @@
+{
+  "case": "both-changed-compatible",
+  "situation": "Both changed, compatible: the owner added a project rule at the end of a role skill; 3.1.0 changed a different paragraph of the same file. The change is registered and confirmed.",
+  "invariants": [
+    {
+      "type": "finished"
+    },
+    {
+      "type": "branch"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "verify",
+      "allow": []
+    },
+    {
+      "type": "equalsTarget",
+      "path": ".xezar/checks/route.mjs"
+    },
+    {
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "jsonAbsent",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format"
+        },
+        {
+          "type": "jsonEquals",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format",
+          "value": "auto"
+        }
+      ]
+    },
+    {
+      "type": "jsonEquals",
+      "path": ".xezar/routing.json",
+      "key": "defaults.version",
+      "value": 4
+    },
+    {
+      "type": "jsonArrayHas",
+      "path": ".xezar/routing.json",
+      "key": "vendorExclusions",
+      "field": "vendor",
+      "match": "^anthropic$"
+    },
+    {
+      "type": "contains",
+      "path": ".xezar/skills/xezar-research.md",
+      "lines": [
+        "## Project rule (LP-1)",
+        "Cite the internal research wiki (docs/research/) before any web source"
+      ]
+    },
+    {
+      "type": "contains",
+      "path": ".xezar/skills/xezar-research.md",
+      "lines": [
+        "run the focused tests for what you changed and the typecheck command `.xezar/pipeline/config.json` → `validation.commands` lists"
+      ]
+    },
+    {
+      "type": "notContains",
+      "path": ".xezar/skills/xezar-research.md",
+      "lines": [
+        "run the focused tests for what you changed and `npm run typecheck`"
+      ]
+    },
+    {
+      "type": "registerKept",
+      "id": "LP-1",
+      "confirmed": "yes"
+    }
+  ]
+}

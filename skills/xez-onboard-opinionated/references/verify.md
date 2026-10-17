@@ -109,7 +109,7 @@ In order:
   1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
      and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
   2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
-     `capabilities.singleProjectRoot` is `true` (above). And no enabled `opencode/<model>` lane
+     `capabilities.singleProjectRoot` is `true` (above). And no enabled OpenCode lane
      is in any row of `.xezar/routing.json` – or, on a setup written before routing was data, no
      OpenCode lane in any chain of `.xezar/docs/model-routing.md`. Switching the provider off
      under such a lane turns its dispatches into refusals. Either condition false → **leave it
@@ -146,23 +146,40 @@ In order:
 - **Step 9** — `references/control-skills.md`.
 - **The tree and the gates.** The working tree is clean, and the confirmed gate commands pass
   when run here, one at a time. An engine that dirties the tree by starting is a finding.
+- **The manifest still matches the tree.** `node .xezar/checks/manifest-drift.mjs` prints
+  `drift-status=pass`. A `drift=` line after the merge means a tracked file changed after the
+  setup recorded it — report the line as a finding; never re-hash to make it pass
+  (`.xezar/docs/local-patches.md` says how a deliberate change is recorded).
 - **The launcher.** It parses (`bash -n`) and it exports `XEZAR_LEADER=1`. This session may never
   have used it — a session launched by hand with the same flag is just as attached to the engine,
   but it is the leader **only** if it also set `XEZAR_LEADER=1` — so say plainly that
   `./scripts/xezar-leader.sh` is what the owner uses from tomorrow, give the by-hand form with the
   variable, and say the launcher is parsed, not yet run.
+- **Codex trust, when a routing row names a `codex/` lane.** Read only: trust is the owner's
+  setting (`references/write.md`), never write it. Without it Codex never reads the project's
+  `.codex/config.toml`, so a Codex step has no chrome-devtools server. The smoke test does not
+  catch this: it runs one step on the cheapest lane, not a Codex browser step. Read the
+  `config.toml` of the Codex home the engine's `codex` uses: `$CODEX_HOME` first, when that
+  `codex` or a wrapper script on PATH sets it, otherwise `~/.codex` (on native Windows
+  `%USERPROFILE%\.codex`). Find a `[projects."<path>"]` or
+  `[projects.'<path>']` table for this project's absolute path whose `trust_level` is `"trusted"`.
+  Compare the path without case and with either slash: Codex writes the Windows key in lower case
+  (`cygpath -w "$PWD" | tr 'A-Z' 'a-z'`), and a double-quoted key doubles every `\`. No such
+  table, or another trust level, is ❌, and the report gives the two lines from
+  `references/write.md` with this project's path in them.
 
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
 on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
-`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · connection state
+`.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.
 
 Any ❌ → name the **one** next action, keep the pending file, and use the matching failure
 template. All ✅ → delete the pending file and report with `references/report-templates.md` →
-"Setup complete".
+"Setup complete". The one exception is Codex trust: it is the owner's own setting, so its ❌ does not hold the
+report back – "Setup complete" carries it under **What you do now**, with the lines to add.
 
 After a context compaction in this session, call `leader_events` action `read` with no cursor
 before anything else: the attachment survives, the memory of what arrived does not.

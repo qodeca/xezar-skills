@@ -1,0 +1,21 @@
+{
+  "name": "routing-clash",
+  "situation": "Owner routing clash: the owner added a vendorExclusions list of their own (excluding openai) to .xezar/routing.json; 3.1.0 adds the same field with a different value (anthropic).",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/routing.json",
+      "jsonSet": {
+        "key": [
+          "vendorExclusions"
+        ],
+        "value": [
+          {
+            "vendor": "openai",
+            "why": "Our Codex reviews of Codex-written work kept agreeing with themselves; keep them apart."
+          }
+        ]
+      }
+    }
+  ]
+}

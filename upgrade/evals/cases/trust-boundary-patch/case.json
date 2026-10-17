@@ -1,0 +1,31 @@
+{
+  "name": "trust-boundary-patch",
+  "situation": "Both changed, overlapping: the owner patched the kit's trust-boundary list to add the project's deploy folder, right next to the lines 3.1.0 removes; 3.1.0 also adds a config key (security.trustBoundaries) meant for exactly this. Registered and confirmed.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/checks/lib/security-scan.mjs",
+      "replace": {
+        "find": "  { pattern: /^\\.github\\/workflows\\//,",
+        "with": "  { pattern: /^deploy\\//, why: \"the deploy scripts our CI runs with production credentials\" },\n  { pattern: /^\\.github\\/workflows\\//,"
+      }
+    }
+  ],
+  "register": "# Local patches\n\n## LP-1 – deploy/ is a trust boundary\n- Files: .xezar/checks/lib/security-scan.mjs\n- Reason: deploy/ runs with production credentials and must always get a security reviewer\n- Upstream: local only\n- Since: 2026-09-01\n- Confirmed: yes\n",
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    }
+  ]
+}

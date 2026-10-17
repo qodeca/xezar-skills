@@ -1,0 +1,25 @@
+{
+  "case": "weakened-check",
+  "situation": "A registered, confirmed local change weakens a safety check in a file 3.1.0 did not touch: the security stage always exits 0. The planner's line test does not catch it.",
+  "invariants": [
+    {
+      "type": "stop",
+      "path": ".xezar/checks/security-scan.sh",
+      "rules": [
+        "3"
+      ]
+    },
+    {
+      "type": "equalsStart",
+      "path": ".xezar/checks/security-scan.sh"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "registerKept",
+      "id": "LP-1",
+      "confirmed": "yes"
+    }
+  ]
+}
