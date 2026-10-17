@@ -574,7 +574,7 @@ to carry — do not invent one, and do not tell the owner to run one.
   **The committed half is manifest version 2** — the shape and rules are the upgrade contract's,
   and `.xezar/docs/local-patches.md` says which files it tracks. Write it **last**, after the
   formatter run above, because every digest is of the file as committed:
-  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.2.0`
+  - `"manifestVersion": 2`, then `version` — the collection release the kit came from (`3.2.1`
     for an installer copy of this release; a git checkout reads its own tag or commit),
     or `<last release>+<12-character commit>` for an install between releases – never `unknown`:
     an install that names neither stopped in §0 (how to read it is there). The `kitBlob` values below still identify the kit

@@ -1,3 +1,7 @@
+# 3.2.1 (unreleased)
+
+- 🔧 The pinned `agent-browser` release moves v0.38.1 → v0.39.1, with its per-asset checksums.
+
 # 3.2.0 (2026-10-17)
 
 **Kit 3.2.0 runs on Claude Code, Codex and Qwen Code only, and needs engine 0.30.0 or later.** Engine 0.30.0 removed the pi and OpenCode runners and refuses to start while a workflow, its config or a task record still names one. The routing defaults (version 5) move every pi lane to a Qwen Code lane, and the pi add-on is gone. Upgrade the engine first, then run the upgrade prompt; the engine guide page "Moving from pi or OpenCode to Qwen Code" covers the engine side. 3.1.0 was never released on its own: everything below, from 3.1.0 on, ships in 3.2.0.

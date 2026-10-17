@@ -23,6 +23,26 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-17 – agent-browser installs v0.38.1, one release behind the pinned v0.39.1
+
+Applies to any repository that uses the agent-browser provider – installed by
+`xez-setup-agent-pipeline`, or by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/pipeline/browsers/agent-browser.md` says installs are pinned to
+`agent-browser` **v0.38.1**, and a fresh install downloads v0.38.1, while the shipped descriptor
+pins v0.39.1.
+
+**What to do.** Copy `.xezar/pipeline/browsers/agent-browser.md` from the release. It changes only
+the pinned version and the per-asset SHA-256 sums; every operation stays the same. An
+`agent-browser` already on `PATH` is used as before.
+
+**What you lose by skipping it.** New installs keep getting v0.38.1 and miss the fixes in v0.39.1.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/pipeline/browsers/agent-browser.md
+```
+
 ## 2026-10-16 – xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode)
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before kit 3.2.0. From kit 3.2.0
