@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1348,6 +1348,21 @@ if (S.section("H1")) {
 // U1 (#55): the drift check runs at every gate, and the prose that writes and edits the manifest
 // names the same markers and version the check reads. A gate line removed, or a marker spelled
 // differently in one place, lets a silent edit through or turns a fresh setup red.
+// FACT U-target -- the upgrade prompt and its README name the version package.json releases (#229).
+// At 3.2.0's release head they still said 3.1.0, which has no index, and each run had to guess.
+if (S.section("U-target")) {
+  const fact = "FACT U-target: UPGRADE-PROMPT.md's target and upgrade/README.md's clone and verify lines name package.json's version";
+  const version = JSON.parse(read("package.json")).version;
+  const prompt = read("upgrade/UPGRADE-PROMPT.md");
+  const target = (prompt.match(/^\*\*Target version: (\S+?)\.\*\*/m) ?? [])[1];
+  if (target !== version) fail(fact, "upgrade/UPGRADE-PROMPT.md", `names target version ${target ?? "(none)"}, but package.json releases ${version}`);
+  const readme = read("upgrade/README.md");
+  for (const line of [`--branch v${version} https://github.com/qodeca/xezar-skills.git`, `gh release verify v${version} --repo qodeca/xezar-skills`, `Release v${version} verified!`]) {
+    if (!readme.includes(line)) fail(fact, "upgrade/README.md", `does not say "${line}", so the owner clones or verifies another release than package.json's ${version}`);
+  }
+  checked.push(fact);
+}
+
 if (S.section("U1")) {
   const fact = "FACT U1: the manifest drift check runs in the gate and agrees with the prose that writes the manifest";
   const checks = read(`${SKILL}/kit/checks/repository-checks.sh`);

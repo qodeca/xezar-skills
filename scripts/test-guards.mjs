@@ -1883,6 +1883,15 @@ breaks(
   "refuses to confirm the PR its prepare step checked out",
 );
 
+// The upgrade prompt targets the version package.json releases (#229, FACT U-target).
+breaks(
+  "an upgrade prompt whose target is not package.json's version is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace(/\*\*Target version: [^*]+\.\*\*/, "**Target version: 0.0.1.**"),
+  facts("U-target"),
+  "names target version 0.0.1",
+);
+
 // A review can move the app off a busy port (#226).
 breaks(
   "a review-run.sh start --port that does not pass PORT is rejected",
