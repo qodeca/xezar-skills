@@ -558,6 +558,13 @@ mode the MCP tools are not in the model's direct tool list; they are reachable o
 tool list lacks it" FAILed with no browser call (macOS release run). The six roles that carry the
 sentence now name the lookup: a browser tool is unavailable only when both lack it. FACT I19 pins it.
 
+**A review's stop reaches the server a wrapper started (#223).** `review-run.sh start` saved the
+wrapper's pid – `npm` under `npm start` – and `stop` and `finish` killed only that, so the
+`node` server lived on as an orphan and held the port; on Linux the next project's QA was refused by
+#217's busy-port check. `start` now runs the command in its own process group, and every stop path
+stops the whole group (`stop_tree`, `taskkill /T` on Windows). test-kit-catalog D-review starts a
+wrapper whose child listens and checks the port is free after `stop`.
+
 **The browser config guard no longer says "matches" when the base has no entry (#222).** A branch
 that adds the first chrome-devtools entry passed with `the chrome-devtools entry matches
 origin/<base>`. It still passes – the first entry is the setup or upgrade pull request's, which the
