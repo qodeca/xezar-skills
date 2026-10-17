@@ -57,8 +57,8 @@ closes one throwaway pull request, before it takes any other work.
 
 You need Node 22 or later, `git`, the GitHub CLI logged in, and a GitHub remote. The leader runs
 in Claude Code, and GitHub is the only tracker. On native Windows you also need Git for Windows
-(the kit's checks run in Git Bash), `jq` on `PATH`, long paths switched on, and xezar 0.20.0 or
-newer – the first engine that runs natively on Windows (qodeca/xezar#963). The MCP servers start with a plain `npx`, tested on Windows with Claude Code 2.1.286 and
+(the kit's checks run in Git Bash), `jq` on `PATH`, long paths switched on, and xezar 0.30.0 or
+newer, which the kit needs on every system (0.20.0 was the first engine that runs natively on Windows, qodeca/xezar#963). The MCP servers start with a plain `npx`, tested on Windows with Claude Code 2.1.286 and
 Codex 0.157.1. (Working on this
 repository itself on Windows? See
 [Contributing from Windows](CONTRIBUTING.md#contributing-from-windows).)
