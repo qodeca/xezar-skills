@@ -3,7 +3,8 @@
 # DECISIONS.md -> "The guard suite runs nightly"); since #123 each case re-runs only the part of a
 # test it breaks, on several workers in private copies of the tree, and the suite takes about
 # four minutes on GitHub's Linux runner. A second job
-# runs the same suite on native Windows (#122); it is informational and never opens the issue.
+# runs the same suite on native Windows (#122); it never fails the run, but a failure there opens
+# (or updates) an issue of its own.
 #
 # When this starts firing: GitHub runs scheduled workflows only from the repository's
 # default branch (main). This file reaches main with the 3.1.0 release; until then the
@@ -51,8 +52,8 @@ jobs:
       - name: Guard suite (every gate broken on purpose)
         run: node scripts/test-guards.mjs
 
-  # The same suite on native Windows (#122), informational: it never fails the run and never
-  # opens the failure issue (`report` needs only `guards`). The owner kept it on (2026-09-29) while
+  # The same suite on native Windows (#122), informational: it never fails the run, and a failure
+  # reaches `report` through the `failed` output, which opens a Windows issue of its own. The owner kept it on (2026-09-29) while
   # #123 made the suite faster: it could not finish within the 240 minutes it had (about 16 hours
   # projected), and now takes 20–25 on GitHub's Windows runner. The timeout is twice the slowest
   # proof run, rounded up to 5 minutes: 1,491 s (L5's run 37249191101; 37207062084, 37210372022,
@@ -61,6 +62,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 50
     continue-on-error: true
+    # The step's own outcome: with continue-on-error the job's result reads as success, so this
+    # output is how `report` learns that a Windows-only guard failed.
+    outputs:
+      failed: ${{ steps.suite.outcome == 'failure' }}
     defaults:
       run:
         shell: bash
@@ -76,11 +81,17 @@ jobs:
           node-version: '22'
       - run: jq --version
       - name: Guard suite (every gate broken on purpose)
+        id: suite
+        continue-on-error: true
         run: node scripts/test-guards.mjs
 
+  # One issue per platform: a Linux failure fails the run; a Windows failure (or a Windows job that
+  # never finished) is reported without failing it.
   report:
-    needs: guards
-    if: failure()
+    needs: [guards, guards-windows]
+    if: >-
+      always() && (needs.guards.result == 'failure' || needs.guards.result == 'cancelled' ||
+      needs.guards-windows.outputs.failed == 'true' || needs.guards-windows.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -93,13 +104,19 @@ jobs:
           GH_REPO: ${{ github.repository }}
           SHA: ${{ needs.guards.outputs.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LINUX_FAILED: ${{ needs.guards.result == 'failure' || needs.guards.result == 'cancelled' }}
+          WINDOWS_FAILED: ${{ needs.guards-windows.outputs.failed == 'true' || needs.guards-windows.result == 'failure' }}
         run: |
-          title="Nightly guard suite failed"
-          body="The nightly guard suite (\`node scripts/test-guards.mjs\`) failed on \`develop\` at ${SHA}. A guard may no longer catch the defect it was written for. Run log: ${RUN_URL}"
-          number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
-            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
-          if [ -n "$number" ]; then
-            gh issue comment "$number" --body "$body"
-          else
-            gh issue create --title "$title" --body "$body"
-          fi
+          report() {
+            local title="$1" where="$2" number body
+            body="The nightly guard suite (\`node scripts/test-guards.mjs\`) failed ${where} on \`develop\` at ${SHA:-its head}. A guard may no longer catch the defect it was written for. Run log: ${RUN_URL}"
+            number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+              --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "$body"
+            else
+              gh issue create --title "$title" --body "$body"
+            fi
+          }
+          if [ "$LINUX_FAILED" = true ]; then report "Nightly guard suite failed" "on Linux"; fi
+          if [ "$WINDOWS_FAILED" = true ]; then report "Nightly guard suite failed on Windows" "on native Windows"; fi

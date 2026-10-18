@@ -31,6 +31,36 @@ merge of `routing.json` against the newest defaults (`references/routing-default
 clone), never one version after another; (4) the remaining entries, oldest first; (5) the
 verifier, once, with `--target` set to the release you cloned.
 
+## 2026-10-18 – a kit check hangs on a flag with no value, or posts a long comment cut short
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** Any of these, from the installed `.xezar/checks/` scripts:
+
+- `bash .xezar/checks/ci-watch.sh --deadline` (or `integration-preflight.sh`,
+  `root-sync-preflight.sh`, `merge-recovery.sh record-intent` with its last flag missing a value)
+  never exits – the step holds its slot until something kills it.
+- A long tracker comment in a non-ASCII language posted through `gh-write.sh` arrives cut off,
+  sometimes mid-character, while the script exits 0.
+- `repository-checks.sh` now and then reports a background check as passed before it finished.
+- `worktree-git.sh` commits or pushes on `master` or on the project's configured base branch.
+
+**What to do.** Copy the seven files below from the release. A flag without its value now exits 2
+naming it; `gh-write.sh` counts the comment in bytes against GitHub's 65,536 limit and refuses a
+longer one whole – nothing is posted, the caller shortens it; `repository-checks.sh` moves each
+finished status into place, and reads a missing or empty one as a failure; `worktree-git.sh`
+refuses `main`, `master`, `HEAD` and the configured base branch, as the engine's own copy does. No
+configuration changes.
+
+**What you lose by skipping it.** A mistyped check step can hang until the engine's own limits end
+it, a long comment can reach the tracker incomplete with no error, a check can be counted green
+before it ran to the end, and a run worktree that ends up on the base branch can still be written to.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/checks/ci-watch.sh; .xezar/checks/integration-preflight.sh; .xezar/checks/root-sync-preflight.sh; .xezar/checks/merge-recovery.sh; .xezar/checks/gh-write.sh; .xezar/checks/repository-checks.sh; .xezar/checks/worktree-git.sh
+```
+
 ## 2026-10-18 – an issue title with a backtick or `$(…)` runs as a command, and any commenter's ask gets implemented
 
 Applies to any repository with this collection's tracker descriptors,

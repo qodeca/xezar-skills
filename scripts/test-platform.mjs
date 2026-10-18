@@ -31,6 +31,7 @@ import {
 } from "./lib/platform.mjs";
 import {
   dropPrivileges,
+  isolateGitConfig,
   pinTestGitConfig,
   prepareTestPlatform,
   resolveStub,
@@ -92,6 +93,26 @@ const resolve = (env, ...paths) => {
   if (checkBash !== got) parity.push(`${JSON.stringify(env)}: kit gitBash() ${checkBash}, scripts/lib ${got}`);
   return got;
 };
+
+// --- Git config isolation -----------------------------------------------------------------
+check("a test's git reads no system config and a global config of the test's own, without commit signing", () => {
+  const env = {};
+  isolateGitConfig(env);
+  assert.equal(env.GIT_CONFIG_NOSYSTEM, "1");
+  assert.ok(env.GIT_CONFIG_GLOBAL && existsSync(env.GIT_CONFIG_GLOBAL), "no global config file of the test's own");
+  const git = (...args) => spawnSync("git", args, { encoding: "utf8", env: { ...process.env, ...env } });
+  assert.equal(git("config", "--global", "--get", "commit.gpgsign").status, 1, "the test's global config sets commit.gpgsign");
+  assert.equal(git("config", "--global", "--get", "user.email").stdout.trim(), "test@example.com");
+  // Every gate test calls prepareTestPlatform(), so that is where the isolation must happen. Run in a
+  // child: this file's later cases need the environment as it was.
+  const harness = new URL("./lib/test-harness.mjs", import.meta.url).href;
+  // Without what a parent's isolation exported (the guard suite's workers run prepareTestPlatform()).
+  const { GIT_CONFIG_GLOBAL: _g, GIT_CONFIG_NOSYSTEM: _n, XEZ_TEST_GIT_CONFIG: _x, ...clean } = process.env;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e",
+    `import { prepareTestPlatform } from ${JSON.stringify(harness)}; prepareTestPlatform(); console.log(process.env.GIT_CONFIG_NOSYSTEM, process.env.GIT_CONFIG_GLOBAL === process.env.XEZ_TEST_GIT_CONFIG);`],
+  { encoding: "utf8", env: clean });
+  assert.equal(child.stdout.trim(), "1 true", `prepareTestPlatform() does not isolate git config: ${child.stdout}${child.stderr}`);
+});
 
 // --- Git Bash resolver --------------------------------------------------------------------
 

@@ -80,8 +80,8 @@ EOF
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --deadline) DEADLINE_SECONDS="${2:-}"; shift 2 ;;
-    --poll) POLL_SECONDS="${2:-}"; shift 2 ;;
+    --deadline) [ $# -ge 2 ] || { printf 'ci-watch: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; DEADLINE_SECONDS="$2"; shift 2 ;;
+    --poll) [ $# -ge 2 ] || { printf 'ci-watch: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; POLL_SECONDS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'ci-watch: unknown argument "%s"\n\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
