@@ -341,7 +341,8 @@ const { recordInstall, installs } = (() => {
 })();
 
 if (S.section("3")) {
-expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
+expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3", "3.2.0"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) or the manifest v2 one (3.2.0) is missing");
+expect(loadFixture("3.2.0").manifest.manifestVersion === 2, "the 3.2.0 fixture does not carry the manifest v2 its onboarding wrote");
 expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
 for (const version of SYNTHETIC) {
   const fx = loadFixture(version);
@@ -352,6 +353,17 @@ for (const version of SYNTHETIC) {
   const hasPerFile = Boolean(fx.manifest.files);
 
   expect(plan.errors.length === 0, `${version}: plan errors: ${plan.errors.join("; ")}`);
+  // A manifest v2 fixture is what that version's onboarding wrote: its own drift check passes on it.
+  if (fx.manifest.manifestVersion === 2) {
+    const ownDrift = join(dir, ".xezar/checks/manifest-drift.mjs");
+    let out = "";
+    try {
+      out = execFileSync("node", [ownDrift, dir], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    }
+    expect(/drift-status=pass/.test(out), `${version}: the install's own drift check fails on its manifest v2:\n${out.split("\n").slice(0, 6).join("\n")}`);
+  }
   // class and confidence of every file
   const paths = new Set([...Object.keys(fx.files), ...Object.keys(tree.index.files)]);
   for (const p of paths) {

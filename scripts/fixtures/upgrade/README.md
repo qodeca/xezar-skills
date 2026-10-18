@@ -5,7 +5,7 @@ test needs no tags and no network.
 
 | Path | What | Made by |
 |---|---|---|
-| `<version>/fixture.json` | A synthetic install of one kit version: every installed file as a blob sha, the generated owner files, the placeholder values and a version 1 manifest | `node scripts/build-upgrade-fixtures.mjs` (needs full history and tags) |
+| `<version>/fixture.json` | A synthetic install of one kit version: every installed file as a blob sha, the generated owner files, the placeholder values and the manifest that version's onboarding wrote (version 1; version 2 from 3.2.0) | `node scripts/build-upgrade-fixtures.mjs` (needs full history and tags) |
 | `blobs.json.gz.hex` | The text of every blob those fixtures name: JSON `{ "<git blob sha>": "<text>" }`, gzipped, then hex-encoded so repository text greps never read binary | the same script |
 | `customised/` | Customisations applied on top of a synthetic install, and what the test expects of them, in two files so that removing a customisation fails the test | by hand |
 | `real/<project>-<version>/` | Sanitised snapshots of real onboarded projects | **the owner, by hand – none yet** |

@@ -1,0 +1,67 @@
+{
+  "case": "new-config-key",
+  "situation": "A config key the target documents but the project lacks, with no upgrade default, is never filled in – not even inside an object the owner already has (security) – and is listed in the report's owner checklist under \"Config keys left unset\". Every owner value, the undocumented key included, stays as it was.",
+  "invariants": [
+    {
+      "type": "finished"
+    },
+    {
+      "type": "branch"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "verify",
+      "allow": []
+    },
+    {
+      "type": "jsonEqualsStart",
+      "path": ".xezar/pipeline/config.json",
+      "keys": [
+        "baseBranch",
+        "validation.commands",
+        "qa.enabled",
+        "paths.qa",
+        "paths.designs",
+        "security.provider",
+        "widget.releaseTrain"
+      ]
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "security.trustBoundaries"
+    },
+    {
+      "type": "jsonAbsent",
+      "path": ".xezar/pipeline/config.json",
+      "key": "designSystem"
+    },
+    {
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "jsonAbsent",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format"
+        },
+        {
+          "type": "jsonEquals",
+          "path": ".xezar/pipeline/config.json",
+          "key": "changelog.format",
+          "value": "auto"
+        }
+      ]
+    },
+    {
+      "type": "reportSection",
+      "heading": "Owner checklist",
+      "contains": [
+        "Config keys left unset",
+        "security.trustBoundaries",
+        "designSystem.modules"
+      ]
+    }
+  ]
+}
