@@ -10,6 +10,7 @@
 //   - a path git ignores, or an existing file git does not track, is never written (per-machine).
 
 import { lstatSync, realpathSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, sep } from "node:path";
 import { posix } from "node:path";
 import { git } from "./hash.mjs";
@@ -93,11 +94,37 @@ export function gitState(root) {
   }
   const tracked = new Set(git(["ls-files", "-z"], root).split("\0").filter(Boolean));
   const ignoredCache = new Map();
-  // One `git check-ignore --stdin` for a whole batch: a process per path is slow.
+  // One `git check-ignore --stdin` for a whole batch: a process per path is slow. git aborts the
+  // whole batch on one path it refuses (outside the repository, beyond a symbolic link), so such
+  // a path never reaches it: it counts as ignored – never written, never recorded – and every
+  // other failure is an error, never "nothing is ignored" (fail closed).
   const prime = (paths) => {
-    const todo = paths.filter((p) => !ignoredCache.has(p));
+    const todo = [];
+    for (const p of paths) {
+      if (ignoredCache.has(p)) continue;
+      try {
+        resolveInside(root, p);
+        todo.push(p);
+      } catch (e) {
+        if (!(e instanceof PathRefused)) throw e;
+        ignoredCache.set(p, true);
+      }
+    }
     if (!todo.length) return;
-    const out = git(["check-ignore", "--no-index", "--stdin", "-z"], root, { input: `${todo.join("\0")}\0`, allowFail: true }) ?? "";
+    let out;
+    try {
+      out = execFileSync("git", ["check-ignore", "--no-index", "--stdin", "-z"], {
+        cwd: root,
+        input: `${todo.join("\0")}\0`,
+        encoding: "utf8",
+        maxBuffer: 256 * 1024 * 1024,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (e) {
+      // Exit 1 is "none of these is ignored"; anything else is git refusing the batch.
+      if (e.status !== 1) throw new Error(`git check-ignore failed: ${(e.stderr ?? e.message).toString().trim()}`);
+      out = e.stdout ?? "";
+    }
     const hit = new Set(out.split("\0").filter(Boolean));
     for (const p of todo) ignoredCache.set(p, hit.has(p));
   };

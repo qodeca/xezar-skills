@@ -65,7 +65,7 @@
     { "paths": ["scripts/test-deps-units.mjs"], "commands": ["node scripts/test-deps-units.mjs"] },
     { "paths": ["scripts/test-compat-pins.mjs"], "commands": ["node scripts/test-compat-pins.mjs"] },
     { "paths": ["scripts/check-allowlists.mjs"], "commands": ["node scripts/check-allowlists.mjs"] },
-    { "paths": ["scripts/test-upgrade.mjs"], "commands": ["node scripts/test-upgrade.mjs"] },
+    { "paths": ["scripts/test-upgrade.mjs", "scripts/build-kit-index.mjs"], "commands": ["node scripts/test-upgrade.mjs"] },
     { "paths": ["scripts/check-generic-instructions.mjs"], "commands": ["npm run check:generic-instructions"] },
     { "paths": ["scripts/test-generic-instructions.mjs"], "commands": ["npm run test:generic-instructions"] }
   ]

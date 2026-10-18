@@ -10,6 +10,7 @@
 //   write-theirs  write the target kit file, re-rendered with the file's placeholder values
 //   delete        delete a file the kit removed, only when unchanged and in the base index
 //   stage-merge   `git merge-file --zdiff3` of mine/base/theirs into the staging folder
+//                 (`--diff3` on a git older than 2.35; every merge runs before the first write)
 //   stage-theirs  put the target kit file next to mine in the staging folder
 // The staging folder is <project>/.local/xezar/scratch/upgrade/staged/<path>.{mine,base,theirs,merged};
 // project files of those classes are left for Claude to resolve.
@@ -28,7 +29,8 @@
 // last apply-status=ok|refused.
 // Exit: 0 ok; 3 refused (nothing written); 2 cannot run.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -138,6 +140,31 @@ export function applyPlan(ctx, plan) {
 
   if (refused.length) return { status: "refused", refused, ops: [], done };
 
+  // Every merge is computed before the first write, so a git that cannot merge writes nothing.
+  const merges = ops.filter((o) => o.op === "stage-merge");
+  if (merges.length) {
+    const work = mkdtempSync(join(tmpdir(), "xezar-merge-"));
+    try {
+      const style = mergeStyle(work);
+      merges.forEach((o, i) => {
+        const f = (side) => join(work, `${i}.${side}`);
+        writeFileSync(f("mine"), o.mineText ?? "");
+        writeFileSync(f("base"), o.base);
+        writeFileSync(f("theirs"), o.theirs ?? "");
+        try {
+          o.merged = gitMerge(style, f("mine"), f("base"), f("theirs"));
+          o.merge = 0;
+        } catch (e) {
+          if (typeof e.status !== "number" || e.status > 127 || e.stdout == null) throw new Error(`git merge-file failed for ${o.path}: ${e.stderr ?? e.message}`);
+          o.merged = e.stdout;
+          o.merge = e.status; // number of conflicts
+        }
+      });
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  }
+
   const results = [];
   for (const o of ops) {
     if (o.op === "write") {
@@ -157,20 +184,8 @@ export function applyPlan(ctx, plan) {
       let merge = null;
       if (o.op === "stage-merge") {
         writeFileSync(`${full}.base`, o.base);
-        let text;
-        try {
-          text = execFileSync(
-            "git",
-            ["merge-file", "-p", "--zdiff3", "-L", "mine", "-L", "base", "-L", "theirs", `${full}.mine`, `${full}.base`, `${full}.theirs`],
-            { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-          );
-          merge = 0;
-        } catch (e) {
-          if (typeof e.status !== "number" || e.status > 127 || e.stdout == null) throw new Error(`git merge-file failed for ${o.path}: ${e.stderr ?? e.message}`);
-          text = e.stdout;
-          merge = e.status; // number of conflicts
-        }
-        writeFileSync(`${full}.merged`, text);
+        writeFileSync(`${full}.merged`, o.merged);
+        merge = o.merge;
       }
       results.push(o.held === null ? { path: o.path, op: o.op, merge } : { path: o.path, op: "held", reason: o.held });
     }
@@ -180,6 +195,33 @@ export function applyPlan(ctx, plan) {
   mkdirSync(dirname(recordPath), { recursive: true });
   writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
   return { status: "ok", refused: [], results, done, executable: executablePaths(ctx) };
+}
+
+function gitMerge(style, mine, base, theirs) {
+  return execFileSync("git", ["merge-file", "-p", style, "-L", "mine", "-L", "base", "-L", "theirs", mine, base, theirs], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+// The conflict style, probed once per PATH: `--zdiff3` needs git 2.35 or later; an older git
+// refuses the option with exit 129, and gets `--diff3` (the same markers, less trimmed).
+const styles = new Map();
+export function mergeStyle(work) {
+  const key = process.env.PATH ?? "";
+  if (!styles.has(key)) {
+    const probe = (side) => join(work, `probe.${side}`);
+    for (const side of ["mine", "base", "theirs"]) writeFileSync(probe(side), "x\n");
+    let style = "--zdiff3";
+    try {
+      gitMerge(style, probe("mine"), probe("base"), probe("theirs"));
+    } catch (e) {
+      if (e.status !== 129) throw new Error(`git merge-file cannot run: ${e.stderr ?? e.message}`);
+      style = "--diff3";
+    }
+    styles.set(key, style);
+  }
+  return styles.get(key);
 }
 
 /**

@@ -2690,6 +2690,65 @@ breaks(
   "entries: an upgrade entry's line",
 );
 
+// Upgrade tool robustness: a CRLF-committed file compares as LF; an old git still merges; git
+// check-ignore fails closed; build-kit-index refuses an unknown flag; plan.md shows file-only entries.
+breaks(
+  "a verifier that compares a CRLF-committed leader guide raw is rejected",
+  "upgrade/tools/verify.mjs",
+  (s) => s.replace('return text == null ? null : lfText(Buffer.from(text, "utf8")).toString("utf8");', "return text;"),
+  upgrade("4b"),
+  "CRLF leader guide: an untouched guide committed with CRLF fails owner-rules-changed",
+);
+
+// The stand-in git that refuses --zdiff3 is a shell script: Linux and macOS only.
+if (process.platform !== "win32") breaks(
+  "an apply that gives up when git refuses --zdiff3 is rejected",
+  "upgrade/tools/apply.mjs",
+  (s) => s.replace('      style = "--diff3";\n', "      throw e;\n"),
+  upgrade("5a"),
+  "old git: apply does not fall back to --diff3",
+);
+
+breaks(
+  "a check-ignore batch that counts a path beyond a symlink as not ignored is rejected",
+  "upgrade/tools/lib/paths.mjs",
+  (s) => s.replace("        ignoredCache.set(p, true);\n", "        ignoredCache.set(p, false);\n"),
+  upgrade("5g"),
+  "unsafe: a path git refuses to check counts as not ignored",
+);
+
+if (process.platform !== "win32") breaks(
+  "a git check-ignore failure read as nothing ignored is rejected",
+  "upgrade/tools/lib/paths.mjs",
+  (s) => s.replace("      if (e.status !== 1) throw new Error(", "      if (false) throw new Error("),
+  upgrade("5g"),
+  "unsafe: a git check-ignore that fails reads as",
+);
+
+breaks(
+  "a build-kit-index that runs on an unknown flag is rejected",
+  "scripts/build-kit-index.mjs",
+  (s) => s.replace("      process.exit(2);\n", ""),
+  upgrade("9"),
+  "build-kit-index.mjs runs with an unknown flag",
+);
+
+breaks(
+  "a build-kit-index without --help is rejected",
+  "scripts/build-kit-index.mjs",
+  (s) => s.replace('    if (a === "--help" || a === "-h") {', "    if (false) {"),
+  upgrade("9"),
+  "build-kit-index.mjs --help does not print its usage",
+);
+
+breaks(
+  "a plan.md that says None for machine-block actions while entries list files is rejected",
+  "upgrade/tools/plan.mjs",
+  (s) => s.replace("const fileOnly = (plan.upgradeEntries ?? []).filter((e) => !e.actions?.length && e.files?.length);", "const fileOnly = [];"),
+  upgrade("10d"),
+  'summary: plan.md says "None." for machine-block actions while an entry lists files',
+);
+
 // Every 3.1.0 entry that copies role skills needs entry 2 (the shared-contract tail).
 breaks(
   "a 3.1.0 entry that copies role skills without needing entry 2 is rejected",

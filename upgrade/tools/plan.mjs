@@ -823,7 +823,13 @@ export function summary(plan) {
   if (!plan.unexplained.length) lines.push("None.");
   for (const p of plan.unexplained) lines.push(`- ${p}`);
   lines.push("", "## Machine-block actions for this range", "");
-  if (!plan.actions.length) lines.push("None.");
+  // An entry whose block carries files only still applies: "None." alone would read as nothing
+  // to do, so such entries are counted and listed with their files.
+  const fileOnly = (plan.upgradeEntries ?? []).filter((e) => !e.actions?.length && e.files?.length);
+  if (!plan.actions.length) {
+    lines.push(fileOnly.length ? `No actions, but ${fileOnly.length} upgrade ${fileOnly.length === 1 ? "entry lists" : "entries list"} files (carried by the per-file plan above):` : "None.");
+  }
+  const fileList = (e) => e.files.map((f) => (f.mode === "replace" ? f.path : `${f.path} (${f.mode})`)).join(", ");
   const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
   const action = (a) => {
     const c = plan.engine?.checks.find((x) => a === `engine-min=${x.min}`);
@@ -832,12 +838,13 @@ export function summary(plan) {
   // Each action under the entry that asks for it, so the checklist can say why.
   const shown = new Set();
   for (const e of plan.upgradeEntries ?? []) {
-    if (!e.actions?.length) continue;
+    if (!e.actions?.length && !e.files?.length) continue;
     lines.push(`- ${e.source}:${e.line} ${e.heading ?? "(no entry heading)"}`);
-    for (const a of e.actions) {
+    for (const a of e.actions ?? []) {
       lines.push(`  - ${action(a)}`);
       shown.add(a);
     }
+    if (e.files?.length) lines.push(`  - files: ${fileList(e)}`);
   }
   for (const a of plan.actions) if (!shown.has(a)) lines.push(`- ${action(a)}`);
   lines.push("", "## Upgrade entries with no machine block", "");

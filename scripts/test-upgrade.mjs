@@ -5,7 +5,8 @@
 //   1. the building blocks: path containment, the register and machine-block grammars, the
 //      TOML check, placeholder recovery;
 //   2. the kit index is well formed, and – once package.json's version has its own index file
-//      as the newest entry (the release PR) – that file equals the tree ("release check");
+//      as the newest entry (the release PR) – that file equals the tree ("release check"), and
+//      a local tag v<package version> has an index file of its own;
 //   3. every synthetic install (scripts/fixtures/upgrade/<version>/) gets the class and base
 //      confidence this file derives INDEPENDENTLY from the index, applies cleanly, applies twice
 //      with no further change, and – after the obvious owner answers are given – equals a
@@ -26,7 +27,8 @@
 //   9. verify's repository check runs against the project, not the clone it is run from; each
 //      tool answers --help; engine-min actions are evaluated against the engine version.
 //
-// It reads only committed files: no tags, no network.
+// It reads only committed files and no network; the one tag it reads is a local v<package
+// version> (§2), when the clone has it.
 //
 // Run: node scripts/test-upgrade.mjs
 //      node scripts/test-upgrade.mjs --only <id> [--only <id>]   (those sections only – never a gate result)
@@ -58,7 +60,7 @@ import { fileURLToPath } from "node:url";
 import { lfText, sha256 } from "../upgrade/tools/lib/hash.mjs";
 import { readPack } from "../upgrade/tools/lib/blobs.mjs";
 import { render, extractInputs, normalisedMatch, placeholdersIn, RENDERED_REGIONS } from "../upgrade/tools/lib/rewrites.mjs";
-import { assertRepoRelative, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
+import { assertRepoRelative, gitState, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
 import { parseRegister } from "../upgrade/tools/lib/register.mjs";
 import { parseBlocks, satisfies } from "../upgrade/tools/lib/machine-block.mjs";
 import { tomlError } from "../upgrade/tools/lib/toml.mjs";
@@ -71,8 +73,8 @@ import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from 
 import * as planTool from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
-import { bashPath } from "./lib/platform.mjs";
-import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+import { bashPath, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot, writeStub } from "./lib/test-harness.mjs";
 import { sections } from "./lib/sections.mjs";
 
 const S = sections(
@@ -264,6 +266,11 @@ if (S.section("2")) {
     const stale = [...d.added, ...d.removed, ...d.changed];
     expect(stale.length === 0, `kit index for ${pkg} is stale: re-run scripts/build-kit-index.mjs (differs in ${stale.slice(0, 5).join(", ")}${stale.length > 5 ? ", …" : ""})`);
   }
+  // After a version bump the check above is quiet until the new version is indexed. A tag for
+  // package.json's version with no index file of its own means the release went out unindexed.
+  // A shallow CI checkout has no tags, so this reads a local tag only when one is there.
+  const pkgTag = git(root, "tag", "-l", `v${pkg}`).trim();
+  expect(!pkgTag || existsSync(join(root, "upgrade/kit-index", `${pkg}.json`)), `tag v${pkg} exists but upgrade/kit-index/${pkg}.json does not: the release is not indexed – run scripts/build-kit-index.mjs`);
 
   // #122 (Windows): a kit checked out with CRLF indexes like the LF tree; a real edit still shows.
   const crlfSkill = lab("crlf-kit");
@@ -561,6 +568,16 @@ if (S.section("4b")) {
     const drift = crlfV.checks.find((c) => c.name === "drift");
     expect(drift?.status === "pass", `CRLF project: the drift check does not pass on a CRLF checkout of an unchanged file (${drift?.status}):\n${drift?.out}`);
   }
+
+  // A leader guide committed with CRLF: "before" is read as LF text like the current file, so an
+  // untouched Owner's rules section passes, and an edited one still fails.
+  const guide = ".xezar/docs/leader-guide.md";
+  const crlfGuideDir = materialize(fx, { name: "crlf-guide-run", edit: (d) => write(d, guide, read(d, guide).replace(/\r?\n/g, "\r\n")) });
+  expect(git(crlfGuideDir, "show", `HEAD:${guide}`).includes("\r\n"), "CRLF leader guide: the committed guide has no CRLF, so the case proves nothing");
+  const rulesProblems = (dir) => invariants(ctxFor(dir), null).filter((x) => x.kind === "owner-rules-changed");
+  expect(rulesProblems(crlfGuideDir).length === 0, `CRLF leader guide: an untouched guide committed with CRLF fails owner-rules-changed: ${JSON.stringify(rulesProblems(crlfGuideDir))}`);
+  write(crlfGuideDir, guide, read(crlfGuideDir, guide).replace("Merge only after", "Merge whenever, after"));
+  expect(rulesProblems(crlfGuideDir).length === 1, "CRLF leader guide: an edited Owner's rules section passes owner-rules-changed");
 }
 
 // ---------------------------------------------------------------------------------------
@@ -667,6 +684,20 @@ const unchangedChecks = Object.keys(fx303.files)
   .filter((p) => /^\.xezar\/checks\/[^/]+\.sh$/.test(p) && tree.index.files[p]?.kitBlob === fx303.files[p])
   .sort();
 
+// Run fn with a stand-in `git` first on PATH: a shell script that runs `body`, then the real git.
+// POSIX only – a native Windows spawn of "git" does not run a shell script.
+const withGit = (body, fn) => {
+  const bin = lab("stand-in-git");
+  writeStub(join(bin, "git"), `#!/bin/sh\n${body}\nPATH=${JSON.stringify(process.env.PATH)} exec git "$@"\n`);
+  const saved = process.env.PATH;
+  process.env.PATH = prependPath(process.env, [bin]).PATH;
+  try {
+    return fn();
+  } finally {
+    process.env.PATH = saved;
+  }
+};
+
 // 5a. A v1 manifest with drift: files edited after install, nothing recorded (#55: 7 of 172).
 if (S.section("5a")) {
   // An owner-shaped file (`.codex/config.toml`, #177) is always merged by hand, never both-changed.
@@ -692,6 +723,34 @@ if (S.section("5a")) {
   expect(r.status === "ok" && read(dir, unchangedChecks[0]).includes("# edited locally"), "drift: apply overwrote a drifted file");
   const staged = join(dir, ".local/xezar/scratch/upgrade/staged", `${kitChanged}.merged`);
   expect(existsSync(staged) && readFileSync(staged, "utf8").includes("# edited locally"), "drift: the both-changed file was not merged into the staging folder");
+
+  // A git older than 2.35 refuses --zdiff3 (exit 129): apply falls back to --diff3. A git whose
+  // merge-file fails outright stops apply before its first write. POSIX only: the stand-in git is
+  // a shell script, which a native Windows spawn of "git" does not run.
+  if (process.platform !== "win32") {
+    const oldDir = materialize(fx303, { name: "drift-old-git", edit: (d) => { const t = read(d, kitChanged); write(d, kitChanged, `${t}\n# edited locally\n`); } });
+    const oldPlan = buildPlan(ctxFor(oldDir));
+    let oldRun;
+    try {
+      oldRun = withGit(`for a in "$@"; do [ "$a" = --zdiff3 ] && { echo "error: unknown option \\\`zdiff3'" >&2; exit 129; }; done`, () => applyPlan(ctxFor(oldDir), oldPlan));
+    } catch (e) {
+      oldRun = { status: e.message };
+    }
+    const oldStaged = join(oldDir, ".local/xezar/scratch/upgrade/staged", `${kitChanged}.merged`);
+    expect(oldRun.status === "ok" && existsSync(oldStaged) && readFileSync(oldStaged, "utf8").includes("# edited locally"), `old git: apply does not fall back to --diff3 when git refuses --zdiff3 (${oldRun.status})`);
+
+    const badDir = materialize(fx303, { name: "drift-bad-git", edit: (d) => { const t = read(d, kitChanged); write(d, kitChanged, `${t}\n# edited locally\n`); } });
+    const badPlan = buildPlan(ctxFor(badDir));
+    expect(badPlan.files.some((f) => f.action === "write-theirs"), "bad git: the plan has no write before the merge, so the case proves nothing");
+    const beforeRun = snapshot(badDir);
+    let threw = false;
+    try {
+      withGit(`[ "$1" = merge-file ] && case "$*" in *probe.*) ;; *) echo "fatal: broken" >&2; exit 128;; esac`, () => applyPlan(ctxFor(badDir), badPlan));
+    } catch {
+      threw = true;
+    }
+    expect(threw && sameSnapshot(snapshot(badDir), beforeRun) && !existsSync(join(badDir, ".local")), "bad git: a failing git merge-file leaves partial writes or no error");
+  }
 }
 
 // 5b. A partly applied old upgrade: a 3.0.0 install with some files already at 3.0.3.
@@ -831,6 +890,23 @@ if (S.section("5g")) {
     escaped = true;
   }
   expect(escaped, "unsafe: resolveInside accepts ../");
+  // git check-ignore aborts a whole batch on a path beyond a symbolic link or outside the
+  // repository. Such a path never reaches it and counts as ignored; the rest of the batch is
+  // still asked, and an ignored kit path is still found (fail closed, never "nothing ignored").
+  write(dir, ".gitignore", "ignored-here.md\n");
+  const gs = gitState(dir);
+  gs.prime([libFile, "../outside.md", "ignored-here.md", "plain.md"]);
+  expect(gs.ignored("ignored-here.md") === true && gs.ignored("plain.md") === false, `unsafe: a symlinked path in the batch hides what git ignores (ignored-here.md ${gs.ignored("ignored-here.md")}, plain.md ${gs.ignored("plain.md")})`);
+  expect(gs.ignored(libFile) === true && gs.ignored("../outside.md") === true, "unsafe: a path git refuses to check counts as not ignored");
+  if (process.platform !== "win32") {
+    let failed = false;
+    try {
+      withGit(`[ "$1" = check-ignore ] && { echo "fatal: broken" >&2; exit 128; }`, () => gitState(dir).prime(["plain.md"]));
+    } catch {
+      failed = true;
+    }
+    expect(failed, "unsafe: a git check-ignore that fails reads as \"nothing is ignored\"");
+  }
 }
 
 // 5h. A local change that weakens a safety check in a file the target did not touch: stop.
@@ -1240,6 +1316,22 @@ if (S.section("9")) {
     expect(code === 0 && out.includes(`node upgrade/tools/${tool}.mjs --project <dir>`), `${tool}.mjs --help does not print its usage and exit 0 (exit ${code}): ${out.slice(0, 200)}`);
   }
 
+  // build-kit-index.mjs rewrites upgrade/kit-index/ in write mode, so --help answers and an unknown
+  // flag is refused before anything runs. The --ref names no commit, so a regression that falls
+  // through to write mode fails before it writes, never rewriting the committed index.
+  const buildIndex = (...args) => {
+    try {
+      const out = execFileSync("node", [join(root, "scripts/build-kit-index.mjs"), ...args, "--ref", "refs/heads/no-such-ref-for-a-test"], { cwd: tmpdir(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return { code: 0, out };
+    } catch (err) {
+      return { code: err.status ?? -1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    }
+  };
+  const help = buildIndex("--help");
+  expect(help.code === 0 && help.out.includes("usage: node scripts/build-kit-index.mjs"), `build-kit-index.mjs --help does not print its usage and exit 0 (exit ${help.code}): ${help.out.slice(0, 200)}`);
+  const unknown = buildIndex("--chek");
+  expect(unknown.code === 2 && /unknown argument --chek/.test(unknown.out) && unknown.out.includes("usage:"), `build-kit-index.mjs runs with an unknown flag instead of exiting 2 with its usage (exit ${unknown.code}): ${unknown.out.slice(0, 200)}`);
+
   const e = (version) => ({ version, source: "test" });
   expect(engineChecks(["restart-leader"], () => { throw new Error("read"); }) === null, "engine-min: the engine is read when no block asks for a minimum");
   expect(engineChecks(["engine-min=0.19.0"], e("0.19.0")).checks[0].status === "met", "engine-min: an equal engine version is not met");
@@ -1250,6 +1342,10 @@ if (S.section("9")) {
   write(pinned, "node_modules/@qodeca/xezar/package.json", JSON.stringify({ name: "@qodeca/xezar", version: "0.21.3" }));
   const ev = engineVersion(ctxFor(pinned));
   expect(ev.version === "0.21.3" && ev.source === "node_modules/@qodeca/xezar", `engine-min: the project's pinned engine is not read: ${JSON.stringify(ev)}`);
+  // The prompt records the engine version by the planner's rule: the pinned build first, then PATH.
+  const prompt = readFileSync(join(root, "upgrade/UPGRADE-PROMPT.md"), "utf8");
+  const step05 = /^5\. \*\*The engine version\.\*\*[\s\S]*?(?=^6\. )/m.exec(prompt)?.[0] ?? "";
+  expect(step05.includes(`${ev.source}/package.json`) && step05.includes("xezar --version") && /pinned one when that file exists/.test(step05), `engine-min: the prompt's step 0.5 does not record the engine version by the planner's rule (the project's ${ev.source} first, then xezar --version)`);
 }
 
 // 3.1.0-stream-OC:start
@@ -1355,6 +1451,13 @@ if (S.section("10d")) {
   expect(/^## Errors$/m.test(md), "summary: plan.md has no errors section when there are none");
   const none = summary({ ...plan, perMachine: [], errors: [], engine: null });
   expect(/^## Engine minimum\n\nNone: this range sets no engine minimum\.$/m.test(none), "summary: plan.md does not say when the range sets no engine minimum");
+  // Entries whose blocks carry files only: the actions section must not read "None." alone.
+  const filesOnly = summary({
+    ...plan, perMachine: [], errors: [], engine: null, actions: [],
+    upgradeEntries: [{ source: "UPGRADE_NOTES.md", line: 7, heading: "Files only", appliesTo: "*", actions: [], files: [{ path: ".xezar/a.md", mode: "replace" }, { path: ".xezar/b.md", mode: "delete" }] }],
+  });
+  const actionsPart = filesOnly.split("## Machine-block actions for this range")[1]?.split(/\n## /)[0] ?? "";
+  expect(!/^None\.$/m.test(actionsPart) && actionsPart.includes("1 upgrade entry lists files") && actionsPart.includes("files: .xezar/a.md, .xezar/b.md (delete)"), `summary: plan.md says "None." for machine-block actions while an entry lists files:\n${actionsPart}`);
 }
 
 // 10e. Upgrade entries come from UPGRADE_NOTES.md only, never from a release's working folder.
