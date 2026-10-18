@@ -13,11 +13,11 @@ When the repo already has a `CHANGELOG.md`, match its existing format exactly �
 
 - Preparing a release (`0.4.11`, `1.2.0`, a release candidate).
 - After a batch of merges at the end of a sprint when the team wants a running changelog.
-- Manually invoked by maintainers; NOT intended to run on a schedule — changelog entries benefit from human review of the Highlights paragraph.
+- On a schedule or by hand. Every decision has a recorded default (version bump, window boundary), and the Highlights paragraph is left as a marker for a human to fill in on the PR, so an unattended run never ships unreviewed prose.
 
 ## Arguments
 
-- `--version <x.y.z>` (optional) — the release heading. Default: read the project's current version from its manifest (`package.json`, `Cargo.toml`, `pyproject.toml`, a `VERSION` file — whatever this repo uses); if it matches the topmost heading already in `CHANGELOG.md`, ask the user whether to use `major.minor.patch+1`, `major.minor+1.0`, or a custom value.
+- `--version <x.y.z>` (optional) — the release heading. Default: read the project's current version from its manifest (`package.json`, `Cargo.toml`, `pyproject.toml`, a `VERSION` file — whatever this repo uses); if it matches the topmost heading already in `CHANGELOG.md`, use the patch bump `major.minor.patch+1` and record that assumption (pass `--version` for a minor, major or custom value).
 - `--since <value>` (optional) — lower bound for merged PRs. Accepts an ISO date, a git ref, or the literal `last-release` (default). `last-release` resolves to the date in the topmost `# X.Y.Z (YYYY-MM-DD)` heading in `CHANGELOG.md`.
 - `--release-ref <ref>` (optional) — the branch or ref the release is actually cut from. Default: `$BASE_BRANCH`. Set it when releases are cut from a different branch than the one PRs target (an integration branch running ahead of the released one) — the window is built from what is reachable on this ref.
 - `--date <YYYY-MM-DD>` (optional) — the date in the heading. Default: today.
@@ -46,8 +46,8 @@ This skill drafts a `CHANGELOG.md` entry and delegates the PR mechanics to `xez-
    RELEASE_REF="${RELEASE_REF:-$BASE_BRANCH}"   # --release-ref wins
    ```
 
-   - If `--version` was not passed and the manifest version equals the heading version, ask the user which bump type to use before proceeding.
-   - If `--since last-release` resolves to a date that disagrees with `LAST_TAG`'s tagger date by more than 3 days, ask the user which boundary to use.
+   - If `--version` was not passed and the manifest version equals the heading version, use the patch bump (`major.minor.patch+1`) — the most reversible choice, since a heading is renamed in one edit — and record it as an assumption in the PR body and the report.
+   - If `--since last-release` resolves to a date that disagrees with `LAST_TAG`'s tagger date by more than 3 days, use the **earlier** of the two dates — an extra bullet is deleted in review, a missing one is never noticed — and record both dates and the choice as an assumption in the PR body and the report.
    - Print `Window: <since> → <date>`, `Release ref: <RELEASE_REF>`, and `Version: <version>` before any file edits.
 
 3. **Enumerate merged PRs.** Follow `references/release-window.md` — it owns the window: reachability from `$RELEASE_REF` (not a `baseRefName` filter), the early calendar bound, the pagination check that catches a silently truncated list, the exclusions, and the documented degradation when reachability is unavailable. Run the tracker operation **list-prs** with state merged, search `merged:>=${SINCE_DATE} merged:<=${TODAY}`, requesting `number,title,body,author,labels,mergedAt,url,baseRefName,mergeCommit,closingIssuesReferences`, limit 250. Print the enumerated and kept PR counts before continuing.
@@ -150,10 +150,10 @@ This skill drafts a `CHANGELOG.md` entry and delegates the PR mechanics to `xez-
 - Never record the merger as `via` on an umbrella merge (Path D), and never list an umbrella PR and its sub-PRs as separate bullets for the same work.
 - Never build the window from a `baseRefName` filter when the release is cut from a different ref, and never accept a **list-prs** result that came back at the limit — both silently omit shipped work (`references/release-window.md`).
 - Never fabricate a Highlights paragraph. Leave the `<!-- TODO: Highlights -->` marker for the human author to fill in; `xez-auto-create-pr`'s review pass will call it out.
-- Never modify files other than `CHANGELOG.md`. If the run needs anything else (e.g., a manifest version bump), stop and ask the user — that is out of scope for this skill.
+- Never modify files other than `CHANGELOG.md`. If the run needs anything else (e.g., a manifest version bump), stop cleanly and say in the report what is needed — that is out of scope for this skill.
 - Never skip the `skip-qa` label on the resulting PR. Changelog edits are docs-only low-risk.
 - Never run the full validation gate directly. Delegate to `xez-auto-create-pr` and let it decide.
-- Never pass `--force` to `xez-auto-create-pr`. If a changelog PR for the same version already exists, stop and ask the user.
+- Never pass `--force` to `xez-auto-create-pr`. If a changelog PR for the same version already exists, stop cleanly and report it with its `PR:` line — never open a second one.
 - Respect `--dry-run` absolutely: no file edits and no `xez-auto-create-pr` invocation.
 - When the repo has an existing `CHANGELOG.md` format that differs from the default above, the repo's format wins — match it exactly.
 - When multiple PRs share the exact same normalized summary (e.g., repeated "CR fixes"), coalesce them into a single bullet with `(#A, #B, #C)` and merge the contributor credits. The same applies to twins that differ only by a trailing branch marker like `(main)` — one fix carried to two branches is one bullet.

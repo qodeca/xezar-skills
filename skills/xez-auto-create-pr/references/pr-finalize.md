@@ -1,6 +1,6 @@
 # PR finalize — open or reuse, labels, summary comment, markers
 
-The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (steps 10 and 12 of the skill body). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
+The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (steps 9 and 11 of the skill body). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
 
 ## Never open a duplicate PR
 
@@ -27,9 +27,9 @@ Detect availability simply: if invoking `xez-open-pr` is not possible in this en
 
 The run **always** leaves a PR the user can watch, even when it never finishes:
 
-1. **Open early as a bare draft** — right after the plan's first commit (skill step 6), open the PR via **create-pr** with the draft flag, carrying the body template's `Tracking plan:` line and `Status: in-progress`. Keep it bare here — no labels, no summary yet; those are premature on a run that just started. This is the natural point: the branch has its first commit, so an interrupted run leaves a draft PR carrying the committed plan/Progress rather than a branch with no PR. (Do **not** delegate this early open to `xez-open-pr` — that skill also applies labels and posts a summary, which belong at steps 10–12.)
-2. **Reuse it** — steps 10–12 update this same PR (never open a second one): apply labels (delegating to `xez-open-pr`'s reuse path when installed — it refreshes the body and labels without disturbing the draft state), run the review pass, post the summary comment.
-3. **Flip to ready at completion** — at cleanup (skill step 13), once `Status:` is `complete` (all Progress steps `- [x]`), promote the draft with **mark-pr-ready**. A run with `Status: in-progress` stays a draft for the user to resume. A spec-only design PR stays draft by intent.
+1. **Open early as a bare draft** — right after the plan's first commit (skill step 6), open the PR via **create-pr** with the draft flag, carrying the body template's `Tracking plan:` line and `Status: in-progress`. Keep it bare here — no labels, no summary yet; those are premature on a run that just started. This is the natural point: the branch has its first commit, so an interrupted run leaves a draft PR carrying the committed plan/Progress rather than a branch with no PR. (Do **not** delegate this early open to `xez-open-pr` — that skill also applies labels and posts a summary, which belong at steps 9–11.)
+2. **Reuse it** — steps 9–11 update this same PR (never open a second one): apply labels (delegating to `xez-open-pr`'s reuse path when installed — it refreshes the body and labels without disturbing the draft state), run the review pass, post the summary comment.
+3. **Flip to ready at completion** — at cleanup (skill step 12), once `Status:` is `complete` (all Progress steps `- [x]`), promote the draft with **mark-pr-ready**. A run with `Status: in-progress` stays a draft for the user to resume. A spec-only design PR stays draft by intent.
 
 ## Verification comments on the PR
 
@@ -61,7 +61,7 @@ Label decoration is optional; use the shared glossary for meaning and the actual
 
 ## Summary comment
 
-Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 11) finishes, never claim a completion you did not reach, and never paste secrets into it.
+Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 10) finishes, never claim a completion you did not reach, and never paste secrets into it.
 
 ## Marker emission
 

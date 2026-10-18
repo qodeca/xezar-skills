@@ -14,7 +14,7 @@ Read enough project context to avoid blind work: the repository's agent instruct
 
 Then reduce the brief to: goal in one sentence; affected areas of the codebase; smallest safe scope that delivers the goal; explicit **Non-goals** you will not touch.
 
-If the task is ambiguous, infer intent from code, tests, and specs before asking the user. Ask the user only when a wrong assumption would force a rewrite.
+If the task is ambiguous, infer intent from code, tests, and specs. When it stays ambiguous, take the smallest reading that is easy to extend, record it as an assumption in `PLAN.md` and an assumptions comment on the PR, and continue — never stop to ask.
 
 ## 5. Draft the execution plan (1:1 step↔commit)
 

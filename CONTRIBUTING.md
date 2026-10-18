@@ -22,7 +22,7 @@ the gate. Your edits made before it starts are tested with it; changing the chec
 `git status` while it runs fails the run.
 
 What to expect (#123): on GitHub's Linux runner the required `lint` job takes
-TBD(#123 L5 proof: lint job) – about three minutes before #123's last step – and the guard suite
+about two minutes (1m47s–2m10s on four runs, 2026-10-18) – about three minutes before #123's last step – and the guard suite
 about four. On a 16-thread Windows laptop `npm run gate` takes about five
 minutes (about thirteen with `--jobs 1`), and on GitHub's Windows runner the guard suite about 23.
 

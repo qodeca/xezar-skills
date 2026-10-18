@@ -1,4 +1,4 @@
-# PR finalize — update the existing PR, labels, lock release (step 11)
+# PR finalize — update the existing PR, labels, lock release (step 10)
 
 This step **updates the existing PR** — it never opens a new one. The point is **one** implementation of PR updating + labeling, reused rather than copied, and never a second PR for work that already has one.
 

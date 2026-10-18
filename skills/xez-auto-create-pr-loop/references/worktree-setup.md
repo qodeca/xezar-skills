@@ -1,6 +1,6 @@
 # Worktree setup — isolated worktree and task branch
 
-Detailed procedure for step 6 (create) and step 14 (cleanup) of `xez-auto-create-pr-loop`. Never run in the user's primary worktree.
+Detailed procedure for step 6 (create) and step 13 (cleanup) of `xez-auto-create-pr-loop`. Never run in the user's primary worktree.
 
 ## Create the worktree and task branch (step 6)
 
@@ -33,7 +33,7 @@ Rules:
 - The main worktree must stay untouched.
 - Always clean up the temporary worktree at the end, but only if you created it this run.
 
-## Cleanup sequence (steps 6 and 14)
+## Cleanup sequence (steps 6 and 13)
 
 Run in a `trap`/finally so crashes also clean up (registered at creation time, executed at run end):
 

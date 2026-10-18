@@ -50,7 +50,7 @@ PREFIX="${SKILL_PREFIX:-xez}"
 
 err() { printf 'LINT FAIL: %s\n' "$*" >&2; fail=1; }
 
-CHECKS="frontmatter packaging references roster names portability role-skills old-brand tracker-cli tracker-text process-kill config secrets discovery platform"
+CHECKS="frontmatter packaging references roster names portability role-skills old-brand tracker-cli tracker-text process-kill step-refs auto-asks config secrets discovery platform"
 only_checks=""   # " <check> <check> " when --only was given
 target_files=""  # newline-separated, repository-relative, when --files was given
 usage_error() { printf 'lint.sh: %s\n' "$*" >&2; exit 2; }
@@ -956,6 +956,79 @@ want process-kill && kill_hits=$(grep_scope -En '(^|[`"'"'"'[:space:]])(pkill|ki
 if [ -n "$kill_hits" ]; then
   err "process killed by pattern match (use a saved PID; a pattern also matches the user's editor):"
   printf '%s\n' "$kill_hits" >&2
+fi
+
+# Step-reference gate: a reference file's "step N" (or "steps N–M") points at its own skill's
+# numbered workflow, so it may not name a step past the last one in that skill's SKILL.md
+# (the workflow section is the first `## …Workflow` or `## Steps` heading, nested numbers
+# included). A step number right after a skill name ("`xez-open-pr` step 6") is another
+# skill's and is skipped. This catches a reference left behind when a step was removed; a
+# renumbering that keeps the count still needs a reader.
+#
+# Auto-skill question gate: an `xez-auto-*` skill never asks mid-run (AGENTS.md, Cross-skill
+# contract §1). "ask the user" or AskUserQuestion under skills/xez-auto-*/ fails unless the line
+# is one of the gated stops – a claim conflict without --force, ⚠ NEEDS HUMAN CONFIRMATION – or
+# is excused in scripts/allowlists.json `autoSkillAsks` (key "<path>: <text the line contains>").
+if want step-refs || want auto-asks; then
+  sr_hits=$(LINT_STEP_REFS=$(want step-refs && echo 1) LINT_AUTO_ASKS=$(want auto-asks && echo 1) LINT_FILES="$target_files" node -e '
+    const fs = require("fs"), path = require("path");
+    const targets = (process.env.LINT_FILES || "").split("\n").filter(Boolean);
+    const inRun = (f) => targets.length === 0 || targets.includes(f);
+    const out = [];
+    const lines = (f) => fs.readFileSync(f, "utf8").replace(/\r/g, "").split("\n");
+    const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.posix.join(d, e.name)) : [path.posix.join(d, e.name)]);
+    const skills = fs.readdirSync("skills").filter((s) => fs.existsSync(`skills/${s}/SKILL.md`));
+    if (process.env.LINT_STEP_REFS) {
+      for (const s of skills) {
+        const refDir = `skills/${s}/references`;
+        if (!fs.existsSync(refDir)) continue;
+        const body = lines(`skills/${s}/SKILL.md`);
+        let start = body.findIndex((l) => /^## (.*Workflow|Steps)\b/.test(l));
+        let section = body;
+        if (start >= 0) {
+          const end = body.findIndex((l, i) => i > start && /^## /.test(l));
+          section = body.slice(start + 1, end < 0 ? undefined : end);
+        }
+        let max = -1;
+        for (const l of section) { const m = /^\s*(\d+)\.\s/.exec(l); if (m) max = Math.max(max, Number(m[1])); }
+        if (max < 0) continue;
+        for (const f of fs.readdirSync(refDir).filter((n) => n.endsWith(".md")).map((n) => `${refDir}/${n}`)) {
+          if (!inRun(f)) continue;
+          lines(f).forEach((l, i) => {
+            const re = /\b[Ss]teps? (\d+)(?:\s*(?:–|—|-|to|and|→)\s*(\d+))?/g;
+            let m;
+            while ((m = re.exec(l))) {
+              if (/`?xez-[a-z0-9-]+`?(?:\x27s)?\s*$/.test(l.slice(0, m.index))) continue;
+              const n = Math.max(Number(m[1]), m[2] ? Number(m[2]) : 0);
+              if (n > max) out.push(`${f}:${i + 1} names step ${n}, but skills/${s}/SKILL.md numbers its steps only up to ${max} (step-refs)`);
+            }
+          });
+        }
+      }
+    }
+    if (process.env.LINT_AUTO_ASKS) {
+      const allow = Object.keys(JSON.parse(fs.readFileSync("scripts/allowlists.json", "utf8")).autoSkillAsks?.entries ?? {})
+        .map((k) => { const at = k.indexOf(": "); return [k.slice(0, at), k.slice(at + 2)]; });
+      const gated = /someone else owns|live (claim|conflict)|claim[- ]conflict|NEEDS HUMAN CONFIRMATION/i;
+      for (const s of skills.filter((n) => n.startsWith("xez-auto-"))) {
+        for (const f of walk(`skills/${s}`).filter((n) => /\.(md|sh|mjs|js|json|txt)$/.test(n))) {
+          if (!inRun(f)) continue;
+          lines(f).forEach((l, i) => {
+            if (!/ask the user|AskUserQuestion/i.test(l) || gated.test(l)) return;
+            if (allow.some(([p, t]) => p === f && l.includes(t))) return;
+            out.push(`${f}:${i + 1} asks the user mid-run in an xez-auto-* skill (auto-asks) — make the most reversible call and record it as an assumption, or stop cleanly with a report; only a claim conflict or ⚠ NEEDS HUMAN CONFIRMATION may ask`);
+          });
+        }
+      }
+    }
+    if (out.length) console.log(out.join("\n"));
+  ' 2>&1 || echo "step-refs/auto-asks: node failed")
+  while IFS= read -r hit; do
+    [ -n "$hit" ] && err "$hit"
+  done <<EOF
+$sr_hits
+EOF
 fi
 
 # Committed-config gate: .xezar/pipeline/config.json is shared by everyone who

@@ -73,7 +73,7 @@ Decision tree:
 | In progress, someone else owns the lock | no | **STOP**. Ask the user: "PR #{prNumber} is in progress (owner: {owner}, signal: {label/assignee/comment}). Override and continue?" Only continue when the user explicitly says yes. |
 | In progress, someone else owns the lock | yes | Post a force-override comment naming the previous owner, then claim and proceed |
 
-**Stale lock**: if the `in-progress` label is older than **60 minutes** and the assignee did not push or comment in that window, treat it as expired. Still ask the user before overriding unless `--force` was set.
+**Stale lock**: if the `in-progress` label is older than **60 minutes** and the assignee did not push or comment in that window, treat it as expired and recover it per **Stale-lock recovery** above — post the takeover note, then claim; `--force` is not needed for an expired lock.
 
 **Claim** (only after the check passes) — three tracker operations:
 

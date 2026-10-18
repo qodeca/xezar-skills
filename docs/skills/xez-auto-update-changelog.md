@@ -8,7 +8,7 @@ Drafts a `CHANGELOG.md` release entry covering every PR merged since the last re
 
 | Parameter | Required | Description |
 |---|---|---|
-| `--version <x.y.z>` | Optional | Release heading version. Defaults to the manifest version; if that already matches the top heading, the skill asks which bump to use. |
+| `--version <x.y.z>` | Optional | Release heading version. Defaults to the manifest version; if that already matches the top heading, the skill uses the patch bump and records the assumption. |
 | `--since <value>` | Optional | Lower bound for merged PRs — an ISO date, a git ref, or `last-release` (default), which resolves to the date in the topmost changelog heading. |
 | `--release-ref <ref>` | Optional | The branch or ref the release is cut from. Defaults to the configured base branch; set it when releases are cut from a different branch than PRs target, so the window is built from what is actually reachable on the released ref. |
 | `--date <YYYY-MM-DD>` | Optional | Date shown in the heading. Defaults to today. |

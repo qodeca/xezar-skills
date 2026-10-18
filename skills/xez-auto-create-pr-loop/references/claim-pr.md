@@ -100,7 +100,7 @@ Decision tree:
 
 When an open PR already references the run folder, stop and tell the user to use `xez-auto-continue-pr-loop {prNumber}` instead.
 
-### PR lock lifecycle — steps 7 → 14
+### PR lock lifecycle — steps 7 → 13
 
 This skill holds the three-signal lock on its own PR from the moment the draft PR opens (step 7) until the very end of the run:
 
@@ -108,9 +108,9 @@ This skill holds the three-signal lock on its own PR from the moment the draft P
    1. **assign-pr** — add `$CURRENT_USER` as assignee.
    2. **label-pr** — apply `in-progress` through the `apply_label` guard (when `labels.enabled` is `false`, the claim is the assignee plus the claim comment).
    3. **comment-pr** — post: `` 🤖 `xez-auto-create-pr-loop` started by @{CURRENT_USER} at {UTC ISO-8601 timestamp}. Other auto-skills will skip this PR until the lock is released. ``
-   Wire the release into a `trap`/finally from here (step 14) so a crash frees the PR.
-2. **Temporary release before the autofix pass (step 12):** **unlabel-pr** removes `in-progress` through the guard, then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` releasing lock so `xez-auto-review-pr` can claim it. `` — `xez-auto-review-pr` claims and releases per its own workflow.
-3. **Reclaim when it returns (step 12):** **label-pr** re-applies `in-progress` through the guard, then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` reclaiming lock to post the final run summary. `` — covering the summary + cleanup window.
-4. **Final release (step 14, always — even on failure):** **unlabel-pr** removes `in-progress` through the guard (tolerate failure), then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` completed. Status: {complete | in-progress}. Lock released. ``
+   Wire the release into a `trap`/finally from here (step 13) so a crash frees the PR.
+2. **Temporary release before the autofix pass (step 11):** **unlabel-pr** removes `in-progress` through the guard, then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` releasing lock so `xez-auto-review-pr` can claim it. `` — `xez-auto-review-pr` claims and releases per its own workflow.
+3. **Reclaim when it returns (step 11):** **label-pr** re-applies `in-progress` through the guard, then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` reclaiming lock to post the final run summary. `` — covering the summary + cleanup window.
+4. **Final release (step 13, always — even on failure):** **unlabel-pr** removes `in-progress` through the guard (tolerate failure), then **comment-pr** posts: `` 🤖 `xez-auto-create-pr-loop` completed. Status: {complete | in-progress}. Lock released. ``
 
 Executor subagents (see `references/executor-dispatch.md`) MUST NOT claim or release this lock — the main session owns it.

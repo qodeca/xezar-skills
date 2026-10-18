@@ -31,7 +31,7 @@ The pipeline sweeps open PRs, tells you which can merge now and which are blocke
 
 ## Tips
 
-- The **QA gate is the hard rule**: `needs-qa` cannot merge until a human adds `qa-approved`. Automated skills request QA; they never grant it — [`xez-approve-merge-pr`](../skills/xez-approve-merge-pr.md) will refuse rather than override it.
+- The **QA gate is the hard rule**: `needs-qa` cannot merge until `qa-approved` is added. Automated skills request QA; a human grants it. The one exception is an explicit `--self-qa-signoff` on a fully-green [`xez-auto-qa-pr`](../skills/xez-auto-qa-pr.md) run (plus the onboarding kit's independent QA step) — [`xez-approve-merge-pr`](../skills/xez-approve-merge-pr.md) will refuse rather than override it.
 - [`xez-auto-fix-pr`](../skills/xez-auto-fix-pr.md) **never merges** — it prepares and hands off to [`xez-approve-merge-pr`](../skills/xez-approve-merge-pr.md), keeping the merge itself a deliberate step.
 - Watch merge order: re-merge the latest base before approving; [`xez-auto-fix-pr`](../skills/xez-auto-fix-pr.md) does this automatically as the base advances, but a manually-approved stack still needs the sequence.
 - [`xez-auto-fix-pr`](../skills/xez-auto-fix-pr.md)'s CI-stabilization step never goes green by weakening tests or disabling checks — a red build it can't fix honestly is reported as a genuine blocker, not merged around. Use `--ci-only` to run just that step against a plain branch or no-PR change.
