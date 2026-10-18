@@ -40,14 +40,14 @@ This skill consumes an `{issueId}` — or, in brief mode, a problem description 
    | In progress, someone else owns the lock | no | **STOP.** Ask the user: "Issue #{issueId} is in progress (owner: {owner}, signal: {label/assignee/comment}). Override and continue?" Only continue on an explicit yes. |
    | In progress, someone else owns the lock | yes | Post a force-override comment naming the previous owner via **comment-issue**, then proceed |
 
-   Stale-lock recovery: an `in-progress` label older than 60 minutes with no push or comment from the owner in that window is expired — still ask before overriding unless `--force` was set. This step only decides; the actual claim happens inside `xez-fix`, after triage confirms real work, so a stopped chain never leaves a stray lock. Full lock mechanics: `references/claim-pr.md`.
+   Stale-lock recovery: an `in-progress` label older than 60 minutes with no push or comment from the owner in that window is expired — take it over with a takeover note. This step only decides; the actual claim happens inside `xez-fix`, after triage confirms real work, so a stopped chain never leaves a stray lock. Full lock mechanics: `references/claim-pr.md`.
 
 2. **Classify: bug vs feature request.** The bug route's triage gate asks "is this defect real and still unfixed?" — the wrong question for a feature request, which it would wrongly stop with `NO_ACTION_NEEDED`. Classify the issue you already fetched, conservatively and label-first:
 
    - **Feature / enhancement** → a `feature` (or equivalent enhancement) category label, or a title/body describing a *new* capability that does not exist yet ("add…", "support…", "allow…", "introduce…", "new…") → take step 3 (the feature route) and skip the bug chain.
    - **Bug** → a `bug` label, or a title/body describing broken/regressed behavior (error, crash, wrong output, steps-to-reproduce, "fails", "regressed") → continue to step 4 (the bug chain).
 
-   When an issue mixes a defect and a new capability, stop and ask the user to split it rather than guessing. When unsure, default to the bug chain (its gate stops cleanly if there is no defect).
+   When an issue mixes a defect and a new capability, fix the defect via the bug chain and name the capability as out of scope in an assumptions comment. When unsure, default to the bug chain (its gate stops cleanly if there is no defect).
 
 3. **Feature route (issue is a feature request).** Specs-then-builds the feature on one implementation PR, autonomous by default — full procedure: `references/feature-route.md`. Do not run steps 4–12 (the bug chain) on this route; the delegated skills own the worktree, claim, review, and UI verification. In order:
 
@@ -99,7 +99,7 @@ This skill consumes an `{issueId}` — or, in brief mode, a problem description 
 - Shared rules: `references/rules.md` — autonomous-run contract, label discipline, claim etiquette, secrets hygiene, marker contract, emoji glossary. They always apply.
 - Always run the step 1 concurrency check before anything else; never silently override another actor's claim — `--force` must post an explicit override comment.
 - File before fixing: brief mode files via `xez-prepare-issue` (never composed inline) before any triage or claim; a numeric id that does not resolve stops the run.
-- Classify before triaging: a feature request takes the **feature route**, never the bug-confirmation gate. When unsure, default to the bug chain; when an issue mixes both, ask the user to split it.
+- Classify before triaging: a feature request takes the **feature route**, never the bug-confirmation gate. When unsure, default to the bug chain; a mixed issue gets the bug chain plus an assumptions comment.
 - On the bug route, claiming belongs to `xez-fix` — never claim before the triage gate confirms work. On the feature route the delegated skills perform their own claims, so a stop before delegation leaves no lock.
 - One continuous lock, handed off — never dropped and re-acquired: issue lock from `xez-fix`, moved to the PR by `xez-open-pr --handoff`, re-entered (not released) by the review and UI-QA steps, released exactly once in step 12 — or by step 11 on any failure after the claim (`references/claim-pr.md`, chained hand-off).
 - A UI-touching bug fix gets `xez-auto-qa-pr` evidence (step 10) regardless of whether a spec exists, unless `--no-ui` was passed; the QA verdict labels stay owned by the pipeline.

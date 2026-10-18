@@ -3,7 +3,7 @@
 The release entry is the product. Link it and state coverage, verification,
 and remaining editorial work. Preserve entry/credit formats and the credit audit.
 
-## Final report (step 10)
+## Final report (step 11)
 
 Usually 3–6 lines plus the contract line:
 
@@ -19,7 +19,7 @@ Do not paste a preview or enumerate routine author verification. Keep attributio
 corrections inspectable in the PR's collapsed audit detail; surface unresolved
 credits in the summary. An open docs PR is not a shipped release.
 
-## Dry run (step 9)
+## Dry run (step 10)
 
 Print the full drafted entry, followed by the per-PR audit in collapsed detail:
 

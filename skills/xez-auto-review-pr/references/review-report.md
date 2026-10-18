@@ -26,7 +26,7 @@ The loop below runs only on **autofix-eligible** runs: `--autofix` was passed, o
 
 When eligible: after posting a `changes_requested` review, **immediately proceed to fix all actionable findings** without asking the user — including the `INHERITED` ones collected in step 2 from the review feedback other reviewers already posted on the PR (`references/pr-metadata.md`), which are fixed on the same severity order as this run's own and reported per-item as fixed, deferred to a follow-up, or declined with a reason. The xez-auto-review-pr skill must be fully autonomous — it reviews, fixes, re-reviews, and iterates until the PR is merge-ready or a real blocker remains.
 
-Only stop and ask the user in these critical situations:
+Stop the fix loop only in these critical situations — a clean stop, never a question: post the blocker on the PR, release the lock, and name it in the report:
 
 - Ambiguous product or architecture decisions that could go multiple valid ways
 - Missing credentials, environment access, or infrastructure failures

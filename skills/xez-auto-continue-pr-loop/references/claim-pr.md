@@ -61,7 +61,7 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
 ## xez-auto-continue-pr-loop specifics
 
 - Fetch the PR via **get-pr** requesting the fields `assignees,labels,number,title,body,headRefName,baseRefName,isCrossRepository,comments` — `headRefName` / `isCrossRepository` also feed the step 4 worktree setup, `body` feeds the step 3 run-folder lookup.
-- **Tighter windows than the generic default:** a claim comment from another actor counts as a live signal when newer than **30 minutes** (look for the `🤖` start marker); an `in-progress` label older than **60 minutes** whose assignee neither pushed nor commented in that window is treated as expired. Still ask the user before overriding an expired lock unless `--force` was set.
+- **Tighter windows than the generic default:** a claim comment from another actor counts as a live signal when newer than **30 minutes** (look for the `🤖` start marker); an `in-progress` label older than **60 minutes** whose assignee neither pushed nor commented in that window is treated as expired: recover it per **Stale-lock recovery** above — post the takeover note, then claim; `--force` is not needed for an expired lock.
 - Decision tree:
 
   | State | `--force` set? | Action |
@@ -78,4 +78,4 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
   ```
 
 - When `labels.enabled` is `false`, the claim consists of the assignee plus the claim comment — other skills detect those two signals.
-- Release happens at the end of step 11 and MUST run even on failure (trap/finally); the completion-comment format lives in `references/pr-finalize.md`.
+- Release happens at the end of step 10 and MUST run even on failure (trap/finally); the completion-comment format lives in `references/pr-finalize.md`.

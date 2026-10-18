@@ -13,7 +13,7 @@ Reach this procedure from either of two places in the skill body, and only after
 
 **Prerequisite — the PR head must be checked out first.** The evidence sweep reads the branch history and the plan is committed on the PR head, so the isolated worktree of the skill body's step 3 has to exist before you start. When adoption triggers from step 2, create that worktree first and then come here; the step-4 entry point already runs after it. Step 3's `trap`/finally cleanup covers the adoption path too, including the `ask` mode stop below.
 
-Do **not** adopt when step 2 found **several** candidate plans — that is genuine ambiguity about which run to resume, and the skill body's existing behavior (stop and ask which one, or accept `--from`) still applies. Do not adopt when `--adopt off` was passed; report the missing plan and stop, which is the pre-adoption behavior.
+Do **not** adopt when step 2 found **several** candidate plans — that is genuine ambiguity about which run to resume, and the skill body's existing behavior (resume the newest and record the choice, or accept `--from`) still applies. Do not adopt when `--adopt off` was passed; report the missing plan and stop, which is the pre-adoption behavior.
 
 ## Guardrails — what adoption never does
 
@@ -29,7 +29,7 @@ Both modes produce the same artifacts. They differ only in whether implementatio
 
 | Mode | Behavior |
 |------|----------|
-| `ask` | Land the artifacts (plan commit + PR body lines + adoption comment), then **stop** and ask the user to confirm or amend the plan before any implementation. Re-entry with `/xez-auto-continue-pr {prNumber}` then resolves the committed plan through the ordinary step-2 path, so the confirmed run resumes with no adoption needed. |
+| `ask` | Land the artifacts (plan commit + PR body lines + adoption comment), then **stop** cleanly, reporting the plan for the user to confirm or amend before any implementation. Re-entry with `/xez-auto-continue-pr {prNumber}` then resolves the committed plan through the ordinary step-2 path, so the confirmed run resumes with no adoption needed. |
 | `auto` | Land the same artifacts, state in the adoption comment that the plan was reconstructed autonomously and invite override, then continue straight into step 5 without asking. |
 
 Decide the mode as follows, first match wins:

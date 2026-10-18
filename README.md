@@ -445,7 +445,7 @@ assertions, and screenshots.
 
 Every PR carries at most one pipeline label (`review`, `changes-requested`, `merge-queue`, ...) plus additive category, meta, priority, and risk labels; priority says how urgent the work is, risk says how dangerous the change is to ship. The full taxonomy, and whether to use labels at all, lives in the config; [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) documents every group. It creates only the missing labels you authorize; with no established taxonomy it leaves labels off or proposes choices, and `--defaults` creates none on its own.
 
-The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until a human adds `qa-approved`, no matter how green the checks are. Automated skills request QA; they never grant it.
+The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until `qa-approved` is added, no matter how green the checks are. Automated skills request QA; a human grants it. The one exception is [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md)'s explicit `--self-qa-signoff` on a fully-green run with screenshots; the onboarding kit's independent QA step also applies its own approval label, through `gh-write.sh`'s verdict check.
 
 ## What is actually checked
 

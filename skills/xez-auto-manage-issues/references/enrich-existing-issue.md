@@ -111,7 +111,7 @@ check the issue's body and linked spec against its **ticket-level** tier: the
 problem and who has it, the expected outcome and how it is checked, what is out of
 scope, open questions each marked blocking or non-blocking with no blocking one
 unanswered, and any autonomous assumption a human has confirmed. The spec-level
-tier is step 4's job — a feature issue with `SPEC_STATUS = covered` satisfies it,
+tier is section 4's job — a feature issue with `SPEC_STATUS = covered` satisfies it,
 one with `missing` gets the spec-required comment, and neither is repeated here.
 
 Record `READY_STATUS` = `ready` | `not-ready` (with the missing items). A

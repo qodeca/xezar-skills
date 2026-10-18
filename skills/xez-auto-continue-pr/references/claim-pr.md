@@ -63,7 +63,7 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
 Auto-skills MUST NOT clobber each other: run this check before doing anything else to the PR.
 
 - Fetch the PR via **get-pr** requesting the fields `assignees,labels,number,title,body,headRefName,baseRefName,isCrossRepository,comments` — `headRefName`/`isCrossRepository` also feed the step 3 worktree checkout, `body` feeds the step 2 plan lookup.
-- **Windows for this skill:** a claim comment from another actor counts as "recent" when newer than **30 minutes** (look for the `🤖` start marker). The `in-progress` label counts as **stale** when older than **60 minutes** and the assignee neither pushed nor commented in that window — still ask the user before overriding a stale lock unless `--force` was set.
+- **Windows for this skill:** a claim comment from another actor counts as "recent" when newer than **30 minutes** (look for the `🤖` start marker). The `in-progress` label counts as **stale** when older than **60 minutes** and the assignee neither pushed nor commented in that window — recover it per **Stale-lock recovery** above — post the takeover note, then claim; `--force` is not needed for an expired lock.
 
 Decision tree:
 
@@ -86,7 +86,7 @@ Claiming the PR:
 
 When `labels.enabled` is `false`, the claim consists of the assignee plus the claim comment — other skills detect those two signals.
 
-Release happens at the end of step 10 — the lock MUST be released even on failure. Use a `trap`/finally so a crash still clears the label and posts the completion comment: when `$LABELS_ENABLED` is `true`, remove the `in-progress` label via **unlabel-pr**; then post via **comment-pr** (`${STATUS}` is the final PR status):
+Release happens at the end of step 9 — the lock MUST be released even on failure. Use a `trap`/finally so a crash still clears the label and posts the completion comment: when `$LABELS_ENABLED` is `true`, remove the `in-progress` label via **unlabel-pr**; then post via **comment-pr** (`${STATUS}` is the final PR status):
 
 ```text
 🤖 `xez-auto-continue-pr` completed. Status: ${STATUS}. Lock released.

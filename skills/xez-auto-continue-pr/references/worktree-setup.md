@@ -1,6 +1,6 @@
 # Worktree setup — isolated worktree from the PR head
 
-Detailed procedure for step 3 (create) and step 10 (cleanup) of `xez-auto-continue-pr`. Never resume in the user's primary worktree.
+Detailed procedure for step 3 (create) and step 9 (cleanup) of `xez-auto-continue-pr`. Never resume in the user's primary worktree.
 
 Rules:
 
@@ -41,7 +41,7 @@ cd "$WORKTREE_DIR"
 
 Then install dependencies with whatever the repository's lockfile implies (npm, pnpm, bun, cargo, etc.); skip when the project needs no install step.
 
-## Cleanup sequence (steps 3 and 10)
+## Cleanup sequence (steps 3 and 9)
 
 Run in a `trap`/finally so crashes also clean up:
 

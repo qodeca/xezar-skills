@@ -77,4 +77,4 @@ PR mode only; local mode skips the whole procedure. Run this **before** touching
   🤖 `xez-auto-qa-pr` completed: {PASS|FAIL|PARTIAL}. Evidence posted above. Lock released.
   ```
 
-- An **inherited chain lock** (step-1 re-entry: a flow runner such as `xez-auto-fix-issue` or `xez-auto-fix-pr` handed the lock off to this run) is never released here. Post the take-over comment before driving the app, and at teardown post the completion notice as `` 🤖 `xez-auto-qa-pr` completed: {verdict}. Lock retained — chain continues. ``, leaving the label and assignee in place — the chain's driving skill releases at the end of its run (see the chained hand-off section above).
+- An **inherited chain lock** (step-2 re-entry: a flow runner such as `xez-auto-fix-issue` or `xez-auto-fix-pr` handed the lock off to this run) is never released here. Post the take-over comment before driving the app, and at teardown post the completion notice as `` 🤖 `xez-auto-qa-pr` completed: {verdict}. Lock retained — chain continues. ``, leaving the label and assignee in place — the chain's driving skill releases at the end of its run (see the chained hand-off section above).

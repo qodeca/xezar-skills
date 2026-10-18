@@ -241,6 +241,22 @@ breaks(
   "process killed by pattern match",
 );
 
+breaks(
+  "a reference naming a step past the skill's last numbered step is rejected",
+  "skills/xez-auto-create-pr-loop/references/pr-finalize.md",
+  (s) => `${s}\n\nRelease the lock at step 15, after the report.\n`,
+  lint,
+  "numbers its steps only up to 14 (step-refs)",
+);
+
+breaks(
+  "a mid-run question in an xez-auto-* skill is rejected",
+  "skills/xez-auto-update-changelog/SKILL.md",
+  (s) => `${s}\n\n- When the window is unclear, ask the user which boundary to use.\n`,
+  lint,
+  "asks the user mid-run in an xez-auto-* skill (auto-asks)",
+);
+
 // The two gates above exclude `skills/<name>/kit/**` — vendored payload a skill copies
 // into a consumer project. These two prove the exclusion is a path exclusion and nothing
 // more: the same text in the skill's own body still fails, in the same skill that owns a
