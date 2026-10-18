@@ -57,7 +57,9 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 **Two engine settings change here, and both follow one rule: read, record, write, read back.**
 They are the default task account and the skill auto-update switch. Neither of
 them is a file in the pull request, so the preview names each (`references/preview.md`) and the
-report says what each was before.
+report says what each was before. Reverting the setup pull request does **not** undo them – the
+state lives outside git – and an engine started later without `--single-project` reads the
+machine's own settings instead, where the skill-update switch was never made.
 
 - **Where the record goes.** `.local/xezar/runtime/onboarding-engine-settings.json` — git-ignored,
   beside the saved interview, one entry per setting: `{ "setting": "<name>", "previous": <what you
@@ -69,9 +71,10 @@ report says what each was before.
   action `get_capabilities`: `capabilities.singleProjectRoot` is `true` when this folder owns its
   engine state, and only then do these settings land in this project (`.xezar/workspace.json`,
   git-ignored). The file existing proves nothing — the engine creates it either way. Absent or
-  false → the skill-update switch is the machine's, shared by every project on it: **leave it
-  alone**, and report it as "left as it was, the engine is not in single-project mode". The default task account is keyed by this checkout's path in either mode,
-  so it is always set.
+  false → the skill-update switch is the machine's, shared by every project on it:
+  **leave it alone**, and report it as "left as it was, the engine is not in single-project
+  mode". The default task account is keyed by this checkout's path in either mode, so it is
+  always set.
 - **A successful call is not the evidence; the read-back is.** Each write is followed by the read
   that shows the new value, and a read-back that disagrees is a finding, reported as one.
 
@@ -140,7 +143,7 @@ In order:
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
-on the base branch · labels · default task account · `route.mjs --check` passes on
+on the base branch · labels · default task account · skill auto-update off, or left as it was and why · `route.mjs --check` passes on
 `.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.

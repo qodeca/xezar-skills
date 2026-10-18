@@ -2271,6 +2271,9 @@ write to and says so. Your existing designs are not touched either way.
 
 Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or later.
 
+**Superseded on engine 0.30.0 and later**, which runs no OpenCode: follow the 2026-10-16 entry
+instead. The setup no longer switches the provider, and the undo call below no longer applies.
+
 **Symptom – a dispatch that names the OpenCode runner comes back refused.** The setup switched
 that provider off for this project, on purpose: after a denied permission request its session can
 go silent for minutes, it does not enforce a step's tool allowlist — which is the only thing that

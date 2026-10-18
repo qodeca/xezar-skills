@@ -19,7 +19,7 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
 | 📋 Routing | `.xezar/routing.json`: <n> rows, defaults version <n>, `route.mjs --check` passes<; <n> lanes switched off; <n> rows edited>; tasks that name no account run on `<login>`, not the leader's login |
 | 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
-| 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update `<before>` → off; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
+| 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update <`<before>` → off · left as it was: the engine is not in single-project mode>; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
 | 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
 

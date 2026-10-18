@@ -147,6 +147,10 @@ Two rules that are not negotiable and are stated on the screen:
   logins this machine actually has — an account offered here that does not exist is a first
   dispatch that fails.
 
+**A login of a tool the engine does not run is not offered.** Say so on the screen in one line when
+the registry holds one (an account left from a removed runner, say), rather than leaving the owner to wonder
+where it went.
+
 Unlimited **logins** are exempt from budget tracking, so they are marked here rather than
 discovered from a rate limit that never arrives.
 

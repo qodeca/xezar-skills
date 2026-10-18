@@ -438,8 +438,10 @@ if (S.section("11")) {
 // Until 3.2.0 the setup switched the OpenCode provider off for the project it set up. Engine
 // 0.30.0, the kit's floor, runs no OpenCode (#204), so every step of that switch would call a
 // provider the engine does not have. The fact pins the removal in each section that held a part of
-// it, and keeps the two rules that still hold for the two remaining engine settings: the previous
-// value is recorded, and the record stays in the git-ignored runtime folder.
+// it, and keeps the rules that still hold for the two remaining engine settings (the default task
+// account and the skill auto-update switch): the preview discloses both before the one approval,
+// the switch is read before and after it is written, it is left alone outside single-project mode,
+// the previous value is recorded, and the record stays in the git-ignored runtime folder.
 // ---------------------------------------------------------------------------
 if (S.section("12")) {
   const fact = "FACT 12: the setup reads, records and switches no OpenCode setting";
@@ -465,9 +467,10 @@ if (S.section("12")) {
     return lines.slice(start, end).join("\n");
   };
   const verify = sectionOf("verify.md", /^## 3\. /);
+  const preview = sectionOf("preview.md", /^## Say what the preview does not cover/);
   const sections = [
     ["verify.md", verify],
-    ["preview.md", sectionOf("preview.md", /^## Say what the preview does not cover/)],
+    ["preview.md", preview],
     ["report-templates.md", sectionOf("report-templates.md", /^## Setup complete/)],
     ["interview.md", sectionOf("interview.md", /^### 3\. `lanes`/)],
     ["analysis.md", read(`${SKILL}/references/analysis.md`)],
@@ -478,7 +481,15 @@ if (S.section("12")) {
       fail(fact, `references/${name}`, "still switches OpenCode, which engine 0.30.0 does not run (#235)");
   }
   if (/OpenCode/.test(read(`${SKILL}/SKILL.md`))) fail(fact, "SKILL.md", "still switches OpenCode, which engine 0.30.0 does not run (#235)");
+  // A preview that discloses less than the step does is a consent the owner never gave.
+  if (!/default task account/.test(preview) || !/skill auto-update is switched off/.test(preview))
+    fail(fact, "references/preview.md", "does not disclose the default task account and the skill auto-update switch before the one approval");
+  if (!/\.xezar\/workspace\.json/.test(preview)) fail(fact, "references/preview.md", "does not name .xezar/workspace.json as the file the engine settings live in");
   // Prose wraps, so a phrase is matched across any whitespace.
+  if (!/singleProjectRoot/.test(verify) || !/leave\s+it\s+alone/i.test(verify))
+    fail(fact, "references/verify.md", "does not leave the skill-update switch alone when the engine is not in single-project mode, where the call would reach every project on the machine");
+  if (!/get_limits[\s\S]*set_workspace_config[\s\S]*get_limits/.test(verify))
+    fail(fact, "references/verify.md", "does not read the skill-update switch before writing it and read it back after");
   if (!/"previous"|previousEnabled/.test(verify)) fail(fact, "references/verify.md", "does not record what a setting was before changing it");
   // The record is a fact about one machine, written after the merge. In a committed file it
   // dirties a tree the same step requires to be clean, and puts that machine into git.

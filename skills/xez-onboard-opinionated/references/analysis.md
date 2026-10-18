@@ -126,6 +126,10 @@ Three steps, in order:
    question for the owner, not an error. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
+   **A tool the engine does not run is recorded, not proposed.** Only `claude`, `codex` and
+   `qwen` are runners; a probe or a registry entry that finds another tool notes that it is
+   there, and it is never offered as a lane, a login or a chain, so the owner meets a decision and
+   not a disappearance.
 3. **Nothing is read from a credential store.** Which profiles exist and which models they
    support is configuration; what is inside them is not. Record ids, providers and model names,
    and no value from either.

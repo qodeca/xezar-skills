@@ -173,7 +173,7 @@ function runCase({ file, mutate, also, gate, expect }) {
     }
     const lf = toLF(original);
     const broken = change(lf);
-    if (broken === lf) return "the mutation changed nothing -- this test is testing nothing";
+    if (broken === lf) return `the mutation changed nothing${also.length ? ` in ${each}` : ""} -- this test is testing nothing`;
     edits.push({ path, original, broken: crlf ? broken.replace(/\n/g, "\r\n") : broken });
   }
   let result;
@@ -695,6 +695,22 @@ breaks(
   (s) => s.replace(/^name_allow="[^"]*"/m, 'name_allow=" ${PREFIX}-skill ${PREFIX}-skills ${PREFIX}-anything "'),
   () => script("check-allowlists.mjs"),
   "does not match allowlists.json",
+);
+
+breaks(
+  "a preview that stops disclosing an engine setting before approval is rejected",
+  "skills/xez-onboard-opinionated/references/preview.md",
+  (s) => s.replace("and **skill auto-update is switched off**", "and **skill auto-update is tuned**"),
+  facts("12"),
+  "does not disclose the default task account and the skill auto-update switch",
+);
+
+breaks(
+  "a verify step that changes the machine-wide skill-update switch is rejected",
+  "skills/xez-onboard-opinionated/references/verify.md",
+  (s) => s.replace("**leave it alone**", "**change it anyway**"),
+  facts("12"),
+  "does not leave the skill-update switch alone",
 );
 
 breaks(
@@ -2682,7 +2698,8 @@ breaks(
 // Truncating the index list at package.json's version makes that version the newest indexed
 // one, so the release check compares it with the tree and must find it stale. Once the release
 // PR indexes its own version last, this mutation changes nothing and must be re-aimed.
-// A changed kit file dropped from the one 3.1.0 block that lists it. The base of this check is
+// A changed kit file dropped from the one upgrade block that lists it ("no 3.1.0 upgrade block" is
+// the wording of test-upgrade.mjs §6, whatever the target). The base of this check is
 // the last release OLDER than the target: once the release indexes the target itself, a base of
 // "the newest tagged entry" diffs the target with itself and this case passes silently.
 breaks(
@@ -2861,6 +2878,9 @@ breaks(
 // could be widened – in the script, in the file, or in a ban's text – is a break of its own, and so
 // is a V4 Pro lane in a screen row and softening a ban #89 keeps.
 const V4 = "qwen/deepseek-v4-pro";
+// No shipped lane is marked fullShellReviews (#204), so a case that needs the full-shell reviewer
+// marks V4 Pro itself – the owner's lane the relaxation is for – before placing it.
+const fullShell = (f) => { f.lanes[V4].enforcesToolLimits = false; f.lanes[V4].fullShellReviews = true; };
 breaks(
   "a cheap lane marked fullShellReviews is rejected",
   ROUTING,
@@ -2872,17 +2892,17 @@ breaks(
 breaks(
   "the full-shell reviewer in a reading row that is not a review is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("business-analysis").lanes.push(V4); }),
-  catalog("R"),
-  "route check refuses V4 Pro with fullShellReviews in the review rows",
+  routingEdit((f, row) => { fullShell(f); row("business-analysis").lanes.push(V4); }),
+  catalog("3b"),
+  `"${V4}" does not enforce a step's tool limits, and this row only reads`,
 );
 
 breaks(
   "the full-shell reviewer in a security row that writes is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("release").lanes.push(V4); }),
-  catalog("R"),
-  "route check refuses V4 Pro with fullShellReviews in the review rows",
+  routingEdit((f, row) => { fullShell(f); row("release").lanes.push(V4); }),
+  catalog("3b"),
+  `"${V4}" does not enforce a step's tool limits, and this row is security and release`,
 );
 
 breaks(
@@ -2954,7 +2974,7 @@ breaksBoth(
   "a SECURITY.md accepted-risk entry that says V4 Pro is absent from a row it is in is rejected",
   "SECURITY.md",
   (s) => s.replace("judge in these reading rows only: (none).", "judge in these reading rows only: (none). It is not in `security-review`."),
-  [ROUTING, routingEdit((f) => { f.lanes[V4].enforcesToolLimits = false; f.lanes[V4].fullShellReviews = true; })],
+  [ROUTING, routingEdit(fullShell)],
   facts("R1"),
   "as one the full-shell reviewer is not in",
 );
@@ -4656,8 +4676,11 @@ if (LIST) {
       for (const [key, value] of Object.entries(options.env ?? {})) if (process.env[key] !== value) envKeys.add(key);
     }
     const exclusive = sections.map((line) => line.split(":")[0]);
-    const columns = [index + 1, calls.map((call) => call.argv).join(" && "), [...envKeys].sort().join(",") || "-", c.file, c.name];
-    console.log([...columns, exclusive.join(", ") || "-"].join("\t"));
+    // A breaksBoth case gets one line per file it breaks, so check-gate-map.mjs (h) checks each.
+    for (const file of [c.file, ...c.also.map(([each]) => each)]) {
+      const columns = [index + 1, calls.map((call) => call.argv).join(" && "), [...envKeys].sort().join(",") || "-", file, c.name];
+      console.log([...columns, exclusive.join(", ") || "-"].join("\t"));
+    }
   });
   process.exit(0);
 }
