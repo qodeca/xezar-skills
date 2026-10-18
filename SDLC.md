@@ -712,7 +712,9 @@ After the merge, on `develop`.
 1. The owner gives the go; the plan and decisions go into `docs/plans/release-<version>.md`.
 2. `xez-maintain-deps` checks the dependencies.
 3. `xez-auto-update-changelog` folds the `changelog.d/` fragments into `CHANGELOG.md` as a docs
-   pull request.
+   pull request. By hand, that pull request also dates the changelog head and builds the kit index
+   with a local-only stand-in tag (`upgrade/README.md`). It merges with a merge commit, so the
+   stand-in commit stays on the release line.
 4. The release pull request merges `develop` into `main` with a merge commit.
 5. `xez-release` tags the merged commit; it never publishes.
 6. After the release: back-merge the release merge commit into `develop`, and refresh the kit
