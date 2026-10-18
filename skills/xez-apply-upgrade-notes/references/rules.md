@@ -82,5 +82,5 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## xez-apply-upgrade-notes specifics
 
-- This skill performs no tracker operations, label mutations, or tracker-item claims, and defines no chaining reference lines — the label-discipline, claim-etiquette, and marker bullets have no touchpoints here but still bind any repo-local extension.
+- This skill's tracker operations are confined to its final step: a read-only **list-labels** check, and opening (or reusing) one PR with its labels, label-rationale and summary comments through `references/pr-finalize.md`, ending with the `PR:` chaining line. It claims no tracker item and creates no label in the tracker — the claim-etiquette bullets have no touchpoints here but still bind any repo-local extension.
 - The explicitly gated cases for this skill are its own confirmation points: replacing a descriptor section that carries local edits, creating an artifact an UPGRADE_NOTES entry expects, and drafting a section for a custom provider. `--yes` auto-applies only purely additive changes; conflicts always require an explicit operator answer.

@@ -2815,9 +2815,10 @@ and skips the digest refresh when the file did not match.
 **A project onboarded by `xez-onboard-opinionated` at 3.1.0 or later** (`.xezar/onboarding.json`
 with `manifestVersion` 2 or higher) records its descriptors in that manifest, and the drift check
 fails the next gate with `reason=hash-mismatch` on a descriptor copied or merged by hand. Refresh
-them there through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
-manifest entry together, not through the steps in this section, `/xez-apply-upgrade-notes` or a
-re-run of `/xez-setup-agent-pipeline`. A deliberate local change to one goes in
+the browser, toolchain and security descriptors there (the tracker descriptor: above) through the
+upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its manifest entry
+together, not through the steps in this section, `/xez-apply-upgrade-notes` or a re-run of
+`/xez-setup-agent-pipeline`. A deliberate local change to one goes in
 `.xezar/LOCAL-PATCHES.md` (`.xezar/docs/local-patches.md`).
 
 For the shipped `linear` or `jira` split provider, substitute its filename in the commands
