@@ -22,7 +22,7 @@ process documents it generated. You bring those files from the version this proj
 there. You never push, never open a pull request and never merge. The owner reviews your branch
 and delivers it by hand.
 
-**Target version: 3.2.1.** Below, `<target>` means this value, and `v<target>` the release tag.
+**Target version: 3.2.2.** Below, `<target>` means this value, and `v<target>` the release tag.
 
 Work through steps 0 to 8 in order. Do not skip a step, and do not start the next step while the
 current one has an open stop. When a step says **stop and ask**, ask the owner one clear question
