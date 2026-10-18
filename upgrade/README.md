@@ -74,7 +74,10 @@ Release-Commit: <40 lowercase hex characters>
 
 The prompt reads it with the line-anchored pattern `^Release-Commit: ([0-9a-f]{40})$` from
 `gh release view v<version> --repo qodeca/xezar-skills --json isImmutable,body`, and compares it
-with the clone's `git rev-parse HEAD` and with the sha `gh release verify` resolves for the tag.
+with the clone's `git rev-parse HEAD` and with the commit the tag points at
+(`git rev-parse "v<version>^{commit}"`). The sha `gh release verify` resolves is the tag object of
+the signed tag, so the prompt compares it with the clone's `git rev-parse refs/tags/v<version>`
+instead (#233).
 A release whose notes lack the line, or carry it twice, stops the upgrade before anything runs.
 
 ## Releasing a version the tool upgrades to
