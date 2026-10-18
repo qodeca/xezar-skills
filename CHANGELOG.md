@@ -1,6 +1,15 @@
 # 3.2.1 (unreleased)
 
 - 🔧 The pinned `agent-browser` release moves v0.38.1 → v0.39.1, with its per-asset checksums.
+- 🔧 Onboarding no longer reads, records or switches an OpenCode provider, which engine 0.30.0
+  does not have, and `xez-onboard` looks for `qwen` instead of `pi` and `opencode` (#235). Two
+  engine settings change on setup now, not three, and the report shows when the skill-update
+  switch is left as it was. A tool or login the engine does not run is recorded and not offered.
+- 🔧 Two kit files stop naming pi and OpenCode: `kit/docs/recovery.md` and a comment in
+  `kit/checks/local-tree.sh` (#231). `docs/coverage.md` row 26 says Qwen Code's read-only lock has
+  no refusal test of its own here yet.
+- 🧪 The nightly guard cases that stopped catching their defect after 3.2.0 are re-aimed (#240);
+  a case can now break two files together.
 
 # 3.2.0 (2026-10-17)
 

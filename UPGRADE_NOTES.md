@@ -23,6 +23,27 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-18 – two kit files still name pi or OpenCode after the 3.2.0 upgrade
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/docs/recovery.md` has a paragraph headed "Observed OpenCode recovery limit",
+and a comment in `.xezar/checks/local-tree.sh` says `pi-leader.json` "needs a pi leader attached",
+although engine 0.30.0 runs neither pi nor OpenCode (#231).
+
+**What to do.** Copy both files from the release. The recovery note keeps its rule – verify the
+effective session ID and resend the full context – without naming OpenCode, and the comment says
+the accepted `pi-leader.json` is left over from engines before 0.30.0. The check itself does not
+change.
+
+**What you lose by skipping it.** Nothing in behaviour: both changes are text. A reader of the two
+files keeps meeting runners the engine no longer has.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/docs/recovery.md; .xezar/checks/local-tree.sh
+```
+
 ## 2026-10-17 – agent-browser installs v0.38.1, one release behind the pinned v0.39.1
 
 Applies to any repository that uses the agent-browser provider – installed by
@@ -2249,6 +2270,9 @@ write to and says so. Your existing designs are not touched either way.
 ## 2026-09-21 – a task sent to OpenCode is refused: "OpenCode is disabled"
 
 Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or later.
+
+**Superseded on engine 0.30.0 and later**, which runs no OpenCode: follow the 2026-10-16 entry
+instead. The setup no longer switches the provider, and the undo call below no longer applies.
 
 **Symptom – a dispatch that names the OpenCode runner comes back refused.** The setup switched
 that provider off for this project, on purpose: after a denied permission request its session can

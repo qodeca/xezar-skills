@@ -31,8 +31,6 @@ The ones in bold arrived in 1.5.0. Three of them — deploy (which also serves r
 
 **When the engine refuses a call**, the skill stops calling, tries the engine's own tool, then points you at the place a person does it — and only on your yes to one question showing the exact change does it make a backed-up edit of one file inside the project, its account list (a recorded exception in `SECURITY.md`). It writes nothing under `~/.xezar/`. **When you want to read the setup pull request before merging**, that is a normal answer: its body sorts the files by origin so you can see which dozen to read, and the run ends cleanly with the one line that resumes it.
 
-**OpenCode is switched off for the project**, and the preview says so before you approve anything: it can stall silently after a denied permission, and it does not enforce a step's tool limits, which is the only thing that makes a read-only role read-only. The switch lives in a git-ignored file inside the project, touches no other project on your machine, and the final report prints the one call that undoes it. It is left on, and reported, when the engine is not in single-project mode or when a routing row still uses it.
-
 ## Before you run it
 
 Three things, each of which otherwise stops the run in its first minute:

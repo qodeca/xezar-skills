@@ -833,6 +833,10 @@ for one release everybody believed it was.
 
 ## OpenCode is off by default
 
+**Superseded, 2026-10-18: there is no OpenCode to switch off.** Engine 0.30.0, the kit's floor
+since 3.2.0, runs no OpenCode (#204), so the onboarding no longer reads, records or switches the
+provider (#235), and the preflight refuses an older engine. The reasons below are kept as history.
+
 The opinionated onboarding switches the OpenCode provider off for the project it sets up, and
 keeps it out of the lane table and out of every routing chain. The engine supports four providers
 and the setup routes to three of them. That is a decision about fit, recorded here once with its

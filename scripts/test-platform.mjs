@@ -203,14 +203,14 @@ check("msysSpawnArgs quotes every argument for MSYS on win32 and changes nothing
 const BIN = "C:\\Users\\u\\AppData\\Roaming\\npm";
 const NODEJS = "C:\\Program Files\\nodejs";
 
-check("findProgram finds claude.exe, codex.cmd and pi.cmd by PATHEXT, and never an extensionless file", () => {
+check("findProgram finds claude.exe, codex.cmd and qwen.cmd by PATHEXT, and never an extensionless file", () => {
   const env = { Path: `${BIN};C:\\Users\\u\\.local\\bin`, PATHEXT: ".COM;.EXE;.BAT;.CMD;.VBS;.JS" };
-  const exists = fakeFs("C:\\Users\\u\\.local\\bin\\claude.exe", `${BIN}\\codex.cmd`, `${BIN}\\codex`, `${BIN}\\pi.cmd`, `${BIN}\\opencode`);
+  const exists = fakeFs("C:\\Users\\u\\.local\\bin\\claude.exe", `${BIN}\\codex.cmd`, `${BIN}\\codex`, `${BIN}\\qwen.cmd`, `${BIN}\\gh`);
   const find = (name) => kitPrograms.findProgram(name, { env, exists });
   assert.equal(find("claude"), "C:\\Users\\u\\.local\\bin\\claude.exe", "findProgram did not find claude.exe for claude");
   assert.equal(find("codex"), `${BIN}\\codex.cmd`, "findProgram did not find codex.cmd for codex");
-  assert.equal(find("pi"), `${BIN}\\pi.cmd`);
-  assert.equal(find("opencode"), null, "an extensionless opencode is not a program Windows starts");
+  assert.equal(find("qwen"), `${BIN}\\qwen.cmd`);
+  assert.equal(find("gh"), null, "an extensionless gh is not a program Windows starts");
   assert.equal(find("..\\claude"), null);
   assert.equal(find(""), null);
 });
