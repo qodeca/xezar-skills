@@ -19,16 +19,16 @@
 //              line: FAIL when an `answered` item matches no case answer by id, path and rule.
 //
 // The starting tree is rebuilt from the case (build.mjs) in a temporary folder, so "start" is
-// the case, not whatever the run left on the base branch. "Target" is the 3.1.0-candidate kit
-// in this checkout, rendered with the fixture's placeholder values.
+// the case, not whatever the run left on the base branch. "Target" is the kit in this
+// checkout, at its package.json version (TARGET), rendered with the fixture's placeholder values.
 //
 // expected.json: { "invariants": [ <invariant>, … ] }. Invariant types:
 //   finished                          run.json says the run finished, with no unanswered stop
 //   stop        path, rules[]         run.json has a stop on path whose rule is one of rules
-//   branch                            on xezar/upgrade-3.1.0, clean tree, report committed
+//   branch                            on xezar/upgrade-<TARGET>, clean tree, report committed
 //   baseUntouched                     the base branch still holds the case's tree; nothing pushed
 //   equalsStart path                  the file is byte-equal to the case's
-//   equalsTarget path                 the file is byte-equal to the 3.1.0 kit's
+//   equalsTarget path                 the file is byte-equal to the target kit's
 //   contains    path, lines[]         the file holds each text
 //   notContains path, lines[]         the file holds none of them
 //   sectionEqualsStart path, heading  the "## <heading>" section is byte-equal to the case's
@@ -54,7 +54,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, loadCase, loadFixture, targetText, ROOT } from "./build.mjs";
+import { build, loadCase, loadFixture, targetText, ROOT, TARGET } from "./build.mjs";
 import { parseRegister } from "../tools/lib/register.mjs";
 
 /** Every invariant type grade() understands; scripts/test-kit-facts.mjs checks each case against it. */
@@ -64,7 +64,6 @@ export const INVARIANT_TYPES = [
   "registerEntry", "reportContains", "reportSection", "verify", "anyOf", "allOf",
 ];
 
-const TARGET = "3.1.0";
 const BRANCH = `xezar/upgrade-${TARGET}`;
 const REPORT = `.xezar/upgrade-reports/${TARGET}.md`;
 

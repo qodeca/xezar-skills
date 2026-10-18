@@ -21,7 +21,7 @@
 //   replace: { find, with }            replace one exact occurrence (fails when absent or repeated)
 //   jsonSet: { key: [..], value }      set a key in a JSON file, written with 2-space indent
 //   fromTarget: { drop?: "<text>", append?: "<text>" }
-//                                      write the 3.1.0-candidate kit text of the path (rendered
+//                                      write the target kit text of the path (rendered
 //                                      with the fixture's placeholder values), minus one exact
 //                                      passage, plus an appended one
 // `register` (optional) is written to .xezar/LOCAL-PATCHES.md as is.
@@ -42,6 +42,8 @@ import { render } from "../tools/lib/rewrites.mjs";
 import { indexFromTree, loadIndexes, SKILL_DIR } from "../tools/lib/kit-index.mjs";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+/** The kit version this checkout upgrades to: its package.json version, as the upgrade tools default it. */
+export const TARGET = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 const FIX = join(ROOT, "scripts/fixtures/upgrade");
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -51,9 +53,9 @@ const write = (dir, rel, text) => {
 };
 
 let treeCache = null;
-/** The 3.1.0-candidate kit text of an installed path, rendered with `inputs`. */
+/** The target kit text of an installed path, rendered with `inputs`. */
 export function targetText(path, inputs) {
-  treeCache ??= indexFromTree(join(ROOT, SKILL_DIR), { version: "3.1.0" });
+  treeCache ??= indexFromTree(join(ROOT, SKILL_DIR), { version: TARGET });
   const e = treeCache.index.files[path];
   if (!e || !e.kitSource) return null;
   const raw = treeCache.kitFiles.get(`kit/${e.kitSource}`).toString("utf8");

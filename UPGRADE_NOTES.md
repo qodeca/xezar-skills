@@ -129,8 +129,23 @@ agent, an old task record. No kit version shipped a `runner:` line, and the engi
 `.xezar/routing.json`: in a stock kit project the engine starts, and each task routed to a `pi/` or
 `opencode/` lane is refused when it is created.
 
-**What to do.** Follow the xezar guide page "Moving from pi or OpenCode to Qwen Code" for the
-engine's own settings and task records – there is no converter. Then, in the project, copy
+**What to do.** The order matters, because engine 0.30.0 does not start while an old task
+record names pi or OpenCode, and only your old engine can delete one:
+
+1. **With the engine you run now**, before you install 0.30.0: delete each task that ran on pi
+   or OpenCode (archiving is not enough – an archived task keeps its values), and change a
+   saved default agent of pi or OpenCode to `claude` or `codex`. The xezar guide page "Moving
+   from pi or OpenCode to Qwen Code" lists every place such a value is kept – there is no
+   converter.
+2. Stop the engine and install the new one: `npm install -g @qodeca/xezar@^0.30.0`.
+3. Follow the rest of that guide page for the engine's own files (`.xezar/config.json`,
+   `.xezar/workflows/`, `~/.xezar/` and its `config.json.bak`).
+
+Already installed 0.30.0 and it refuses to start? Either change each task's `runner` and
+`backend` values in `runs.json` by hand, as the guide page says, or go back to the engine you
+had (`npm install -g @qodeca/xezar@<old version>`), do step 1, and install 0.30.0 again.
+
+Then, in the project, copy
 `.xezar/checks/route.mjs` **first**: an older one refuses the `qwen` runner and so the whole new
 routing file. Copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`, and merge
 `.xezar/routing.json` with the defaults version 5. Each pi lane becomes the Qwen Code lane of the
@@ -620,7 +635,8 @@ images.
 ## 2026-09-27 – upgrading an onboarded project to 3.1.0
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. The easy path is
-the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
+the upgrade prompt: clone `qodeca/xezar-skills` at the newest release tag (3.1.0 shipped inside
+3.2.0; there is no `v3.1.0` tag), verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
 are the same changes for a hand upgrade, which ends – after the last entry, 15 – with the verifier
@@ -1003,7 +1019,8 @@ cp $K/checks/local-tree.sh .xezar/checks/
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
 prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (15), with the verifier from a
-verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
+verified clone at the newest release tag, `node <clone>/upgrade/tools/verify.mjs --project . --target <that version>`
+(never `3.1.0`, which no release carries), which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry
 (`unregistered-local-change`, `removed with no register entry`) and writes no manifest until you
@@ -1838,7 +1855,7 @@ It was 0.18.0.
 **What to do.**
 
 ```bash
-npm install -g @qodeca/xezar
+npm install -g @qodeca/xezar@0.20   # a kit before 3.2.0; a bare install now brings 0.30.0, which needs kit 3.2.0
 xezar --version     # must print 0.19.0 or later
 ```
 
@@ -1972,7 +1989,7 @@ is now 0.18.0. It was 0.16.0.
 **What to do.**
 
 ```bash
-npm install -g @qodeca/xezar
+npm install -g @qodeca/xezar@0.20   # a kit before 3.2.0; a bare install now brings 0.30.0, which needs kit 3.2.0
 xezar --version     # must print 0.18.0 or later
 ```
 

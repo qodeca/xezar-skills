@@ -11,7 +11,7 @@ this table goes in the release PR.
    owner's edits from `case.json`, one commit on the base branch (`trunk`), and a local bare
    `origin`.
 2. A Claude Code session follows `upgrade/UPGRADE-PROMPT.md` in `<out>/project`, with the
-   helpers run from this checkout (`--target 3.1.0`), and writes `<out>/run.json` (format in
+   helpers run from this checkout (`--target` = its `package.json` version, which `check.mjs` grades against), and writes `<out>/run.json` (format in
    `check.mjs`'s header). The run's owner inputs are fixed and written down, never given live:
    the preflight confirmations and the step 3 "go ahead" are part of the method, and a
    stop-and-ask question is answered only by the case's `ownerAnswers` field (`case.json`,
