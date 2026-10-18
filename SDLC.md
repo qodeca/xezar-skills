@@ -523,6 +523,11 @@ available. Only the merge step blocks on unavailable; every other stage reports 
   pipeline projects) merges. The owner's control is the owner-only decisions, the protected paths
   in `CODEOWNERS` where they exist, and the release go. Branch protection requires the checks the
   profile names and no approving review, because the project has one owner.
+- **The recorded review verdict stands in for the approval.** When branch protection does not
+  require a review, the merge gate's review check passes only on a recorded pipeline review verdict
+  that approves **and** names the pull request's current head commit. An approval for an older head
+  is stale and refuses; no recorded verdict refuses as unavailable. When branch protection does
+  require a review, the host's approval is required and a recorded verdict never replaces it.
 - Feature pull requests squash-merge into the base branch. The title becomes the commit, so it is a
   Conventional Commit (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
 - Promotion pull requests between long-lived branches use a merge commit, never a squash, so branch

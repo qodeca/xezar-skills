@@ -277,6 +277,42 @@ breaks(
   "process killed by pattern match",
 );
 
+// lint.sh's tracker-text gate: a descriptor snippet is literal shell, and an issue title typed
+// into "<title>" runs any backtick or $(...) it holds. One break per half of the gate: the quoted
+// placeholder, the bash 3.2 apostrophe, and a block that does not parse at all.
+breaks(
+  "free text inside double quotes in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/github.md",
+  (s) => s.replace(
+    "gh issue comment {issueId} --repo {owner}/{repo} --body-file <body-file>\n",
+    'gh issue comment {issueId} --repo {owner}/{repo} --body "<body>"\n',
+  ),
+  lint,
+  "free text interpolated inside double quotes",
+);
+
+breaks(
+  "an apostrophe inside a double-quoted ${VAR:?...} in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "to the Jira account id of the automation user}",
+    "to the automation user's Jira account id}",
+  ),
+  lint,
+  "bash 3.2 cannot parse it",
+);
+
+breaks(
+  "a tracker descriptor bash block that does not parse is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\n",
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\nif [ -n \"$CURRENT_USER\" ]; then\n",
+  ),
+  lint,
+  "does not parse (bash -n",
+);
+
 // `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
 // kit it ships. Those two halves are checked by different gates -- the kit is excluded from
 // three of them by path -- so a contradiction between them passed everything until people read
@@ -3158,6 +3194,25 @@ breaks(
   "the manifest version literal an installer copy writes is \"0.0.1\"",
 );
 // 3.1.0-stream-OC:end
+
+// --- the merge gate: a recorded review verdict binds to the current head -------
+
+breaks(
+  "a recorded approval for an older head that the merge gate accepts is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('     elif $recHead == $head then "pass"\n     else "findings" end) as $recordedReview',
+    '     else "pass" end) as $recordedReview'),
+  () => script("test-merge-gate.mjs"),
+  "approved verdict for an older head is stale and refuses",
+);
+
+breaks(
+  "a missing recorded verdict that the merge gate reads as a pass is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('  | (if $recorded == null then "unknown"', '  | (if $recorded == null then "pass"'),
+  () => script("test-merge-gate.mjs"),
+  "not enforced + no recorded verdict refuses",
+);
 
 // --- #122: the gate on native Windows -----------------------------------------
 // Each guard below was written for Windows, and each break reproduces a defect that is not

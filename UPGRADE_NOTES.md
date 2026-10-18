@@ -31,6 +31,38 @@ merge of `routing.json` against the newest defaults (`references/routing-default
 clone), never one version after another; (4) the remaining entries, oldest first; (5) the
 verifier, once, with `--target` set to the release you cloned.
 
+## 2026-10-18 – an issue title with a backtick or `$(…)` runs as a command, and any commenter's ask gets implemented
+
+Applies to any repository with this collection's tracker descriptors,
+`.xezar/pipeline/trackers/github.md` (and `linear.md` or `jira.md` when used), whichever setup
+skill installed them.
+
+**Symptom.** Your descriptor's **create-issue**, **create-pr**, **comment-issue**, **close-issue**,
+**review-pr** or **search-issues** puts free text straight into double quotes – `--title "<title>"`,
+`--body "<body>"`, `--search "<query> in:title,body"` – so a backtick or `$(…)` in an issue title
+runs on the machine executing the operation. And **list-issue-comments** /
+**list-review-comments** return only `user`, with no `association`, so a review run cannot tell a
+maintainer's ask from a stranger's. In `jira.md`, **auth-check** fails to parse on macOS's bash 3.2
+(`unexpected EOF while looking for matching`) because of the apostrophe in `user's`.
+
+**What to do.** Re-sync the descriptor as "Re-syncing the tracker descriptor" below says, moving
+its recorded digest in an onboarded project. Every operation keeps its inputs and outputs: free
+text now travels through a file (`--body-file`, a title read from a file into `"$TITLE"`), and the
+comment reads add one field, `association` (GitHub's `author_association`). Linear and Jira gain
+the same file rule and a note on which comment authors count as trusted. Optionally list trusted
+review bots in the config's new `review.trustedBots` key; absent means none.
+
+**What you lose by skipping it.** A run that files or searches with attacker-written text can
+execute it. The review and continue skills act only on comments from `OWNER`, `MEMBER` or
+`COLLABORATOR`; against an old descriptor with no `association`, every comment reads as untrusted,
+so a maintainer's review comments are listed but no longer fixed automatically.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/pipeline/trackers/github.md
+Actions: config-key=review.trustedBots
+```
+
 ## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.

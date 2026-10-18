@@ -50,7 +50,7 @@ PREFIX="${SKILL_PREFIX:-xez}"
 
 err() { printf 'LINT FAIL: %s\n' "$*" >&2; fail=1; }
 
-CHECKS="frontmatter packaging references roster names portability role-skills old-brand tracker-cli process-kill step-refs auto-asks config secrets discovery platform"
+CHECKS="frontmatter packaging references roster names portability role-skills old-brand tracker-cli tracker-text process-kill step-refs auto-asks config secrets discovery platform"
 only_checks=""   # " <check> <check> " when --only was given
 target_files=""  # newline-separated, repository-relative, when --files was given
 usage_error() { printf 'lint.sh: %s\n' "$*" >&2; exit 2; }
@@ -166,7 +166,7 @@ in_list() {
 # repository. awk reads paths from ENVIRON, never through -v, which would turn a backslash in a
 # TMPDIR path into an escape.
 lint_tmp=""
-if want frontmatter || want packaging || want portability || want role-skills; then
+if want frontmatter || want packaging || want portability || want role-skills || want tracker-text; then
   if ! lint_tmp=$(mktemp -d "${TMPDIR:-/tmp}/lint.XXXXXX") || [ ! -d "$lint_tmp" ]; then
     printf 'LINT FAIL: %s\n' "cannot create a temp folder" >&2
     exit 1
@@ -883,6 +883,62 @@ want tracker-cli && gh_hits=$(grep_scope -En '(^|[`"[:space:]])gh (api|pr|issue|
 if [ -n "$gh_hits" ]; then
   err "direct gh CLI usage found outside references/trackers/ (use a tracker operation instead):"
   printf '%s\n' "$gh_hits" >&2
+fi
+
+# Tracker-text gate: a descriptor snippet is literal shell, and the free text it carries --
+# an issue title, a body, a search query -- comes from whoever can open an issue. Typed into
+# "...", a backtick or $(...) in that text runs. So (1) a fenced bash block in a tracker
+# descriptor never puts a <title>/<body>/<query>/<comment>/<description>-style placeholder inside
+# double quotes (pass a file or a variable read from one), and (2) a block with no <placeholder>
+# at all must parse: `bash -n` on it, with the shell running this lint (bash 3.2 on macOS is the
+# strictest one we meet -- an apostrophe inside "${VAR:?...}" breaks it there and nowhere else).
+if want tracker-text; then
+  if [ -z "$target_files" ]; then
+    tt_files=$(find skills .xezar/pipeline/trackers -path '*/trackers/*.md' -type f 2>/dev/null | grep -E '(^skills/[^/]+/references/trackers/|^\.xezar/pipeline/trackers/)' | sort || true)
+  else
+    tt_files=$(listed skills/ .xezar/pipeline/trackers/ | grep -E '(^skills/[^/]+/references/trackers/|^\.xezar/pipeline/trackers/)[^/]+\.md$' || true)
+  fi
+  tt_n=0
+  while IFS= read -r tt_f; do
+    [ -n "$tt_f" ] || continue
+    tt_n=$((tt_n + 1))
+    tt_hits=$(TT_OUT="$lint_tmp/tt.$tt_n" awk '
+      /^```bash[[:space:]]*$/ { inb = 1; k++; start[k] = NR + 1; ph = 0; buf = ""; next }
+      inb && /^```/ {
+        inb = 0
+        if (!ph) { f = ENVIRON["TT_OUT"] "." k; printf "%s", buf > f; close(f); print "BLOCK " k " " start[k] }
+        next
+      }
+      inb {
+        buf = buf $0 "\n"
+        if ($0 ~ /<[A-Za-z][^>]*>/) ph = 1
+        if ($0 ~ /"[^"]*<(new-)?(title|body|query|comment|description|summary|message|text)>[^"]*"/) print "QUOTED " NR ": " $0
+        # An apostrophe inside "${VAR:?...}" parses on bash 4+ but not on bash 3.2 (macOS), so
+        # bash -n on a Linux runner alone would never see it.
+        if ($0 ~ /"[^"]*\$\{[A-Za-z_][A-Za-z0-9_]*:?[-?=+][^}]*\047[^}]*\}/) print "APOS " NR ": " $0
+      }' "$tt_f")
+    tt_quoted=$(printf '%s\n' "$tt_hits" | sed -n 's/^QUOTED //p')
+    if [ -n "$tt_quoted" ]; then
+      err "free text interpolated inside double quotes in $tt_f (pass it through a file: --body-file, -F field=@file, or a variable read from a file):"
+      printf '%s\n' "$tt_quoted" | sed "s|^|$tt_f:|" >&2
+    fi
+    tt_apos=$(printf '%s\n' "$tt_hits" | sed -n 's/^APOS //p')
+    if [ -n "$tt_apos" ]; then
+      err "apostrophe inside a double-quoted \${VAR:?...} in $tt_f (bash 3.2 cannot parse it; reword without the apostrophe):"
+      printf '%s\n' "$tt_apos" | sed "s|^|$tt_f:|" >&2
+    fi
+    while IFS=' ' read -r tt_kind tt_k tt_line; do
+      [ "$tt_kind" = "BLOCK" ] || continue
+      if ! tt_err=$("$BASH" -n "$lint_tmp/tt.$tt_n.$tt_k" 2>&1); then
+        err "fenced bash block at $tt_f:$tt_line does not parse (bash -n, bash $BASH_VERSION):"
+        printf '%s\n' "$tt_err" >&2
+      fi
+    done <<EOF
+$tt_hits
+EOF
+  done <<EOF
+$tt_files
+EOF
 fi
 
 # Process-kill gate: a skill runs in somebody else's checkout, on a machine we
