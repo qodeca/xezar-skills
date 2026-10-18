@@ -1846,6 +1846,16 @@ if (S.section("14b")) {
   );
   expect(bare.versionEvidence === null && bare.upgradeEntries.length === every.length, `range: with no evidence at all the plan does not list every entry (${bare.upgradeEntries.length} of ${every.length})`);
   expect(summary(bare).includes("every upgrade entry is listed"), "range: plan.md does not say every entry is listed when nothing names a version");
+  // A version no index holds (the never-tagged "3.1.0" an earlier tool wrote) is not trusted:
+  // the range comes from the files, as for a manifest that names none.
+  const ghost = buildPlan(
+    ctxFor(materialize(fx303, { name: "range-unindexed", edit: (d) => write(d, ".xezar/onboarding.json", `${JSON.stringify({ ...fx303.manifest, version: "3.1.0" }, null, 2)}\n`) })),
+  );
+  expect(ghost.versionUnindexed === "3.1.0", `range: a manifest naming the unindexed 3.1.0 shows versionUnindexed ${JSON.stringify(ghost.versionUnindexed)}`);
+  expect(ghost.versionEvidence?.version === "3.0.3", `range: a 3.0.3 install whose manifest says 3.1.0 shows ${JSON.stringify(ghost.versionEvidence)}, not 3.0.3`);
+  expect(heads(ghost) === heads(withVersion), `range: with an unindexed manifest version the entries are not those for 3.0.3 (${ghost.upgradeEntries.length} vs ${withVersion.upgradeEntries.length})`);
+  expect(summary(ghost).includes("a version no kit index holds"), "range: plan.md does not say the manifest's version is unknown to the index");
+  expect(withVersion.versionUnindexed === null, "range: an indexed manifest version is reported as unindexed");
 }
 
 // 14c. Each upgrade entry in the plan names its UPGRADE_NOTES.md heading and line, and plan.md

@@ -19,6 +19,16 @@ time, when they decide to.
 
 ## How the owner runs it
 
+Upgrade straight to the newest release from any kit since 1.2.0, in one run: the tool takes every
+upgrade step between the two. Never step through the versions in between.
+
+0. **Check the engine first.** Compare `xezar --version` with `xezar.min` in the release's
+   `compat.json`. When it is lower, upgrade the engine before anything else, in this order:
+   with the engine you run now, delete every task that ran on pi or OpenCode (archiving is not
+   enough); stop the engine; run `npm install -g @qodeca/xezar@^<xezar.min>`; follow the xezar
+   guide page "Moving from pi or OpenCode to Qwen Code". `UPGRADE_NOTES.md` → "xezar did not
+   start: saved settings or task records still name an agent that xezar no longer runs" has
+   the detail. Keep the leader stopped until the upgrade pull request merges.
 1. **Get a verified copy of the release.** Clone `qodeca/xezar-skills` at the release tag, with
    full history (for example
    `git clone -c core.autocrlf=false --branch v3.2.1 https://github.com/qodeca/xezar-skills.git`; on
@@ -91,6 +101,12 @@ stand-in on the release branch's own head, after its last kit change, just befor
 built on a branch that was later squash-merged names a commit the release does not contain.
 Release in this order:
 
+0. **Re-run the upgrade evals** on the release branch, after its last kit change: every case
+   in `upgrade/evals/cases/`, one fresh Claude Code session per case, as
+   `upgrade/evals/RESULTS.md` → "How a run works" describes (`check.mjs` grades against this
+   checkout's `package.json` version). Add a dated run section to `RESULTS.md` and put its
+   table in the release PR. A release that changes kit files does not tag without one: the
+   gates never check the merge Claude does for a file both sides changed.
 1. Merge the release and tag the release commit on `main` (`v<version>`).
 2. Publish the GitHub release with `Release-Commit: <that sha>` in its notes (next section).
 3. In a clone with full history and all tags, re-run `node scripts/build-kit-index.mjs`, and
@@ -126,6 +142,11 @@ file shows as new plus removed instead of moved. 3.2.1 moves no kit file.
 
 ## Rollback
 
-Before the pull request merges: delete the branch. After it merges: revert the merge commit,
-`git pull --ff-only` everywhere, undo the per-machine steps listed in the report, and restart the
-engine and the leader. The report carries these steps for its own run.
+Before the pull request merges: switch back to the base branch, delete the branch, and remove
+any untracked files the run left (`git status` lists them). After it merges: revert the upgrade
+commit (or the merge commit, if the pull request was merged with one), `git pull --ff-only`
+everywhere, undo the per-machine steps listed in the report, and restart the engine and the
+leader. The report carries these steps for its own run.
+
+Rolling back from 3.2.0 or later to a kit before 3.2.0 is not supported: the older kit routes
+work to pi lanes, and engine 0.30.0 refuses those tasks.
