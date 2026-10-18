@@ -32,10 +32,10 @@ upgrade step between the two. Never step through the versions in between.
    the detail. Keep the leader stopped until the upgrade pull request merges.
 1. **Get a verified copy of the release.** Clone `qodeca/xezar-skills` at the release tag, with
    full history (for example
-   `git clone -c core.autocrlf=false --branch v3.2.1 https://github.com/qodeca/xezar-skills.git`; on
+   `git clone -c core.autocrlf=false --branch v3.2.2 https://github.com/qodeca/xezar-skills.git`; on
    Windows the `-c core.autocrlf=false` keeps the kit files LF, as released, so a file you copy by
-   hand from the clone matches the kit), and check it: `gh release verify v3.2.1 --repo qodeca/xezar-skills` must print
-   `Release v3.2.1 verified!`. Copy the prompt from that clone, never from a web page.
+   hand from the clone matches the kit), and check it: `gh release verify v3.2.2 --repo qodeca/xezar-skills` must print
+   `Release v3.2.2 verified!`. Copy the prompt from that clone, never from a web page.
 2. **Prepare the project.** A clean working tree on the base branch, up to date with the remote.
    Stop the leader and let running tasks finish. The engine may stay running. Before you start
    `claude` there, check in your own shell, in the project folder, which commands git would run
@@ -124,7 +124,7 @@ leader-guide template changed – and a clone at the tag works even with no
 index file for its own version: the target is computed from the kit tree in the clone, and the
 target's unreleased development commits are still left out as bases. The one thing a committed
 target index adds is `renamedFrom` (a kit file moved since the last release); without it a moved
-file shows as new plus removed instead of moved. 3.2.1 moves no kit file.
+file shows as new plus removed instead of moved. 3.2.2 moves no kit file.
 
 ## What it never does
 
