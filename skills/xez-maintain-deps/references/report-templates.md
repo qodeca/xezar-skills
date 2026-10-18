@@ -1,21 +1,51 @@
-# Upgrade report (step 5)
+# Report templates
 
-Report the upgrade's effect and remaining decision. A clean run usually needs
-3–6 lines. This skill emits no `PR:` or `Issue:` chaining lines.
+Two shapes: the **final report** to the user (step 8) and the **summary comment** on each
+group's pull request (step 7, `references/pr-finalize.md`). Lead with what you propose and
+the decision waiting on the user. Every section the run was asked to answer (`--scope`)
+appears, even when its answer is "could not check" – a dropped section reads as a clean
+result. Report parsed fields only; never paste scanner or registry output.
+
+## Final report
 
 ```markdown
-🔁 `xez-maintain-deps`: {already current / applied, left uncommitted / dry-run preview / blocked}.
-{Changed descriptor or config path}: {operations/defaults changed and behavior restored}.
-Checked: {config parses, provider resolves, required operations present; disclose failed/incomplete checks}.
-{Material local conflict, custom-provider gap, or unavailable upgrade log, when present.}
-**Next:** {review/commit diff, resolve conflict, implement missing operation, or no action needed}.
+🔍 `xez-maintain-deps`: {n} pull request(s) proposed {/ dry-run – nothing opened, nothing changed}; {n} vulnerable, {n} behind, {n} could not be checked.
+
+📋 Inventory: {format} at `{path}` – {count} components {/ ⚠️ unknown: {why}}.
+📋 Behind: {n} major · {n} minor · {n} patch · {n} uncomparable (listed below for a human, never grouped).
+🔍 Vulnerable: {n} advisories ({n} with a fixed version, {n} without – reported, not proposed) {/ not-applicable: no `security.provider` configured}.
+
+| Group | PR | Packages | Others moved | Gate |
+|---|---|---|---|---|
+| {security / patch / minor / major} | #{number} {new / updated} | {n} | {total UPDATE_OTHERS_MOVED} | {✅ / ❌ split – `{package}` broke it} |
+
+⚠️ Could not check: {provider or question} – {evidence-unavailable / unknown}: {reason}.
+⚠️ Left for you: {uncomparable versions, advisories with no fix, a range that blocks an update, a member already in flight in #{number}}.
+**Next:** {review and decide on each PR – this skill never merges / install `{tool}` and re-run / no action needed}.
+
+PR: #{number} (link: {full PR URL})
+PR: #{number} (link: {full PR URL})
 ```
 
-For independent changes use a path/change/effect table. Show changes and actionable
-exceptions, not sections saying each unchanged artifact is current. Name local
-customizations when they explain an unresolved conflict. Custom-provider gaps
-retain every required operation's contract in collapsed detail below a short
-summary of what cannot work yet.
+- **One `PR:` line per group pull request** opened or updated in this run, in the table's
+  order, exact undecorated shape (`references/pr-finalize.md`, Marker emission). This skill
+  has no subject issue, so it emits no `Issue:` line. A dry run, or a run that proposes
+  nothing, emits no `PR:` line.
+- **Stopped at step 1** (`TOOLCHAIN_PROVIDERS` empty): one line – `not-applicable`, the
+  config key to set – and **Next:**. Nothing else ran, so no other section appears.
+- **Dry run:** the table's PR column says *would open*, and nothing is described as opened
+  or changed.
+- Drop the table when no group was proposed; keep the ⚠️ lines whenever they have content.
 
-Mark dry-run changes as proposed and distinguish checks on current artifacts
-from checks on the proposal. An already-current run needs no commit recommendation.
+## Summary comment on a group PR
+
+Posted once per PR via **comment-pr** with a body file and updated in place on a re-run.
+The PR body holds the package table, the blast radius and the gate; do not repeat them.
+
+```markdown
+🤖 `xez-maintain-deps` — {group} update summary
+
+🎯 {n} packages in the {group} group, gate {✅ passed / ✅ passed after removing `{package}`}; {n} transitive packages moved with them.
+⚠️ {Anything that could not be checked, when present.}
+**Next:** a maintainer decides whether to take these versions; this skill does not merge.
+```

@@ -64,7 +64,7 @@ In PR mode this skill consumes a `{prNumber}` (the `PR:` reference line a PR-pro
 2. **Claim the PR (PR mode only).** Follow `references/claim-pr.md`: run the
    three-signal in-progress check (30-minute stale window for `🤖` claim
    comments). If someone else owns a live claim and `--force` is unset, STOP
-   and ask the user via `AskUserQuestion`. Otherwise claim idempotently. The
+   and ask the user via `AskUserQuestion` (the claim-conflict stop). Otherwise claim idempotently. The
    lock MUST be released in step 13 even on failure — wrap teardown in a
    `trap`/finally.
 

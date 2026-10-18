@@ -25,8 +25,8 @@ Parse rules:
 - `Exec` is consumed by the dispatcher (`references/executor-dispatch.md`) to decide per-Step placement and model tier; a missing column or an empty/unrecognized cell falls back to the legacy heuristic described there.
 - If `HANDOFF.md` names a different resume point than the table implies, trust `HANDOFF.md` and reconcile the table (a previous session may have crashed mid-Step). Log the reconciliation in `NOTIFY.md`.
 - If the `## Tasks` table is missing, fall back to a legacy `## Progress` checkbox section (PRs opened before the table migration used checkboxes — first `- [ ]` is the resume point). When you hit a legacy Progress section, migrate it to a Tasks table as part of the resume's first commit — written in the six-column format, `Exec` filled per the planning heuristics.
-- If neither the table nor a legacy Progress section can be parsed, stop and ask the user — unless `--from <phase.step>` was passed, in which case use that as the resume point and log a note in `NOTIFY.md`.
-- Cross-check the most recent `done` row's `Commit` SHA against `git log` on the PR head. If the recorded SHA is not reachable, warn the user and ask whether to continue (or accept `--force`).
+- If neither the table nor a legacy Progress section can be parsed, stop cleanly and report the unparseable plan file and the `--from <phase.step>` re-run — unless `--from` was passed, in which case use that as the resume point and log a note in `NOTIFY.md`.
+- Cross-check the most recent `done` row's `Commit` SHA against `git log` on the PR head. If the recorded SHA is not reachable (the branch was rebased or force-pushed), continue: re-verify that the row's work is present in the code before building on it, and log the unreachable SHA and that check in `NOTIFY.md` and an assumptions comment on the PR.
 - Skim the tail of `NOTIFY.md` (e.g. last 30 entries) for recent blockers or decisions so you do not repeat or contradict prior work.
 
 Append a NOTIFY entry announcing the resume:

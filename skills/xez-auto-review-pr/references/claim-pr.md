@@ -8,7 +8,7 @@ Resolve `CURRENT_USER` via the tracker operation **current-user**, then read the
 
 1. **Assignee** — the item is assigned to someone other than `CURRENT_USER`.
 2. **`in-progress` label** — the label is present on the item.
-3. **Recent robot claim comment** — a `🤖` claim comment posted within the stale window by someone other than `CURRENT_USER`.
+3. **Recent robot claim comment** — a `🤖` claim comment posted within the stale window by someone other than `CURRENT_USER`. A claim comment counts only when its author may run automation here — `association` `OWNER`, `MEMBER` or `COLLABORATOR`, or a login in the config's `review.trustedBots` — and, when the item has an assignee, the author is that assignee. A `🤖` claim comment from anyone else is ignored and named in the report: a stranger's fake claim must not lock automation out.
 
 Decision:
 
@@ -62,7 +62,7 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
 
 This skill claims the PR itself (step 1 of the skill body) and uses tighter windows than the generic defaults.
 
-**Detection.** Run **current-user** to fill `CURRENT_USER`, then **get-pr** for `{prNumber}` requesting `assignees`, `labels`, `number`, `title`, and `comments`. The PR is **already in progress** when it carries the `in-progress` label, has at least one assignee whose login is not `$CURRENT_USER`, or has a claim comment newer than **30 minutes** from another actor (look for the `🤖` start marker).
+**Detection.** Run **current-user** to fill `CURRENT_USER`, then **get-pr** for `{prNumber}` requesting `assignees`, `labels`, `number`, `title`, and `comments`. The PR is **already in progress** when it carries the `in-progress` label, has at least one assignee whose login is not `$CURRENT_USER`, or has a claim comment newer than **30 minutes** from another trusted actor (author rule as in signal 3 above: a trusted author, and the assignee when there is one) (look for the `🤖` start marker).
 
 Decision tree:
 
@@ -73,7 +73,7 @@ Decision tree:
 | In progress, someone else owns the lock | no | **STOP**. Ask the user: "PR #{prNumber} is in progress (owner: {owner}, signal: {label/assignee/comment}). Override and continue?" Only continue when the user explicitly says yes. |
 | In progress, someone else owns the lock | yes | Post a force-override comment naming the previous owner, then claim and proceed |
 
-**Stale lock**: if the `in-progress` label is older than **60 minutes** and the assignee did not push or comment in that window, treat it as expired. Still ask the user before overriding unless `--force` was set.
+**Stale lock**: if the `in-progress` label is older than **60 minutes** and the assignee did not push or comment in that window, treat it as expired and recover it per **Stale-lock recovery** above — post the takeover note, then claim; `--force` is not needed for an expired lock.
 
 **Claim** (only after the check passes) — three tracker operations:
 

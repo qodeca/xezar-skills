@@ -4,6 +4,10 @@
 
 Given a single PR number, this skill submits an approving review and squash-merges the PR — fast and low-friction, but never faster than the merge gates. It refuses when the QA gate or a blocking label (`qa-failed`, `do-not-merge`, `blocked`, or an in-flight `qa`) forbids the merge, and it routes fixable blockers to automation instead of dead-ending: failing required checks to `xez-auto-fix-pr --ci-only`, and conflicts or unresolved review feedback to the full `xez-auto-fix-pr` loop. Optionally it can file a follow-up tracking issue in the same run. Use it when you say "approve and merge PR 123", "ship PR 123", or hand it a PR number with intent to merge.
 
+## Review gate
+
+When branch protection requires an approving review, the host's approval is required and nothing substitutes for it. When it does not – a single-owner project, where the host also refuses self-approval if every agent runs under one login – the recorded pipeline review verdict decides instead: the `xez-auto-review-pr` verdict handed in by the chain, or the newest approving or changes-requested review on the pull request from an owner, member or collaborator. It passes only when that verdict is an approval **and** names the pull request's current head commit. An approval for an older head is stale and refuses (re-run the review); no recorded verdict at all refuses as `unknown`.
+
 ## Parameters
 
 | Parameter | Required | Description |

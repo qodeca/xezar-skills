@@ -95,11 +95,15 @@
         "who": "collection maintainers",
         "expires": "2027-09-20"
       },
-    "test:guards": {
-      "why": "Runs nightly (.github/workflows/nightly-guards.yml); too slow for every PR – owner decision 2026-09-27.",
-      "who": "collection maintainers",
-      "expires": "2027-09-27"
+      "test:guards": {
+        "why": "Runs nightly (.github/workflows/nightly-guards.yml); too slow for every PR – owner decision 2026-09-27.",
+        "who": "collection maintainers",
+        "expires": "2027-09-27"
+      }
     }
-    }
+  },
+  "autoSkillAsks": {
+    "$binds": "scripts/lint.sh -> the auto-asks check, which reads this list at run time; key \"<path>: <text the line contains>\"",
+    "entries": {}
   }
 }
