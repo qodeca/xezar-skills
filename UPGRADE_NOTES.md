@@ -23,6 +23,29 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `node .xezar/checks/route.mjs acceptance-verification` lists `lane=qwen/deepseek-v4-pro`
+last. That lane has no image input, but the acceptance workflow takes screenshots, so when Claude
+and Codex have no budget a UI criterion is checked by a model that cannot see it, and reported as
+not run (#185).
+
+**What to do.** Copy `.xezar/docs/routing.md`, and merge `.xezar/routing.json` with the defaults
+version 6: the `acceptance-verification` row drops `qwen/deepseek-v4-pro` and gains the `never` entry
+`{"vision": false, "why": …}`, and the note on `qwen/deepseek-flash` records the 2026-10-18 vision
+test. Your own row orders, `never` entries and notes stay; a row you reordered by hand that the new
+defaults also change is a routing clash – stop and ask the owner.
+
+**What you lose by skipping it.** With no Claude or Codex budget, acceptance checks of UI work keep
+landing on a lane that cannot see the screen, and fail or report the criterion as not run.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/routing.json =merge; .xezar/docs/routing.md
+```
+
 ## 2026-10-18 – `route.mjs --author` does not say which bans to check before a merge
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.

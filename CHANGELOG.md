@@ -1,5 +1,9 @@
 # 3.2.1 (unreleased)
 
+- 🔧 Routing defaults version 6: `acceptance-verification` no longer falls back to
+  `qwen/deepseek-v4-pro`, which cannot see the screenshots that workflow takes, and refuses every
+  `vision: false` lane (#185). `qwen/deepseek-flash` stays `vision: false`: the 2026-10-18 test found it
+  reads numbers and colours but missed a 4 px offset 1 to 2 times in 5.
 - 🔧 `route.mjs <row> --author <lane>` ends each row with `merge-checks=<ids>`, the bans checked at
   merge time such as `qwen-write-claude-review` (#206). Without `--author` the output is unchanged. A
   merge the engine refuses on its own still needs a record of which lane wrote each commit

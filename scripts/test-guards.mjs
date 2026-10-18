@@ -2964,6 +2964,23 @@ breaks(
   "screen row ui-design lists",
 );
 
+// #185: acceptance-verification takes screenshots, so it holds no lane that cannot see a screen.
+breaks(
+  "V4 Pro, which has no vision, back in acceptance-verification is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("acceptance-verification").lanes.push(V4); }),
+  catalog("R"),
+  "row acceptance-verification lists qwen/deepseek-v4-pro",
+);
+
+breaks(
+  "an acceptance-verification row that stops refusing vision: false lanes is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("acceptance-verification").never = row("acceptance-verification").never.filter((e) => e.vision !== false); }),
+  catalog("R"),
+  "does not refuse vision: false lanes",
+);
+
 breaks(
   "Qwen-written work cleared by any lane is rejected",
   ROUTING,
