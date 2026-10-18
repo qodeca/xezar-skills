@@ -3143,6 +3143,25 @@ breaks(
 );
 // 3.1.0-stream-OC:end
 
+// --- the merge gate: a recorded review verdict binds to the current head -------
+
+breaks(
+  "a recorded approval for an older head that the merge gate accepts is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('     elif $recHead == $head then "pass"\n     else "findings" end) as $recordedReview',
+    '     else "pass" end) as $recordedReview'),
+  () => script("test-merge-gate.mjs"),
+  "approved verdict for an older head is stale and refuses",
+);
+
+breaks(
+  "a missing recorded verdict that the merge gate reads as a pass is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('  | (if $recorded == null then "unknown"', '  | (if $recorded == null then "pass"'),
+  () => script("test-merge-gate.mjs"),
+  "not enforced + no recorded verdict refuses",
+);
+
 // --- #122: the gate on native Windows -----------------------------------------
 // Each guard below was written for Windows, and each break reproduces a defect that is not
 // Windows-only, so it fires on the Linux nightly too.
