@@ -1659,6 +1659,23 @@ breaks(
 // 3.1.0-stream-B:start
 // #50: the author chain. Each way route.mjs or the routing file could let a dependent lane through,
 // or change what the leader already parses, is a break of its own.
+// #206: with a chain, the merge-time bans are printed beside dispatch-checks.
+breaks(
+  "route that stops printing the merge-time bans with an author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (chain && mergeBans.length) out.push(`merge-checks=${mergeBans.join(\",\")}`);\n", ""),
+  catalog("B"),
+  "does not print merge-checks=qwen-write-claude-review after dispatch-checks",
+);
+
+breaks(
+  "route that prints the merge-time bans without an author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (chain && mergeBans.length) out.push(", "    if (mergeBans.length) out.push("),
+  catalog("B"),
+  "route prints author-chain lines without --author",
+);
+
 breaks(
   "route that ignores the author chain is rejected",
   ROUTE_MJS,

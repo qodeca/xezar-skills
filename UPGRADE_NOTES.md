@@ -23,6 +23,26 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-18 – `route.mjs --author` does not say which bans to check before a merge
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `node .xezar/checks/route.mjs <row> --author <lane>` prints `dispatch-checks=…` but no
+`merge-checks=…` line, so the merge-time ban `qwen-write-claude-review` – work a Qwen lane wrote
+merges only after a Claude or `codex/gpt-6-astra` review – is visible only in the routing file and
+the leader guide (#206).
+
+**What to do.** Copy `.xezar/checks/route.mjs` and `.xezar/docs/routing.md` from the release. With
+`--author`, every row now ends with `merge-checks=<ids>`; without it, the output is unchanged.
+
+**What you lose by skipping it.** The leader keeps relying on reading the guide for the merge-time
+ban; a merge of Qwen-written work with only Codex reviews stays possible, as it was.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/checks/route.mjs; .xezar/docs/routing.md
+```
+
 ## 2026-10-18 – two kit files still name pi or OpenCode after the 3.2.0 upgrade
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.
