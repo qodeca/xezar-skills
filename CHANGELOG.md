@@ -1,4 +1,6 @@
-# 3.2.1 (unreleased)
+# 3.2.1 (2026-10-18)
+
+**Kit 3.2.1 is a patch: fixes found after 3.2.0, with no new engine floor.** It still needs engine 0.30.0 or later. The upgrade prompt's release check works again (#233), onboarding stops naming OpenCode and pi (#235, #231), a screen-checking row refuses lanes that cannot see (#185), and `route.mjs --author` names the merge-time bans (#206). Run the upgrade prompt; the upgrade notes dated 2026-10-18 list each changed file.
 
 - 🔧 Routing defaults version 6: `acceptance-verification` no longer falls back to
   `qwen/deepseek-v4-pro`, which cannot see the screenshots that workflow takes, and refuses every
