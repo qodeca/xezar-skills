@@ -1,6 +1,6 @@
 # Release window — which PRs belong in this entry
 
-How `xez-auto-update-changelog` builds the set of PRs for step 2. A release entry describes **what the release ships**, so the window is defined by the ref the release is cut from — not by the branch PRs happen to target.
+How `xez-auto-update-changelog` builds the set of PRs for step 3. A release entry describes **what the release ships**, so the window is defined by the ref the release is cut from — not by the branch PRs happen to target.
 
 ## Resolve the release ref
 

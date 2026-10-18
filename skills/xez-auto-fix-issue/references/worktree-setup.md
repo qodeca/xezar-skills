@@ -36,7 +36,7 @@ Rules:
 - The main worktree must stay untouched.
 - Always clean up the temporary worktree at the end, but only if you created it this run.
 
-## Cleanup sequence (steps 5 and 11)
+## Cleanup sequence (steps 5 and 12)
 
 Run in a `trap`/finally so crashes also clean up:
 

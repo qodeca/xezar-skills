@@ -1,7 +1,7 @@
 # Supersede Credit Rule
 
 The credited-author resolution algorithm `xez-auto-update-changelog` runs in
-step 4 to compute `primaryAuthor` and optional `viaAuthor` for every merged PR,
+step 5 to compute `primaryAuthor` and optional `viaAuthor` for every merged PR,
 plus the verification pass that must clear every credit before the entry is
 assembled.
 

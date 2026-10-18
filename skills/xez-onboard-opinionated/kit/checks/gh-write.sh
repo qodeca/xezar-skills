@@ -61,7 +61,12 @@ VERDICT_CLEAR_design_review="design-failed"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
+# GitHub takes at most 65,536 characters in a comment. This script counts BYTES against the same
+# number: a body within it is within GitHub's limit in any encoding, and a longer one is refused,
+# never cut – `${#body}` counts characters under a UTF-8 locale while `head -c` reads bytes, so
+# mixing the two once posted a comment cut mid-character with exit 0.
 COMMENT_MAX_BYTES=65536
+byte_len() { printf '%s' "$1" | LC_ALL=C wc -c | tr -d ' \r\n'; }
 # Never taken from the environment: bash imports every exported variable as a shell variable.
 verdict_role=""
 verdict_head=""
@@ -143,8 +148,10 @@ origin_repo() {
 # The JSON form becomes the same arguments, so one set of checks below covers both forms.
 json_body=""
 if [ $# -eq 0 ]; then
-  request="$(head -c $((COMMENT_MAX_BYTES + 4096)))" || refuse "could not read stdin"
-  [ "${#request}" -le $((COMMENT_MAX_BYTES + 4095)) ] || refuse "the request is too large"
+  # The trailing `.` keeps trailing newlines, so the byte count is what was read.
+  request="$(head -c $((COMMENT_MAX_BYTES + 4096)) && printf .)" || refuse "could not read stdin"
+  request="${request%.}"
+  [ "$(byte_len "$request")" -le $((COMMENT_MAX_BYTES + 4095)) ] || refuse "the request is too large"
   jq -e 'type == "object"' >/dev/null 2>&1 <<<"$request" || refuse "stdin is not one JSON request object"
   # jq on native Windows ends every line with CR (#122): under Git Bash or Cygwin a token loses it
   # through drop_jq_cr, and the body, free text that must stay byte-exact, comes through
@@ -189,13 +196,19 @@ repo="$(origin_repo)" || exit 1
 case "$action" in
   comment)
     [ $# -eq 0 ] || usage
+    over_limit="the comment is over $COMMENT_MAX_BYTES bytes (GitHub's limit is 65,536 characters); nothing was posted, shorten it"
     if [ -n "$from_json" ]; then
       body="$json_body"
     else
-      body="$(head -c $((COMMENT_MAX_BYTES + 1)))" || refuse "could not read stdin"
+      # One byte past the limit and one more: room for a final newline, and proof of anything beyond.
+      body="$(head -c $((COMMENT_MAX_BYTES + 2)) && printf .)" || refuse "could not read stdin"
+      body="${body%.}"
+      [ "$(byte_len "$body")" -le $((COMMENT_MAX_BYTES + 1)) ] || refuse "$over_limit"
     fi
+    while [ "${body%$'\n'}" != "$body" ]; do body="${body%$'\n'}"; done
+    # Bytes, never characters: an over-limit comment is refused whole, never cut.
+    [ "$(byte_len "$body")" -le "$COMMENT_MAX_BYTES" ] || refuse "$over_limit"
     [ -n "$body" ] || refuse "the comment on stdin is empty"
-    [ "${#body}" -le "$COMMENT_MAX_BYTES" ] || refuse "the comment is over $COMMENT_MAX_BYTES bytes"
     printf '%s' "$body" | gh "$kind" comment "$number" --repo "$repo" --body-file -
     ;;
   label)

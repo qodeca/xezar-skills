@@ -389,13 +389,35 @@ function ensureLfJq() {
 }
 
 /**
- * One call at the top of a test that runs bash or kit scripts. POSIX: no-op. win32: requires Git
+ * Every platform: every git the test starts reads no system config and a global config of the
+ * test's own – a fixed identity and nothing else – through GIT_CONFIG_NOSYSTEM and
+ * GIT_CONFIG_GLOBAL on process.env. A developer's `commit.gpgsign=true`, hooks path, default
+ * branch or excludes file would otherwise change what a test's temp repository does (five gate
+ * commands failed on a machine that signs commits). Once per process; the file is removed on exit.
+ */
+export function isolateGitConfig(env = process.env) {
+  if (env.XEZ_TEST_GIT_CONFIG && env.GIT_CONFIG_GLOBAL === env.XEZ_TEST_GIT_CONFIG && existsSync(env.GIT_CONFIG_GLOBAL)) return;
+  const dir = mkdtempSync(path.join(tempRoot(), "xez-test-gitconfig-"));
+  const file = path.join(dir, "gitconfig");
+  // core.longpaths: the Windows CI jobs set it globally, and the temp worktrees nest deep.
+  const core = process.platform === "win32" ? "[core]\n\tlongpaths = true\n" : "";
+  writeFileSync(file, `[user]\n\tname = Xezar Test\n\temail = test@example.com\n${core}`);
+  env.GIT_CONFIG_GLOBAL = file;
+  env.GIT_CONFIG_NOSYSTEM = "1";
+  env.XEZ_TEST_GIT_CONFIG = file;
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+}
+
+/**
+ * One call at the top of a test that runs bash or kit scripts. Every platform: isolateGitConfig().
+ * Otherwise POSIX: no-op. win32: requires Git
  * Bash; writes withGitTools() and pinTestGitConfig() onto process.env IN PLACE, key by key (a
  * replaced process.env object would lose Windows' case-insensitive lookup for every later spawn);
  * puts an LF jq first on PATH when needed; quotes the test's own Git Bash and sh command lines for
  * MSYS (installStubSpawn); with { symlinks: true } also requireSymlinks().
  */
 export function prepareTestPlatform({ symlinks = false } = {}) {
+  isolateGitConfig();
   if (process.platform !== "win32") return;
   requireGitBash();
   // One helper at a time: each reads process.env as the previous one left it.

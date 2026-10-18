@@ -25,7 +25,7 @@ the resulting `{issueId}`.
    missing chain skill.
 
 2. **Run it under this chain's autonomous contract.** `xez-prepare-issue` is an
-   interactive skill; this chain is not. Where it would ask the user, make the
+   interactive skill; this chain is not. Where it would stop for an answer, make the
    recommended, most-reversible call yourself and document it in the comment it
    posts:
    - credible **open** duplicate → reuse it (comment the new detail) instead of

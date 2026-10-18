@@ -40,6 +40,7 @@ import { sections } from "./lib/sections.mjs";
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
   "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U-verify", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "K1", "K2", "K3", "K4",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -2768,6 +2769,96 @@ if (S.section("W12")) {
     for (const n of needles) if (!text.includes(n)) fail(fact, where, `no longer requires Node 22 (\`${n}\` is missing)`);
     if (/(?:<|>=?) ?20\b|required 20\b|Node 20\b/.test(text)) fail(fact, where, "still accepts Node 20; the kit requires Node 22");
   }
+  checked.push(fact);
+}
+
+// FACT K1 -- a flag given without its value is a usage error, never a hang. `X="${2:-}"; shift 2`
+// on the last argument fails the shift (bash shifts nothing when fewer than two remain), so the
+// loop sees the same flag forever: `ci-watch.sh --deadline` never exited.
+if (S.section("K1")) {
+  const fact = "FACT K1: a value flag with no value exits 2, it never loops";
+  const HANG = /="\$\{2:-\}";\s*shift 2/;
+  for (const rel of [...walk("skills", /\.sh$/), ...walk("scripts", /\.sh$/)]) {
+    read(rel).split("\n").forEach((line, n) => {
+      if (HANG.test(line)) fail(fact, `${rel}:${n + 1}`, `shifts two arguments without checking two remain, so a missing value loops forever:\n    ${line.trim()}`);
+    });
+  }
+  const { spawnSync } = await import("node:child_process");
+  for (const [script, args] of [["ci-watch.sh", ["--deadline"]], ["integration-preflight.sh", ["--repo", "a/b", "--issue"]], ["root-sync-preflight.sh", ["--authority"]]]) {
+    const r = spawnSync(bashPath(), [join(root, SKILL, "kit/checks", script), ...args], { encoding: "utf8", timeout: 20000, killSignal: "SIGKILL" });
+    if (r.error || r.status !== 2 || !/needs a value/.test(r.stderr))
+      fail(fact, `kit/checks/${script}`, `\`${script} ${args.join(" ")}\` does not exit 2 naming the missing value (${r.error ? "still running after 20 s" : `exit ${r.status}`})`);
+  }
+  checked.push(fact);
+}
+
+// FACT K2 -- an over-limit comment is refused whole, never cut. gh-write.sh read stdin with
+// `head -c` (bytes) and measured it with `${#body}` (characters under UTF-8), so a long comment in
+// a non-ASCII language was cut mid-character and posted with exit 0. It counts bytes now.
+if (S.section("K2")) {
+  const fact = "FACT K2: gh-write.sh posts a comment whole or refuses it, counting bytes";
+  const where = "kit/checks/gh-write.sh";
+  const { execFileSync, spawnSync } = await import("node:child_process");
+  const { chmodSync, realpathSync, statSync } = await import("node:fs");
+  const lab = realpathSync(mkdtempSync(join(tempRoot(), "kit-gh-write-")));
+  try {
+    const repo = join(lab, "repo");
+    mkdirSync(repo);
+    execFileSync("git", ["init", "-q", repo]);
+    execFileSync("git", ["-C", repo, "remote", "add", "origin", "https://github.com/acme/widgets.git"]);
+    const bin = join(lab, "bin");
+    mkdirSync(bin);
+    const posted = join(lab, "posted");
+    writeFileSync(join(bin, "gh"), '#!/usr/bin/env bash\ncat > "$GH_WRITE_POSTED"\n');
+    chmodSync(join(bin, "gh"), 0o755);
+    const post = (body) => {
+      rmSync(posted, { force: true });
+      const r = spawnSync(bashPath(), [join(root, SKILL, "kit/checks/gh-write.sh"), "comment", "pr", "7"], { cwd: repo, input: body, encoding: "utf8",
+        env: { ...prependPath(process.env, [bin]), GH_WRITE_POSTED: posted, LC_ALL: "en_US.UTF-8", LANG: "en_US.UTF-8" } });
+      return { code: r.status, out: `${r.stdout}${r.stderr}`, bytes: existsSync(posted) ? statSync(posted).size : null };
+    };
+    const MAX = 65536;
+    for (const [what, body, whole] of [
+      ["a 60,000-byte comment of two-byte characters", "é".repeat(30000), 60000],
+      ["a comment of exactly the limit and a final newline", `${"a".repeat(MAX)}\n`, MAX],
+    ]) {
+      const r = post(body);
+      if (r.code !== 0 || r.bytes !== whole) fail(fact, where, `does not post ${what} whole (exit ${r.code}, posted ${r.bytes} of ${whole} bytes): ${r.out.trim()}`);
+    }
+    for (const [what, body] of [
+      ["a 70,000-byte comment of 35,000 two-byte characters", "é".repeat(35000)],
+      ["a comment one byte over the limit", "a".repeat(MAX + 1)],
+      ["a comment whose text continues past a newline at the limit", `${"a".repeat(MAX)}\nmore`],
+    ]) {
+      const r = post(body);
+      if (r.code !== 1 || r.bytes !== null || !/is over 65536 bytes/.test(r.out))
+        fail(fact, where, `does not refuse ${what} without posting (exit ${r.code}, posted ${r.bytes} bytes): ${r.out.trim()}`);
+    }
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
+  }
+  checked.push(fact);
+}
+
+// FACT K3 -- a background check's exit status is never read before it is written. repository-checks
+// waits for `<id>.rc`; the file existed before its number was in it, and an empty status passed.
+if (S.section("K3")) {
+  const fact = "FACT K3: repository-checks.sh moves a finished status into place and reads an empty one as a failure";
+  const text = read(`${SKILL}/kit/checks/repository-checks.sh`);
+  if (!text.includes(`printf '%s' "$rc" >"$CHECK_TMP/$id.rc.tmp" && mv -f "$CHECK_TMP/$id.rc.tmp" "$CHECK_TMP/$id.rc"`))
+    fail(fact, "kit/checks/repository-checks.sh", "writes <id>.rc in place, so a reader can find the file before its exit status");
+  if (!text.includes(`case "$rc" in '' | *[!0-9]*) rc=1 ;; esac`))
+    fail(fact, "kit/checks/repository-checks.sh", "does not read an empty or unreadable status as a failure");
+  checked.push(fact);
+}
+
+// FACT K4 -- worktree-git.sh refuses a write on the project's base branch, as the engine's copy
+// does. The vendored copy read `main | main | HEAD`: master and the configured base branch got through.
+if (S.section("K4")) {
+  const fact = "FACT K4: worktree-git.sh refuses main, master, HEAD and the configured base branch";
+  const text = read(`${SKILL}/kit/checks/worktree-git.sh`);
+  if (!text.includes(`  main | master | HEAD | "\${BASE_BRANCH:-HEAD}")`))
+    fail(fact, "kit/checks/worktree-git.sh", "the branch refusal no longer names main, master, HEAD and \"$BASE_BRANCH\"");
   checked.push(fact);
 }
 

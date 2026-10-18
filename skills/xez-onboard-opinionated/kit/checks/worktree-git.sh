@@ -98,7 +98,7 @@ if [ "$IS_WORKTREE" -ne 1 ]; then
   exit 1
 fi
 case "$BRANCH" in
-  main | main | HEAD)
+  main | master | HEAD | "${BASE_BRANCH:-HEAD}")
     printf 'worktree-git: HEAD is "%s" — refusing to write to the integration or release branch.\n' "$BRANCH" >&2
     exit 1
     ;;

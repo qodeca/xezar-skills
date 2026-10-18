@@ -241,6 +241,22 @@ breaks(
   "process killed by pattern match",
 );
 
+breaks(
+  "a reference naming a step past the skill's last numbered step is rejected",
+  "skills/xez-auto-create-pr-loop/references/pr-finalize.md",
+  (s) => `${s}\n\nRelease the lock at step 15, after the report.\n`,
+  lint,
+  "numbers its steps only up to 14 (step-refs)",
+);
+
+breaks(
+  "a mid-run question in an xez-auto-* skill is rejected",
+  "skills/xez-auto-update-changelog/SKILL.md",
+  (s) => `${s}\n\n- When the window is unclear, ask the user which boundary to use.\n`,
+  lint,
+  "asks the user mid-run in an xez-auto-* skill (auto-asks)",
+);
+
 // The two gates above exclude `skills/<name>/kit/**` — vendored payload a skill copies
 // into a consumer project. These two prove the exclusion is a path exclusion and nothing
 // more: the same text in the skill's own body still fails, in the same skill that owns a
@@ -259,6 +275,42 @@ breaks(
   (s) => `${s}\n\n\`\`\`bash\npkill -f "node server.js"\n\`\`\`\n`,
   lint,
   "process killed by pattern match",
+);
+
+// lint.sh's tracker-text gate: a descriptor snippet is literal shell, and an issue title typed
+// into "<title>" runs any backtick or $(...) it holds. One break per half of the gate: the quoted
+// placeholder, the bash 3.2 apostrophe, and a block that does not parse at all.
+breaks(
+  "free text inside double quotes in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/github.md",
+  (s) => s.replace(
+    "gh issue comment {issueId} --repo {owner}/{repo} --body-file <body-file>\n",
+    'gh issue comment {issueId} --repo {owner}/{repo} --body "<body>"\n',
+  ),
+  lint,
+  "free text interpolated inside double quotes",
+);
+
+breaks(
+  "an apostrophe inside a double-quoted ${VAR:?...} in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "to the Jira account id of the automation user}",
+    "to the automation user's Jira account id}",
+  ),
+  lint,
+  "bash 3.2 cannot parse it",
+);
+
+breaks(
+  "a tracker descriptor bash block that does not parse is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\n",
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\nif [ -n \"$CURRENT_USER\" ]; then\n",
+  ),
+  lint,
+  "does not parse (bash -n",
 );
 
 // `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
@@ -2798,10 +2850,10 @@ breaks(
 breaks(
   "a changed kit file dropped from its upgrade block's Files: line is rejected",
   "UPGRADE_NOTES.md",
-  // Aimed at the newest kit entry (3.2.1, #231); re-aim it at the next one once 3.2.1 is released.
-  (s) => s.replace("Files: .xezar/docs/recovery.md; .xezar/checks/local-tree.sh\n", "Files: .xezar/docs/recovery.md\n"),
+  // Aimed at the newest kit entry (3.2.2, scripts and CI fixes); re-aim it at the next one once 3.2.2 is released.
+  (s) => s.replace("; .xezar/checks/repository-checks.sh; .xezar/checks/worktree-git.sh\n", "; .xezar/checks/repository-checks.sh\n"),
   upgrade("6"),
-  ".xezar/checks/local-tree.sh changed since 3.2.0 but no 3.1.0 upgrade block lists it",
+  ".xezar/checks/worktree-git.sh changed since 3.2.1 but no 3.1.0 upgrade block lists it",
 );
 
 breaks(
@@ -3142,6 +3194,25 @@ breaks(
   "the manifest version literal an installer copy writes is \"0.0.1\"",
 );
 // 3.1.0-stream-OC:end
+
+// --- the merge gate: a recorded review verdict binds to the current head -------
+
+breaks(
+  "a recorded approval for an older head that the merge gate accepts is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('     elif $recHead == $head then "pass"\n     else "findings" end) as $recordedReview',
+    '     else "pass" end) as $recordedReview'),
+  () => script("test-merge-gate.mjs"),
+  "approved verdict for an older head is stale and refuses",
+);
+
+breaks(
+  "a missing recorded verdict that the merge gate reads as a pass is caught",
+  "skills/xez-approve-merge-pr/references/merge-gate.sh",
+  (s) => s.replace('  | (if $recorded == null then "unknown"', '  | (if $recorded == null then "pass"'),
+  () => script("test-merge-gate.mjs"),
+  "not enforced + no recorded verdict refuses",
+);
 
 // --- #122: the gate on native Windows -----------------------------------------
 // Each guard below was written for Windows, and each break reproduces a defect that is not
@@ -3806,6 +3877,59 @@ breaks(
   (s) => s.replace("    if (major < 22) {\n", "    if (major < 20) {\n"),
   facts("W12"),
   "Node 22",
+);
+
+// Scripts-and-CI fixes: a value flag with no value, an over-limit comment, a background status read
+// early, the base-branch refusal, TOML definition rules and test git-config isolation.
+breaks(
+  "a check script whose value flag loops forever without its value is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/ci-watch.sh",
+  (s) => s.replace(`--deadline) [ $# -ge 2 ] || { printf 'ci-watch: %s needs a value\\n\\n' "$1" >&2; usage >&2; exit 2; }; DEADLINE_SECONDS="$2"; shift 2 ;;`,
+    '--deadline) DEADLINE_SECONDS="${2:-}"; shift 2 ;;'),
+  facts("K1"),
+  "shifts two arguments without checking two remain",
+);
+breaks(
+  "a gh-write that measures a comment in characters and posts it cut is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace(`byte_len() { printf '%s' "$1" | LC_ALL=C wc -c | tr -d ' \\r\\n'; }`, `byte_len() { printf '%s' "\${#1}"; }`),
+  facts("K2"),
+  "does not refuse a 70,000-byte comment",
+);
+breaks(
+  "a repository-checks that writes a status file in place is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace(`>"$CHECK_TMP/$id.rc.tmp" && mv -f "$CHECK_TMP/$id.rc.tmp" "$CHECK_TMP/$id.rc"`, `>"$CHECK_TMP/$id.rc"`),
+  facts("K3"),
+  "writes <id>.rc in place",
+);
+breaks(
+  "a worktree-git that lets the base branch through is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-git.sh",
+  (s) => s.replace(`  main | master | HEAD | "\${BASE_BRANCH:-HEAD}")`, "  main | main | HEAD)"),
+  facts("K4"),
+  "the branch refusal no longer names",
+);
+breaks(
+  "a TOML check that accepts a key defined twice is rejected",
+  "upgrade/tools/lib/toml.mjs",
+  (s) => s.replace("  if (t.keys.has(last)) throw new Error(`key ${shown(parts)} is defined twice`);\n", ""),
+  upgrade("1"),
+  "TOML check accepts a key defined twice",
+);
+breaks(
+  "a TOML check that accepts a header closed twice is rejected",
+  "upgrade/tools/lib/toml.mjs",
+  (s) => s.replace('if (src[end] === "]" || !restIsBlank(src, end))', "if (!restIsBlank(src, end))").replace("  return tail === \"\" || tail.startsWith(\"#\");", "  return tail === \"\" || tail.startsWith(\"#\") || tail.startsWith(\"]\");"),
+  upgrade("1"),
+  "TOML check accepts a header closed twice",
+);
+breaks(
+  "a test harness that lets the developer's git config reach the tests is rejected",
+  "scripts/lib/test-harness.mjs",
+  (s) => s.replace("export function prepareTestPlatform({ symlinks = false } = {}) {\n  isolateGitConfig();\n", "export function prepareTestPlatform({ symlinks = false } = {}) {\n"),
+  () => script("test-platform.mjs"),
+  "prepareTestPlatform() does not isolate git config",
 );
 
 // QG-8 fix round (F1, F4, F5, F7, F8).

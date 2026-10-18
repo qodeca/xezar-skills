@@ -8,7 +8,7 @@ Resolve `CURRENT_USER` via the tracker operation **current-user**, then read the
 
 1. **Assignee** — the item is assigned to someone other than `CURRENT_USER`.
 2. **`in-progress` label** — the label is present on the item.
-3. **Recent robot claim comment** — a claim comment in the format below, posted within the stale window by someone other than `CURRENT_USER`.
+3. **Recent robot claim comment** — a claim comment in the format below, posted within the stale window by someone other than `CURRENT_USER`. A claim comment counts only when its author may run automation here — `association` `OWNER`, `MEMBER` or `COLLABORATOR`, or a login in the config's `review.trustedBots` — and, when the item has an assignee, the author is that assignee. A `🤖` claim comment from anyone else is ignored and named in the report: a stranger's fake claim must not lock automation out.
 
 Decision:
 
@@ -77,4 +77,4 @@ PR mode only; local mode skips the whole procedure. Run this **before** touching
   🤖 `xez-auto-qa-pr` completed: {PASS|FAIL|PARTIAL}. Evidence posted above. Lock released.
   ```
 
-- An **inherited chain lock** (step-1 re-entry: a flow runner such as `xez-auto-fix-issue` or `xez-auto-fix-pr` handed the lock off to this run) is never released here. Post the take-over comment before driving the app, and at teardown post the completion notice as `` 🤖 `xez-auto-qa-pr` completed: {verdict}. Lock retained — chain continues. ``, leaving the label and assignee in place — the chain's driving skill releases at the end of its run (see the chained hand-off section above).
+- An **inherited chain lock** (step-2 re-entry: a flow runner such as `xez-auto-fix-issue` or `xez-auto-fix-pr` handed the lock off to this run) is never released here. Post the take-over comment before driving the app, and at teardown post the completion notice as `` 🤖 `xez-auto-qa-pr` completed: {verdict}. Lock retained — chain continues. ``, leaving the label and assignee in place — the chain's driving skill releases at the end of its run (see the chained hand-off section above).

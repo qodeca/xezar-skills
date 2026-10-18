@@ -1,6 +1,6 @@
 # PR finalize — update the resumed PR, labels, summary comment, markers
 
-The single procedure for the "push → update the existing PR → normalize labels → summary comment → chaining reference lines" mechanics (steps 9 and 10 of the skill body). The point is **one** implementation of PR updating + labeling, reused rather than copied, and never a second PR for work that already has one.
+The single procedure for the "push → update the existing PR → normalize labels → summary comment → chaining reference lines" mechanics (steps 8–10 of the skill body). The point is **one** implementation of PR updating + labeling, reused rather than copied, and never a second PR for work that already has one.
 
 ## Never open a duplicate PR
 
@@ -8,7 +8,7 @@ Before opening anything, check whether a PR already exists for this branch via *
 
 ## Prefer the `xez-open-pr` skill when installed
 
-`xez-open-pr` implements the push + label-normalization mechanics (through the descriptor guards, with rationale comments). When it is installed, **reuse it** instead of re-deriving the steps — this is a resume with no `{issueId}` in scope, so its PR-opening, issue-handback, and lock-release parts do not apply: this skill updates the existing PR and holds its own lock until step 10.
+`xez-open-pr` implements the push + label-normalization mechanics (through the descriptor guards, with rationale comments). When it is installed, **reuse it** instead of re-deriving the steps — this is a resume with no `{issueId}` in scope, so its PR-opening, issue-handback, and lock-release parts do not apply: this skill updates the existing PR and holds its own lock until step 9.
 
 ## Graceful fallback when `xez-open-pr` is NOT installed
 
@@ -37,7 +37,7 @@ Every mutation goes through the `apply_label`/`label_exists` guards from the tra
 
 ## Summary comment
 
-Every resume ends with one outcome and handoff comment (delta, verification result or evidence link, and next action; no repeated PR-body or label narrative), posted in step 9 via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 8) finishes, never claim a completion you did not reach, and never paste secrets into it. Keep this resume’s validation-gate and integration/UI outcomes in the PR body or linked evidence; when a verification runs mid-flight and is worth surfacing early, post it as its own idempotent `` 🤖 `xez-auto-continue-pr` — verification `` comment (screenshots via **attach-image-evidence** when UI changed).
+Every resume ends with one outcome and handoff comment (delta, verification result or evidence link, and next action; no repeated PR-body or label narrative), posted in step 8 via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 7) finishes, never claim a completion you did not reach, and never paste secrets into it. Keep this resume’s validation-gate and integration/UI outcomes in the PR body or linked evidence; when a verification runs mid-flight and is worth surfacing early, post it as its own idempotent `` 🤖 `xez-auto-continue-pr` — verification `` comment (screenshots via **attach-image-evidence** when UI changed).
 
 ## Marker emission
 
@@ -52,5 +52,5 @@ Chained consumers (`xez-auto-review-pr`, `xez-auto-qa-pr`, orchestration scripts
 
 ## xez-auto-continue-pr specifics
 
-- Release the `in-progress` lock at the very end of step 10 — **always**, even on failure (trap/finally). Mechanics and the completion-comment text: `references/claim-pr.md`.
+- Release the `in-progress` lock at the very end of step 9 — **always**, even on failure (trap/finally). Mechanics and the completion-comment text: `references/claim-pr.md`.
 - Remove the worktree you created and prune, in the same trap/finally: `references/worktree-setup.md`.

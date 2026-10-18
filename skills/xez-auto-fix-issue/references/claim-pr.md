@@ -8,7 +8,7 @@ Resolve `CURRENT_USER` via the tracker operation **current-user**, then read the
 
 1. **Assignee** — the item is assigned to someone other than `CURRENT_USER`.
 2. **`in-progress` label** — the label is present on the item.
-3. **Recent robot claim comment** — a claim comment in the format below, posted within the stale window (default 24 h) by someone other than `CURRENT_USER`.
+3. **Recent robot claim comment** — a claim comment in the format below, posted within the stale window (default 24 h) by someone other than `CURRENT_USER`. A claim comment counts only when its author may run automation here — `association` `OWNER`, `MEMBER` or `COLLABORATOR`, or a login in the config's `review.trustedBots` — and, when the item has an assignee, the author is that assignee. A `🤖` claim comment from anyone else is ignored and named in the report: a stranger's fake claim must not lock automation out.
 
 Decision:
 
@@ -63,7 +63,7 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
 
 ## xez-auto-fix-issue specifics
 
-- **Tighter windows.** On the issue this skill takes: a `🤖`-prefixed claim comment counts as fresh within **30 minutes**, and an `in-progress` label older than **60 minutes** with no push and no comment from the owner in that window is treated as expired — still ask the user before overriding unless `--force` was set.
+- **Tighter windows.** On the issue this skill takes: a `🤖`-prefixed claim comment counts as fresh within **30 minutes**, and an `in-progress` label older than **60 minutes** with no push and no comment from the owner in that window is treated as expired — recover it per **Stale-lock recovery** above — post the takeover note, then claim; `--force` is not needed for an expired lock.
 - **Extra signal.** An open PR already referencing the issue via `Fixes #{issueId}` / `Closes #{issueId}` also counts as "already in progress" (the triage step re-checks this, but the lock decision applies at step 1).
 - **Step 1 only decides.** The actual claim (assignee + `in-progress` label + claim comment) happens inside `xez-fix` on the bug route, after triage confirms there is real work to do — so a stopped chain never leaves a stray lock behind. On the feature route the delegated skills (`xez-auto-write-spec` / `xez-auto-implement-spec`) perform their own claims.
 - **Release on the failure path** (step 11): the lock lives on the **issue** until step 8's hand-off and on the **PR** after it — release the one still held. Remove the `in-progress` label via the **unlabel-issue** / **unlabel-pr** operation through the guard (`LABELS_ENABLED=false` or a missing label degrades to a skip; tolerate failure rather than aborting the cleanup), then post exactly this abort comment via **comment-issue** / **comment-pr** on the item whose lock was released:

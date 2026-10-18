@@ -51,6 +51,68 @@ Applies-to: <3.2.2
 Files: .xezar/skills/xezar-release-publish.md
 ```
 
+## 2026-10-18 – a kit check hangs on a flag with no value, or posts a long comment cut short
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** Any of these, from the installed `.xezar/checks/` scripts:
+
+- `bash .xezar/checks/ci-watch.sh --deadline` (or `integration-preflight.sh`,
+  `root-sync-preflight.sh`, `merge-recovery.sh record-intent` with its last flag missing a value)
+  never exits – the step holds its slot until something kills it.
+- A long tracker comment in a non-ASCII language posted through `gh-write.sh` arrives cut off,
+  sometimes mid-character, while the script exits 0.
+- `repository-checks.sh` now and then reports a background check as passed before it finished.
+- `worktree-git.sh` commits or pushes on `master` or on the project's configured base branch.
+
+**What to do.** Copy the seven files below from the release. A flag without its value now exits 2
+naming it; `gh-write.sh` counts the comment in bytes against GitHub's 65,536 limit and refuses a
+longer one whole – nothing is posted, the caller shortens it; `repository-checks.sh` moves each
+finished status into place, and reads a missing or empty one as a failure; `worktree-git.sh`
+refuses `main`, `master`, `HEAD` and the configured base branch, as the engine's own copy does. No
+configuration changes.
+
+**What you lose by skipping it.** A mistyped check step can hang until the engine's own limits end
+it, a long comment can reach the tracker incomplete with no error, a check can be counted green
+before it ran to the end, and a run worktree that ends up on the base branch can still be written to.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/checks/ci-watch.sh; .xezar/checks/integration-preflight.sh; .xezar/checks/root-sync-preflight.sh; .xezar/checks/merge-recovery.sh; .xezar/checks/gh-write.sh; .xezar/checks/repository-checks.sh; .xezar/checks/worktree-git.sh
+```
+
+## 2026-10-18 – an issue title with a backtick or `$(…)` runs as a command, and any commenter's ask gets implemented
+
+Applies to any repository with this collection's tracker descriptors,
+`.xezar/pipeline/trackers/github.md` (and `linear.md` or `jira.md` when used), whichever setup
+skill installed them.
+
+**Symptom.** Your descriptor's **create-issue**, **create-pr**, **comment-issue**, **close-issue**,
+**review-pr** or **search-issues** puts free text straight into double quotes – `--title "<title>"`,
+`--body "<body>"`, `--search "<query> in:title,body"` – so a backtick or `$(…)` in an issue title
+runs on the machine executing the operation. And **list-issue-comments** /
+**list-review-comments** return only `user`, with no `association`, so a review run cannot tell a
+maintainer's ask from a stranger's. In `jira.md`, **auth-check** fails to parse on macOS's bash 3.2
+(`unexpected EOF while looking for matching`) because of the apostrophe in `user's`.
+
+**What to do.** Re-sync the descriptor as "Re-syncing the tracker descriptor" below says, moving
+its recorded digest in an onboarded project. Every operation keeps its inputs and outputs: free
+text now travels through a file (`--body-file`, a title read from a file into `"$TITLE"`), and the
+comment reads add one field, `association` (GitHub's `author_association`). Linear and Jira gain
+the same file rule and a note on which comment authors count as trusted. Optionally list trusted
+review bots in the config's new `review.trustedBots` key; absent means none.
+
+**What you lose by skipping it.** A run that files or searches with attacker-written text can
+execute it. The review and continue skills act only on comments from `OWNER`, `MEMBER` or
+`COLLABORATOR`; against an old descriptor with no `association`, every comment reads as untrusted,
+so a maintainer's review comments are listed but no longer fixed automatically.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/pipeline/trackers/github.md
+Actions: config-key=review.trustedBots
+```
+
 ## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.
