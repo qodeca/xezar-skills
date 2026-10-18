@@ -59,10 +59,10 @@ EOF
 EXPECTED_ROOT="" EXPECTED_BRANCH="" EXPECTED_TARGET="" AUTHORITY=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --expected-root) EXPECTED_ROOT="${2:-}"; shift 2 ;;
-    --expected-branch) EXPECTED_BRANCH="${2:-}"; shift 2 ;;
-    --expected-target) EXPECTED_TARGET="${2:-}"; shift 2 ;;
-    --authority) AUTHORITY="${2:-}"; shift 2 ;;
+    --expected-root) [ $# -ge 2 ] || { printf 'root-sync-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; EXPECTED_ROOT="$2"; shift 2 ;;
+    --expected-branch) [ $# -ge 2 ] || { printf 'root-sync-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; EXPECTED_BRANCH="$2"; shift 2 ;;
+    --expected-target) [ $# -ge 2 ] || { printf 'root-sync-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; EXPECTED_TARGET="$2"; shift 2 ;;
+    --authority) [ $# -ge 2 ] || { printf 'root-sync-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; AUTHORITY="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'root-sync-preflight: unknown argument "%s"\n\n' "$1" >&2; usage >&2; exit 2 ;;
   esac

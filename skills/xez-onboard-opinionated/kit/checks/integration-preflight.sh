@@ -96,12 +96,12 @@ EOF
 REPO="" PR="" BASE="" EXPECTED_HEAD="" AUTHORITY="" ISSUE=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --repo) REPO="${2:-}"; shift 2 ;;
-    --pr) PR="${2:-}"; shift 2 ;;
-    --base) BASE="${2:-}"; shift 2 ;;
-    --expected-head) EXPECTED_HEAD="${2:-}"; shift 2 ;;
-    --authority) AUTHORITY="${2:-}"; shift 2 ;;
-    --issue) ISSUE="${2:-}"; shift 2 ;;
+    --repo) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; REPO="$2"; shift 2 ;;
+    --pr) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; PR="$2"; shift 2 ;;
+    --base) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; BASE="$2"; shift 2 ;;
+    --expected-head) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; EXPECTED_HEAD="$2"; shift 2 ;;
+    --authority) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; AUTHORITY="$2"; shift 2 ;;
+    --issue) [ $# -ge 2 ] || { printf 'integration-preflight: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; ISSUE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'integration-preflight: unknown argument "%s"\n\n' "$1" >&2; usage >&2; exit 2 ;;
   esac

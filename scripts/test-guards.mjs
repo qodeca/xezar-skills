@@ -2798,10 +2798,10 @@ breaks(
 breaks(
   "a changed kit file dropped from its upgrade block's Files: line is rejected",
   "UPGRADE_NOTES.md",
-  // Aimed at the newest kit entry (3.2.1, #231); re-aim it at the next one once 3.2.1 is released.
-  (s) => s.replace("Files: .xezar/docs/recovery.md; .xezar/checks/local-tree.sh\n", "Files: .xezar/docs/recovery.md\n"),
+  // Aimed at the newest kit entry (3.2.2, scripts and CI fixes); re-aim it at the next one once 3.2.2 is released.
+  (s) => s.replace("; .xezar/checks/repository-checks.sh; .xezar/checks/worktree-git.sh\n", "; .xezar/checks/repository-checks.sh\n"),
   upgrade("6"),
-  ".xezar/checks/local-tree.sh changed since 3.2.0 but no 3.1.0 upgrade block lists it",
+  ".xezar/checks/worktree-git.sh changed since 3.2.1 but no 3.1.0 upgrade block lists it",
 );
 
 breaks(
@@ -3806,6 +3806,59 @@ breaks(
   (s) => s.replace("    if (major < 22) {\n", "    if (major < 20) {\n"),
   facts("W12"),
   "Node 22",
+);
+
+// Scripts-and-CI fixes: a value flag with no value, an over-limit comment, a background status read
+// early, the base-branch refusal, TOML definition rules and test git-config isolation.
+breaks(
+  "a check script whose value flag loops forever without its value is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/ci-watch.sh",
+  (s) => s.replace(`--deadline) [ $# -ge 2 ] || { printf 'ci-watch: %s needs a value\\n\\n' "$1" >&2; usage >&2; exit 2; }; DEADLINE_SECONDS="$2"; shift 2 ;;`,
+    '--deadline) DEADLINE_SECONDS="${2:-}"; shift 2 ;;'),
+  facts("K1"),
+  "shifts two arguments without checking two remain",
+);
+breaks(
+  "a gh-write that measures a comment in characters and posts it cut is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
+  (s) => s.replace(`byte_len() { printf '%s' "$1" | LC_ALL=C wc -c | tr -d ' \\r\\n'; }`, `byte_len() { printf '%s' "\${#1}"; }`),
+  facts("K2"),
+  "does not refuse a 70,000-byte comment",
+);
+breaks(
+  "a repository-checks that writes a status file in place is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
+  (s) => s.replace(`>"$CHECK_TMP/$id.rc.tmp" && mv -f "$CHECK_TMP/$id.rc.tmp" "$CHECK_TMP/$id.rc"`, `>"$CHECK_TMP/$id.rc"`),
+  facts("K3"),
+  "writes <id>.rc in place",
+);
+breaks(
+  "a worktree-git that lets the base branch through is rejected",
+  "skills/xez-onboard-opinionated/kit/checks/worktree-git.sh",
+  (s) => s.replace(`  main | master | HEAD | "\${BASE_BRANCH:-HEAD}")`, "  main | main | HEAD)"),
+  facts("K4"),
+  "the branch refusal no longer names",
+);
+breaks(
+  "a TOML check that accepts a key defined twice is rejected",
+  "upgrade/tools/lib/toml.mjs",
+  (s) => s.replace("  if (t.keys.has(last)) throw new Error(`key ${shown(parts)} is defined twice`);\n", ""),
+  upgrade("1"),
+  "TOML check accepts a key defined twice",
+);
+breaks(
+  "a TOML check that accepts a header closed twice is rejected",
+  "upgrade/tools/lib/toml.mjs",
+  (s) => s.replace('if (src[end] === "]" || !restIsBlank(src, end))', "if (!restIsBlank(src, end))").replace("  return tail === \"\" || tail.startsWith(\"#\");", "  return tail === \"\" || tail.startsWith(\"#\") || tail.startsWith(\"]\");"),
+  upgrade("1"),
+  "TOML check accepts a header closed twice",
+);
+breaks(
+  "a test harness that lets the developer's git config reach the tests is rejected",
+  "scripts/lib/test-harness.mjs",
+  (s) => s.replace("export function prepareTestPlatform({ symlinks = false } = {}) {\n  isolateGitConfig();\n", "export function prepareTestPlatform({ symlinks = false } = {}) {\n"),
+  () => script("test-platform.mjs"),
+  "prepareTestPlatform() does not isolate git config",
 );
 
 // QG-8 fix round (F1, F4, F5, F7, F8).

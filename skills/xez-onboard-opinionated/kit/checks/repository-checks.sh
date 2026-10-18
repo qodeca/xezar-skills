@@ -38,7 +38,9 @@ trap 'wait; rm -rf "$CHECK_TMP"' EXIT
 started() {
   local id="$1"
   shift
-  { rc=0; "$@" >"$CHECK_TMP/$id.out" 2>"$CHECK_TMP/$id.err" || rc=$?; printf '%s' "$rc" >"$CHECK_TMP/$id.rc"; } &
+  # The status is written aside and moved into place, so `$id.rc` never exists without its number:
+  # a reader that saw the file between its creation and the write read an empty status as a pass.
+  { rc=0; "$@" >"$CHECK_TMP/$id.out" 2>"$CHECK_TMP/$id.err" || rc=$?; printf '%s' "$rc" >"$CHECK_TMP/$id.rc.tmp" && mv -f "$CHECK_TMP/$id.rc.tmp" "$CHECK_TMP/$id.rc"; } &
 }
 # Waits for a started check, prints what it printed and returns its exit status. A check with no
 # recorded status did not finish, which is a failure.
@@ -48,6 +50,7 @@ finished() {
   cat "$CHECK_TMP/$id.out" 2>/dev/null
   cat "$CHECK_TMP/$id.err" >&2 2>/dev/null
   rc="$(cat "$CHECK_TMP/$id.rc" 2>/dev/null)" || rc=1
+  case "$rc" in '' | *[!0-9]*) rc=1 ;; esac
   return "$rc"
 }
 

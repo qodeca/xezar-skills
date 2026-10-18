@@ -223,6 +223,17 @@ if (S.section("1")) {
 
   expect(tomlError(readFileSync(join(KIT_SKILL, "kit/codex/config.toml"), "utf8")) === null, "TOML check refuses the kit's own codex config");
   expect(tomlError("[a]\nb = [1,\n") !== null && tomlError("<<<<<<< mine\n") !== null, "TOML check accepts a broken file");
+  // A merge breaks TOML's definition rules more often than its syntax: both sides add the same key.
+  for (const [broken, what] of [["a = 1\na = 2\n", "a key defined twice"], ['"a" = 1\na = 2\n', "a key defined twice, once quoted"],
+    ["[t]\nx = 1\n[t]\ny = 2\n", "a table defined twice"], ["k = { a = 1, a = 2 }\n", "an inline table with a key twice"],
+    ["[fruit]\napple.color = 1\n[fruit.apple]\n", "a [table] reopening a dotted-key table"], ["[a]\n[[a]]\n", "[[a]] after [a]"],
+    ["[[a]\n", "an unclosed [[array]] header"], ["[a]]\n", "a header closed twice"], ["[a] x = 1\n", "text after a header"]])
+    expect(tomlError(broken) !== null, `TOML check accepts ${what}: ${JSON.stringify(broken)}`);
+  for (const [fine, what] of [['["a #b"]\nx = 1 # c\n', "a quoted header key holding #"],
+    ['[fruit]\napple.color = "red"\n[fruit.apple.texture]\nsmooth = true\n', "a sub-table under a dotted-key table"],
+    ["[[p]]\nn = 1\n[[p]]\nn = 2\n", "an array of tables"], ["[a.b]\nx = 1\n[a]\ny = 2\n", "a parent table defined after its child"],
+    ['k = { a = 1, b.c = "x #" } # ok\n', "an inline table with a # in a string"]])
+    expect(tomlError(fine) === null, `TOML check refuses ${what}: ${tomlError(fine)}`);
 
   const t = "Repo {{REPO_SLUG}} ships {{PRODUCT}}; again {{PRODUCT}}.\n";
   const inputs = extractInputs(t, "Repo acme/w ships Widget; again Widget.\n");
