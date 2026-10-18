@@ -137,8 +137,9 @@ const upgrade = (...ids) => () => script("test-upgrade.mjs", ...only(ids));
 const deps = (...ids) => () => script("test-deps-units.mjs", ...only(ids));
 
 const KIT_INDEX_PKG = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
-const KIT_INDEX_PKG_IS_NEWEST =
-  JSON.parse(readFileSync(join(root, "upgrade/kit-index/index.json"), "utf8")).versions.at(-1)?.version === KIT_INDEX_PKG;
+const KIT_INDEX_VERSIONS = JSON.parse(readFileSync(join(root, "upgrade/kit-index/index.json"), "utf8")).versions.map((v) => v.version);
+const KIT_INDEX_PKG_IS_NEWEST = KIT_INDEX_VERSIONS.at(-1) === KIT_INDEX_PKG;
+const KIT_INDEX_PKG_IS_LISTED = KIT_INDEX_VERSIONS.includes(KIT_INDEX_PKG);
 
 /**
  * Break one file, run one gate, expect one message. Registers the case; the runner at the end
@@ -149,29 +150,38 @@ const KIT_INDEX_PKG_IS_NEWEST =
  */
 const CASES = [];
 function breaks(name, file, mutate, gate, expect) {
-  CASES.push({ name, file, mutate, gate, expect });
+  CASES.push({ name, file, mutate, gate, expect, also: [] });
+}
+// A defect that only exists when two files change together – a check that compares them and
+// stays silent while one side is empty. `also` is the second [file, mutate]; each must change.
+function breaksBoth(name, file, mutate, also, gate, expect) {
+  CASES.push({ name, file, mutate, gate, expect, also: [also] });
 }
 
 /** Runs one case in this worker's copy. Returns null when the guard caught its defect, else why not. */
-function runCase({ file, mutate, gate, expect }) {
-  const path = join(root, file);
-  const original = readFileSync(path, "utf8"); // the restore stays byte-exact
-  // #122: every search string below is written with LF line endings, so a CRLF checkout is
-  // mutated as LF and written back with CRLF. A file mixing both cannot be written back without
-  // changing more than the mutation, so it is refused rather than broken for the wrong reason.
-  const crlf = original.includes("\r\n");
-  if (crlf && /(^|[^\r])\n/.test(original)) {
-    return `${file} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`;
+function runCase({ file, mutate, also, gate, expect }) {
+  const edits = [];
+  for (const [each, change] of [[file, mutate], ...also]) {
+    const path = join(root, each);
+    const original = readFileSync(path, "utf8"); // the restore stays byte-exact
+    // #122: every search string below is written with LF line endings, so a CRLF checkout is
+    // mutated as LF and written back with CRLF. A file mixing both cannot be written back without
+    // changing more than the mutation, so it is refused rather than broken for the wrong reason.
+    const crlf = original.includes("\r\n");
+    if (crlf && /(^|[^\r])\n/.test(original)) {
+      return `${each} mixes CRLF and LF line endings; check it out with LF (.gitattributes) and run again`;
+    }
+    const lf = toLF(original);
+    const broken = change(lf);
+    if (broken === lf) return `the mutation changed nothing${also.length ? ` in ${each}` : ""} -- this test is testing nothing`;
+    edits.push({ path, original, broken: crlf ? broken.replace(/\n/g, "\r\n") : broken });
   }
-  const lf = toLF(original);
   let result;
   try {
-    const broken = mutate(lf);
-    if (broken === lf) return "the mutation changed nothing -- this test is testing nothing";
-    writeInside(root, path, crlf ? broken.replace(/\n/g, "\r\n") : broken); // refuses a path outside the copy
+    for (const { path, broken } of edits) writeInside(root, path, broken); // refuses a path outside the copy
     result = gate();
   } finally {
-    writeInside(root, path, original);
+    for (const { path, original } of edits) writeInside(root, path, original);
   }
   if (result.code === 0) return "the gate PASSED with the defect in place";
   if (!result.out.includes(expect)) {
@@ -516,8 +526,8 @@ breaks(
   // The mutated version must differ from `compat.json`'s minimum, so this string moves with the
   // floor. It said "0.16.0 -> 0.17.0" until the floor was raised to 0.18.0 on 2026-09-22, at which
   // point the search text no longer existed and the case was breaking nothing; it moved again with
-  // the 0.19.0 floor.
-  (s) => s.replace("0.19.0 or later", "0.18.0 or later"),
+  // the 0.19.0 floor, and again with the 0.30.0 floor (3.2.0).
+  (s) => s.replace("0.30.0 or later", "0.29.0 or later"),
   () => script("test-compat-pins.mjs"),
   "compat.json says",
 );
@@ -688,11 +698,27 @@ breaks(
 );
 
 breaks(
-  "a preview that stops disclosing the provider switch is rejected",
+  "a preview that stops disclosing an engine setting before approval is rejected",
   "skills/xez-onboard-opinionated/references/preview.md",
-  (s) => s.replace("OpenCode is switched off", "One provider is tuned"),
+  (s) => s.replace("and **skill auto-update is switched off**", "and **skill auto-update is tuned**"),
   facts("12"),
-  "does not disclose the switch before the one approval",
+  "does not disclose the default task account and the skill auto-update switch",
+);
+
+breaks(
+  "a verify step that changes the machine-wide skill-update switch is rejected",
+  "skills/xez-onboard-opinionated/references/verify.md",
+  (s) => s.replace("**leave it alone**", "**change it anyway**"),
+  facts("12"),
+  "does not leave the skill-update switch alone",
+);
+
+breaks(
+  "a preview that switches OpenCode off again is rejected",
+  "skills/xez-onboard-opinionated/references/preview.md",
+  (s) => s.replace("and **skill auto-update is switched off**", "**OpenCode is switched off**, and **skill auto-update is switched off**"),
+  facts("12"),
+  "still switches OpenCode, which engine 0.30.0 does not run",
 );
 
 breaks(
@@ -724,8 +750,9 @@ breaks(
   "the tool-limits prohibition softened in routing.json is rejected",
   ROUTING,
   routingEdit((f) => { f.globalBans.find((b) => b.id === "tool-limits").rule = "A lane that ignores tool limits is best avoided."; }),
-  facts("12"),
-  "lost the global prohibition",
+  // FACT 12 held this check while it pinned the OpenCode switch; R1 pins the rule word for word.
+  facts("R1"),
+  "ban tool-limits is relaxed further",
 );
 
 // `test-kit-catalog.mjs` runs the onboarding kit's own validator on the kit, and adds the three
@@ -926,7 +953,7 @@ breaks(
   ROUTING,
   routingEdit((f, row) => { row("docs-writing").narrows = "security-review"; row("docs-writing").neverAuthor = true; }),
   catalog("3b"),
-  '"pi/deepseek-api/deepseek-flash" is a cheap lane',
+  '"qwen/deepseek-flash" is a cheap lane',
 );
 
 breaks(
@@ -977,12 +1004,14 @@ breaks(
   "holds a URL",
 );
 
+// Every runner the engine floor runs holds a reading step read-only (#204), so the refusal of a
+// lane that claims tool limits its runner does not hold is broken from the runner side.
 breaks(
-  "a pi lane that claims to enforce tool limits is rejected",
-  ROUTING,
-  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].enforcesToolLimits = true; }),
+  "a lane whose runner does not hold a reading step read-only, claiming tool limits, is rejected",
+  ROUTE_MJS,
+  (s) => s.replace('const ENFORCING_RUNNERS = new Set(["claude", "codex", "qwen"]);', 'const ENFORCING_RUNNERS = new Set(["claude", "codex"]);'),
   catalog("3b"),
-  "the pi runner does not hold a reading step read-only",
+  "the qwen runner does not hold a reading step read-only",
 );
 
 breaks(
@@ -1250,7 +1279,7 @@ breaks(
 breaks(
   "a gate that starts the browser entry guard but never judges it is rejected",
   "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
-  (s) => s.replace("\nfinished config-guard\n", "\n"),
+  (s) => s.replace("\nfinished config-guard || config_guard_rc=$?\n", "\n"),
   facts("23"),
   "no longer runs config-guard.sh browser --from-base and judges it",
 );
@@ -1258,7 +1287,7 @@ breaks(
 breaks(
   "a config guard that no longer refuses a changed browser entry is rejected",
   "skills/xez-onboard-opinionated/kit/checks/config-guard.sh",
-  (s) => s.replace('base === "" || base === entry(process.env[`TREE_TEXT_${i + 1}`], file) ? "same" : "changed"', '"same"'),
+  (s) => s.replace('base === tree ? "same" : "changed"', '"same"'),
   catalog("7"),
   "the chrome-devtools entry in .mcp.json differs",
 );
@@ -1352,7 +1381,7 @@ breaks(
 breaks(
   "a verdict writer that no longer stamps taskId and stepId is rejected",
   "skills/xez-onboard-opinionated/kit/checks/verdict-write.sh",
-  (s) => s.replace("JSON.stringify({ ...p, taskId, stepId })", "JSON.stringify(p)"),
+  (s) => s.replace("JSON.stringify({ ...p, taskId, stepId, recordedAt: new Date().toISOString() })", "JSON.stringify({ ...p, recordedAt: new Date().toISOString() })"),
   catalog("1b"),
   "stamped with the step's taskId and stepId",
 );
@@ -1630,6 +1659,23 @@ breaks(
 // 3.1.0-stream-B:start
 // #50: the author chain. Each way route.mjs or the routing file could let a dependent lane through,
 // or change what the leader already parses, is a break of its own.
+// #206: with a chain, the merge-time bans are printed beside dispatch-checks.
+breaks(
+  "route that stops printing the merge-time bans with an author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (chain && mergeBans.length) out.push(`merge-checks=${mergeBans.join(\",\")}`);\n", ""),
+  catalog("B"),
+  "does not print merge-checks=qwen-write-claude-review after dispatch-checks",
+);
+
+breaks(
+  "route that prints the merge-time bans without an author chain is rejected",
+  ROUTE_MJS,
+  (s) => s.replace("    if (chain && mergeBans.length) out.push(", "    if (mergeBans.length) out.push("),
+  catalog("B"),
+  "route prints author-chain lines without --author",
+);
+
 breaks(
   "route that ignores the author chain is rejected",
   ROUTE_MJS,
@@ -1892,6 +1938,23 @@ breaks(
   "names target version 0.0.1",
 );
 
+// Step 2 compares the resolved tag with the tag ref and HEAD with the tag's commit (#233, FACT U-verify).
+breaks(
+  "an upgrade prompt that compares the resolved tag sha with HEAD again is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("commit the tag points at, `git -C <temp>/xezar-skills rev-parse \"v<target>^{commit}\"`, are the\n     same 40 characters.", "sha `gh release verify` resolved are the same 40 characters."),
+  facts("U-verify"),
+  "does not compare HEAD and the Release-Commit: sha with the commit the tag points at",
+);
+
+breaks(
+  "an upgrade prompt that no longer checks the resolved tag against the clone's tag is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("`git -C <temp>/xezar-skills rev-parse refs/tags/v<target>`", "`git -C <temp>/xezar-skills tag --list`"),
+  facts("U-verify"),
+  "does not compare the sha gh release verify resolved with the clone's tag ref",
+);
+
 // A review can move the app off a busy port (#226).
 breaks(
   "a review-run.sh start --port that does not pass PORT is rejected",
@@ -2054,7 +2117,7 @@ breaks(
 breaks(
   "a review-run.sh that hands the operator's credentials to what it runs is rejected",
   "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
-  (s) => s.replace('    no_credentials\n    "$@"', '    "$@"'),
+  (s) => s.replace('    no_credentials\n    run_limited "$@"', '    run_limited "$@"'),
   catalog("D-review"),
   "a child of review-run.sh run still sees the operator's git or gh credentials",
 );
@@ -2070,7 +2133,7 @@ breaks(
 breaks(
   "a review-run.sh checkout that stops probing whether its sandbox can write git is rejected",
   "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
-  (s) => s.replace('      if [ -z "$probe" ]; then\n        echo "review-run=confined"', '      if false; then\n        echo "review-run=confined"'),
+  (s) => s.replace('      if [ -z "$probe" ]; then\n        printf \'confined exit=3', '      if false; then\n        printf \'confined exit=3'),
   catalog("D-review"),
   "does not exit 3 with review-run=confined",
 );
@@ -2560,7 +2623,7 @@ breaks(
 breaks(
   "a gate that records a drift failure and then exits 0 is rejected",
   "skills/xez-onboard-opinionated/kit/checks/repository-checks.sh",
-  (s) => s.replace('  exit "$drift_rc"\n', ""),
+  (s) => s.replace('  if [ "$drift_rc" -ne 0 ]; then exit "$drift_rc"; fi\n', ""),
   upgrade("9"),
   "a drift failure alone does not fail the script at the end",
 );
@@ -2669,25 +2732,30 @@ breaks(
 // Truncating the index list at package.json's version makes that version the newest indexed
 // one, so the release check compares it with the tree and must find it stale. Once the release
 // PR indexes its own version last, this mutation changes nothing and must be re-aimed.
-// A changed kit file dropped from the one 3.1.0 block that lists it. The base of this check is
+// A changed kit file dropped from the one upgrade block that lists it ("no 3.1.0 upgrade block" is
+// the wording of test-upgrade.mjs §6, whatever the target). The base of this check is
 // the last release OLDER than the target: once the release indexes the target itself, a base of
 // "the newest tagged entry" diffs the target with itself and this case passes silently.
 breaks(
-  "a changed kit file dropped from its 3.1.0 upgrade block's Files: line is rejected",
+  "a changed kit file dropped from its upgrade block's Files: line is rejected",
   "UPGRADE_NOTES.md",
-  (s) => s
-    .replace(".xezar/checks/lib/gate-record.sh; .xezar/checks/review-run.sh =new;", ".xezar/checks/review-run.sh =new;")
-    .replace(".xezar/checks/lib/common.sh; .xezar/checks/lib/gate-record.sh; .xezar/checks/repository-checks.sh;", ".xezar/checks/lib/common.sh; .xezar/checks/repository-checks.sh;"),
+  // Aimed at the newest kit entry (3.2.1, #231); re-aim it at the next one once 3.2.1 is released.
+  (s) => s.replace("Files: .xezar/docs/recovery.md; .xezar/checks/local-tree.sh\n", "Files: .xezar/docs/recovery.md\n"),
   upgrade("6"),
-  ".xezar/checks/lib/gate-record.sh changed since 3.0.3 but no 3.1.0 upgrade block lists it",
+  ".xezar/checks/local-tree.sh changed since 3.2.0 but no 3.1.0 upgrade block lists it",
 );
 
 breaks(
   "a stale kit index for the package version is rejected",
   // Between releases the package version is not the newest entry, so the index is cut back
-  // to it. On a release commit it already is, so one file is dropped from its own index.
-  KIT_INDEX_PKG_IS_NEWEST ? `upgrade/kit-index/${KIT_INDEX_PKG}.json` : "upgrade/kit-index/index.json",
+  // to it. On a release commit it already is, so one file is dropped from its own index. Once a
+  // new version is started (package.json names a version not indexed yet, as 3.2.1 after 3.2.0),
+  // package.json is put back on the newest indexed version, whose index the kit changes since
+  // then make stale.
+  KIT_INDEX_PKG_IS_NEWEST ? `upgrade/kit-index/${KIT_INDEX_PKG}.json`
+    : KIT_INDEX_PKG_IS_LISTED ? "upgrade/kit-index/index.json" : "package.json",
   (s) => {
+    if (!KIT_INDEX_PKG_IS_LISTED) return s.replace(`"version": "${KIT_INDEX_PKG}"`, `"version": "${KIT_INDEX_VERSIONS.at(-1)}"`);
     if (KIT_INDEX_PKG_IS_NEWEST) {
       const data = JSON.parse(s);
       const [first] = Object.keys(data.files);
@@ -2843,11 +2911,14 @@ breaks(
 // #89: three bans relax for the DeepSeek V4 Pro reviewer, and no further. Each way the relaxation
 // could be widened – in the script, in the file, or in a ban's text – is a break of its own, and so
 // is a V4 Pro lane in a screen row and softening a ban #89 keeps.
-const V4 = "pi/deepseek-api/deepseek-v4-pro";
+const V4 = "qwen/deepseek-v4-pro";
+// No shipped lane is marked fullShellReviews (#204), so a case that needs the full-shell reviewer
+// marks V4 Pro itself – the owner's lane the relaxation is for – before placing it.
+const fullShell = (f) => { f.lanes[V4].enforcesToolLimits = false; f.lanes[V4].fullShellReviews = true; };
 breaks(
   "a cheap lane marked fullShellReviews is rejected",
   ROUTING,
-  routingEdit((f) => { f.lanes["pi/deepseek-api/deepseek-flash"].fullShellReviews = true; }),
+  routingEdit((f) => { f.lanes["qwen/deepseek-flash"].fullShellReviews = true; }),
   catalog("R"),
   "a lane with tier: cheap never reviews with a full shell",
 );
@@ -2855,16 +2926,16 @@ breaks(
 breaks(
   "the full-shell reviewer in a reading row that is not a review is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("business-analysis").lanes.push(V4); }),
-  catalog("R"),
+  routingEdit((f, row) => { fullShell(f); row("business-analysis").lanes.push(V4); }),
+  catalog("3b"),
   `"${V4}" does not enforce a step's tool limits, and this row only reads`,
 );
 
 breaks(
   "the full-shell reviewer in a security row that writes is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("release").lanes.push(V4); }),
-  catalog("R"),
+  routingEdit((f, row) => { fullShell(f); row("release").lanes.push(V4); }),
+  catalog("3b"),
   `"${V4}" does not enforce a step's tool limits, and this row is security and release`,
 );
 
@@ -2887,23 +2958,41 @@ breaks(
 breaks(
   "V4 Pro, which has no vision, in a screen row is rejected",
   ROUTING,
-  routingEdit((f, row) => { row("diagrams").lanes.splice(1, 0, V4); }),
+  // diagrams draws from text and keeps Flash as its fallback, so a row that sees a screen is used.
+  routingEdit((f, row) => { row("ui-design").lanes.splice(1, 0, V4); }),
   catalog("R"),
-  "screen row diagrams lists",
+  "screen row ui-design lists",
+);
+
+// #185: acceptance-verification takes screenshots, so it holds no lane that cannot see a screen.
+breaks(
+  "V4 Pro, which has no vision, back in acceptance-verification is rejected",
+  ROUTING,
+  routingEdit((f, row) => { row("acceptance-verification").lanes.push(V4); }),
+  catalog("R"),
+  "row acceptance-verification lists qwen/deepseek-v4-pro",
 );
 
 breaks(
-  "pi-written work cleared by any lane is rejected",
+  "an acceptance-verification row that stops refusing vision: false lanes is rejected",
   ROUTING,
-  routingEdit((f) => { f.globalBans.find((b) => b.id === "pi-write-claude-review").rule = "What a pi lane wrote merges after a review on any other lane."; }),
+  routingEdit((f, row) => { row("acceptance-verification").never = row("acceptance-verification").never.filter((e) => e.vision !== false); }),
+  catalog("R"),
+  "does not refuse vision: false lanes",
+);
+
+breaks(
+  "Qwen-written work cleared by any lane is rejected",
+  ROUTING,
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "qwen-write-claude-review").rule = "What a Qwen lane wrote merges after a review on any other lane."; }),
   facts("R1"),
-  "ban pi-write-claude-review is relaxed further",
+  "ban qwen-write-claude-review is relaxed further",
 );
 
 breaks(
   "V4 Pro on risk-high work while Claude has budget is rejected",
   ROUTING,
-  routingEdit((f) => { f.globalBans.find((b) => b.id === "high-risk-other-vendor").rule = "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. pi/deepseek-api/deepseek-v4-pro may always be that reviewer."; }),
+  routingEdit((f) => { f.globalBans.find((b) => b.id === "high-risk-other-vendor").rule = "A risk-high change is reviewed by a different vendor from its author when a lane of one has budget, and never on the author's login. qwen/deepseek-v4-pro may always be that reviewer."; }),
   facts("R1"),
   "ban high-risk-other-vendor is relaxed further",
 );
@@ -2927,15 +3016,16 @@ breaks(
 breaks(
   "a SECURITY.md accepted-risk entry that pre-accepts V4 Pro in a QA row it is not in is rejected",
   "SECURITY.md",
-  (s) => s.replace("`verify-strong-claim`. It may also", "`verify-strong-claim`, `browser-qa`. It may also"),
+  (s) => s.replace("judge in these reading rows only: (none).", "judge in these reading rows only: `browser-qa`."),
   facts("R1"),
   "the accepted-risk entry lists the full-shell reviewer in reading rows",
 );
 
-breaks(
+breaksBoth(
   "a SECURITY.md accepted-risk entry that says V4 Pro is absent from a row it is in is rejected",
   "SECURITY.md",
-  (s) => s.replace("not in the `release`, `deploy` or", "not in the `security-review`, `release`, `deploy` or"),
+  (s) => s.replace("judge in these reading rows only: (none).", "judge in these reading rows only: (none). It is not in `security-review`."),
+  [ROUTING, routingEdit(fullShell)],
   facts("R1"),
   "as one the full-shell reviewer is not in",
 );
@@ -3605,7 +3695,7 @@ breaks(
 breaks(
   "a gh-write.sh that removes a failed label the PR does not carry is rejected",
   "skills/xez-onboard-opinionated/kit/checks/gh-write.sh",
-  (s) => s.replace('grep -qxF "$verdict_cleared"; then', 'true; then'),
+  (s) => s.replace('grep -qxF "$verdict_cleared"; then', 'cat >/dev/null; then'),
   catalog("D-review"),
   "asks gh to remove a qa-failed the PR does not carry",
 );
@@ -4637,8 +4727,11 @@ if (LIST) {
       for (const [key, value] of Object.entries(options.env ?? {})) if (process.env[key] !== value) envKeys.add(key);
     }
     const exclusive = sections.map((line) => line.split(":")[0]);
-    const columns = [index + 1, calls.map((call) => call.argv).join(" && "), [...envKeys].sort().join(",") || "-", c.file, c.name];
-    console.log([...columns, exclusive.join(", ") || "-"].join("\t"));
+    // A breaksBoth case gets one line per file it breaks, so check-gate-map.mjs (h) checks each.
+    for (const file of [c.file, ...c.also.map(([each]) => each)]) {
+      const columns = [index + 1, calls.map((call) => call.argv).join(" && "), [...envKeys].sort().join(",") || "-", file, c.name];
+      console.log([...columns, exclusive.join(", ") || "-"].join("\t"));
+    }
   });
   process.exit(0);
 }

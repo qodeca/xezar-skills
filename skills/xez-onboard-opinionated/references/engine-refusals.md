@@ -14,15 +14,15 @@ untrusted-content boundary in `references/agentic-setup.md` governs it like any 
 
 1. **A refusal is a finding, not an error to retry.** Read it once and stop calling. Do not guess
    argument shapes either: an "Unrecognized key" answer means read the tool's own description for
-   that action, and one corrected call is the limit. Engine 0.18.0 and later (0.19.0 is the
+   that action, and one corrected call is the limit. Engine 0.18.0 and later (0.30.0 is the
    minimum this kit supports) answer a refusal FIRST and list the keys an action accepts, so an
    argument complaint is an argument complaint. (Before 0.18.0 it was not: a refused action still validated its arguments
    first, so an outright refusal arrived disguised as `Unrecognized keys`, and the first audited
    run spent four call shapes learning that. The heuristic that guarded against it is gone with
    the engines that needed it.)
 2. **Try the engine's own way first.** An engine tool that works is always preferred over a file
-   edit: it validates, and the running engine sees the change at once. On engine 0.18.0 that
-   covers adding an account with its account tool, switching a provider off for *this project* in
+   edit: it validates, and the running engine sees the change at once. That covers adding an
+   account with its account tool, switching skill auto-update off for *this project* in
    single-project mode (`references/verify.md` §3), and — this one replaces a case in the table
    below — copying the machine's accounts into the project with
    `project_config import_global_accounts`, which the leader may call. Reach for that before the
@@ -64,8 +64,8 @@ anything in either mode this skill runs in**:
   `<project>/.xezar/workspace.json` and **never opens `~/.xezar/config.json` for it**. There is no
   merge and no fallback. `set_provider_enabled` writes the project file and answers
   `scope: project`. So the hand edit changed a file nothing read.
-- **In the global layout** the machine file *is* read — and `references/verify.md` §3 already says
-  to change neither machine-wide switch there. So the edit was forbidden by our own rule.
+- **In the global layout** the machine file *is* read — and `references/verify.md` §3 said to
+  change no machine-wide switch there. So the edit was forbidden by our own rule.
 
 Both paths are covered without it. A permission that buys nothing is not a small exception, it is a
 standing invitation, so it is gone rather than narrowed. If the owner wants a machine-wide provider

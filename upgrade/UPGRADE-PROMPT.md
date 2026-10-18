@@ -22,7 +22,7 @@ process documents it generated. You bring those files from the version this proj
 there. You never push, never open a pull request and never merge. The owner reviews your branch
 and delivers it by hand.
 
-**Target version: 3.2.0.** Below, `<target>` means this value, and `v<target>` the release tag.
+**Target version: 3.2.1.** Below, `<target>` means this value, and `v<target>` the release tag.
 
 Work through steps 0 to 8 in order. Do not skip a step, and do not start the next step while the
 current one has an open stop. When a step says **stop and ask**, ask the owner one clear question
@@ -185,7 +185,7 @@ No Node script runs before this step has passed.
    `-c core.autocrlf=false` keeps the kit files as the release has them (LF) on Windows, where git
    would otherwise check them out with CRLF; elsewhere it changes nothing.
 
-2. **Verify the release.** All three must pass:
+2. **Verify the release.** All four must pass:
    - `gh release verify v<target> --repo qodeca/xezar-skills` exits 0 and prints
      `Release v<target> verified!`. It also prints `Resolved tag v<target> to sha1:<40-hex>`;
      note that sha. It exits 1 with `No attestations for tag …` when the release has no
@@ -195,8 +195,13 @@ No Node script runs before this step has passed.
      `isImmutable: true`, and its `body` has exactly one line matching
      `^Release-Commit: ([0-9a-f]{40})$` (the format is in the clone's `upgrade/README.md`,
      "The release commit line").
+   - The sha `gh release verify` resolved and the clone's tag,
+     `git -C <temp>/xezar-skills rev-parse refs/tags/v<target>`, are the same 40 characters. Every
+     release here has a signed (annotated) tag, so both are the **tag object**, not the commit it
+     points at (#233).
    - The clone's `git -C <temp>/xezar-skills rev-parse HEAD`, the `Release-Commit:` sha and the
-     sha `gh release verify` resolved are the same 40 characters.
+     commit the tag points at, `git -C <temp>/xezar-skills rev-parse "v<target>^{commit}"`, are the
+     same 40 characters.
    A mismatch, a missing release or line, or a release that is not marked immutable is a
    **stop**: do not run anything from the clone, delete it, and tell the owner what did not
    match.

@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U-verify", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -433,20 +433,18 @@ if (S.section("11")) {
 }
 
 // ---------------------------------------------------------------------------
-// FACT 12 -- OpenCode is switched off the same way everywhere it is mentioned.
+// FACT 12 -- the setup changes no OpenCode setting (#235).
 //
-// The setup changes one engine setting on the owner's behalf. That is only acceptable while four
-// places say the same thing: the step that does it, the preview that discloses it before approval,
-// the report that tells the owner how to undo it, and the routing rules that keep the provider
-// out of every chain. A preview that discloses less than the step does is a consent the owner
-// never gave. This is a STATIC pin: it proves the prose agrees. That the engine honours the call
-// is proved on a live engine, and `docs/coverage.md` says so.
+// Until 3.2.0 the setup switched the OpenCode provider off for the project it set up. Engine
+// 0.30.0, the kit's floor, runs no OpenCode (#204), so every step of that switch would call a
+// provider the engine does not have. The fact pins the removal in each section that held a part of
+// it, and keeps the rules that still hold for the two remaining engine settings (the default task
+// account and the skill auto-update switch): the preview discloses both before the one approval,
+// the switch is read before and after it is written, it is left alone outside single-project mode,
+// the previous value is recorded, and the record stays in the git-ignored runtime folder.
 // ---------------------------------------------------------------------------
 if (S.section("12")) {
-  const fact = "FACT 12: the OpenCode switch, its disclosure, its undo and its routing ban agree";
-  // Each pattern is looked for in the SECTION it is a claim about. Over the whole file, the word
-  // `get_capabilities` in an unrelated step, or "OpenCode" in a changelog-style aside, would keep
-  // this green after the section that matters lost it.
+  const fact = "FACT 12: the setup reads, records and switches no OpenCode setting";
   // A `#` line inside a code fence is a shell comment or a template's own heading, not the end
   // of the section, so fences are tracked while looking for the next heading.
   const sectionOf = (file, heading) => {
@@ -470,33 +468,33 @@ if (S.section("12")) {
   };
   const verify = sectionOf("verify.md", /^## 3\. /);
   const preview = sectionOf("preview.md", /^## Say what the preview does not cover/);
-  const report = sectionOf("report-templates.md", /^## Setup complete/);
-  const interview = sectionOf("interview.md", /^### 3\. `lanes`/);
-
-  const callRx = /set_provider_enabled/;
-  if (!callRx.test(verify)) fail(fact, "references/verify.md", "no longer switches the provider off through set_provider_enabled");
-  if (!/get_capabilities[\s\S]*set_provider_enabled[\s\S]*get_capabilities/.test(verify))
-    fail(fact, "references/verify.md", "does not read the state before the switch and read it back after");
+  const sections = [
+    ["verify.md", verify],
+    ["preview.md", preview],
+    ["report-templates.md", sectionOf("report-templates.md", /^## Setup complete/)],
+    ["interview.md", sectionOf("interview.md", /^### 3\. `lanes`/)],
+    ["analysis.md", read(`${SKILL}/references/analysis.md`)],
+    ["agentic-setup.md", read(`${SKILL}/references/agentic-setup.md`)],
+  ];
+  for (const [name, text] of sections) {
+    if (/OpenCode|set_provider_enabled|provider\.opencode/i.test(text))
+      fail(fact, `references/${name}`, "still switches OpenCode, which engine 0.30.0 does not run (#235)");
+  }
+  if (/OpenCode/.test(read(`${SKILL}/SKILL.md`))) fail(fact, "SKILL.md", "still switches OpenCode, which engine 0.30.0 does not run (#235)");
+  // A preview that discloses less than the step does is a consent the owner never gave.
+  if (!/default task account/.test(preview) || !/skill auto-update is switched off/.test(preview))
+    fail(fact, "references/preview.md", "does not disclose the default task account and the skill auto-update switch before the one approval");
+  if (!/\.xezar\/workspace\.json/.test(preview)) fail(fact, "references/preview.md", "does not name .xezar/workspace.json as the file the engine settings live in");
   // Prose wraps, so a phrase is matched across any whitespace.
-  if (!/"previous"|previousEnabled/.test(verify)) fail(fact, "references/verify.md", "does not record what the setting was before changing it");
+  if (!/singleProjectRoot/.test(verify) || !/leave\s+it\s+alone/i.test(verify))
+    fail(fact, "references/verify.md", "does not leave the skill-update switch alone when the engine is not in single-project mode, where the call would reach every project on the machine");
+  if (!/get_limits[\s\S]*set_workspace_config[\s\S]*get_limits/.test(verify))
+    fail(fact, "references/verify.md", "does not read the skill-update switch before writing it and read it back after");
+  if (!/"previous"|previousEnabled/.test(verify)) fail(fact, "references/verify.md", "does not record what a setting was before changing it");
   // The record is a fact about one machine, written after the merge. In a committed file it
   // dirties a tree the same step requires to be clean, and puts that machine into git.
   if (!/\.local\/xezar\/runtime\//.test(verify))
-    fail(fact, "references/verify.md", "does not keep the record of the switch under the git-ignored .local/xezar/runtime/");
-  if (!/leave\s+it\s+on/i.test(verify)) fail(fact, "references/verify.md", "has no case in which the provider is left on -- an older routing table that uses it would start refusing dispatches");
-  for (const [name, text] of [["verify.md", verify], ["preview.md", preview], ["report-templates.md", report]]) {
-    if (!/\.xezar\/workspace\.json/.test(text)) fail(fact, `references/${name}`, "does not name .xezar/workspace.json as the file the switch lives in");
-  }
-  for (const [name, text] of [["verify.md", verify], ["report-templates.md", report]]) {
-    if (!/enabled: true/.test(text)) fail(fact, `references/${name}`, "does not give the call that turns the provider back on");
-  }
-  if (!/OpenCode is switched off/.test(preview)) fail(fact, "references/preview.md", "does not disclose the switch before the one approval");
-  const toolLimits = JSON.parse(read(`${SKILL}/kit/routing.json`)).globalBans.find((ban) => ban.id === "tool-limits");
-  if (!toolLimits || toolLimits.checkedAt !== "file" || !/enforcesToolLimits: false is in no reading row[\s\S]*security-and-release/.test(toolLimits.rule))
-    fail(fact, "kit/routing.json", "lost the global prohibition that keeps such a provider out of reading and release rows");
-  if (!/OpenCode logins are not offered as task logins/.test(interview)) fail(fact, "references/interview.md", "offers OpenCode logins as task logins again");
-  if (!/^## OpenCode is off by default/m.test(read("DECISIONS.md")))
-    fail(fact, "DECISIONS.md", "has no \"OpenCode is off by default\" entry, which references/verify.md cites for the reasons");
+    fail(fact, "references/verify.md", "does not keep the record of the engine settings under the git-ignored .local/xezar/runtime/");
   checked.push(fact);
 }
 
@@ -1359,6 +1357,40 @@ if (S.section("U-target")) {
   const readme = read("upgrade/README.md");
   for (const line of [`--branch v${version} https://github.com/qodeca/xezar-skills.git`, `gh release verify v${version} --repo qodeca/xezar-skills`, `Release v${version} verified!`]) {
     if (!readme.includes(line)) fail(fact, "upgrade/README.md", `does not say "${line}", so the owner clones or verifies another release than package.json's ${version}`);
+  }
+  checked.push(fact);
+}
+
+// FACT U-verify -- step 2 compares like with like (#233). Every release tag here is annotated and
+// signed, and `gh release verify` resolves such a tag to its tag OBJECT, while `HEAD` and the
+// `Release-Commit:` line name the commit. Comparing all three as one sha stopped every upgrade to
+// 3.2.0. The step must pair the resolved sha with the tag ref and HEAD with the tag's commit, and a
+// real annotated tag shows the two pairs are different shas, so the old single check cannot pass.
+if (S.section("U-verify")) {
+  const fact = "FACT U-verify: the upgrade prompt checks the resolved tag against the tag ref and HEAD against the tag's commit";
+  const prompt = read("upgrade/UPGRADE-PROMPT.md");
+  const step = prompt.split("2. **Verify the release.**")[1]?.split("\n3. ")[0] ?? "";
+  if (!step) fail(fact, "upgrade/UPGRADE-PROMPT.md", "has no step 2 \"Verify the release\" -- this fact reads that step and nothing else");
+  if (!/gh release verify[\s\S]*resolved and the clone.s tag,\s+`git -C <temp>\/xezar-skills rev-parse refs\/tags\/v<target>`/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "does not compare the sha gh release verify resolved with the clone's tag ref (rev-parse refs/tags/v<target>)");
+  if (!/rev-parse HEAD`, the `Release-Commit:` sha and the\s+commit the tag points at, `git -C <temp>\/xezar-skills rev-parse "v<target>\^\{commit\}"`/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "does not compare HEAD and the Release-Commit: sha with the commit the tag points at (rev-parse v<target>^{commit})");
+  if (/sha `gh release verify` resolved are the same/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "still compares the resolved tag sha with HEAD, which an annotated tag never matches (#233)");
+  const { execFileSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kit-facts-tag-"));
+  try {
+    const git = (...args) => execFileSync("git", ["-C", lab, "-c", "user.name=kit-facts", "-c", "user.email=kit-facts@invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    git("init", "--quiet");
+    git("commit", "--quiet", "--allow-empty", "-m", "release");
+    git("tag", "-a", "v9.9.9", "-m", "v9.9.9");
+    const head = git("rev-parse", "HEAD");
+    const tagRef = git("rev-parse", "refs/tags/v9.9.9");
+    const tagCommit = git("rev-parse", "v9.9.9^{commit}");
+    if (tagRef === head) fail(fact, "git", "an annotated tag ref resolved to the commit, so this fact no longer shows the #233 difference");
+    if (tagCommit !== head) fail(fact, "git", "v<target>^{commit} does not name the tagged commit");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
   }
   checked.push(fact);
 }
@@ -2658,7 +2690,7 @@ if (S.section("I18")) {
 }
 
 // ---------------------------------------------------------------------------
-// FACT I17 -- a pi browser step can save a screenshot (#132, qodeca/xezar#1048). chrome-devtools
+// FACT I17 -- a browser step can save a screenshot (#132, qodeca/xezar#1048; found on pi, gone since 0.30.0). chrome-devtools
 // writes a file only inside the MCP client's roots plus the OS temp folder; pi-mcp-adapter announces
 // no roots, and the engine gives each run its own temp folder (deleted at run end), so on pi every
 // other filePath is refused and the Windows release QA saved no screenshot at all.
@@ -2668,7 +2700,7 @@ if (S.section("I17")) {
   const RULE = "If a `chrome-devtools` tool refuses a `filePath` as \"not within any of the configured workspace roots\", save the file under this run's own temp folder – the expanded absolute value of `$TMPDIR` – and copy it into the evidence directory before the step ends, because the engine deletes that folder when the run ends; never fall back to a browser script of your own.";
   for (const role of ["acceptance", "design-system", "qa", "ui-design", "ux-design"]) {
     const where = `${SKILL}/kit/skills/xezar-${role}.md`;
-    if (!read(where).includes(RULE)) fail(fact, where, "does not say where to save a screenshot the browser refuses, so a pi step saves none");
+    if (!read(where).includes(RULE)) fail(fact, where, "does not say where to save a screenshot the browser refuses, so a step whose path is refused saves none");
   }
   checked.push(fact);
 }

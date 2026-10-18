@@ -19,8 +19,7 @@ workflow → pull request → gates green. Its branch and pull request are clean
 | 🤖 Leader | <model><, no second login: its own limit ends an unattended stretch> |
 | 📋 Routing | `.xezar/routing.json`: <n> rows, defaults version <n>, `route.mjs --check` passes<; <n> lanes switched off; <n> rows edited>; tasks that name no account run on `<login>`, not the leader's login |
 | 🏷️ Labels | <n> on the tracker, read back<; <n> already existed and kept their colour> |
-| 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update `<before>` → off; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
-| ⛔ OpenCode | <not installed · already off · found, switched off for this project in `.xezar/workspace.json` — undo: `project_config` `set_provider_enabled`, `provider: "opencode"`, `enabled: true` · found, **left on** because <the engine is not in single-project mode · a routing row still uses it>> |
+| 🤖 Task account, skill updates | default account `<before>` → `<login>` · skill auto-update <`<before>` → off · left as it was: the engine is not in single-project mode>; what each was is in `.local/xezar/runtime/onboarding-engine-settings.json` |
 | 🧪 Smoke test | engine task on `<lane>`: <tokens> tokens · gates + labelled pull request + CI: green |
 | 📸 Records | `.xezar/campaigns/` — committed; `future-campaign/` reserved, no campaign opened |
 
@@ -211,8 +210,8 @@ Re-run this skill's protection step, or re-read it yourself, once that has run.
 
 **Five things in it that are not files:** the labels are created on the tracker; branch
 protection is a repository setting and affects everyone on the repo<, and this login <can /
-cannot> apply it>; three engine settings change for this project — the default task account,
-skill auto-update off, OpenCode off — each recorded with what it was; the smoke test creates and
+cannot> apply it>; two engine settings change for this project — the default task account and
+skill auto-update off — each recorded with what it was; the smoke test creates and
 then deletes a real branch and pull request; and the saved interview at
 `.local/xezar/runtime/onboarding-interview.json` is already on disk — it is the only thing this run wrote.
 

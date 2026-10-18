@@ -110,9 +110,8 @@ Three steps, in order:
 1. **Which agent tools are installed** — probe each candidate for its version. Absent is
    ordinary; record it and move on.
 2. **Which accounts or profiles each tool has**, and **which models each supports** — ask each
-   tool to **list its models**, not only for its version and its default. Seen working:
-   `opencode models`; Qwen Code lists its models in `modelProviders` of `~/.qwen/settings.json`
-   (the xezar guide page "Moving from pi or OpenCode to Qwen Code"). Claude Code and Codex had
+   tool to **list its models**, not only for its version and its default. Qwen Code lists its
+   models in `modelProviders` of `~/.qwen/settings.json`. Claude Code and Codex had
    **no** list command when this was written — for those, read the model names the tool's own `--help` and config file
    mention, and put them on the facts screen marked "read from config, please confirm". Never run
    a bare subcommand to find out: on one tool `models` was not a command and opened a chat
@@ -127,18 +126,18 @@ Three steps, in order:
    question for the owner, not an error. Note that not every tool can hold multiple
    profiles — at least one keeps its credentials outside the profile directory, so it has
    exactly one account whatever the registry suggests.
-   **OpenCode is recorded and not proposed.** When the probe or the registry finds it, note that
-   it is there; it is never offered as a lane or put in a chain, and `references/verify.md`
-   switches it off for this project. The report says "found, switched off" with the call that
-   turns it back on, so the owner meets a decision and not a disappearance.
+   **A tool the engine does not run is recorded, not proposed.** Only `claude`, `codex` and
+   `qwen` are runners; a probe or a registry entry that finds another tool notes that it is
+   there, and it is never offered as a lane, a login or a chain, so the owner meets a decision and
+   not a disappearance.
 3. **Nothing is read from a credential store.** Which profiles exist and which models they
    support is configuration; what is inside them is not. Record ids, providers and model names,
    and no value from either.
 
 Then **map what was found onto the shipped routing** (`kit/routing.json`):
 
-- Each found tool is recorded under its engine runner ID – `claude`, `codex`, `qwen` (and `opencode`,
-  recorded and switched off, where an engine still lists it) – and each model as the lane `<runner>/<model>`.
+- Each found tool is recorded under its engine runner ID – `claude`, `codex`, `qwen` – and each
+  model as the lane `<runner>/<model>`.
 - A found lane the defaults already have keeps its shipped tags. A found lane the defaults lack is
   put on routing screen 4 to be tagged by the owner, never guessed.
 - A shipped lane this machine does not have stays in the file; `route.mjs` removes it at dispatch

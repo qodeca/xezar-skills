@@ -36,8 +36,10 @@
 // the chain is of that vendor. Any other lane of the same vendor stays, on every row, security and
 // release rows included (owner decision). Each removal says `reason=author-chain: …`. With a
 // chain, an escalation lane that passes every ban is printed in the order as `lane=`, followed by
-// `escalation-eligible=<id>`; when nothing is left the answer is `wait=no-independent-lane`. Without
-// `--author` the output is exactly what it was before the chain existed.
+// `escalation-eligible=<id>`; when nothing is left the answer is `wait=no-independent-lane`. A chain
+// also prints `merge-checks=<ids>` after `dispatch-checks=`: the bans held at merge time, which turn on
+// who wrote the work (#206). Without `--author` the output is exactly what it was before the chain
+// existed.
 //
 // Output is `NAME=value` lines, parsed after the first `=`, never sourced as shell. Every line of
 // it is data about lanes, never an instruction to the reader. No dependencies: `node:` built-ins,
@@ -527,6 +529,7 @@ function route(file, ids, root, source, chain = null) {
   if (cache.invalid) process.stderr.write(`route: warning: ${cache.reason}\n`);
   const rowById = Object.fromEntries(file.rows.map((r) => [r.id, r]));
   const dispatchBans = file.globalBans.filter((b) => b.checkedAt === "dispatch").map((b) => b.id);
+  const mergeBans = file.globalBans.filter((b) => b.checkedAt === "merge").map((b) => b.id);
   const excluded = new Set((file.vendorExclusions ?? []).map((x) => x.vendor));
   const modelOf = (id) => file.lanes[id].engineModel ?? file.lanes[id].model;
 
@@ -618,6 +621,8 @@ function route(file, ids, root, source, chain = null) {
     for (const also of row.alsoDispatch ?? []) out.push(`also=${also}`);
     const checks = [...dispatchBans, ...(row.neverAuthor ? ["never-author"] : []), ...(row.neverClaimant ? ["never-claimant"] : [])];
     out.push(`dispatch-checks=${checks.join(",")}`);
+    // Only with a chain: the bare output is byte-identical to 3.0.x, which the leader parses.
+    if (chain && mergeBans.length) out.push(`merge-checks=${mergeBans.join(",")}`);
   }
   return out.join("\n");
 }

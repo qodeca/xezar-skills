@@ -23,6 +23,90 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `node .xezar/checks/route.mjs acceptance-verification` lists `lane=qwen/deepseek-v4-pro`
+last. That lane has no image input, but the acceptance workflow takes screenshots, so when Claude
+and Codex have no budget a UI criterion is checked by a model that cannot see it, and reported as
+not run (#185).
+
+**What to do.** Copy `.xezar/docs/routing.md`, and merge `.xezar/routing.json` with the defaults
+version 6: the `acceptance-verification` row drops `qwen/deepseek-v4-pro` and gains the `never` entry
+`{"vision": false, "why": …}`, and the note on `qwen/deepseek-flash` records the 2026-10-18 vision
+test. Your own row orders, `never` entries and notes stay; a row you reordered by hand that the new
+defaults also change is a routing clash – stop and ask the owner.
+
+**What you lose by skipping it.** With no Claude or Codex budget, acceptance checks of UI work keep
+landing on a lane that cannot see the screen, and fail or report the criterion as not run.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/routing.json =merge; .xezar/docs/routing.md
+```
+
+## 2026-10-18 – `route.mjs --author` does not say which bans to check before a merge
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `node .xezar/checks/route.mjs <row> --author <lane>` prints `dispatch-checks=…` but no
+`merge-checks=…` line, so the merge-time ban `qwen-write-claude-review` – work a Qwen lane wrote
+merges only after a Claude or `codex/gpt-6-astra` review – is visible only in the routing file and
+the leader guide (#206).
+
+**What to do.** Copy `.xezar/checks/route.mjs` and `.xezar/docs/routing.md` from the release. With
+`--author`, every row now ends with `merge-checks=<ids>`; without it, the output is unchanged.
+
+**What you lose by skipping it.** The leader keeps relying on reading the guide for the merge-time
+ban; a merge of Qwen-written work with only Codex reviews stays possible, as it was.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/checks/route.mjs; .xezar/docs/routing.md
+```
+
+## 2026-10-18 – two kit files still name pi or OpenCode after the 3.2.0 upgrade
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/docs/recovery.md` has a paragraph headed "Observed OpenCode recovery limit",
+and a comment in `.xezar/checks/local-tree.sh` says `pi-leader.json` "needs a pi leader attached",
+although engine 0.30.0 runs neither pi nor OpenCode (#231).
+
+**What to do.** Copy both files from the release. The recovery note keeps its rule – verify the
+effective session ID and resend the full context – without naming OpenCode, and the comment says
+the accepted `pi-leader.json` is left over from engines before 0.30.0. The check itself does not
+change.
+
+**What you lose by skipping it.** Nothing in behaviour: both changes are text. A reader of the two
+files keeps meeting runners the engine no longer has.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/docs/recovery.md; .xezar/checks/local-tree.sh
+```
+
+## 2026-10-17 – agent-browser installs v0.38.1, one release behind the pinned v0.39.1
+
+Applies to any repository that uses the agent-browser provider – installed by
+`xez-setup-agent-pipeline`, or by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/pipeline/browsers/agent-browser.md` says installs are pinned to
+`agent-browser` **v0.38.1**, and a fresh install downloads v0.38.1, while the shipped descriptor
+pins v0.39.1.
+
+**What to do.** Copy `.xezar/pipeline/browsers/agent-browser.md` from the release. It changes only
+the pinned version and the per-asset SHA-256 sums; every operation stays the same. An
+`agent-browser` already on `PATH` is used as before.
+
+**What you lose by skipping it.** New installs keep getting v0.38.1 and miss the fixes in v0.39.1.
+
+```upgrade
+Applies-to: <3.2.1
+Files: .xezar/pipeline/browsers/agent-browser.md
+```
+
 ## 2026-10-16 – xezar did not start: saved settings or task records still name an agent that xezar no longer runs (pi or OpenCode)
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before kit 3.2.0. From kit 3.2.0
@@ -2229,6 +2313,9 @@ write to and says so. Your existing designs are not touched either way.
 ## 2026-09-21 – a task sent to OpenCode is refused: "OpenCode is disabled"
 
 Applies to a repository onboarded by `xez-onboard-opinionated` 1.5.0 or later.
+
+**Superseded on engine 0.30.0 and later**, which runs no OpenCode: follow the 2026-10-16 entry
+instead. The setup no longer switches the provider, and the undo call below no longer applies.
 
 **Symptom – a dispatch that names the OpenCode runner comes back refused.** The setup switched
 that provider off for this project, on purpose: after a denied permission request its session can

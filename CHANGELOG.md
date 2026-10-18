@@ -1,3 +1,30 @@
+# 3.2.1 (2026-10-18)
+
+**Kit 3.2.1 is a patch: fixes found after 3.2.0, with no new engine floor.** It still needs engine 0.30.0 or later. The upgrade prompt's release check works again (#233), onboarding stops naming OpenCode and pi (#235, #231), a screen-checking row refuses lanes that cannot see (#185), and `route.mjs --author` names the merge-time bans (#206). Run the upgrade prompt; the upgrade notes dated 2026-10-18 list each changed file.
+
+- 🔧 Routing defaults version 6: `acceptance-verification` no longer falls back to
+  `qwen/deepseek-v4-pro`, which cannot see the screenshots that workflow takes, and refuses every
+  `vision: false` lane (#185). `qwen/deepseek-flash` stays `vision: false`: the 2026-10-18 test found it
+  reads numbers and colours but missed a 4 px offset 1 to 2 times in 5.
+- 🔧 `route.mjs <row> --author <lane>` ends each row with `merge-checks=<ids>`, the bans checked at
+  merge time such as `qwen-write-claude-review` (#206). Without `--author` the output is unchanged. A
+  merge the engine refuses on its own still needs a record of which lane wrote each commit
+  (qodeca/xezar#924).
+- 🔧 The upgrade prompt's release check no longer stops every upgrade (#233). `gh release verify`
+  resolves a signed tag to its tag object, so step 2 now compares that sha with the clone's tag ref, and
+  `HEAD` and the `Release-Commit:` line with the commit the tag points at. Until 3.2.1, an owner
+  upgrading to 3.2.0 checks those two pairs by hand.
+- 🔧 The pinned `agent-browser` release moves v0.38.1 → v0.39.1, with its per-asset checksums.
+- 🔧 Onboarding no longer reads, records or switches an OpenCode provider, which engine 0.30.0
+  does not have, and `xez-onboard` looks for `qwen` instead of `pi` and `opencode` (#235). Two
+  engine settings change on setup now, not three, and the report shows when the skill-update
+  switch is left as it was. A tool or login the engine does not run is recorded and not offered.
+- 🔧 Two kit files stop naming pi and OpenCode: `kit/docs/recovery.md` and a comment in
+  `kit/checks/local-tree.sh` (#231). `docs/coverage.md` row 26 says Qwen Code's read-only lock has
+  no refusal test of its own here yet.
+- 🧪 The nightly guard cases that stopped catching their defect after 3.2.0 are re-aimed (#240);
+  a case can now break two files together.
+
 # 3.2.0 (2026-10-17)
 
 **Kit 3.2.0 runs on Claude Code, Codex and Qwen Code only, and needs engine 0.30.0 or later.** Engine 0.30.0 removed the pi and OpenCode runners and refuses to start while a workflow, its config or a task record still names one. The routing defaults (version 5) move every pi lane to a Qwen Code lane, and the pi add-on is gone. Upgrade the engine first, then run the upgrade prompt; the engine guide page "Moving from pi or OpenCode to Qwen Code" covers the engine side. 3.1.0 was never released on its own: everything below, from 3.1.0 on, ships in 3.2.0.
