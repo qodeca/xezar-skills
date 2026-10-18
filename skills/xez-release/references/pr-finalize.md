@@ -1,6 +1,6 @@
 # PR finalize — open or reuse, labels, summary comment, markers
 
-The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (steps 10 and 12 of the skill body). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
+The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (step 5 of the skill body). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
 
 ## Never open a duplicate PR
 
@@ -10,8 +10,7 @@ Before opening anything, check whether a PR already exists for this branch (or, 
 
 `xez-open-pr` already implements exactly this: it commits the worktree, pushes the branch, opens a **ready-for-review** PR against `$BASE_BRANCH` (draft only with `--draft`) with the unified body template, applies the locally established label set (pipeline the local review-ready label, category, QA meta, one priority, one risk) through the descriptor guards with rationale comments, posts the caller's summary comment, and (in an issue-driven run) hands the issue back and releases the local active-ownership label lock — emitting the `PR:` / `Issue:` chaining reference lines. When it is installed, **delegate to it** instead of re-deriving the steps:
 
-- Issue-driven run (an `{issueId}` is in scope): invoke `xez-open-pr {issueId} {category}` (add `--plan <path>` when an execution plan exists, `--draft` for a spec-only design PR) and capture the PR number and URL from its `PR:` reference line.
-- Brief- or spec-driven run (no issue — e.g. `xez-auto-create-pr`): invoke it without `{issueId}`; the issue-handback and lock-release parts don't apply.
+- This skill has no subject issue: invoke it without `{issueId}` (the issue-handback and lock-release parts don't apply) and capture the PR number and URL from its `PR:` reference line.
 
 ## Graceful fallback when `xez-open-pr` is NOT installed
 
@@ -23,17 +22,15 @@ Before opening anything, check whether a PR already exists for this branch (or, 
 
 Detect availability simply: if invoking `xez-open-pr` is not possible in this environment (skill not present), take the inline path. Behavior is identical either way — the same PR, the same labels — so installing `xez-open-pr` only removes duplication, it never changes the outcome.
 
-## Early draft PR, then ready
+## Ready for review, never an early draft
 
-The run **always** leaves a PR the user can watch, even when it never finishes:
-
-1. **Open early as a bare draft** — right after the plan's first commit (skill step 6), open the PR via **create-pr** with the draft flag, carrying the body template's `Tracking plan:` line and `Status: in-progress`. Keep it bare here — no labels, no summary yet; those are premature on a run that just started. This is the natural point: the branch has its first commit, so an interrupted run leaves a draft PR carrying the committed plan/Progress rather than a branch with no PR. (Do **not** delegate this early open to `xez-open-pr` — that skill also applies labels and posts a summary, which belong at steps 10–12.)
-2. **Reuse it** — steps 10–12 update this same PR (never open a second one): apply labels (delegating to `xez-open-pr`'s reuse path when installed — it refreshes the body and labels without disturbing the draft state), run the review pass, post the summary comment.
-3. **Flip to ready at completion** — at cleanup (skill step 13), once `Status:` is `complete` (all Progress steps `- [x]`), promote the draft with **mark-pr-ready**. A run with `Status: in-progress` stays a draft for the user to resume. A spec-only design PR stays draft by intent.
+Open the PR **ready for review** once its changes are made and verified — this skill writes no
+execution plan, so there is no early draft to resume. Open it as a draft only when the run stopped
+on a `⚠ NEEDS HUMAN CONFIRMATION` point it could not resolve.
 
 ## Verification comments on the PR
 
-Verification proofs land on the PR, not only in the plan. Keep the validation outcome and material limits in the PR body; the end-of-run comment links its evidence; when a verification (validation gate, integration or UI check) runs mid-flight and is worth surfacing before the summary, post it as its own idempotent comment with the marker `` 🤖 `xez-apply-upgrade-notes` — verification `` (re-run updates it in place). Attach screenshots via **attach-image-evidence** whenever UI was touched.
+Verification proofs land on the PR, not only in the plan. Keep the validation outcome and material limits in the PR body; the end-of-run comment links its evidence; when a verification (validation gate, integration or UI check) runs mid-flight and is worth surfacing before the summary, post it as its own idempotent comment with the marker `` 🤖 `xez-release` — verification `` (re-run updates it in place). Attach screenshots via **attach-image-evidence** whenever UI was touched.
 
 ## PR body
 
@@ -52,7 +49,7 @@ Apply labels from the config's taxonomy after opening the PR, always through the
 Consolidated label-rationale comment — exactly **one** marker-idempotent comment from this skill per PR, listing only the labels actually applied: **one label per line**, each with a relevant shared-glossary emoji and a full-sentence reason (drop lines for labels not applied; never compress into a `·`-concatenated one-liner). On any later label change — a pipeline transition, a priority/risk adjustment — find the marker via **list-issue-comments** and rewrite this same comment via **update-comment** so it always describes the current label state; never post an additional per-change comment (when the descriptor lacks **update-comment**, post a replacement stating it supersedes the previous rationale):
 
 ```markdown
-🤖 `xez-auto-create-pr` — 🏷️ label rationale
+🤖 `xez-release` — 🏷️ label rationale
 
 - 🏷️ `{actual local label}` — {full-sentence reason supported by project policy and this change}.
 ```
@@ -61,7 +58,7 @@ Label decoration is optional; use the shared glossary for meaning and the actual
 
 ## Summary comment
 
-Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. The shape for this skill is in `references/report-templates.md`. Never post it before the automated review loop (step 11) finishes, never claim a completion you did not reach, and never paste secrets into it.
+Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. The shape for this skill is in `references/report-templates.md`. Never claim a completion you did not reach, and never paste secrets into it.
 
 ## Marker emission
 
@@ -76,22 +73,19 @@ Chained consumers (`xez-auto-review-pr`, `xez-auto-qa-pr`, orchestration scripts
 
 ## xez-release specifics
 
-- **One pull request per update group**, per `grouping.md`. Reuse an open one for the same
-  group (**search-prs**) instead of opening a second.
-- **Title:** `chore(deps): <group> updates — <n> packages` (`fix(deps):` for a security group,
-  because it fixes something).
+- **One release pull request per version.** It carries the changelog fold (step 3) and the
+  version write (step 4) and nothing else. Re-running finds the open one through **search-prs**
+  and updates it instead of opening a second.
+- **Title:** `chore(release): <version>`.
 - **Body**, in this order:
-  - 🎯 one line: what changes for whom. For a security group, the advisory and what it exposes;
-    otherwise, what drift this closes.
-  - 📋 a table: package, from, to, and why it is in this group. Advisory id and severity as extra
-    columns for a security group.
-  - 💥 the blast radius — `UPDATE_OTHERS_MOVED` per member, and the total count of transitive
-    packages whose locked version changed. A reviewer shown "1 package updated" for a change that
-    moved thirty has been misled by omission.
-  - 🧪 the gate result in full, with each command named. "Tests pass" is not evidence.
+  - 🎯 one line: the version and the commit it releases (the `--ref` resolved in step 1).
+  - 📋 the new changelog section as folded, and the list of fragment files deleted with it.
+  - 📋 every file the version was written to, with its old and new value.
+  - 🧪 the evidence the run rests on: the ancestry check from step 1 and the required checks
+    from step 2, each named with its result. "CI green" is not evidence.
   - ⚠️ anything that could **not** be checked, and why. A dropped section reads as a clean result.
-- **Labels:** category `dependencies`; `risk-high` for a security group or any major bump,
-  `risk-low` for a patch group whose gate passed clean. Apply the full canonical set per step 6
-  above.
-- **Never mark it ready to merge on the strength of the gate alone.** This skill proposes; the
-  decision to take a version is the maintainer's.
+- **Labels:** the category the repository's taxonomy uses for this housekeeping (`documentation`
+  when it names none), `risk-low` because the pull request changes no code, and the rest of the
+  canonical set per **Label normalization** above.
+- **The tag is not part of this pull request.** It comes in step 6, after the merge; never
+  promise a tag or a publish in the body or the summary comment.
