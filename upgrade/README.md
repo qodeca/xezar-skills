@@ -1,5 +1,7 @@
 # The kit upgrade tool
 
+**In short:** this brings a project's Xezar setup up to the newest release and keeps the changes you made to it. You need git, the GitHub command line tool (`gh`) and Claude Code; Claude does the work, shows you a plan first, and asks before anything risky. Plan for one sitting per project.
+
 This folder brings a live project from the Xezar kit version it runs to a newer one, and keeps
 every local change the project made to kit files. It is for projects set up by
 `xez-onboard-opinionated`. A project set up by `xez-setup-agent-pipeline` without the kit keeps

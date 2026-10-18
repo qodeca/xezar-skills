@@ -31,6 +31,26 @@ merge of `routing.json` against the newest defaults (`references/routing-default
 clone), never one version after another; (4) the remaining entries, oldest first; (5) the
 verifier, once, with `--target` set to the release you cloned.
 
+## 2026-10-18 – the release-publish role expects exactly three manifest changes in the release bot's PR
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/skills/xezar-release-publish.md` tells the release step to check the release
+bot's pull request against "the publishing script's expected three manifest changes". A project
+whose release workflow stamps a different number of `package.json` files (a root plus three
+workspaces is four) reads a correct bot diff as an unexpected change and stops the release.
+
+**What to do.** Copy `.xezar/skills/xezar-release-publish.md`: it now checks the diff against every
+`package.json` the release workflow stamps, whatever the number.
+
+**What you lose by skipping it.** A release in a workspace project stops at the bot's pull request
+for a diff that is correct.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/skills/xezar-release-publish.md
+```
+
 ## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.
