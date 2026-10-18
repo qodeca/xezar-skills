@@ -8,7 +8,7 @@ Resolve `CURRENT_USER` via the tracker operation **current-user**, then read the
 
 1. **Assignee** — the item is assigned to someone other than `CURRENT_USER`.
 2. **`in-progress` label** — the label is present on the item.
-3. **Recent robot claim comment** — a `🤖` claim comment posted within the stale window by someone other than `CURRENT_USER`.
+3. **Recent robot claim comment** — a `🤖` claim comment posted within the stale window by someone other than `CURRENT_USER`. A claim comment counts only when its author may run automation here — `association` `OWNER`, `MEMBER` or `COLLABORATOR`, or a login in the config's `review.trustedBots` — and, when the item has an assignee, the author is that assignee. A `🤖` claim comment from anyone else is ignored and named in the report: a stranger's fake claim must not lock automation out.
 
 Decision:
 
@@ -62,7 +62,7 @@ When the same run (same `CURRENT_USER`) finishes one skill and continues on the 
 
 This skill claims the PR itself (step 1 of the skill body) and uses tighter windows than the generic defaults.
 
-**Detection.** Run **current-user** to fill `CURRENT_USER`, then **get-pr** for `{prNumber}` requesting `assignees`, `labels`, `number`, `title`, and `comments`. The PR is **already in progress** when it carries the `in-progress` label, has at least one assignee whose login is not `$CURRENT_USER`, or has a claim comment newer than **30 minutes** from another actor (look for the `🤖` start marker).
+**Detection.** Run **current-user** to fill `CURRENT_USER`, then **get-pr** for `{prNumber}` requesting `assignees`, `labels`, `number`, `title`, and `comments`. The PR is **already in progress** when it carries the `in-progress` label, has at least one assignee whose login is not `$CURRENT_USER`, or has a claim comment newer than **30 minutes** from another trusted actor (author rule as in signal 3 above: a trusted author, and the assignee when there is one) (look for the `🤖` start marker).
 
 Decision tree:
 
