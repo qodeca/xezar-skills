@@ -1,5 +1,9 @@
 # 3.2.1 (unreleased)
 
+- 🔧 `route.mjs <row> --author <lane>` ends each row with `merge-checks=<ids>`, the bans checked at
+  merge time such as `qwen-write-claude-review` (#206). Without `--author` the output is unchanged. A
+  merge the engine refuses on its own still needs a record of which lane wrote each commit
+  (qodeca/xezar#924).
 - 🔧 The upgrade prompt's release check no longer stops every upgrade (#233). `gh release verify`
   resolves a signed tag to its tag object, so step 2 now compares that sha with the clone's tag ref, and
   `HEAD` and the `Release-Commit:` line with the commit the tag points at. Until 3.2.1, an owner

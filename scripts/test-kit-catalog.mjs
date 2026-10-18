@@ -1143,7 +1143,7 @@ if (S.section("B")) {
     rmSync(join(project, ".local"), { recursive: true, force: true });
     const GOLDEN = "dc1e715b6a94c6ac1e598380da61cfd2786ba7c3a21bd2ab428de93135e25e65";
     if (createHash("sha256").update(golden).digest("hex") !== GOLDEN) fail("route without --author no longer prints byte-identical output (golden hash of every row of routing-defaults/3.json differs) -- the leader parses these lines");
-    if (/escalation-eligible=|author-chain/.test(golden)) fail("route prints author-chain lines without --author");
+    if (/escalation-eligible=|author-chain|merge-checks=/.test(golden)) fail("route prints author-chain lines without --author");
 
     // A Claude-authored PR on full-cold-review gets a non-Claude lane, never a Claude lane.
     const vendorOf = (id) => routing.lanes[id]?.vendor;
@@ -1156,6 +1156,10 @@ if (S.section("B")) {
       if (!/^removed=claude\/opus reason=author-chain: shared (model|vendor) with claude\/\S+$/m.test(out)) fail(`route full-cold-review --author ${author} does not say why it removed claude/opus:\n${out}`);
       for (const id of got) if (routing.reservedLanes[id]?.escalation && !new RegExp(`^escalation-eligible=${id.replace(/[/.]/g, "\\$&")}$`, "m").test(out)) fail(`route lists escalation lane ${id} as eligible without an escalation-eligible line`);
       if (/ by=hand$/m.test(out)) fail("route still prints an escalation lane as by=hand when an author chain is given");
+      // #206: the merge-time bans turn on the author, so a chain prints them beside dispatch-checks.
+      const merge = routing.globalBans.filter((b) => b.checkedAt === "merge").map((b) => b.id);
+      if (merge.length && !new RegExp(`^dispatch-checks=.*\\nmerge-checks=${merge.join(",")}$`, "m").test(out))
+        fail(`route full-cold-review --author ${author} does not print merge-checks=${merge.join(",")} after dispatch-checks (#206):\n${out}`);
     }
     // Nothing independent left: wait, never an invented fallback.
     const noCodex = execFileSync("node", [ROUTE, "--file", shipped, "full-cold-review", "--author", "claude/opus"], { cwd: project, encoding: "utf8", stdio: "pipe", env: { ...env, KIT_TEST_ROUTE_TOOLS: "claude" } });
