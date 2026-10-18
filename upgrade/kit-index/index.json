@@ -449,6 +449,31 @@
       "commit": "1b2872f77840b98ba094d6acfde71960b78901c9",
       "tag": "v3.2.0",
       "version": "3.2.0"
+    },
+    {
+      "commit": "3bffb04db140fe5d7cef29ff21cb0917da213c84",
+      "tag": null,
+      "version": "3.2.0+3bffb04db140"
+    },
+    {
+      "commit": "8f747ebb53a1afecaf5d4de3ebd732f871e3a1c2",
+      "tag": null,
+      "version": "3.2.0+8f747ebb53a1"
+    },
+    {
+      "commit": "b94ab289d8be39bf032a1aa3a8f38f3a05b9ef25",
+      "tag": null,
+      "version": "3.2.0+b94ab289d8be"
+    },
+    {
+      "commit": "b53e269e561e10de00d80c82fbff5afc17c23843",
+      "tag": null,
+      "version": "3.2.0+b53e269e561e"
+    },
+    {
+      "commit": "4d5cc453882060d07e36bdfbc39ead09d2cfab2a",
+      "tag": "v3.2.1",
+      "version": "3.2.1"
     }
   ]
 }
