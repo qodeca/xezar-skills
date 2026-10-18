@@ -24,6 +24,11 @@
   no refusal test of its own here yet.
 - 🧪 The nightly guard cases that stopped catching their defect after 3.2.0 are re-aimed (#240);
   a case can now break two files together.
+- 📝 **SDLC.md now holds the whole delivery process in one file.** A shared core (version 1.0, the
+  same text in every project that uses it) plus this project's profile. It adds rules for untrusted
+  input, agent permissions and guards, test quality, flaky tests, agent sessions, release and
+  after-release steps. Pull requests now add a changelog fragment in `changelog.d/` (#242). This
+  line was folded in after the release; the v3.2.1 tag's changelog does not have it.
 
 # 3.2.0 (2026-10-17)
 
