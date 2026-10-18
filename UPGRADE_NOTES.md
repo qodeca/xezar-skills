@@ -23,6 +23,14 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+A hand upgrade from a kit before 3.2.0 (3.1.0 never shipped on its own; its changes are in 3.2.0)
+keeps this order: (1) the engine, as the entry "xezar did not start: saved settings or task
+records still name an agent that xezar no longer runs" says – old tasks deleted with the old
+engine first, then 0.30.0; (2) `.xezar/checks/route.mjs` before `.xezar/routing.json`; (3) one
+merge of `routing.json` against the newest defaults (`references/routing-defaults/` in the
+clone), never one version after another; (4) the remaining entries, oldest first; (5) the
+verifier, once, with `--target` set to the release you cloned.
+
 ## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.

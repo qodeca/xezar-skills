@@ -1,14 +1,15 @@
 # Upgrade contract
 
-The formats the 3.1.0 upgrade tool reads and writes. Every stream that touches the onboarding
+The formats the kit upgrade tool reads and writes. It was built as part of 3.1.0, which never
+shipped on its own: its changes, the tool included, first shipped in 3.2.0. Every stream that touches the onboarding
 manifest, the local-patch register, the kit index or an upgrade entry follows this file. Changing a
-format here after 3.1.0 ships is a breaking change (`BACKWARD_COMPATIBILITY.md`).
+format here since 3.2.0 shipped is a breaking change (`BACKWARD_COMPATIBILITY.md`).
 
 Plan: `docs/plans/release-3.1.0.md` §6.
 
 ## 1. Onboarding manifest – `.xezar/onboarding.json`
 
-### 1.1 Version 1 (everything written before 3.1.0)
+### 1.1 Version 1 (everything a kit before 3.2.0 wrote)
 
 Version 1 was specified in prose only (`xez-onboard-opinionated/references/write.md`, "Both halves
 of the manifest") and written by the onboarding agent, so its shape varies between projects. A
@@ -42,7 +43,7 @@ JSON Schema (loose on purpose):
 }
 ```
 
-### 1.2 Version 2 (written from 3.1.0)
+### 1.2 Version 2 (written from 3.2.0, and by the unreleased 3.1.0 builds, which recorded `version: "3.1.0"`)
 
 ```json
 {
@@ -52,7 +53,7 @@ JSON Schema (loose on purpose):
   "required": ["manifestVersion", "version", "files"],
   "properties": {
     "manifestVersion": { "const": 2 },
-    "version": { "type": "string", "description": "kit version installed, e.g. 3.1.0 or 3.0.2+<sha12>" },
+    "version": { "type": "string", "description": "kit version installed, e.g. 3.2.1 or 3.0.2+<sha12>" },
     "date": { "type": "string", "format": "date-time" },
     "descriptors": {
       "type": "object",
@@ -259,7 +260,7 @@ Grammar:
 | `config-key=<dotted.key>` | A new config key exists. Add it only if `config-fields.md` marks a **Default** an upgrade may leave unset (plan P7); "absent means …" is not one. Otherwise put it on the owner checklist. |
 | `label-sync` | Re-sync the tracker label taxonomy. |
 | `env-rename=<OLD>:<NEW>` | An environment variable was renamed. |
-| `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`, `add-runner-model` (`<detail>` is the lane id, `<runner>/<model>`: add `<model>` to that runner's model config – for Qwen Code an entry in `modelProviders` of `~/.qwen/settings.json`), `install-pi-extension` (`<detail>` is a project path: the owner replaces the pi add-on that answers MCP approvals in pi's agent dir with that file). In `trust-codex-project:<absolute-project-path>`, the detail stands for the project's absolute path. |
+| `per-machine=<verb>:<detail>` | A change to an untracked or ignored file on every machine that runs the leader or reviews. The tool never writes it; it goes on the owner checklist. `<verb>` is one of `add-mcp-permission`, `remove-mcp-permission`, `enable-mcp-server`, `trust-codex-project`, `add-runner-model` (`<detail>` is the lane id, `<runner>/<model>`: add `<model>` to that runner's model config – for Qwen Code an entry in `modelProviders` of `~/.qwen/settings.json`), `install-pi-extension` (obsolete since kit 3.2.0, which ships no pi add-on; kept so an old entry still parses – `<detail>` is a project path: the owner replaced the pi add-on that answers MCP approvals in pi's agent dir with that file). In `trust-codex-project:<absolute-project-path>`, the detail stands for the project's absolute path. |
 
 ## 6. Stream fragments – `docs/plans/3.1.0/notes/<stream>.md`
 

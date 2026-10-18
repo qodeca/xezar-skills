@@ -135,6 +135,12 @@ commands (list them)? A no ends the run here, with nothing changed. Never bypass
    `.local/xezar/runtime/onboarding-pending.json` exists, the first onboarding never finished:
    stop and tell the owner to finish it first (`xez-onboard-opinionated --verify`).
 2. **A clean working tree.** `git status --porcelain` prints nothing. Ignored files do not count.
+   When it prints something and the current branch is `xezar/upgrade-<target>`, an earlier run
+   stopped between two commits. Stop, show the owner `git status`, and give them the commands
+   to clear it, which they run themselves: `git restore --staged --worktree .` drops the
+   uncommitted edits, `git clean -n` lists the untracked files the run left (then `git clean -f`
+   removes them), and `git switch <baseBranch>` returns to the base branch. Running this prompt
+   again then resumes from the last commit (item 6). Never clear the tree yourself.
 3. **The right starting point.** Read `baseBranch` from `.xezar/pipeline/config.json` (`auto`
    means the remote's default branch). You are on that branch, and after `git fetch origin` it
    equals `origin/<baseBranch>`. If it is behind, ask the owner to run `git pull --ff-only`; do
@@ -671,5 +677,7 @@ Before the upgrade merges, rollback is simpler: switch to the base branch, delet
   retry the same thing silently.
 - You are unsure whether a change weakens safety: treat it as if it does, and ask.
 - The run has to end early: leave the branch with whatever you committed, and tell the owner
-  what the last finished step was. Running this prompt again resumes from there (step 0.6), or
-  the owner deletes the branch and nothing in the project has changed.
+  what the last finished step was, and list any uncommitted or untracked files the run left.
+  Running this prompt again resumes from the last commit (step 0.6) once those are cleared (step
+  0.2 gives the commands). To start over instead, the owner clears them, switches to the base
+  branch and deletes the upgrade branch; only then has nothing in the project changed.

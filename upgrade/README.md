@@ -22,7 +22,8 @@ time, when they decide to.
 Upgrade straight to the newest release from any kit since 1.2.0, in one run: the tool takes every
 upgrade step between the two. Never step through the versions in between.
 
-0. **Check the engine first.** Compare `xezar --version` with `xezar.min` in the release's
+0. **Check the engine first.** `node --version` must be 22 or later (engines from 0.20.0 need
+   it). Compare `xezar --version` with `xezar.min` in the release's
    `compat.json`. When it is lower, upgrade the engine before anything else, in this order:
    with the engine you run now, delete every task that ran on pi or OpenCode (archiving is not
    enough); stop the engine; run `npm install -g @qodeca/xezar@^<xezar.min>`; follow the xezar
@@ -69,8 +70,10 @@ upgrade step between the two. Never step through the versions in between.
    checklist on every machine that runs the leader or reviews, and restart the engine and the
    leader.
 
-Try it on a throwaway clone of the project first. The release plan
-(`docs/plans/release-3.1.0.md` §7 and §9) describes the dry run and the order of projects.
+Try it on a throwaway copy of the project first: clone the project into a temporary folder,
+run steps 1 to 5 there (step 0, the engine, is per machine and still applies), read the report, and delete the copy. Nothing reaches the real project or
+its remote, because the run never pushes. Upgrade your least busy project first, and the rest
+once that one has merged and run a day.
 
 ## The release commit line
 
