@@ -135,6 +135,12 @@ commands (list them)? A no ends the run here, with nothing changed. Never bypass
    `.local/xezar/runtime/onboarding-pending.json` exists, the first onboarding never finished:
    stop and tell the owner to finish it first (`xez-onboard-opinionated --verify`).
 2. **A clean working tree.** `git status --porcelain` prints nothing. Ignored files do not count.
+   When it prints something and the current branch is `xezar/upgrade-<target>`, an earlier run
+   stopped between two commits. Stop, show the owner `git status`, and give them the commands
+   to clear it, which they run themselves: `git restore --staged --worktree .` drops the
+   uncommitted edits, `git clean -n` lists the untracked files the run left (then `git clean -f`
+   removes them), and `git switch <baseBranch>` returns to the base branch. Running this prompt
+   again then resumes from the last commit (item 6). Never clear the tree yourself.
 3. **The right starting point.** Read `baseBranch` from `.xezar/pipeline/config.json` (`auto`
    means the remote's default branch). You are on that branch, and after `git fetch origin` it
    equals `origin/<baseBranch>`. If it is behind, ask the owner to run `git pull --ff-only`; do
@@ -567,7 +573,7 @@ the owner may want `plan.json`.
 | Clean update | mine = base ≠ theirs, base confidence high or medium | writes theirs, re-rendered with the manifest's `renderInputs` | – |
 | Local only | mine ≠ base = theirs, base confidence high or medium; or a file the manifest or register names that no kit version ever shipped (no base, no theirs) | keeps mine | check that a confirmed register entry covers it; if not, treat it as an unexplained local change. A file no kit version shipped needs nothing |
 | Already upstream | mine = theirs | marks it current | draft removal of the register entry that is now obsolete |
-| Both changed | mine ≠ base ≠ theirs; or an inferred (`low`) base equal to theirs, which proves nothing | runs a three-way merge (`git merge-file --zdiff3`) and stages the result; stages theirs when there is no usable base | resolve it: keep the local intent, take the `<target>` fix, record it in the register |
+| Both changed | mine ≠ base ≠ theirs; or an inferred (`low`) base equal to theirs, which proves nothing | runs a three-way merge (`git merge-file --zdiff3`, or `--diff3` on a git before 2.35) and stages the result; stages theirs when there is no usable base | resolve it: keep the local intent, take the `<target>` fix, record it in the register |
 | Base unknown | no base could be found at all | stages theirs next to mine | handle it as both changed, and flag it in the report |
 | Moved in kit | the index gives the file a `renamedFrom` | stages a three-way merge of the old file into the new path, using the old path's base | write the new path from the staged merge, then remove the old file |
 | Routing before 3.0 | `.xezar/docs/model-routing.md` exists and `.xezar/routing.json` does not | writes the `<target>` `routing.json` | convert the owner's lanes and rules into it, and list every converted rule in the report |
@@ -677,5 +683,7 @@ Before the upgrade merges, rollback is simpler: switch to the base branch, delet
   retry the same thing silently.
 - You are unsure whether a change weakens safety: treat it as if it does, and ask.
 - The run has to end early: leave the branch with whatever you committed, and tell the owner
-  what the last finished step was. Running this prompt again resumes from there (step 0.6), or
-  the owner deletes the branch and nothing in the project has changed.
+  what the last finished step was, and list any uncommitted or untracked files the run left.
+  Running this prompt again resumes from the last commit (step 0.6) once those are cleared (step
+  0.2 gives the commands). To start over instead, the owner clears them, switches to the base
+  branch and deletes the upgrade branch; only then has nothing in the project changed.
