@@ -13,7 +13,8 @@
 // This needs full history and tags, so it is run by hand and its output committed; no gate
 // reads tags (CI checks out shallow). The release PR re-runs it for the new tag.
 //
-// Run:   node scripts/build-kit-index.mjs [--ref HEAD] [--out upgrade/kit-index] [--check]
+// Run:   node scripts/build-kit-index.mjs [--ref HEAD] [--out upgrade/kit-index] [--check] [--help]
+//        An unknown argument stops it with exit 2 and the usage line, before anything is written.
 //        --check rebuilds into memory and fails if the committed files differ, or if a commit the
 //        committed index records is not an ancestor of --ref (an index built on a branch that was
 //        squash-merged points at commits no clone of the release has). No gate runs --check: it
@@ -28,14 +29,28 @@ import { git, stableJson } from "../upgrade/tools/lib/hash.mjs";
 import { buildVersionIndex, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const args = process.argv.slice(2);
-const opt = (name, fallback) => {
-  const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : fallback;
-};
-const ref = opt("--ref", "HEAD");
-const outDir = join(root, opt("--out", "upgrade/kit-index"));
-const check = args.includes("--check");
+const USAGE = "usage: node scripts/build-kit-index.mjs [--ref <ref>] [--out <dir>] [--check] [--help]";
+// Every argument is known, or the run stops before it reads or writes anything: write mode
+// rewrites upgrade/kit-index/, so a mistyped flag (or --help) must never fall through to it.
+const opts = { "--ref": "HEAD", "--out": "upgrade/kit-index" };
+let check = false;
+{
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (a === "--help" || a === "-h") {
+      console.log(USAGE);
+      process.exit(0);
+    } else if (a === "--check") check = true;
+    else if (a in opts && i + 1 < args.length && !args[i + 1].startsWith("--")) opts[a] = args[(i += 1)];
+    else {
+      console.error(`build-kit-index: ${a in opts ? `${a} needs a value` : `unknown argument ${a}`}\n${USAGE}`);
+      process.exit(2);
+    }
+  }
+}
+const ref = opts["--ref"];
+const outDir = join(root, opts["--out"]);
 const FIRST_TAG = "v1.2.0";
 const KIT = `${SKILL_DIR}/kit`;
 

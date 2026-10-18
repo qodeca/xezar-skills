@@ -152,7 +152,10 @@ commands (list them)? A no ends the run here, with nothing changed. Never bypass
      belongs to this project;
    - you cannot list the engine's tasks yourself (rule 3), so the owner confirms that none is
      running. The engine itself may stay running; only the leader and tasks must stop.
-5. **The engine version.** Record the output of `xezar --version`. You compare it with the
+5. **The engine version.** Record both: the `version` in the project's
+   `node_modules/@qodeca/xezar/package.json` (read the file, never run it), and the output of
+   `xezar --version`. The engine version is the project's pinned one when that file exists,
+   else the one on PATH – the rule the planner and the kit's checks use. You compare it with the
    release's minimum at the end of step 1, because that minimum comes from the verified clone.
 6. **No leftover upgrade branch.** Look for a local branch `xezar/upgrade-<target>`.
    - **None** → create it from the current commit: `git switch -c xezar/upgrade-<target>`.
@@ -214,7 +217,10 @@ No Node script runs before this step has passed.
    0.30.0 does not start while an old task record names pi or OpenCode, and only the old engine
    can delete one: (a) with the engine they run now, delete every task that ran on pi or
    OpenCode – archiving is not enough – and change a saved default agent of pi or OpenCode;
-   (b) stop the engine and run `npm install -g @qodeca/xezar@^<xezar.min>`; (c) follow the
+   (b) stop the engine and run `npm install -g @qodeca/xezar@^<xezar.min>` – or, when the
+   version came from the project's pinned engine, raise the project's own `@qodeca/xezar`
+   dependency to `^<xezar.min>` and reinstall it there, since a global install leaves the pinned
+   one in place; (c) follow the
    xezar guide page "Moving from pi or OpenCode to Qwen Code" for the rest; (d) on each
    machine that runs DeepSeek steps, install Qwen Code. The clone's `UPGRADE_NOTES.md` entry
    "xezar did not start: saved settings or task records still name an agent that xezar no
