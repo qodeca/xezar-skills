@@ -54,8 +54,8 @@ Setup results use four words, and none implies the next: **files prepared**, **c
 
 ## 3. The remaining steps, in order
 
-**Three engine settings change here, and all three follow one rule: read, record, write, read back.**
-They are the default task account, the OpenCode switch and the skill auto-update switch. None of
+**Two engine settings change here, and both follow one rule: read, record, write, read back.**
+They are the default task account and the skill auto-update switch. Neither of
 them is a file in the pull request, so the preview names each (`references/preview.md`) and the
 report says what each was before.
 
@@ -69,9 +69,8 @@ report says what each was before.
   action `get_capabilities`: `capabilities.singleProjectRoot` is `true` when this folder owns its
   engine state, and only then do these settings land in this project (`.xezar/workspace.json`,
   git-ignored). The file existing proves nothing — the engine creates it either way. Absent or
-  false → the provider switch and the skill-update switch are the machine's, shared by every
-  project on it: **change neither**, and report each as "left as it was, the engine is not in
-  single-project mode". The default task account is keyed by this checkout's path in either mode,
+  false → the skill-update switch is the machine's, shared by every project on it: **leave it
+  alone**, and report it as "left as it was, the engine is not in single-project mode". The default task account is keyed by this checkout's path in either mode,
   so it is always set.
 - **A successful call is not the evidence; the read-back is.** Each write is followed by the read
   that shows the new value, and a read-back that disagrees is a finding, reported as one.
@@ -99,36 +98,6 @@ In order:
   contain — a second test found `selections: {}` and a default naming a login absent from the
   account list, which is a task that fails at dispatch with nothing to point at. State what the
   default was, in one line, before saying what it is now. Setting it silently hides the finding.
-- **OpenCode is switched off for this project.** It is a provider the engine supports and this
-  setup does not route to, for recorded reasons (`DECISIONS.md` → "OpenCode is off by default"):
-  after a denied permission request its session can go silent for minutes with no event and no
-  error, it does not enforce a step's tool allowlist — which is the only thing that makes a
-  read-only role read-only — a resumed session loses its role and its tool limits, and it cannot
-  attach itself as leader. Four moves, in this order, and the order is the point:
-
-  1. **Read.** `get_capabilities`. Find the `opencode` entry under `providers` and note `enabled`
-     and `status`. Not installed, or already disabled → say so, write nothing, tick the line.
-  2. **Check it is safe to switch.** Two conditions, both read, neither assumed.
-     `capabilities.singleProjectRoot` is `true` (above). And no enabled OpenCode lane
-     is in any row of `.xezar/routing.json` – or, on a setup written before routing was data, no
-     OpenCode lane in any chain of `.xezar/docs/model-routing.md`. Switching the provider off
-     under such a lane turns its dispatches into refusals. Either condition false → **leave it
-     on**, report "found, left on" with which condition failed, and keep it out of any row this
-     run writes. Never reach for a machine-wide setting from a per-project setup: if the owner
-     wants one, give them the place to make it themselves (`references/engine-refusals.md`).
-  3. **Record, then switch.** Write the entry (`"setting": "provider.opencode.enabled"`) and only
-     then call action `set_provider_enabled` with `provider: "opencode"`, `enabled: false` and a
-     fresh `operationId` — the argument names that action takes **from engine 0.17.0 on**, where
-     it gained them. **Check them against the tool's own description before you send them**,
-     because a shape written down in a skill ages into being wrong about one. An "Unrecognized
-     key" answer is the description telling you the names; read it, correct once, and never guess
-     a third (`references/engine-refusals.md`).
-  4. **Read back.** `get_capabilities` again; `enabled` must now be false.
-
-  Put the one call that undoes it in the report, word for word: `set_provider_enabled` with
-  `provider: "opencode"`, `enabled: true` — the same argument names you just used. Reverting the setup pull request does **not** undo this —
-  the state lives outside git — and an engine started later without `--single-project` reads the
-  machine's own settings instead, where this switch was never made.
 - **Skill updates are the owner's, not the engine's start-up.** Read `project_config` action
   `get_limits` → `workspace.skillsAutoUpdate.effective`; already `false` → say so and write
   nothing. Otherwise record the entry (`"setting": "skillsAutoUpdate"`), call
@@ -171,7 +140,7 @@ In order:
 ## 4. The checklist, then the report
 
 One line each, ✅ or ❌, with the evidence beside it: engine version · engine running · setup files
-on the base branch · labels · default task account · OpenCode off, or left on and why · `route.mjs --check` passes on
+on the base branch · labels · default task account · `route.mjs --check` passes on
 `.xezar/routing.json` · every row has an available lane (from the lane cache the leader writes, `.xezar/docs/routing.md` §2) · Codex trust, when a row names a `codex/` lane · no task login's own Claude settings allow a Bash rule beyond the reading prefixes (a broad rule there widens every reading step's shell; name the file, never its contents) · protection read back · manifest drift passes · connection state
 (one of the four words, or polling) · smoke test, both tiers · gates · clean tree · launcher ·
 owner's controls.

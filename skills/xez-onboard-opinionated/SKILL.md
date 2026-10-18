@@ -114,10 +114,10 @@ there, whether this session carries on or a later `--verify` run resumes.
   `paths.*` key and never a literal folder; the defaults are in `references/write.md` §2, and a
   folder the project already uses is recorded where it is, never moved.
 - **An engine setting is changed only for this project, and only after it was disclosed.** The
-  default task account, the skill-update switch and the OpenCode provider switch are read, recorded,
-  written and read back in `references/verify.md` §3. The two switches are left alone when the
-  engine is not in single-project mode, where the same call would reach every project on the
-  machine; the task account is keyed by this checkout and is always set.
+  default task account and the skill-update switch are read, recorded, written and read back in
+  `references/verify.md` §3. The switch is left alone when the engine is not in single-project
+  mode, where the same call would reach every project on the machine; the task account is keyed
+  by this checkout and is always set.
 - **When the engine refuses, stop calling and read `references/engine-refusals.md`.** A refusal
   is a finding, not an error to retry, and argument shapes are never guessed. The order is the
   engine's own tool, then the person's way, then — only on the owner's yes to one question that

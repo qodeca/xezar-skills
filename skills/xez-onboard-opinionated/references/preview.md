@@ -100,16 +100,13 @@ that surprise people:
 - **Branch protection is a repository setting**, not a file. It is the one place the setup
   reaches beyond project files, and it affects everyone on the repository rather than only the
   owner. Say whether this login can apply it, which the preflight already determined.
-- **Three engine settings are changed for this project**, each read first, recorded with what it
+- **Two engine settings are changed for this project**, each read first, recorded with what it
   was, and read back (`references/verify.md` §3): the **default task account** becomes the **login**
-  chosen on screen 3; **skill auto-update is switched off**, so skills change when the owner
-  updates them and not at an engine start; and **OpenCode is switched off**. For the last, say why
-  in one line — it can stall silently after a denied permission and does not enforce a step's tool
-  limits — and give the one call that turns it back on. Say where all three live: git-ignored
-  engine files **in this project** (`.xezar/workspace.json`, `.xezar/agent-accounts.json`), so no
-  other project on this machine is touched — and that the provider switch is skipped, and
-  reported, when the engine says it is not in single-project mode or when an existing routing
-  table still uses OpenCode.
+  chosen on screen 3; and **skill auto-update is switched off**, so skills change when the owner
+  updates them and not at an engine start. Say where both live: git-ignored engine files **in this
+  project** (`.xezar/workspace.json`, `.xezar/agent-accounts.json`), so no other project on this
+  machine is touched — and that the skill-update switch is skipped, and reported, when the engine
+  says it is not in single-project mode.
 - **This skill makes no machine-wide engine change**, and never writes `~/.xezar/config.json`. If
   the owner wants one, it names the place so they can make it themselves
   (`references/engine-refusals.md`).
