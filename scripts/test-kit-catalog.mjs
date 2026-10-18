@@ -2263,6 +2263,11 @@ if (S.section("R")) {
     for (const ds of [P, F]) if (lanesOfRow(id).includes(ds)) fail(`${ROUTING}: screen row ${id} lists ${ds}, which cannot see a screen`);
   }
   if (lanesOfRow("diagrams").at(-1) !== F) fail(`${ROUTING}: row diagrams does not end with ${F}, its no-Claude fallback`);
+  // #185: acceptance-verification grants every chrome-devtools tool, screenshots included, so a lane
+  // that cannot see the screen is refused there: no DeepSeek lane, and a never entry for vision: false.
+  for (const ds of [P, F]) if (lanesOfRow("acceptance-verification").includes(ds)) fail(`${ROUTING}: row acceptance-verification lists ${ds}, which cannot see a screen (#185)`);
+  if (!(byId["acceptance-verification"]?.never ?? []).some((e) => e.vision === false))
+    fail(`${ROUTING}: row acceptance-verification does not refuse vision: false lanes, though its workflow takes screenshots (#185)`);
   // DeepSeek-first rows: first choice, the other DeepSeek model, then every Codex lane before any Claude lane.
   const deepseekFirst = (id, first, second) => {
     const l = lanesOfRow(id);
@@ -2285,7 +2290,8 @@ if (S.section("R")) {
     if (l.indexOf(P) !== l.map(toolOf).lastIndexOf("codex") + 1) fail(`${ROUTING}: row ${id} does not take ${P} right after its Codex lanes: [${l}]`);
   }
   // Every non-screen review row ends with V4 Pro, the fallback after the Claude and Astra lanes.
-  for (const id of ["scoped-recheck", "full-cold-review", "architecture-review", "acceptance-verification", "security-review", "verify-strong-claim"]) {
+  // acceptance-verification is not one: a criterion may need the screen (#185, below).
+  for (const id of ["scoped-recheck", "full-cold-review", "architecture-review", "security-review", "verify-strong-claim"]) {
     if (lanesOfRow(id).at(-1) !== P) fail(`${ROUTING}: review row ${id} does not end with ${P}: [${lanesOfRow(id)}]`);
   }
 

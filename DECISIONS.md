@@ -1329,7 +1329,8 @@ Owner decision (#89). Several projects run at once, and the Claude and Codex sub
 run out fast – Claude first. The shipped routing now divides much more work between two DeepSeek
 models on pi: `pi/deepseek-api/deepseek-flash` first in the simple rows, and a new lane,
 `pi/deepseek-api/deepseek-v4-pro`, first in the mid-size writing rows, after the Codex lanes in
-the Opus-first rows, and last in every review row that is not a screen row. V4 Pro has no image
+the Opus-first rows, and last in every review row that is not a screen row (since 2026-10-18 not in
+`acceptance-verification` either, whose workflow takes screenshots, #185). V4 Pro has no image
 input (pi lists `images: no`), so it is in no screen row; Flash, which has vision, is the
 no-Claude fallback there. Work a DeepSeek lane wrote is reviewed by `claude/sonnet` first, then
 `codex/gpt-6-astra`.
