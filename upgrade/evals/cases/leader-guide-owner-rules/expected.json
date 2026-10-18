@@ -1,0 +1,53 @@
+{
+  "case": "leader-guide-owner-rules",
+  "situation": "The leader guide takes the target template's changes to its fixed part, and keeps the owner's rules section and the generated sections byte for byte.",
+  "invariants": [
+    {
+      "type": "finished"
+    },
+    {
+      "type": "branch"
+    },
+    {
+      "type": "baseUntouched"
+    },
+    {
+      "type": "verify",
+      "allow": []
+    },
+    {
+      "type": "sectionEqualsStart",
+      "path": ".xezar/docs/leader-guide.md",
+      "heading": "Owner's rules"
+    },
+    {
+      "type": "sectionEqualsStart",
+      "path": ".xezar/docs/leader-guide.md",
+      "heading": "This repository's setup"
+    },
+    {
+      "type": "sectionEqualsStart",
+      "path": ".xezar/docs/leader-guide.md",
+      "heading": "Release runbook"
+    },
+    {
+      "type": "contains",
+      "path": ".xezar/docs/leader-guide.md",
+      "lines": [
+        "A lane `route.mjs` printed as `removed=` is never dispatched",
+        "**Dispatch at once** when ready work and headroom exist",
+        "Quota read from `read_quota` before this dispatch",
+        "| Record | Goes in: the live campaign's folder; with no campaign open, `.local/xezar/scratch/leader/` |",
+        "`.xezar/checks/lib/project-policy.mjs`"
+      ]
+    },
+    {
+      "type": "notContains",
+      "path": ".xezar/docs/leader-guide.md",
+      "lines": [
+        "- [ ] Lane taken from `route.mjs <row id>`, first with budget, never the author's; `wait` waits.",
+        "- [ ] Every login verified before dispatch"
+      ]
+    }
+  ]
+}

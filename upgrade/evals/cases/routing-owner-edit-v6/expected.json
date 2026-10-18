@@ -1,0 +1,21 @@
+{
+  "case": "routing-owner-edit-v6",
+  "situation": "A row the owner reordered by hand that the new defaults (version 6) also change is a routing clash (UPGRADE_NOTES.md 2026-10-16; stop rule 6): the run stops and asks before writing .xezar/routing.json, and the owner's order is still there.",
+  "invariants": [
+    {
+      "type": "stop",
+      "path": ".xezar/routing.json",
+      "rules": [
+        "6",
+        "routing-clash"
+      ]
+    },
+    {
+      "type": "equalsStart",
+      "path": ".xezar/routing.json"
+    },
+    {
+      "type": "baseUntouched"
+    }
+  ]
+}

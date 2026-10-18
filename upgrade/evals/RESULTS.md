@@ -7,8 +7,9 @@ this table goes in the release PR.
 ## How a run works
 
 1. `node upgrade/evals/build.mjs upgrade/evals/cases/<case> <out>` writes the case as a real
-   project: the committed 3.0.3 synthetic install (`scripts/fixtures/upgrade/3.0.3/`), the
-   owner's edits from `case.json`, one commit on the base branch (`trunk`), and a local bare
+   project: the committed synthetic install the case's `base` names
+   (`scripts/fixtures/upgrade/<base>/` – 3.0.3 for all but `routing-owner-edit-v6`, which starts
+   from the 3.2.0 install and its manifest v2), the owner's edits from `case.json`, one commit on the base branch (`trunk`), and a local bare
    `origin`.
 2. A Claude Code session follows `upgrade/UPGRADE-PROMPT.md` in `<out>/project`, with the
    helpers run from this checkout (`--target` = its `package.json` version, which `check.mjs` grades against), and writes `<out>/run.json` (format in
@@ -18,8 +19,9 @@ this table goes in the release PR.
    copied by `build.mjs` to `<out>/owner-answers.json`: `[ { id, rule, paths[], answer, why } ]`).
    The run records such an answer in `run.json`'s `answered`, naming the entry's id. Any other
    stop ends the run. Nobody relays or invents an answer.
-3. Seven cases carry one fixed answer, `D13-review-tools` (`accept`): the six review workflows
-   whose 3.1.0 tool grants (#82) are a rule-5 permission stop on every 3.0.3 upgrade. Without it,
+3. Every case on the 3.0.3 base that is meant to finish carries one fixed answer,
+   `D13-review-tools` (`accept`): the six review workflows whose 3.1.0 tool grants (#82) are a
+   rule-5 permission stop on every 3.0.3 upgrade. Without it,
    no case could get past step 3.
 4. `node upgrade/evals/check.mjs upgrade/evals/cases/<case> <out>` grades it against
    `expected.json` and prints PASS or FAIL per invariant, plus one `ownerAnswers` line that fails
@@ -27,6 +29,13 @@ this table goes in the release PR.
 
 Step 1.2 (release verification) cannot pass before the tag exists, so every run skipped it and
 says so in its report. Nothing else was skipped.
+
+Cases added 2026-10-18, not yet run – they await the next release's run: `removed-agent-lane`,
+`routing-owner-edit-v6`, `leader-guide-owner-rules`, `new-config-key`. Each builds, and the
+planner (`plan.mjs --stdout`) behaves as its case expects where it can: a `routing-clash` stop on
+`rows[id=acceptance-verification]` for `routing-owner-edit-v6`; the leader guide's "template
+changed" note; the three `config-key=` actions; and for the pi lane no planner stop, so only the
+model and the target's routing check (which refuses a kept `pi/` lane) hold it.
 
 ## Run of 2026-09-27 (branch `feature/3.1.0-u4-prompt`, prompt as reconciled in #85)
 

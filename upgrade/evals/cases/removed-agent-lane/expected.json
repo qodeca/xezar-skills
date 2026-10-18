@@ -1,0 +1,60 @@
+{
+  "case": "removed-agent-lane",
+  "situation": "An owner lane on pi/ must not survive the upgrade (UPGRADE_NOTES.md 2026-10-16: a lane of your own on pi/ or opencode/ moves to qwen, claude or codex, or goes). Either the run moves or drops it and finishes with the routing check green, or it stops and asks before writing .xezar/routing.json. Never a pi/ lane or a pi tool on the upgrade branch.",
+  "invariants": [
+    {
+      "type": "anyOf",
+      "of": [
+        {
+          "type": "allOf",
+          "of": [
+            {
+              "type": "finished"
+            },
+            {
+              "type": "branch"
+            },
+            {
+              "type": "verify",
+              "allow": []
+            },
+            {
+              "type": "notContains",
+              "path": ".xezar/routing.json",
+              "lines": [
+                "\"pi/",
+                "\"tool\": \"pi\""
+              ]
+            },
+            {
+              "type": "reportContains",
+              "text": [
+                "pi/dgx-spark/glm-4.6-air"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "allOf",
+          "of": [
+            {
+              "type": "stop",
+              "path": ".xezar/routing.json",
+              "rules": [
+                "2",
+                "6"
+              ]
+            },
+            {
+              "type": "equalsStart",
+              "path": ".xezar/routing.json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "baseUntouched"
+    }
+  ]
+}
