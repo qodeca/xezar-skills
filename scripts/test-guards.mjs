@@ -261,6 +261,42 @@ breaks(
   "process killed by pattern match",
 );
 
+// lint.sh's tracker-text gate: a descriptor snippet is literal shell, and an issue title typed
+// into "<title>" runs any backtick or $(...) it holds. One break per half of the gate: the quoted
+// placeholder, the bash 3.2 apostrophe, and a block that does not parse at all.
+breaks(
+  "free text inside double quotes in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/github.md",
+  (s) => s.replace(
+    "gh issue comment {issueId} --repo {owner}/{repo} --body-file <body-file>\n",
+    'gh issue comment {issueId} --repo {owner}/{repo} --body "<body>"\n',
+  ),
+  lint,
+  "free text interpolated inside double quotes",
+);
+
+breaks(
+  "an apostrophe inside a double-quoted ${VAR:?...} in a tracker descriptor is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "to the Jira account id of the automation user}",
+    "to the automation user's Jira account id}",
+  ),
+  lint,
+  "bash 3.2 cannot parse it",
+);
+
+breaks(
+  "a tracker descriptor bash block that does not parse is rejected",
+  "skills/xez-setup-agent-pipeline/references/trackers/jira.md",
+  (s) => s.replace(
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\n",
+    "CURRENT_USER=${ATLASSIAN_ACCOUNT_ID:?Set ATLASSIAN_ACCOUNT_ID}\nif [ -n \"$CURRENT_USER\" ]; then\n",
+  ),
+  lint,
+  "does not parse (bash -n",
+);
+
 // `test-kit-facts.mjs` pins a short list of facts across a skill's own prose and the vendored
 // kit it ships. Those two halves are checked by different gates -- the kit is excluded from
 // three of them by path -- so a contradiction between them passed everything until people read

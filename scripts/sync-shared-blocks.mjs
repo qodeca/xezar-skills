@@ -68,6 +68,8 @@ const BLOCKS = [
       "exfiltrate data",
       "read credential stores",
       "before shell or path interpolation",
+      "no leading `-` and no `..` segment",
+      "never interpolated inside",
       "Never put a credential",
     ],
   },
