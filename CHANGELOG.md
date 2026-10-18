@@ -1,5 +1,9 @@
 # 3.2.1 (unreleased)
 
+- 🔧 The upgrade prompt's release check no longer stops every upgrade (#233). `gh release verify`
+  resolves a signed tag to its tag object, so step 2 now compares that sha with the clone's tag ref, and
+  `HEAD` and the `Release-Commit:` line with the commit the tag points at. Until 3.2.1, an owner
+  upgrading to 3.2.0 checks those two pairs by hand.
 - 🔧 The pinned `agent-browser` release moves v0.38.1 → v0.39.1, with its per-asset checksums.
 - 🔧 Onboarding no longer reads, records or switches an OpenCode provider, which engine 0.30.0
   does not have, and `xez-onboard` looks for `qwen` instead of `pi` and `opencode` (#235). Two

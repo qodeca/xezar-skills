@@ -39,7 +39,7 @@ import { sections } from "./lib/sections.mjs";
 
 const IDS = [
   ...Array.from({ length: 23 }, (_, i) => String(i + 1)),
-  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
+  "B1", "C1", "C2", "G1", "G2", "H1", "I1", "I2", "I3", "I4", "I5", "I6", "I7", "I8", "I9", "I10", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I22", "I23", "I24", "U-target", "U-verify", "U1", "U4", "U-evals", "U-plan-flags", "R1", "OC1",
   "W-shell", "W-stop", "W-scheduler", "W3", "W4", "W5", "W6", "W6-run", "W7", "W10", "W11", "W12",
 ];
 const S = sections("test-kit-facts.mjs", IDS, {
@@ -1357,6 +1357,40 @@ if (S.section("U-target")) {
   const readme = read("upgrade/README.md");
   for (const line of [`--branch v${version} https://github.com/qodeca/xezar-skills.git`, `gh release verify v${version} --repo qodeca/xezar-skills`, `Release v${version} verified!`]) {
     if (!readme.includes(line)) fail(fact, "upgrade/README.md", `does not say "${line}", so the owner clones or verifies another release than package.json's ${version}`);
+  }
+  checked.push(fact);
+}
+
+// FACT U-verify -- step 2 compares like with like (#233). Every release tag here is annotated and
+// signed, and `gh release verify` resolves such a tag to its tag OBJECT, while `HEAD` and the
+// `Release-Commit:` line name the commit. Comparing all three as one sha stopped every upgrade to
+// 3.2.0. The step must pair the resolved sha with the tag ref and HEAD with the tag's commit, and a
+// real annotated tag shows the two pairs are different shas, so the old single check cannot pass.
+if (S.section("U-verify")) {
+  const fact = "FACT U-verify: the upgrade prompt checks the resolved tag against the tag ref and HEAD against the tag's commit";
+  const prompt = read("upgrade/UPGRADE-PROMPT.md");
+  const step = prompt.split("2. **Verify the release.**")[1]?.split("\n3. ")[0] ?? "";
+  if (!step) fail(fact, "upgrade/UPGRADE-PROMPT.md", "has no step 2 \"Verify the release\" -- this fact reads that step and nothing else");
+  if (!/gh release verify[\s\S]*resolved and the clone.s tag,\s+`git -C <temp>\/xezar-skills rev-parse refs\/tags\/v<target>`/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "does not compare the sha gh release verify resolved with the clone's tag ref (rev-parse refs/tags/v<target>)");
+  if (!/rev-parse HEAD`, the `Release-Commit:` sha and the\s+commit the tag points at, `git -C <temp>\/xezar-skills rev-parse "v<target>\^\{commit\}"`/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "does not compare HEAD and the Release-Commit: sha with the commit the tag points at (rev-parse v<target>^{commit})");
+  if (/sha `gh release verify` resolved are the same/.test(step))
+    fail(fact, "upgrade/UPGRADE-PROMPT.md", "still compares the resolved tag sha with HEAD, which an annotated tag never matches (#233)");
+  const { execFileSync } = await import("node:child_process");
+  const lab = mkdtempSync(join(tempRoot(), "kit-facts-tag-"));
+  try {
+    const git = (...args) => execFileSync("git", ["-C", lab, "-c", "user.name=kit-facts", "-c", "user.email=kit-facts@invalid", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    git("init", "--quiet");
+    git("commit", "--quiet", "--allow-empty", "-m", "release");
+    git("tag", "-a", "v9.9.9", "-m", "v9.9.9");
+    const head = git("rev-parse", "HEAD");
+    const tagRef = git("rev-parse", "refs/tags/v9.9.9");
+    const tagCommit = git("rev-parse", "v9.9.9^{commit}");
+    if (tagRef === head) fail(fact, "git", "an annotated tag ref resolved to the commit, so this fact no longer shows the #233 difference");
+    if (tagCommit !== head) fail(fact, "git", "v<target>^{commit} does not name the tagged commit");
+  } finally {
+    rmSync(lab, { recursive: true, force: true });
   }
   checked.push(fact);
 }

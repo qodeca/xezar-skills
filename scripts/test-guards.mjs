@@ -1921,6 +1921,23 @@ breaks(
   "names target version 0.0.1",
 );
 
+// Step 2 compares the resolved tag with the tag ref and HEAD with the tag's commit (#233, FACT U-verify).
+breaks(
+  "an upgrade prompt that compares the resolved tag sha with HEAD again is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("commit the tag points at, `git -C <temp>/xezar-skills rev-parse \"v<target>^{commit}\"`, are the\n     same 40 characters.", "sha `gh release verify` resolved are the same 40 characters."),
+  facts("U-verify"),
+  "does not compare HEAD and the Release-Commit: sha with the commit the tag points at",
+);
+
+breaks(
+  "an upgrade prompt that no longer checks the resolved tag against the clone's tag is rejected",
+  "upgrade/UPGRADE-PROMPT.md",
+  (s) => s.replace("`git -C <temp>/xezar-skills rev-parse refs/tags/v<target>`", "`git -C <temp>/xezar-skills tag --list`"),
+  facts("U-verify"),
+  "does not compare the sha gh release verify resolved with the clone's tag ref",
+);
+
 // A review can move the app off a busy port (#226).
 breaks(
   "a review-run.sh start --port that does not pass PORT is rejected",
