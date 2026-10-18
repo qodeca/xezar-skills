@@ -141,6 +141,49 @@ check("reviewVerdict wins over a disagreeing host field",
 check("an unrecognised verdict is unknown, never a pass",
   { reviewVerdict: "looks-fine-to-me" }, REFUSE_UNKNOWN(["review", "unknown"]));
 
+// --- host enforces no review: the recorded pipeline verdict decides ---------
+// A single-owner project requires no approving review, and the host refuses
+// self-approval when every agent runs under one login. The recorded pipeline
+// verdict stands in -- but only for THIS head, and missing still refuses.
+const NOT_ENFORCED = { reviewVerdict: "not-enforced", reviewDecision: null };
+check("not enforced + approved verdict for the current head passes",
+  { ...NOT_ENFORCED, recordedVerdict: "approved", verdictHead: "aaaa111" },
+  { verdict: "pass", code: 0, gate: ["review", "pass"] });
+check("not enforced (legacy reviewEnforced=false) + current-head verdict passes",
+  { reviewEnforced: false, recordedVerdict: "approved", verdictHead: "aaaa111" },
+  { verdict: "pass", code: 0, gate: ["review", "pass"] });
+check("not enforced + approved verdict for an older head is stale and refuses",
+  { ...NOT_ENFORCED, recordedVerdict: "approved", verdictHead: "bbbb222" },
+  REFUSE_FINDINGS(["review", "findings"]));
+check("not enforced + no recorded verdict refuses",
+  { ...NOT_ENFORCED }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("not enforced (legacy reviewEnforced=false) + no recorded verdict refuses",
+  { reviewEnforced: false }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("not enforced + approved verdict that names no head refuses",
+  { ...NOT_ENFORCED, recordedVerdict: "approved" }, REFUSE_UNKNOWN(["review", "unknown"]));
+check("not enforced + rejected verdict for the current head refuses",
+  { ...NOT_ENFORCED, recordedVerdict: "rejected", verdictHead: "aaaa111" },
+  REFUSE_FINDINGS(["review", "findings"]));
+check("not enforced + an unrecognised recorded verdict is unknown",
+  { ...NOT_ENFORCED, recordedVerdict: "lgtm", verdictHead: "aaaa111" },
+  REFUSE_UNKNOWN(["review", "unknown"]));
+check("not enforced + no head commit cannot bind the verdict",
+  { ...NOT_ENFORCED, headSha: null, recordedVerdict: "approved", verdictHead: "aaaa111" },
+  REFUSE_UNKNOWN(["review", "unknown"]));
+// Enforced review is unchanged: the host's approval is required, and a recorded
+// pipeline verdict never substitutes for it.
+check("enforced + pending is still unknown even with a current-head recorded approval",
+  { reviewVerdict: "pending", recordedVerdict: "approved", verdictHead: "aaaa111" },
+  REFUSE_UNKNOWN(["review", "unknown"]));
+check("enforced + host rejection still refuses over a recorded approval",
+  { reviewVerdict: "rejected", recordedVerdict: "approved", verdictHead: "aaaa111" },
+  REFUSE_FINDINGS(["review", "findings"]));
+check("enforced (host-shaped) + no decision is still unknown with a recorded approval",
+  { reviewDecision: null, recordedVerdict: "approved", verdictHead: "aaaa111" },
+  REFUSE_UNKNOWN(["review", "unknown"]));
+check("enforced + host approval passes without any recorded verdict",
+  { reviewVerdict: "approved" }, { verdict: "pass", code: 0, gate: ["review", "pass"] });
+
 // --- checks (defect 2.2, second half, plus the empty-set hole) --------------
 check("a failing required check refuses",
   { checks: [{ name: "ci", state: "FAILURE" }] }, REFUSE_FINDINGS(["checks", "findings"]));
@@ -280,4 +323,4 @@ if (failures) {
   console.error(`\nmerge-gate: ${failures} of ${asserts} assertions failed`);
   process.exit(1);
 }
-console.log(`Merge-gate contract OK (${asserts} assertions: commit binding, review, checks, base-branch config, QA fail-open, malformed input).`);
+console.log(`Merge-gate contract OK (${asserts} assertions: commit binding, review incl. recorded verdict, checks, base-branch config, QA fail-open, malformed input).`);
