@@ -1169,10 +1169,11 @@ if (S.section("5p")) {
     engine = engineVersion(ctx);
     // Back in the test's own folder, the project stays on PATH: only avoidFolder keeps it out.
     process.chdir(saved.cwd);
-    if (process.platform === "win32") {
-      const file = launch("git", ["--version"]).file;
-      expect(!file.toLowerCase().startsWith(dir.toLowerCase()), `planted programs: git is taken from a project folder on PATH: ${file}`);
-    }
+    // Windows: the full path git is started by. POSIX: the PATH git is looked up in.
+    const l = launch("git", ["--version"]);
+    const seen = process.platform === "win32" ? [l.file] : String(l.options.env?.PATH ?? process.env.PATH).split(":");
+    const fromProject = seen.filter((p) => p.toLowerCase().startsWith(dir.toLowerCase()));
+    expect(!fromProject.length, `planted programs: git is taken from a project folder on PATH: ${fromProject.join(", ")}`);
   } finally {
     process.chdir(saved.cwd);
     process.env.PATH = saved.path;
