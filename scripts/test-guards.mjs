@@ -2768,8 +2768,9 @@ breaks(
   "CRLF leader guide: an untouched guide committed with CRLF fails owner-rules-changed",
 );
 
-// The stand-in git that refuses --zdiff3 is a shell script: Linux and macOS only.
-if (process.platform !== "win32") breaks(
+// The stand-in git (test-upgrade.mjs withGit) is a shell script on Linux and macOS, and this Node
+// as git.exe on Windows, so both cases run everywhere.
+breaks(
   "an apply that gives up when git refuses --zdiff3 is rejected",
   "upgrade/tools/apply.mjs",
   (s) => s.replace('      style = "--diff3";\n', "      throw e;\n"),
@@ -2785,7 +2786,7 @@ breaks(
   "unsafe: a path git refuses to check counts as not ignored",
 );
 
-if (process.platform !== "win32") breaks(
+breaks(
   "a git check-ignore failure read as nothing ignored is rejected",
   "upgrade/tools/lib/paths.mjs",
   (s) => s.replace("      if (e.status !== 1) throw new Error(", "      if (false) throw new Error("),
