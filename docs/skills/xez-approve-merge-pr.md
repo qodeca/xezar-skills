@@ -6,7 +6,7 @@ Given a single PR number, this skill submits an approving review and squash-merg
 
 ## Review gate
 
-When branch protection requires an approving review, the host's approval is required and nothing substitutes for it. When it does not – a single-owner project, where the host also refuses self-approval if every agent runs under one login – the recorded pipeline review verdict decides instead: the `xez-auto-review-pr` verdict handed in by the chain, or the newest approving or changes-requested review on the pull request from an owner, member or collaborator. It passes only when that verdict is an approval **and** names the pull request's current head commit. An approval for an older head is stale and refuses (re-run the review); no recorded verdict at all refuses as `unknown`.
+When branch protection requires an approving review, the host's approval is required and nothing substitutes for it. When it does not – a single-owner project, where the host also refuses self-approval if every agent runs under one login – the recorded pipeline review verdict decides instead: the `xez-auto-review-pr` verdict handed in by the chain, otherwise its marked review-verdict comment on the pull request (read only when written by the automation's own login or an owner, member or collaborator), otherwise the newest approving or changes-requested review from an owner, member or collaborator. A changes-requested verdict from either of the last two wins over an approval. It passes only when that verdict is an approval **and** names the pull request's current head commit. An approval for an older head is stale and refuses (re-run the review); no recorded verdict at all refuses as `unknown`.
 
 ## Parameters
 

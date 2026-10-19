@@ -528,6 +528,9 @@ available. Only the merge step blocks on unavailable; every other stage reports 
   that approves **and** names the pull request's current head commit. An approval for an older head
   is stale and refuses; no recorded verdict refuses as unavailable. When branch protection does
   require a review, the host's approval is required and a recorded verdict never replaces it.
+- **The review leaves its verdict on the pull request.** Every review run writes one marked
+  review-verdict comment naming its verdict and head, updated in place, and the merge gate reads it
+  from a trusted author when no approving review can exist.
 - Feature pull requests squash-merge into the base branch. The title becomes the commit, so it is a
   Conventional Commit (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
 - Promotion pull requests between long-lived branches use a merge commit, never a squash, so branch

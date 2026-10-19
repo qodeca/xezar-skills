@@ -29,6 +29,31 @@ Issue: #<number> (link: <full issue URL>)
 Head: <head commit sha>
 ```
 
+## Review-verdict comment (steps 6, 10, 11, 13)
+
+The durable verdict record `xez-approve-merge-pr` reads when the host enforces
+no review — a host refuses self-approval when every agent runs under one login,
+so the review itself may not exist. Post it on **every** verdict, also when
+**review-pr** succeeded: find this marker with **list-issue-comments** among
+comments whose author is `$CURRENT_USER`, rewrite it via **update-comment**, and
+post it via **comment-pr** only when none exists — never a second one. Rewrite it
+whenever the verdict or the head it covers changes (an autofix push, a step-13
+CI result that flips the verdict). Exact shape — the marker is the first line,
+and `Verdict:` / `Head:` are bare lines, each exactly once:
+
+```markdown
+🤖 `xez-auto-review-pr` — review verdict
+🔍 {Approved | Changes requested} — {one-sentence reason}; review: {review link, or "not submitted: <reason>"}.
+Verdict: {approved | changes-requested}
+Head: <40-hex head commit sha>
+```
+
+`Head:` is the full 40-character sha the verdict covers. Emojis decorate; the
+consumer keys on the text only (`^🤖 ` + optional backticks + `xez-auto-review-pr`
++ optional backticks + ` — review verdict`, `^Verdict: (approved|changes-requested)$`,
+`^Head: ([0-9a-f]{40})$`). This shape is a protected surface
+(`BACKWARD_COMPATIBILITY.md` §5).
+
 ## CI-result comment (step 13)
 
 Update the existing `` 🤖 `xez-auto-review-pr` — CI result `` comment via

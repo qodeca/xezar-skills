@@ -699,6 +699,22 @@ breaks(
 );
 
 breaks(
+  "a review-verdict comment template the merge gate cannot parse is rejected",
+  "skills/xez-auto-review-pr/references/report-templates.md",
+  (s) => s.replace("Verdict: {approved | changes-requested}", "Verdict - {approved | changes-requested}"),
+  () => script("test-chaining-lines.mjs"),
+  "the documented verdict comment round-trips",
+);
+
+breaks(
+  "the merge skill dropping the verdict-comment trust rule is rejected",
+  "skills/xez-approve-merge-pr/SKILL.md",
+  (s) => s.replace("or `association` is `OWNER`, `MEMBER` or `COLLABORATOR`", "or anyone"),
+  () => script("test-chaining-lines.mjs"),
+  "documents the verdict-comment rule piece `association`",
+);
+
+breaks(
   "a gate status that lets missing evidence pass is rejected",
   "skills/xez-approve-merge-pr/references/gate-status.sh",
   (s) => s.replace(
