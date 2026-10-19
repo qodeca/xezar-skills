@@ -37,8 +37,9 @@
 **Known limit on Windows (#230).** A Codex review step on native Windows cannot post its comment
 or write its verdict the way the role skills prescribe: engine 0.30.0's read-only command check
 refuses that command form there. Linux, macOS and the Claude and Qwen Code lanes are not affected.
-The engine side is qodeca/xezar#1089; the kit follows in 3.2.1. Until then, route Windows reviews
-to a Claude lane where you can.
+The engine side is qodeca/xezar#1089; the kit follows once it ships. Until then, route Windows
+reviews to a Claude lane where you can (`UPGRADE_NOTES.md`, 2026-10-19). This paragraph first said
+"the kit follows in 3.2.1"; 3.2.1 did not carry it, and the line was corrected on 2026-10-19.
 
 ## Folded in from 3.1.0 (prepared 2026-09-27)
 
