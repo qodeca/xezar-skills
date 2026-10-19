@@ -31,6 +31,32 @@ merge of `routing.json` against the newest defaults (`references/routing-default
 clone), never one version after another; (4) the remaining entries, oldest first; (5) the
 verifier, once, with `--target` set to the release you cloned.
 
+## 2026-10-19 – on Windows a Codex review posts no comment and writes no verdict
+
+Applies to a repository onboarded by `xez-onboard-opinionated` whose leader or reviews run on
+native Windows.
+
+**Symptom.** On native Windows, a Codex read-only step – code review, security review, QA, design
+review or architecture – ends with no comment on the pull request and no verdict. Its task record
+shows the engine's read-only check refusing the command the role skill prescribes
+(`jq -n '{…}' | bash .local/xezar/cache/kit/checks/gh-write.sh`, and the same form for
+`verdict-write.sh`), with reasons such as `syntax.powershell-quote` or `syntax.compound`. Codex on
+Windows runs each command through PowerShell, and engine 0.30.0 refuses a literal `"` inside a
+word and a bare `|` there. Linux, macOS, and the Claude and Qwen Code lanes are not affected.
+
+**What to do.** Nothing in the kit fixes this yet: the engine side is qodeca/xezar#1089, and the
+kit change (#230) follows once it ships. Until then, when reviews run on native Windows, keep
+them on a Claude lane: in `.xezar/routing.json`, take the `codex/…` lanes out of the read-only
+rows – `security-review`, `design-review`, `ux-design`, `architecture-decision`, `browser-qa`
+and `acceptance-verification` – so each falls to its Claude lane, and check the result with
+`node .xezar/checks/route.mjs --check .xezar/routing.json`. Put the lanes back once the fix
+ships. A Codex review that already ran
+left its finding only in its task record: read it there and post it by hand.
+
+**What you lose by skipping it.** On Windows every Codex review finishes without a comment or a
+verdict, so a pull request it reviewed waits for a review that never arrives, and its findings
+stay hidden in the task record.
+
 ## 2026-10-18 – the release-publish role expects exactly three manifest changes in the release bot's PR
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.
