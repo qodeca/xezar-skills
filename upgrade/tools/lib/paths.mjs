@@ -10,7 +10,7 @@
 //   - a path git ignores, or an existing file git does not track, is never written (per-machine).
 
 import { lstatSync, realpathSync, existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { run } from "./programs.mjs";
 import { join, sep } from "node:path";
 import { posix } from "node:path";
 import { git } from "./hash.mjs";
@@ -113,7 +113,7 @@ export function gitState(root) {
     if (!todo.length) return;
     let out;
     try {
-      out = execFileSync("git", ["check-ignore", "--no-index", "--stdin", "-z"], {
+      out = run("git", ["check-ignore", "--no-index", "--stdin", "-z"], {
         cwd: root,
         input: `${todo.join("\0")}\0`,
         encoding: "utf8",

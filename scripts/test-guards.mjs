@@ -2793,6 +2793,24 @@ if (process.platform !== "win32") breaks(
   "unsafe: a git check-ignore that fails reads as",
 );
 
+// The upgrade tools start git and the engine by full path, never from the project (a bare name on
+// Windows is looked for in the working folder first). Only native Windows searches there.
+if (process.platform === "win32") breaks(
+  "an upgrade tool that starts git by its bare name is rejected",
+  "upgrade/tools/lib/programs.mjs",
+  (s) => s.replace("  if (!WINDOWS) return { file: name, args, options };\n", "  return { file: name, args, options };\n"),
+  upgrade("5p"),
+  "planted programs: an upgrade tool started a program from the project",
+);
+
+if (process.platform === "win32") breaks(
+  "an upgrade tool that takes git from a project folder on PATH is rejected",
+  "upgrade/tools/lib/programs.mjs",
+  (s) => s.replace("  if (dir) avoided.add(resolve(dir));\n", ""),
+  upgrade("5p"),
+  "planted programs: git is taken from a project folder on PATH",
+);
+
 breaks(
   "a build-kit-index that runs on an unknown flag is rejected",
   "scripts/build-kit-index.mjs",

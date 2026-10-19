@@ -133,7 +133,10 @@ file shows as new plus removed instead of moved. 3.2.2 moves no kit file.
 - It never pushes, never opens a pull request and never merges. It commits only on its own local
   branch.
 - It never runs helper code it has not verified: the scripts run from the release clone after
-  the release and its commit are checked, never from the project and never from a URL.
+  the release and its commit are checked, never from the project and never from a URL. The
+  programs they start – git and the engine – are found by full path on PATH, never in the
+  project folder, so a `git.exe` committed to a project never runs (on Windows a bare program
+  name is otherwise looked for in the working folder first).
 - It never overwrites a local change silently. A change it cannot explain is kept and recorded
   for you to confirm; in a safety file it asks first.
 - It never adds a permission, hook, MCP server or tool grant without asking you.

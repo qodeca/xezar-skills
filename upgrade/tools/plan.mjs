@@ -51,7 +51,7 @@
 // Exit: 0 written; 2 cannot run.
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { run } from "./lib/programs.mjs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { git, gitBlobSha, lfText, sha256 } from "./lib/hash.mjs";
@@ -249,7 +249,7 @@ export function engineVersion(ctx) {
   for (const bin of ["xezar", "xez"]) {
     let out;
     try {
-      out = execFileSync(bin, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 }).trim();
+      out = run(bin, ["--version"], { cwd: ctx.toolRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 }).trim();
     } catch {
       continue;
     }

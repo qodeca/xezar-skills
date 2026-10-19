@@ -33,7 +33,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
+import { gitKey, run } from "./lib/programs.mjs";
 import { lfText, sha256 } from "./lib/hash.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { detect } from "./detect.mjs";
@@ -198,17 +198,18 @@ export function applyPlan(ctx, plan) {
 }
 
 function gitMerge(style, mine, base, theirs) {
-  return execFileSync("git", ["merge-file", "-p", style, "-L", "mine", "-L", "base", "-L", "theirs", mine, base, theirs], {
+  return run("git", ["merge-file", "-p", style, "-L", "mine", "-L", "base", "-L", "theirs", mine, base, theirs], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-// The conflict style, probed once per PATH: `--zdiff3` needs git 2.35 or later; an older git
-// refuses the option with exit 129, and gets `--diff3` (the same markers, less trimmed).
+// The conflict style, probed once per git (lib/programs.mjs gitKey): `--zdiff3` needs git 2.35
+// or later; an older git refuses the option with exit 129, and gets `--diff3` (the same markers,
+// less trimmed).
 const styles = new Map();
 export function mergeStyle(work) {
-  const key = process.env.PATH ?? "";
+  const key = gitKey();
   if (!styles.has(key)) {
     const probe = (side) => join(work, `probe.${side}`);
     for (const side of ["mine", "base", "theirs"]) writeFileSync(probe(side), "x\n");
