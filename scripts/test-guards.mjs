@@ -2793,6 +2793,28 @@ if (process.platform !== "win32") breaks(
   "unsafe: a git check-ignore that fails reads as",
 );
 
+// The upgrade tools never start a program from the project: on Windows a bare name is looked for
+// in the working folder first, so they start git and the engine by full path; everywhere, a
+// project folder on PATH is skipped. Started by bare name with the caller's PATH, a fake in the
+// project runs – on Windows from the working folder, elsewhere from the project folder on PATH.
+breaks(
+  "an upgrade tool that starts git by its bare name is rejected",
+  "upgrade/tools/lib/programs.mjs",
+  (s) => s.replace("  const env = safeEnv(options.env ?? process.env);\n", "  return { file: name, args, options };\n"),
+  upgrade("5p"),
+  process.platform === "win32"
+    ? "planted programs: an upgrade tool started a program from the project"
+    : "planted programs: the engine version was read by starting a program from the project",
+);
+
+breaks(
+  "an upgrade tool that takes git from a project folder on PATH is rejected",
+  "upgrade/tools/lib/programs.mjs",
+  (s) => s.replace("  if (dir) avoided.add(resolve(dir));\n", ""),
+  upgrade("5p"),
+  "planted programs: git is taken from a project folder on PATH",
+);
+
 breaks(
   "a build-kit-index that runs on an unknown flag is rejected",
   "scripts/build-kit-index.mjs",

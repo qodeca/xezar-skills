@@ -40,8 +40,10 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   cpSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -72,6 +74,7 @@ import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import * as planTool from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
+import { launch } from "../upgrade/tools/lib/programs.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
 import { bashPath, prependPath } from "./lib/platform.mjs";
 import { prepareTestPlatform, tempRoot, writeStub } from "./lib/test-harness.mjs";
@@ -81,7 +84,7 @@ const S = sections(
   "test-upgrade.mjs",
   [
     "1", "2", "3", "4", "4b", "4c", "4d",
-    "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o",
+    "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o", "5p",
     "6", "6b", "7", "8", "9", "OC", "10a", "10b", "10c", "10d", "10e", "10f", "11a", "11b",
     "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "14a", "14b", "14c", "tail",
   ],
@@ -1090,6 +1093,95 @@ if (S.section("5o")) {
   const plan = buildPlan(ctxFor(dir));
   expect(plan.unexplained.includes(p), `draft-dup: ${p} is no longer unexplained; re-aim this case`);
   expect(!plan.registerDrafts.add.some((d) => d.files.includes(p)), `draft-dup: a second register entry is drafted for ${p}, which LP-1 already covers`);
+}
+
+// 5p. The tools never start a program from the project. On native Windows a bare program name is
+// looked for in the working folder first, and the tools start git with the project as the working
+// folder. Fakes of git and the engine – .exe and .com (this Node under another name; a preload
+// writes a marker when it runs as anything but node), .cmd and .bat (echo a marker) – sit in a
+// project, and detect, plan, apply and verify run there the way an owner runs them: the project
+// as the working folder, NoDefaultCurrentDirectoryInExePath unset. No fake may run. POSIX never
+// searches the working folder; the same run with shell-script fakes holds there too.
+if (S.section("5p")) {
+  const edited = changedSince303.find((p) => !OWNER_SHAPED.has(p));
+  const dir = materialize(fx303, { name: "planted-programs", edit: (d) => write(d, edited, `${read(d, edited)}\n# edited locally\n`) });
+  const marker = join(lab("planted-marker"), "ran.txt");
+  const names = ["git", "xezar", "xez"];
+  const extra = {};
+  if (process.platform === "win32") {
+    const preload = join(lab("planted-preload"), "mark.cjs");
+    writeFileSync(
+      preload,
+      [
+        'const me = require("node:path").basename(process.execPath);',
+        `if (!/^node(\\.exe)?$/i.test(me)) require("node:fs").appendFileSync(${JSON.stringify(marker)}, me + "\\n");`,
+        "",
+      ].join("\n"),
+    );
+    extra.NODE_OPTIONS = `--require ${JSON.stringify(preload)}`;
+    const exe = join(lab("planted-exe"), "fake.exe");
+    copyFileSync(process.execPath, exe);
+    for (const n of names) {
+      for (const ext of [".exe", ".com"]) {
+        try {
+          linkSync(exe, join(dir, `${n}${ext}`));
+        } catch {
+          copyFileSync(exe, join(dir, `${n}${ext}`));
+        }
+      }
+      for (const ext of [".cmd", ".bat"]) write(dir, `${n}${ext}`, `@echo ${n}${ext}>>"${marker}"\r\n`);
+    }
+  } else {
+    for (const n of names) writeStub(join(dir, n), `#!/bin/sh\necho ${n} >> ${JSON.stringify(marker)}\n`);
+  }
+  // Untracked and ignored, so the fakes change no plan and no verify result.
+  writeFileSync(join(dir, ".git/info/exclude"), names.map((n) => `/${n}\n/${n}.*\n`).join(""));
+  const env = { ...process.env, ...extra };
+  for (const k of Object.keys(env)) if (k.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH") delete env[k];
+  const runTool = (tool, ...args) => {
+    try {
+      const out = execFileSync(process.execPath, [join(root, `upgrade/tools/${tool}.mjs`), "--project", dir, "--target", TARGET, "--blob-pack", PACK, ...args], { cwd: dir, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return { code: 0, out };
+    } catch (e) {
+      return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
+    }
+  };
+  const ran = () => (existsSync(marker) ? readFileSync(marker, "utf8").trim().split(/\s+/).join(", ") : "");
+  const d = runTool("detect");
+  const pl = runTool("plan");
+  const ap = runTool("apply");
+  const staged = existsSync(join(dir, ".local/xezar/scratch/upgrade/staged", `${edited}.merged`));
+  const ve = runTool("verify");
+  expect(d.code === 0 && pl.code === 0 && ap.code === 0 && staged && /verify-status=/.test(ve.out), `planted programs: the tools did not run far enough to start git (detect ${d.code}, plan ${pl.code}, apply ${ap.code}, merged ${staged}, verify ${ve.code}): ${`${pl.out}${ap.out}${ve.out}`.slice(-400)}`);
+  expect(ran() === "", `planted programs: an upgrade tool started a program from the project: ${ran()}`);
+  // The engine is read by a bare name too (plan.mjs engineVersion), from the folder the tool was
+  // started in; and a project folder on PATH is never searched (lib/programs.mjs avoidFolder).
+  // `node --version` exits before any preload, so a fake engine shows by its answer: Node's version.
+  let engine = null;
+  const saved = { cwd: process.cwd(), noDefault: process.env.NoDefaultCurrentDirectoryInExePath, path: process.env.PATH, nodeOptions: process.env.NODE_OPTIONS };
+  try {
+    process.chdir(dir);
+    delete process.env.NoDefaultCurrentDirectoryInExePath;
+    if (extra.NODE_OPTIONS) process.env.NODE_OPTIONS = extra.NODE_OPTIONS;
+    const ctx = ctxFor(dir);
+    process.env.PATH = prependPath(process.env, [dir]).PATH;
+    rmSync(marker, { force: true });
+    engine = engineVersion(ctx);
+    // Back in the test's own folder, the project stays on PATH: only avoidFolder keeps it out.
+    process.chdir(saved.cwd);
+    // Windows: the full path git is started by. POSIX: the PATH git is looked up in.
+    const l = launch("git", ["--version"]);
+    const seen = process.platform === "win32" ? [l.file] : String(l.options.env?.PATH ?? process.env.PATH).split(":");
+    const fromProject = seen.filter((p) => p.toLowerCase().startsWith(dir.toLowerCase()));
+    expect(!fromProject.length, `planted programs: git is taken from a project folder on PATH: ${fromProject.join(", ")}`);
+  } finally {
+    process.chdir(saved.cwd);
+    process.env.PATH = saved.path;
+    if (saved.noDefault !== undefined) process.env.NoDefaultCurrentDirectoryInExePath = saved.noDefault;
+    if (saved.nodeOptions === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = saved.nodeOptions;
+  }
+  expect(ran() === "" && engine?.version !== process.versions.node, `planted programs: the engine version was read by starting a program from the project: ${ran() || JSON.stringify(engine)}`);
 }
 
 // ---------------------------------------------------------------------------------------
