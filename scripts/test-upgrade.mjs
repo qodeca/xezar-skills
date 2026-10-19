@@ -710,17 +710,55 @@ const unchangedChecks = Object.keys(fx303.files)
   .filter((p) => /^\.xezar\/checks\/[^/]+\.sh$/.test(p) && tree.index.files[p]?.kitBlob === fx303.files[p])
   .sort();
 
-// Run fn with a stand-in `git` first on PATH: a shell script that runs `body`, then the real git.
-// POSIX only – a native Windows spawn of "git" does not run a shell script.
-const withGit = (body, fn) => {
+// This Node as a program of another name (`<dir>/<name>`), for a stand-in a native Windows spawn
+// starts: it finds only a .com or .exe there, never a shell script. One copy per run, then links.
+let nodeCopy = null;
+const nodeAs = (dir, name) => {
+  nodeCopy ??= join(lab("node-copy"), "node-copy.exe");
+  if (!existsSync(nodeCopy)) copyFileSync(process.execPath, nodeCopy);
+  try {
+    linkSync(nodeCopy, join(dir, name));
+  } catch {
+    copyFileSync(nodeCopy, join(dir, name));
+  }
+};
+
+// Run fn with a stand-in `git` first on PATH that runs its body, then the real git. POSIX: a shell
+// script running `sh`. Windows: git.exe, this Node under that name, whose preload runs `js` (with
+// `args`, git's arguments) and then the real git – found by full path before PATH changes, as the
+// tools find it (lib/programs.mjs). Node takes git's subcommand for its script, so `args` starts
+// with the script's basename; every git call the tools make starts with its subcommand.
+const withGit = ({ sh, js }, fn) => {
   const bin = lab("stand-in-git");
-  writeStub(join(bin, "git"), `#!/bin/sh\n${body}\nPATH=${JSON.stringify(process.env.PATH)} exec git "$@"\n`);
-  const saved = process.env.PATH;
+  const saved = { path: process.env.PATH, nodeOptions: process.env.NODE_OPTIONS };
+  if (process.platform === "win32") {
+    const real = launch("git", []).file;
+    nodeAs(bin, "git.exe");
+    const preload = join(bin, "stand-in.cjs");
+    writeFileSync(
+      preload,
+      [
+        'const { basename } = require("node:path");',
+        'if (/^git\\.exe$/i.test(basename(process.execPath))) {',
+        "  const args = [basename(process.argv[1]), ...process.argv.slice(2)];",
+        `  ${js}`,
+        `  const r = require("node:child_process").spawnSync(${JSON.stringify(real)}, args, { stdio: "inherit" });`,
+        "  process.exit(r.status ?? 1);",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    process.env.NODE_OPTIONS = `--require ${JSON.stringify(preload)}`;
+  } else {
+    writeStub(join(bin, "git"), `#!/bin/sh\n${sh}\nPATH=${JSON.stringify(process.env.PATH)} exec git "$@"\n`);
+  }
   process.env.PATH = prependPath(process.env, [bin]).PATH;
   try {
     return fn();
   } finally {
-    process.env.PATH = saved;
+    process.env.PATH = saved.path;
+    if (saved.nodeOptions === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = saved.nodeOptions;
   }
 };
 
@@ -751,14 +789,19 @@ if (S.section("5a")) {
   expect(existsSync(staged) && readFileSync(staged, "utf8").includes("# edited locally"), "drift: the both-changed file was not merged into the staging folder");
 
   // A git older than 2.35 refuses --zdiff3 (exit 129): apply falls back to --diff3. A git whose
-  // merge-file fails outright stops apply before its first write. POSIX only: the stand-in git is
-  // a shell script, which a native Windows spawn of "git" does not run.
-  if (process.platform !== "win32") {
+  // merge-file fails outright stops apply before its first write.
+  {
     const oldDir = materialize(fx303, { name: "drift-old-git", edit: (d) => { const t = read(d, kitChanged); write(d, kitChanged, `${t}\n# edited locally\n`); } });
     const oldPlan = buildPlan(ctxFor(oldDir));
     let oldRun;
     try {
-      oldRun = withGit(`for a in "$@"; do [ "$a" = --zdiff3 ] && { echo "error: unknown option \\\`zdiff3'" >&2; exit 129; }; done`, () => applyPlan(ctxFor(oldDir), oldPlan));
+      oldRun = withGit(
+        {
+          sh: `for a in "$@"; do [ "$a" = --zdiff3 ] && { echo "error: unknown option \\\`zdiff3'" >&2; exit 129; }; done`,
+          js: 'if (args.includes("--zdiff3")) { process.stderr.write("error: unknown option `zdiff3\'\\n"); process.exit(129); }',
+        },
+        () => applyPlan(ctxFor(oldDir), oldPlan),
+      );
     } catch (e) {
       oldRun = { status: e.message };
     }
@@ -771,7 +814,13 @@ if (S.section("5a")) {
     const beforeRun = snapshot(badDir);
     let threw = false;
     try {
-      withGit(`[ "$1" = merge-file ] && case "$*" in *probe.*) ;; *) echo "fatal: broken" >&2; exit 128;; esac`, () => applyPlan(ctxFor(badDir), badPlan));
+      withGit(
+        {
+          sh: `[ "$1" = merge-file ] && case "$*" in *probe.*) ;; *) echo "fatal: broken" >&2; exit 128;; esac`,
+          js: 'if (args[0] === "merge-file" && !args.some((a) => a.includes("probe."))) { process.stderr.write("fatal: broken\\n"); process.exit(128); }',
+        },
+        () => applyPlan(ctxFor(badDir), badPlan),
+      );
     } catch {
       threw = true;
     }
@@ -924,10 +973,16 @@ if (S.section("5g")) {
   gs.prime([libFile, "../outside.md", "ignored-here.md", "plain.md"]);
   expect(gs.ignored("ignored-here.md") === true && gs.ignored("plain.md") === false, `unsafe: a symlinked path in the batch hides what git ignores (ignored-here.md ${gs.ignored("ignored-here.md")}, plain.md ${gs.ignored("plain.md")})`);
   expect(gs.ignored(libFile) === true && gs.ignored("../outside.md") === true, "unsafe: a path git refuses to check counts as not ignored");
-  if (process.platform !== "win32") {
+  {
     let failed = false;
     try {
-      withGit(`[ "$1" = check-ignore ] && { echo "fatal: broken" >&2; exit 128; }`, () => gitState(dir).prime(["plain.md"]));
+      withGit(
+        {
+          sh: `[ "$1" = check-ignore ] && { echo "fatal: broken" >&2; exit 128; }`,
+          js: 'if (args[0] === "check-ignore") { process.stderr.write("fatal: broken\\n"); process.exit(128); }',
+        },
+        () => gitState(dir).prime(["plain.md"]),
+      );
     } catch {
       failed = true;
     }
@@ -1119,16 +1174,8 @@ if (S.section("5p")) {
       ].join("\n"),
     );
     extra.NODE_OPTIONS = `--require ${JSON.stringify(preload)}`;
-    const exe = join(lab("planted-exe"), "fake.exe");
-    copyFileSync(process.execPath, exe);
     for (const n of names) {
-      for (const ext of [".exe", ".com"]) {
-        try {
-          linkSync(exe, join(dir, `${n}${ext}`));
-        } catch {
-          copyFileSync(exe, join(dir, `${n}${ext}`));
-        }
-      }
+      for (const ext of [".exe", ".com"]) nodeAs(dir, `${n}${ext}`);
       for (const ext of [".cmd", ".bat"]) write(dir, `${n}${ext}`, `@echo ${n}${ext}>>"${marker}"\r\n`);
     }
   } else {
