@@ -117,10 +117,13 @@ look for an active hook, using only these reads, which run none. A hook is activ
 `git config core.hooksPath` prints a folder, or when `$(git rev-parse --git-path hooks)` holds an
 executable file whose name does not end in `.sample`. Git also runs commands its config names,
 without asking, on `git status`, `git add`, `git switch` and `git diff`: read them with
-`git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'`
+`git config --show-scope --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'`
 and `printenv GIT_EXTERNAL_DIFF` (which `git diff` runs like `diff.external`), and treat every hit
 that names a program (anything but `core.fsmonitor` set to `true` or `false`, git's own) as an
-active hook – a `git-lfs` filter included. This covers the git commands run from here on, not the
+active hook – a `git-lfs` filter included. On Windows, Git for Windows' own system config (scope
+`system`) names `diff.astextplain.textconv` and the three `filter.lfs.*` commands on every
+machine, so the question below comes up on every Windows run: name those four as Git for
+Windows' defaults when you ask, apart from any other hit. This covers the git commands run from here on, not the
 `git status` Claude Code itself may run when the session starts, before this prompt: that is why
 `upgrade/README.md` has the owner run these same reads in their own shell before opening the
 session. If the owner has not, say so, and name what the reads find. A hook manager's files anywhere in the

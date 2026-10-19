@@ -47,14 +47,16 @@ upgrade step between the two. Never step through the versions in between.
    ```bash
    git config core.hooksPath
    ls -l "$(git rev-parse --git-path hooks)"
-   git config --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'
+   git config --show-scope --get-regexp '^(core\.fsmonitor|filter\..*\.(clean|smudge|process)|diff\.external|diff\..*\.(textconv|command))$'
    printenv GIT_EXTERNAL_DIFF
    ```
 
    A hooks folder, an executable hook not ending in `.sample`, or a config line or variable that
    names a program (`core.fsmonitor` set to `true` or `false` is git's own) is a command git
    runs. Decide now whether you trust it; if not, unset it (or open the session in a throwaway
-   clone) before you start `claude`. Step 0 of the prompt asks again for the git commands it runs.
+   clone) before you start `claude`. On Windows, four lines with scope `system` come from Git for
+   Windows itself on every machine – `diff.astextplain.textconv` and `filter.lfs.clean`, `.smudge`
+   and `.process` (Git LFS) – so expect them, and the prompt's question about them, on every run. Step 0 of the prompt asks again for the git commands it runs.
 3. **Run it.** In the project folder, start `claude` with normal permission prompts – never with
    `-p` and never in a mode that skips prompts – and paste the prompt.
 4. **Answer its questions.** It shows a plan before it changes anything, and it stops to ask
