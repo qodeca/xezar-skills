@@ -19,9 +19,10 @@ this table goes in the release PR.
    copied by `build.mjs` to `<out>/owner-answers.json`: `[ { id, rule, paths[], answer, why } ]`).
    The run records such an answer in `run.json`'s `answered`, naming the entry's id. Any other
    stop ends the run. Nobody relays or invents an answer.
-3. Every case on the 3.0.3 base that is meant to finish carries one fixed answer,
-   `D13-review-tools` (`accept`): the six review workflows whose 3.1.0 tool grants (#82) are a
-   rule-5 permission stop on every 3.0.3 upgrade. Without it,
+3. Every case on the 3.0.3 base that is meant to finish carries two fixed answers, both
+   `accept` and both rule-5 permission stops on every 3.0.3 upgrade: `D13-review-tools`, the six
+   review workflows whose 3.1.0 tool grants (#82) need it, and `codex-emulate`, the Codex
+   chrome-devtools tool `emulate` that 3.2.0 adds to `.codex/config.toml` (#177). Without them,
    no case could get past step 3.
 4. `node upgrade/evals/check.mjs upgrade/evals/cases/<case> <out>` grades it against
    `expected.json` and prints PASS or FAIL per invariant, plus one `ownerAnswers` line that fails
