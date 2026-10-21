@@ -9,5 +9,3 @@
   3.2.0 (and by the unreleased 3.1.0 builds), and `install-pi-extension` is marked obsolete.
 - 📝 **`UPGRADE_NOTES.md` gives the order for a hand upgrade from before 3.2.0**: engine, then
   `route.mjs`, then one merge of `routing.json` against the newest defaults, then the rest.
-- 📝 **A Windows handoff** (`docs/handoffs/2026-10-18-windows.md`) lists the upgrade gaps that need
-  a Windows machine.

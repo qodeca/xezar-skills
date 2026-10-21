@@ -1524,7 +1524,8 @@ belongs to the engine:
   shim fails silently, and the login reads as empty.
 - A bare `git` or `gh` in the kit's `.mjs` files is looked for in the working folder first on
   Windows, so a `git.exe` committed to a project would run there. The class is older than #122 and
-  wider than it: tech debt.
+  wider than it: tech debt. The upgrade tool is out of it since #298: it starts git and the engine
+  by full path (`upgrade/tools/lib/programs.mjs`).
 - The upgrade tool reads a kit file's executable bit from its own clone's git index. A kit copy git
   does not track falls back to `lstat`, which finds no executable bit on Windows; the prompt
   requires a verified git clone, so only the tests reach that fallback: tech debt.
