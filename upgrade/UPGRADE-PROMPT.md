@@ -528,8 +528,10 @@ do item 4:
 3. **Run the `<target>` catalog check** (`check=catalog`) and the routing check (`check=route`,
    `skipped` when the project has no `.xezar/routing.json`).
 
-4. **Run the project's own gate check:** `bash <project>/.xezar/checks/repository-checks.sh`.
-   This is the one place you run the project's own code; the owner sees the permission prompt.
+4. **Run the project's own gate check, from the project folder:**
+   `cd <project> && bash .xezar/checks/repository-checks.sh`. Its checks judge the repository
+   they start in: started from the clone, they judge the clone. This is the one place you run
+   the project's own code; the owner sees the permission prompt.
    It runs the drift check again, so the same `unconfirmed-patch` result is expected there too.
    A drift, local-tree or config guard failure does not stop it: every later check still runs, and
    the script fails at the end on their status. So read the whole output, not only the drift and local-tree

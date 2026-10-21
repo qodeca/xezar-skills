@@ -39,7 +39,7 @@
       "type": "jsonEquals",
       "path": ".xezar/routing.json",
       "key": "defaults.version",
-      "value": 4
+      "value": 6
     },
     {
       "type": "jsonArrayHas",
