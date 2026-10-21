@@ -769,6 +769,9 @@ records the evidence and updates this row.
 
 - The validation gate list is kept here in full, because `check-gate-list.mjs` binds it.
 - There is no leader: the merge step is `xez-approve-merge-pr`, run by a person or an agent.
+- No phase records: this repository is not an onboarded pipeline project, so it has no
+  `.xezar/checks/phase-record.sh` or `.xezar/docs/phase-record.md` (§ Task phases). The kit ships
+  them to the projects it onboards.
 
 ### Known gaps to fix outside this file
 
@@ -776,6 +779,4 @@ records the evidence and updates this row.
   onboarding writer (`skills/xez-onboard-opinionated/references/write.md`) still produce the old
   SDLC layout. They are deliberately left unchanged in this round.
 - `AGENTS.md` § 2 must match the new QA rule (the QA step or a person applies `qa-approved`).
-- `CONTRIBUTING.md` still has a "TBD(#123 L5 proof: lint job)" placeholder.
-- `changelog.d/` and its `README.md` must be added; until then the old `CHANGELOG.md` flow applies.
 - No PR template or issue templates under `.github/`.
