@@ -3008,6 +3008,15 @@ breaks(
   "weaken-rc: a dropped exit",
 );
 
+// A tool added inside the Codex `enabled_tools` list is a permission change at the plan step.
+breaks(
+  "an upgrade that misses a tool added to the Codex enabled_tools list is rejected",
+  "upgrade/tools/lib/policy.mjs",
+  (s) => s.replace("if (!PERMISSION_KEY.test(key)) continue;", "continue;"),
+  upgrade("13d"),
+  "emulate is not a permission-change stop",
+);
+
 breaks(
   "an upgrade that misses an added || true in a check is rejected",
   "upgrade/tools/plan.mjs",

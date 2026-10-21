@@ -69,7 +69,7 @@ import { tomlError } from "../upgrade/tools/lib/toml.mjs";
 import { lineDistance } from "../upgrade/tools/lib/diff.mjs";
 import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
-import { NOT_RECORDED, OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
+import { NOT_RECORDED, OWNER_CONFIG, OWNER_SHAPED, permissionGrants } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import * as planTool from "../upgrade/tools/plan.mjs";
@@ -86,7 +86,7 @@ const S = sections(
     "1", "2", "3", "4", "4b", "4c", "4d",
     "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o", "5p",
     "6", "6b", "7", "8", "9", "OC", "10a", "10b", "10c", "10d", "10e", "10f", "11a", "11b",
-    "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "14a", "14b", "14c", "tail",
+    "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "13d", "14a", "14b", "14c", "tail",
   ],
   {
     // The sections that read §3's synthetic installs (through installs()).
@@ -2063,6 +2063,21 @@ if (S.section("13c")) {
   expect(!listed.some((h) => h.includes("to 3.0.2")), `3.0.3: 3.0.2 entries are listed for reading (${listed.join(" | ")})`);
   const dated = planTool.unblockedEntries?.(root, "3.0.0", "2026-09-23")?.entries.map((e) => e.heading) ?? [];
   expect(dated.some((h) => h.includes("my routing still sends Codex work")) && !dated.some((h) => h.startsWith("2026-09-22")), `range: entries dated before the project's version are listed, or same-day ones dropped (${dated.join(" | ")})`);
+}
+
+// 13d. A tool added on its own line inside the Codex `enabled_tools = [ … ]` list is a
+// permission change at the plan step (#177's `emulate`), not something step 5 finds by reading;
+// a changed comment in that list grants nothing.
+if (S.section("13d")) {
+  const codex = byPath(buildPlan(ctxFor(materialize(fx303, { name: "codex-grant-303" })))).get(".codex/config.toml");
+  expect(
+    codex?.stops.includes("permission-change") && codex.notes.some((n) => n.startsWith("grant: ") && n.includes('enabled_tools[]="emulate"')),
+    `3.0.3: the kit's added Codex tool emulate is not a permission-change stop (${JSON.stringify({ class: codex?.class, stops: codex?.stops, notes: codex?.notes })})`,
+  );
+  const kitToml = readFileSync(join(root, "skills/xez-onboard-opinionated/kit/codex/config.toml"), "utf8");
+  const reworded = kitToml.replace("# The engine runs Codex", "# Reworded. The engine runs Codex");
+  expect(permissionGrants(".codex/config.toml", kitToml, reworded).length === 0, "toml grants: a changed comment counts as a grant");
+  expect(permissionGrants(".codex/config.toml", kitToml, kitToml.replace('"emulate",', '"emulate", "evaluate_script",')).includes('mcp_servers.chrome-devtools.enabled_tools[]="evaluate_script"'), "toml grants: a tool added beside another on one line is missed");
 }
 
 // 14a. A tracked owner-shaped file (.claude/settings.json) whose kept content differs from the

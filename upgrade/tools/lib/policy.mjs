@@ -146,10 +146,59 @@ function collectGrants(value, path, out, inGrant = false) {
   return out;
 }
 
+const QUOTED = /"(?:[^"\\]|\\.)*"|'[^']*'/g;
+
+/** A TOML line with its comment removed (a `#` inside quotes is kept). */
+function dropComment(line) {
+  return line.replace(new RegExp(`(${QUOTED.source})|#.*$`, "g"), (m, q) => q ?? "");
+}
+
+/** The quoted strings and bare words of an array's text. */
+function arrayItems(text) {
+  return [...text.matchAll(new RegExp(`${QUOTED.source}|[^\\s,[\\]]+`, "g"))].map((m) => m[0]);
+}
+
+/**
+ * Every value under a permission-shaped TOML key, as `table.key=value`, one per array item, so
+ * a tool added on its own line inside a multi-line `enabled_tools = [ … ]` counts (#177). It
+ * reads the subset `.codex/config.toml` uses; anything else still meets the line test.
+ */
+function tomlGrants(text) {
+  const out = new Set();
+  let table = "";
+  let arrayKey = null; // set while a multi-line array under a permission key is being read
+  const name = (key) => (table ? `${table}.${key}` : key);
+  for (const raw of text.split("\n")) {
+    const line = dropComment(raw).trim();
+    if (arrayKey) {
+      for (const v of arrayItems(line)) out.add(`${name(arrayKey)}[]=${v}`);
+      if (line.replace(QUOTED, "").includes("]")) arrayKey = null;
+      continue;
+    }
+    const header = line.match(/^\[\[?\s*([^\]]+?)\s*\]\]?$/);
+    if (header) {
+      table = header[1];
+      continue;
+    }
+    const kv = line.match(/^([A-Za-z0-9_.\-"']+)\s*=\s*(.*)$/);
+    if (!kv) continue;
+    const key = kv[1].replace(/["']/g, "");
+    if (!PERMISSION_KEY.test(key)) continue;
+    const value = kv[2];
+    if (!value.startsWith("[")) {
+      out.add(`${name(key)}=${value}`);
+      continue;
+    }
+    for (const v of arrayItems(value)) out.add(`${name(key)}[]=${v}`);
+    if (!value.replace(QUOTED, "").includes("]")) arrayKey = key;
+  }
+  return out;
+}
+
 /**
  * What would writing `theirs` over `mine` grant that `mine` does not? Returns a list of
- * grant descriptions; empty means no permission change. Structural for JSON, by line for
- * everything else.
+ * grant descriptions; empty means no permission change. Structural for JSON and TOML, by line
+ * for everything else.
  */
 export function permissionGrants(path, mineText, theirsText) {
   if (!isPermissionFile(path) || theirsText == null) return [];
@@ -163,10 +212,13 @@ export function permissionGrants(path, mineText, theirsText) {
     }
   }
   const mineLines = new Set((mineText ?? "").split("\n").map((l) => l.trim()));
-  return theirsText
+  const lines = theirsText
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => PERMISSION_LINE.test(l) && !mineLines.has(l));
+  if (!path.endsWith(".toml")) return lines;
+  const mine = tomlGrants(mineText ?? "");
+  return [...lines, ...[...tomlGrants(theirsText)].filter((g) => !mine.has(g)).sort()];
 }
 
 /** Lines of `base` that refuse or fail and are gone from `mine`. */
