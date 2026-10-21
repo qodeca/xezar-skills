@@ -1,3 +1,200 @@
+# 3.2.2 (2026-10-21)
+
+**Kit 3.2.2 is a patch: security and upgrade fixes found in the 3.2.1 reviews, with no new engine floor.** It still needs engine 0.30.0 or later. Issue text no longer runs as shell and only repository members can turn a comment into work, the upgrade tool never runs a program from the project, the merge gate can merge a single-owner project again, and an upgrade asks about a new Codex tool at the plan step. Run the upgrade prompt; the four upgrade notes added since 3.2.1 (the top four, dated 2026-10-18 and 2026-10-19) list each changed file.
+
+## 🔒 Security
+
+- 🔒 **Tracker descriptors no longer put issue titles, bodies or search text inside double
+  quotes.** A backtick or `$(…)` in an issue title would have run on the machine executing the
+  operation; every GitHub, Linear and Jira snippet now passes free text through a file. The
+  untrusted-content block in every skill says so, and its id/path pattern rejects a leading `-`
+  and any `..` segment. `scripts/lint.sh` gains a `tracker-text` check that fails a quoted
+  placeholder and runs `bash -n` on each descriptor block without placeholders; Jira's
+  **auth-check** parses on bash 3.2 again.
+- 🔒 **Review and continue runs act only on comments from repository members.** Comment reads
+  now also return `association` (GitHub's `author_association`); only `OWNER`, `MEMBER`,
+  `COLLABORATOR` or a bot in the new `review.trustedBots` config key can turn a comment into
+  work, and a `🤖` claim comment counts as a lock only from such an author (and the assignee, when
+  there is one), so a stranger's fake claim cannot lock automation out.
+- 🔒 **The upgrade tool never runs a program from the project.** On Windows a bare program name
+  is looked for in the working folder first, and the tool starts git with the project as that
+  folder, so a `git.exe` committed to a project could run in place of git. The tool now starts git
+  and the engine by full path from PATH, skipping the working folder and the project.
+
+## 🐛 Fixes
+
+- 🐛 **`xez-apply-upgrade-notes` now upgrades every descriptor it names.** A Linear or Jira
+  project also gets its companion `github.md` diffed – it owns the PR and merge operations – and
+  the toolchain and security descriptors the config names are diffed by operation, keeping local
+  edits. An upgrade-log entry is crossed off only when every file it names was diffed.
+- 🐛 **`xez-apply-upgrade-notes` says what it really does.** Its references no longer claim it
+  runs no tracker operations while it opens a PR, the PR steps are its own rather than a copy of
+  another skill's, a project without the onboarding kit skips kit-only entries, and the report
+  lists `labels.json` labels missing on the tracker (read-only). `UPGRADE_NOTES.md` no longer
+  contradicts itself on who refreshes the tracker descriptor of an onboarded project.
+- 🐛 **The merge gate can merge a single-owner project again.** When branch protection requires no
+  approving review, `xez-approve-merge-pr`'s gate refused every merge as `unknown`, and GitHub
+  refuses self-approval when every agent runs under one login – so `xez-approve-merge-pr` and
+  `xez-pr-autopilot --allow-merge` could never merge. The recorded pipeline review verdict now
+  decides in that case: it passes only when it approves **and** names the pull request's current
+  head commit. An approval for an older head refuses as stale; no recorded verdict still refuses.
+  A review that branch protection requires is decided exactly as before.
+- 🐛 **An upgrade asks about a new Codex tool at the plan step, with the other permission
+  questions.** The planner read `.codex/config.toml` line by line, so a tool added on its own line
+  inside the `enabled_tools` list – 3.2.0's `emulate` – raised no permission stop, and the owner
+  was asked only later, when the merge reached the file. It now reads the TOML list item by item.
+- 🐛 **`xez-release` opens a release pull request, not a dependency one.** Its PR reference
+  carried `xez-maintain-deps`' specifics, so a release run was told to title the pull request
+  `chore(deps): …` and fill it with an update-group table. It now describes the release PR: the
+  folded changelog, the version files, and the ancestry and required-check evidence.
+- 🐛 **`xez-maintain-deps` and `xez-release` no longer follow another skill's steps.** Their PR
+  reference named `xez-auto-create-pr`'s steps, an early draft PR they never open, and another
+  skill's comment markers; a re-run could not find its own label-rationale or verification
+  comment.
+- 🐛 **The release-publish role no longer expects exactly three manifest changes.** It checks the
+  release bot's pull request against every `package.json` the release workflow stamps, so a
+  workspace project with four is not stopped for a correct diff.
+- 🐛 **A standalone merge finds the review verdict on a one-login project.** GitHub refuses
+  self-approval when every agent runs under one login, so `xez-auto-review-pr` left no lasting
+  verdict and a later `xez-approve-merge-pr` run refused as `unknown`. The review now writes one
+  marked review-verdict comment (`Verdict:` and the full `Head:` sha), updated in place, and the
+  merge gate reads it – only from the automation's own login or an owner, member or collaborator,
+  and only as an approval when it names the current head.
+- 🐛 **A kit check no longer hangs on a flag given without its value.** `ci-watch.sh`,
+  `integration-preflight.sh`, `root-sync-preflight.sh` and `merge-recovery.sh record-intent`
+  looped forever when their last flag had no value; they now exit 2 naming it.
+- 🐛 **`gh-write.sh` refuses an over-limit comment instead of posting it cut.** It measured
+  characters but read bytes, so a long non-ASCII comment was cut mid-character and posted with
+  exit 0. It now counts bytes against GitHub's 65,536 limit and refuses a longer comment whole.
+- 🐛 **`repository-checks.sh` never reads a background check's status before it is written**, and
+  reads an empty one as a failure.
+- 🐛 **`worktree-git.sh` refuses `master` and the configured base branch again**, as the engine's
+  copy does; the vendored copy read `main | main | HEAD`.
+- 🐛 **The upgrade verifier's TOML check catches what a merge breaks.** It refuses a key or table
+  defined twice, a header whose brackets do not pair and a dotted key reopening a table, and
+  accepts a quoted key holding `#`.
+- 🐛 **The gate no longer fails on a machine that signs commits.** Every test's git reads a global
+  config of its own and no system config, so `commit.gpgsign=true` no longer fails five gate
+  commands.
+- 🐛 **`xez-release` and `xez-maintain-deps` report their own work.** Their report templates
+  were copies of `xez-apply-upgrade-notes`' upgrade report and said they emit no `PR:` line. Each
+  now has its own: the release's version, commit, release PR, tag and the publish command a human
+  runs; the dependency run's inventory, what is behind or vulnerable, one PR per group and what
+  could not be checked – both ending with the `PR:` chaining line.
+- 🐛 **Step numbers in reference files match their skill again.** `xez-auto-create-pr`,
+  `xez-auto-create-pr-loop`, `xez-auto-continue-pr`, `xez-auto-continue-pr-loop`,
+  `xez-auto-fix-issue`, `xez-auto-update-changelog`, `xez-auto-qa-pr` and `xez-auto-write-spec`
+  pointed at steps one past the right one, so the ready flip and lock release were filed under
+  the report step. `lint.sh` now fails a reference that names a step past its skill's last one.
+- 🐛 **`xez-auto-*` skills no longer stop to ask mid-run.** The version bump, the release-window
+  boundary, a mixed bug-and-feature issue, an unreachable plan commit, several candidate plans, an
+  ambiguous brief and an expired lock now get a recorded default (patch bump, the earlier date,
+  the newest plan, a takeover note) instead of a question; `xez-auto-update-changelog` is safe on a
+  schedule. Claim conflicts without `--force` and `⚠ NEEDS HUMAN CONFIRMATION` still stop.
+  `lint.sh` now fails "ask the user" in an `xez-auto-*` skill outside those stops, with
+  exceptions in `scripts/allowlists.json` (`autoSkillAsks`).
+- 🐛 **An upgrade no longer trusts a kit version no release carries.** A project whose manifest
+  says `3.1.0` – written by the pre-release upgrade tool, and never tagged – had every upgrade
+  step below 3.1.0 dropped unseen. The planner now works the version out from the files, as for
+  a manifest that names none, and `plan.md` says why (`versionUnindexed`).
+- 🐛 **The engine upgrade comes in the order that works.** Old pi or OpenCode tasks are deleted
+  with the engine you run now, before engine 0.30.0 is installed – the new engine does not
+  start while one exists, and only the old one can delete it. The upgrade prompt's engine stop,
+  `upgrade/README.md` and the `UPGRADE_NOTES.md` entry now say so, with the way back when 0.30.0
+  is already installed.
+- 🐛 **A leader guide committed with CRLF no longer fails the upgrade's verify step.** The
+  verifier read the guide's earlier version raw and compared it with the LF-read current file,
+  so `owner-rules-changed` fired on every run and no edit could clear it. Both sides are now
+  read as LF text.
+- 🐛 **The upgrade's merge step works on git older than 2.35.** `apply.mjs` falls back from
+  `git merge-file --zdiff3` to `--diff3` when git refuses the option, and computes every merge
+  before its first write, so a git that cannot merge leaves the project untouched instead of
+  half written with no `applied.json`.
+- 🐛 **A path behind a symbolic link no longer hides which files git ignores.** One such path
+  made `git check-ignore` abort the whole batch, and every other path then counted as not
+  ignored. The upgrade tool now keeps those paths out of the batch (they count as ignored, so
+  they are never written), and any other `git check-ignore` failure stops the run.
+- 🐛 **`plan.md` no longer says "None" for machine-block actions while upgrade entries list
+  files.** It counts those entries and lists their files, so an owner does not read the section
+  as nothing to apply.
+- 🐛 **The upgrade prompt reads the engine version the way the planner does.** Step 0 records
+  both the project's pinned `node_modules/@qodeca/xezar` and `xezar --version`, uses the pinned
+  one when it exists, and for a pinned engine tells the owner to raise the project's own
+  dependency rather than install globally.
+
+## 📝 Specs & Documentation
+
+- 📝 **`docs/coverage.md` matches the tests again.** The merge-gate, chaining-line and guard
+  counts are current; row 29 names the planted-program and broken-git cases that now run on every
+  OS; row 32 says the Windows and macOS CI jobs are required. The finished Windows handoff file is
+  removed.
+- 📝 **`upgrade/README.md` opens with one plain line**: what the upgrade does, what it needs and
+  how long it takes – the page the engine's cockpit will link to.
+- 📝 **The docs name the self-QA exception.** README, the release-manager guide and
+  `DECISIONS.md` said automation never grants `qa-approved`; they now name `xez-auto-qa-pr
+  --self-qa-signoff` on a fully-green run, and the kit's independent QA step. `CONTRIBUTING.md`
+  gives the measured `lint` job time (about two minutes) instead of a placeholder.
+- 📝 **An interrupted upgrade can be cleared and resumed.** The upgrade prompt's clean-tree check
+  now recognises a run that stopped between two commits and gives the owner the commands to clear
+  it; "start over" now also removes the untracked files a run left.
+- 📝 **`upgrade/README.md` checks Node 22** before the engine, and describes the dry run on a
+  throwaway copy inline instead of pointing at the 3.1.0 release plan.
+- 📝 **`upgrade/CONTRACT.md` no longer calls 3.1.0 a release**: manifest version 2 is written from
+  3.2.0 (and by the unreleased 3.1.0 builds), and `install-pi-extension` is marked obsolete.
+- 📝 **`UPGRADE_NOTES.md` gives the order for a hand upgrade from before 3.2.0**: engine, then
+  `route.mjs`, then one merge of `routing.json` against the newest defaults, then the rest.
+- 📝 **The upgrade prompt names Git for Windows' own config commands.** A real upgrade run on
+  Windows found that step 0's read of the commands git runs always lists four lines from Git for
+  Windows' system config (`diff.astextplain.textconv` and the three `filter.lfs.*` commands), so
+  the question about them comes up on every Windows machine. The read now prints each line's scope,
+  and the prompt and `upgrade/README.md` say which four lines are Git for Windows' defaults. The
+  rule itself is unchanged: they are still asked about.
+- 📝 **`upgrade/README.md` says to jump straight to the newest release**, adds an engine check as
+  step 0, and states that rolling back below kit 3.2.0 is not supported. The rollback steps now
+  remove untracked files and fit a squash merge.
+- 📝 **No note names the missing `v3.1.0` tag any more**, and the old "engine too old" notes pin
+  `@qodeca/xezar@0.20` for a kit before 3.2.0, since a bare install now brings 0.30.0.
+- 📝 **An upgrade note for Codex reviews on Windows (#230).** On native Windows a Codex review,
+  QA, design or security step posts no comment and writes no verdict, because engine 0.30.0's
+  read-only check refuses the command the role skills prescribe. The engine fix
+  (qodeca/xezar#1089) has not shipped, so `UPGRADE_NOTES.md` now says how to keep those rows on a
+  Claude lane until it does.
+
+## 🚀 CI/CD & Infrastructure
+
+- 🚀 **Post-merge lint runs on `main` and `develop` are no longer cancelled by the next merge**;
+  only pull-request runs cancel each other. The `lint` job pins Node 22, and `package.json` states
+  `engines.node >=22`.
+- 🚀 **A Windows-only nightly guard failure opens an issue of its own** ("Nightly guard suite
+  failed on Windows"); the Windows job still never fails the run.
+- 🚀 **The agent-browser pin workflow commits all three files the bump writes** – the descriptor,
+  its kit copy and the digest pin – and opens its PR against `develop`. It and `skills-audit.yml`
+  pin `actions/checkout` by commit SHA, and `skills-audit.yml` runs with `contents: read`.
+- 🚀 **The upgrade test now covers a 3.2.0 install.** A synthetic 3.2.0 fixture with the manifest
+  v2 its onboarding writes joins the committed set: its own drift check passes on it, and it
+  gets the same class, apply-twice and equal-to-fresh-install checks as the older installs.
+- 🚀 **Four new upgrade eval cases**, built and checked at the planner level but not yet run: an
+  owner lane on `pi/` that must not survive the upgrade, an owner row reorder that clashes with
+  the routing defaults version 6, a leader guide whose owner rules stay byte for byte while the
+  template's changes come in, and config keys the target documents but the project lacks, which
+  go on the owner checklist instead of being filled in.
+- 🚀 **The upgrade evals grade against the checkout's own version**, not a hard-coded `3.1.0`, and
+  re-running them is now release step 0 for any release that changes kit files.
+- 🚀 **The upgrade tests that need a broken git now run on Windows too.** `test-upgrade.mjs`
+  sections 5a (a git without `--zdiff3`, and a failed merge that writes nothing) and 5g (a failing
+  `git check-ignore`) skipped on Windows, because their stand-in git was a shell script. On Windows
+  the stand-in is now Node under the name `git.exe`, so both sections and their two nightly guard
+  cases run on every OS. The CRLF fix in the upgrade verifier was also checked on real Windows,
+  with `core.autocrlf` off and on.
+- 🚀 **`scripts/build-kit-index.mjs` refuses an unknown flag.** It used to ignore one and run in
+  write mode, so `--help` rewrote `upgrade/kit-index/`; it now answers `--help` and exits 2 with
+  its usage on anything it does not know.
+- 🚀 **The stale-index check no longer goes quiet after a release is tagged.**
+  `test-upgrade.mjs` also fails when a local `v<package version>` tag exists but
+  `upgrade/kit-index/<version>.json` does not.
+
+---
+
 # 3.2.1 (2026-10-18)
 
 **Kit 3.2.1 is a patch: fixes found after 3.2.0, with no new engine floor.** It still needs engine 0.30.0 or later. The upgrade prompt's release check works again (#233), onboarding stops naming OpenCode and pi (#235, #231), a screen-checking row refuses lanes that cannot see (#185), and `route.mjs --author` names the merge-time bans (#206). Run the upgrade prompt; the upgrade notes dated 2026-10-18 list each changed file.
