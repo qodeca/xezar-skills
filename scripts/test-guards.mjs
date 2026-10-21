@@ -1040,10 +1040,13 @@ breaks(
   "is not an engine account ID",
 );
 
+// route.mjs reads USER and git's user.name. Git Bash on Windows sets no USER, so take the name the
+// tests' isolated git config gives every run (isolateGitConfig in scripts/lib/test-harness.mjs).
+const ownName = process.env.USER || "Xezar Test";
 breaks(
   "a login that is this machine's own user name is rejected",
   ROUTING,
-  routingEdit((f) => { f.tools.codex.rotation = [(process.env.USER || "runner").toLowerCase().replace(/\s+/g, "-")]; }),
+  routingEdit((f) => { f.tools.codex.rotation = [ownName.trim().toLowerCase().replace(/[\s._+]+/g, "-")]; }),
   catalog("3b"),
   "is this machine's own user name",
 );
@@ -2054,8 +2057,10 @@ breaks(
   "accepts a detached HEAD in strict mode",
 );
 
-// A review's stop reaches the server a wrapper started (#223).
-breaks(
+// A review's stop reaches the server a wrapper started (#223). Git Bash stops a native child with
+// its parent and has no real process groups, so without `set -m` the child still stops there: only
+// Linux and macOS can catch this break.
+if (process.platform !== "win32") breaks(
   "a review-run.sh stop that kills only the wrapper's pid is rejected",
   "skills/xez-onboard-opinionated/kit/checks/review-run.sh",
   (s) => s.replace('    set -m\n    nohup "$@"', '    nohup "$@"'),
@@ -4018,7 +4023,10 @@ breaks(
   "upgrade/tools/lib/context.mjs",
   (s) => s.replace("m[1] === \"100755\" ? 0o755 : 0o644", "m[1] === \"100755\" ? 0o755 : 0o755"),
   upgrade("4c"),
-  "records .xezar/checks/lib/windows-programs.mjs as 100755",
+  // Windows runs only the core.filemode=false leg, which sees the extra executable= paths.
+  process.platform === "win32"
+    ? "executable (core.filemode=false): apply.mjs prints executable= for"
+    : "records .xezar/checks/lib/windows-programs.mjs as 100755",
 );
 // 122-windows:end
 
