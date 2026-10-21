@@ -1,6 +1,6 @@
 # Worktree setup — isolated worktree from the PR head
 
-Detailed procedure for step 4 (create) and step 11 (cleanup) of `xez-auto-continue-pr-loop`. Never resume in the user's primary worktree.
+Detailed procedure for step 4 (create) and step 10 (cleanup) of `xez-auto-continue-pr-loop`. Never resume in the user's primary worktree.
 
 ## Create the worktree from the PR head (step 4)
 
@@ -41,7 +41,7 @@ Rules:
 - The main worktree must stay untouched.
 - Always clean up the temporary worktree at the end, but only if you created it this run.
 
-## Cleanup sequence (steps 4 and 11)
+## Cleanup sequence (steps 4 and 10)
 
 Run in a `trap`/finally so crashes also clean up:
 

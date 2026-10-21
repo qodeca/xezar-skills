@@ -5,7 +5,8 @@
 //   1. the building blocks: path containment, the register and machine-block grammars, the
 //      TOML check, placeholder recovery;
 //   2. the kit index is well formed, and – once package.json's version has its own index file
-//      as the newest entry (the release PR) – that file equals the tree ("release check");
+//      as the newest entry (the release PR) – that file equals the tree ("release check"), and
+//      a local tag v<package version> has an index file of its own;
 //   3. every synthetic install (scripts/fixtures/upgrade/<version>/) gets the class and base
 //      confidence this file derives INDEPENDENTLY from the index, applies cleanly, applies twice
 //      with no further change, and – after the obvious owner answers are given – equals a
@@ -26,7 +27,8 @@
 //   9. verify's repository check runs against the project, not the clone it is run from; each
 //      tool answers --help; engine-min actions are evaluated against the engine version.
 //
-// It reads only committed files: no tags, no network.
+// It reads only committed files and no network; the one tag it reads is a local v<package
+// version> (§2), when the clone has it.
 //
 // Run: node scripts/test-upgrade.mjs
 //      node scripts/test-upgrade.mjs --only <id> [--only <id>]   (those sections only – never a gate result)
@@ -38,8 +40,10 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   cpSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -58,30 +62,31 @@ import { fileURLToPath } from "node:url";
 import { lfText, sha256 } from "../upgrade/tools/lib/hash.mjs";
 import { readPack } from "../upgrade/tools/lib/blobs.mjs";
 import { render, extractInputs, normalisedMatch, placeholdersIn, RENDERED_REGIONS } from "../upgrade/tools/lib/rewrites.mjs";
-import { assertRepoRelative, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
+import { assertRepoRelative, gitState, resolveInside, PathRefused } from "../upgrade/tools/lib/paths.mjs";
 import { parseRegister } from "../upgrade/tools/lib/register.mjs";
 import { parseBlocks, satisfies } from "../upgrade/tools/lib/machine-block.mjs";
 import { tomlError } from "../upgrade/tools/lib/toml.mjs";
 import { lineDistance } from "../upgrade/tools/lib/diff.mjs";
 import { diffIndexes, indexFromTree, loadIndexes, SKILL_DIR } from "../upgrade/tools/lib/kit-index.mjs";
 import { loadContext } from "../upgrade/tools/lib/context.mjs";
-import { NOT_RECORDED, OWNER_CONFIG, OWNER_SHAPED } from "../upgrade/tools/lib/policy.mjs";
+import { NOT_RECORDED, OWNER_CONFIG, OWNER_SHAPED, permissionGrants } from "../upgrade/tools/lib/policy.mjs";
 import { detect } from "../upgrade/tools/detect.mjs";
 import { buildPlan, engineChecks, engineVersion, summary, upgradeEntries } from "../upgrade/tools/plan.mjs";
 import * as planTool from "../upgrade/tools/plan.mjs";
 import { applyPlan } from "../upgrade/tools/apply.mjs";
+import { launch } from "../upgrade/tools/lib/programs.mjs";
 import { invariants, verify, manifestV2, projectChecks } from "../upgrade/tools/verify.mjs";
-import { bashPath } from "./lib/platform.mjs";
-import { prepareTestPlatform, tempRoot } from "./lib/test-harness.mjs";
+import { bashPath, prependPath } from "./lib/platform.mjs";
+import { prepareTestPlatform, tempRoot, writeStub } from "./lib/test-harness.mjs";
 import { sections } from "./lib/sections.mjs";
 
 const S = sections(
   "test-upgrade.mjs",
   [
     "1", "2", "3", "4", "4b", "4c", "4d",
-    "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o",
+    "5a", "5b", "5c", "5d", "5e", "5f", "5g", "5h", "5i", "5j", "5k", "5l", "5m", "5n", "5o", "5p",
     "6", "6b", "7", "8", "9", "OC", "10a", "10b", "10c", "10d", "10e", "10f", "11a", "11b",
-    "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "14a", "14b", "14c", "tail",
+    "12a", "12b", "12b2", "12b3", "12b4", "12c", "13a", "13b", "13c", "13d", "14a", "14b", "14c", "tail",
   ],
   {
     // The sections that read §3's synthetic installs (through installs()).
@@ -98,7 +103,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = join(root, "scripts/fixtures/upgrade");
 const PACK = join(FIX, "blobs.json.gz.hex");
 const KIT_SKILL = join(root, SKILL_DIR);
-const TARGET = "3.2.1";
+const TARGET = "3.2.2";
 const pack = readPack(PACK);
 const history = loadIndexes(join(root, "upgrade/kit-index"));
 const tree = indexFromTree(KIT_SKILL, { version: TARGET });
@@ -221,6 +226,17 @@ if (S.section("1")) {
 
   expect(tomlError(readFileSync(join(KIT_SKILL, "kit/codex/config.toml"), "utf8")) === null, "TOML check refuses the kit's own codex config");
   expect(tomlError("[a]\nb = [1,\n") !== null && tomlError("<<<<<<< mine\n") !== null, "TOML check accepts a broken file");
+  // A merge breaks TOML's definition rules more often than its syntax: both sides add the same key.
+  for (const [broken, what] of [["a = 1\na = 2\n", "a key defined twice"], ['"a" = 1\na = 2\n', "a key defined twice, once quoted"],
+    ["[t]\nx = 1\n[t]\ny = 2\n", "a table defined twice"], ["k = { a = 1, a = 2 }\n", "an inline table with a key twice"],
+    ["[fruit]\napple.color = 1\n[fruit.apple]\n", "a [table] reopening a dotted-key table"], ["[a]\n[[a]]\n", "[[a]] after [a]"],
+    ["[[a]\n", "an unclosed [[array]] header"], ["[a]]\n", "a header closed twice"], ["[a] x = 1\n", "text after a header"]])
+    expect(tomlError(broken) !== null, `TOML check accepts ${what}: ${JSON.stringify(broken)}`);
+  for (const [fine, what] of [['["a #b"]\nx = 1 # c\n', "a quoted header key holding #"],
+    ['[fruit]\napple.color = "red"\n[fruit.apple.texture]\nsmooth = true\n', "a sub-table under a dotted-key table"],
+    ["[[p]]\nn = 1\n[[p]]\nn = 2\n", "an array of tables"], ["[a.b]\nx = 1\n[a]\ny = 2\n", "a parent table defined after its child"],
+    ['k = { a = 1, b.c = "x #" } # ok\n', "an inline table with a # in a string"]])
+    expect(tomlError(fine) === null, `TOML check refuses ${what}: ${tomlError(fine)}`);
 
   const t = "Repo {{REPO_SLUG}} ships {{PRODUCT}}; again {{PRODUCT}}.\n";
   const inputs = extractInputs(t, "Repo acme/w ships Widget; again Widget.\n");
@@ -264,6 +280,11 @@ if (S.section("2")) {
     const stale = [...d.added, ...d.removed, ...d.changed];
     expect(stale.length === 0, `kit index for ${pkg} is stale: re-run scripts/build-kit-index.mjs (differs in ${stale.slice(0, 5).join(", ")}${stale.length > 5 ? ", …" : ""})`);
   }
+  // After a version bump the check above is quiet until the new version is indexed. A tag for
+  // package.json's version with no index file of its own means the release went out unindexed.
+  // A shallow CI checkout has no tags, so this reads a local tag only when one is there.
+  const pkgTag = git(root, "tag", "-l", `v${pkg}`).trim();
+  expect(!pkgTag || existsSync(join(root, "upgrade/kit-index", `${pkg}.json`)), `tag v${pkg} exists but upgrade/kit-index/${pkg}.json does not: the release is not indexed – run scripts/build-kit-index.mjs`);
 
   // #122 (Windows): a kit checked out with CRLF indexes like the LF tree; a real edit still shows.
   const crlfSkill = lab("crlf-kit");
@@ -334,7 +355,8 @@ const { recordInstall, installs } = (() => {
 })();
 
 if (S.section("3")) {
-expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) is missing");
+expect(["1.2.0", "2.1.1", "3.0.0", "3.0.3", "3.2.0"].every((v) => SYNTHETIC.includes(v)), "a synthetic fixture the plan names (1.2.0, 2.1.1, 3.0.0, 3.0.3) or the manifest v2 one (3.2.0) is missing");
+expect(loadFixture("3.2.0").manifest.manifestVersion === 2, "the 3.2.0 fixture does not carry the manifest v2 its onboarding wrote");
 expect(SYNTHETIC.some((v) => v.includes("+")), "no fixture installs from an untagged commit");
 for (const version of SYNTHETIC) {
   const fx = loadFixture(version);
@@ -345,6 +367,17 @@ for (const version of SYNTHETIC) {
   const hasPerFile = Boolean(fx.manifest.files);
 
   expect(plan.errors.length === 0, `${version}: plan errors: ${plan.errors.join("; ")}`);
+  // A manifest v2 fixture is what that version's onboarding wrote: its own drift check passes on it.
+  if (fx.manifest.manifestVersion === 2) {
+    const ownDrift = join(dir, ".xezar/checks/manifest-drift.mjs");
+    let out = "";
+    try {
+      out = execFileSync("node", [ownDrift, dir], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+    }
+    expect(/drift-status=pass/.test(out), `${version}: the install's own drift check fails on its manifest v2:\n${out.split("\n").slice(0, 6).join("\n")}`);
+  }
   // class and confidence of every file
   const paths = new Set([...Object.keys(fx.files), ...Object.keys(tree.index.files)]);
   for (const p of paths) {
@@ -561,6 +594,16 @@ if (S.section("4b")) {
     const drift = crlfV.checks.find((c) => c.name === "drift");
     expect(drift?.status === "pass", `CRLF project: the drift check does not pass on a CRLF checkout of an unchanged file (${drift?.status}):\n${drift?.out}`);
   }
+
+  // A leader guide committed with CRLF: "before" is read as LF text like the current file, so an
+  // untouched Owner's rules section passes, and an edited one still fails.
+  const guide = ".xezar/docs/leader-guide.md";
+  const crlfGuideDir = materialize(fx, { name: "crlf-guide-run", edit: (d) => write(d, guide, read(d, guide).replace(/\r?\n/g, "\r\n")) });
+  expect(git(crlfGuideDir, "show", `HEAD:${guide}`).includes("\r\n"), "CRLF leader guide: the committed guide has no CRLF, so the case proves nothing");
+  const rulesProblems = (dir) => invariants(ctxFor(dir), null).filter((x) => x.kind === "owner-rules-changed");
+  expect(rulesProblems(crlfGuideDir).length === 0, `CRLF leader guide: an untouched guide committed with CRLF fails owner-rules-changed: ${JSON.stringify(rulesProblems(crlfGuideDir))}`);
+  write(crlfGuideDir, guide, read(crlfGuideDir, guide).replace("Merge only after", "Merge whenever, after"));
+  expect(rulesProblems(crlfGuideDir).length === 1, "CRLF leader guide: an edited Owner's rules section passes owner-rules-changed");
 }
 
 // ---------------------------------------------------------------------------------------
@@ -667,6 +710,58 @@ const unchangedChecks = Object.keys(fx303.files)
   .filter((p) => /^\.xezar\/checks\/[^/]+\.sh$/.test(p) && tree.index.files[p]?.kitBlob === fx303.files[p])
   .sort();
 
+// This Node as a program of another name (`<dir>/<name>`), for a stand-in a native Windows spawn
+// starts: it finds only a .com or .exe there, never a shell script. One copy per run, then links.
+let nodeCopy = null;
+const nodeAs = (dir, name) => {
+  nodeCopy ??= join(lab("node-copy"), "node-copy.exe");
+  if (!existsSync(nodeCopy)) copyFileSync(process.execPath, nodeCopy);
+  try {
+    linkSync(nodeCopy, join(dir, name));
+  } catch {
+    copyFileSync(nodeCopy, join(dir, name));
+  }
+};
+
+// Run fn with a stand-in `git` first on PATH that runs its body, then the real git. POSIX: a shell
+// script running `sh`. Windows: git.exe, this Node under that name, whose preload runs `js` (with
+// `args`, git's arguments) and then the real git – found by full path before PATH changes, as the
+// tools find it (lib/programs.mjs). Node takes git's subcommand for its script, so `args` starts
+// with the script's basename; every git call the tools make starts with its subcommand.
+const withGit = ({ sh, js }, fn) => {
+  const bin = lab("stand-in-git");
+  const saved = { path: process.env.PATH, nodeOptions: process.env.NODE_OPTIONS };
+  if (process.platform === "win32") {
+    const real = launch("git", []).file;
+    nodeAs(bin, "git.exe");
+    const preload = join(bin, "stand-in.cjs");
+    writeFileSync(
+      preload,
+      [
+        'const { basename } = require("node:path");',
+        'if (/^git\\.exe$/i.test(basename(process.execPath))) {',
+        "  const args = [basename(process.argv[1]), ...process.argv.slice(2)];",
+        `  ${js}`,
+        `  const r = require("node:child_process").spawnSync(${JSON.stringify(real)}, args, { stdio: "inherit" });`,
+        "  process.exit(r.status ?? 1);",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    process.env.NODE_OPTIONS = `--require ${JSON.stringify(preload)}`;
+  } else {
+    writeStub(join(bin, "git"), `#!/bin/sh\n${sh}\nPATH=${JSON.stringify(process.env.PATH)} exec git "$@"\n`);
+  }
+  process.env.PATH = prependPath(process.env, [bin]).PATH;
+  try {
+    return fn();
+  } finally {
+    process.env.PATH = saved.path;
+    if (saved.nodeOptions === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = saved.nodeOptions;
+  }
+};
+
 // 5a. A v1 manifest with drift: files edited after install, nothing recorded (#55: 7 of 172).
 if (S.section("5a")) {
   // An owner-shaped file (`.codex/config.toml`, #177) is always merged by hand, never both-changed.
@@ -692,6 +787,45 @@ if (S.section("5a")) {
   expect(r.status === "ok" && read(dir, unchangedChecks[0]).includes("# edited locally"), "drift: apply overwrote a drifted file");
   const staged = join(dir, ".local/xezar/scratch/upgrade/staged", `${kitChanged}.merged`);
   expect(existsSync(staged) && readFileSync(staged, "utf8").includes("# edited locally"), "drift: the both-changed file was not merged into the staging folder");
+
+  // A git older than 2.35 refuses --zdiff3 (exit 129): apply falls back to --diff3. A git whose
+  // merge-file fails outright stops apply before its first write.
+  {
+    const oldDir = materialize(fx303, { name: "drift-old-git", edit: (d) => { const t = read(d, kitChanged); write(d, kitChanged, `${t}\n# edited locally\n`); } });
+    const oldPlan = buildPlan(ctxFor(oldDir));
+    let oldRun;
+    try {
+      oldRun = withGit(
+        {
+          sh: `for a in "$@"; do [ "$a" = --zdiff3 ] && { echo "error: unknown option \\\`zdiff3'" >&2; exit 129; }; done`,
+          js: 'if (args.includes("--zdiff3")) { process.stderr.write("error: unknown option `zdiff3\'\\n"); process.exit(129); }',
+        },
+        () => applyPlan(ctxFor(oldDir), oldPlan),
+      );
+    } catch (e) {
+      oldRun = { status: e.message };
+    }
+    const oldStaged = join(oldDir, ".local/xezar/scratch/upgrade/staged", `${kitChanged}.merged`);
+    expect(oldRun.status === "ok" && existsSync(oldStaged) && readFileSync(oldStaged, "utf8").includes("# edited locally"), `old git: apply does not fall back to --diff3 when git refuses --zdiff3 (${oldRun.status})`);
+
+    const badDir = materialize(fx303, { name: "drift-bad-git", edit: (d) => { const t = read(d, kitChanged); write(d, kitChanged, `${t}\n# edited locally\n`); } });
+    const badPlan = buildPlan(ctxFor(badDir));
+    expect(badPlan.files.some((f) => f.action === "write-theirs"), "bad git: the plan has no write before the merge, so the case proves nothing");
+    const beforeRun = snapshot(badDir);
+    let threw = false;
+    try {
+      withGit(
+        {
+          sh: `[ "$1" = merge-file ] && case "$*" in *probe.*) ;; *) echo "fatal: broken" >&2; exit 128;; esac`,
+          js: 'if (args[0] === "merge-file" && !args.some((a) => a.includes("probe."))) { process.stderr.write("fatal: broken\\n"); process.exit(128); }',
+        },
+        () => applyPlan(ctxFor(badDir), badPlan),
+      );
+    } catch {
+      threw = true;
+    }
+    expect(threw && sameSnapshot(snapshot(badDir), beforeRun) && !existsSync(join(badDir, ".local")), "bad git: a failing git merge-file leaves partial writes or no error");
+  }
 }
 
 // 5b. A partly applied old upgrade: a 3.0.0 install with some files already at 3.0.3.
@@ -831,6 +965,29 @@ if (S.section("5g")) {
     escaped = true;
   }
   expect(escaped, "unsafe: resolveInside accepts ../");
+  // git check-ignore aborts a whole batch on a path beyond a symbolic link or outside the
+  // repository. Such a path never reaches it and counts as ignored; the rest of the batch is
+  // still asked, and an ignored kit path is still found (fail closed, never "nothing ignored").
+  write(dir, ".gitignore", "ignored-here.md\n");
+  const gs = gitState(dir);
+  gs.prime([libFile, "../outside.md", "ignored-here.md", "plain.md"]);
+  expect(gs.ignored("ignored-here.md") === true && gs.ignored("plain.md") === false, `unsafe: a symlinked path in the batch hides what git ignores (ignored-here.md ${gs.ignored("ignored-here.md")}, plain.md ${gs.ignored("plain.md")})`);
+  expect(gs.ignored(libFile) === true && gs.ignored("../outside.md") === true, "unsafe: a path git refuses to check counts as not ignored");
+  {
+    let failed = false;
+    try {
+      withGit(
+        {
+          sh: `[ "$1" = check-ignore ] && { echo "fatal: broken" >&2; exit 128; }`,
+          js: 'if (args[0] === "check-ignore") { process.stderr.write("fatal: broken\\n"); process.exit(128); }',
+        },
+        () => gitState(dir).prime(["plain.md"]),
+      );
+    } catch {
+      failed = true;
+    }
+    expect(failed, "unsafe: a git check-ignore that fails reads as \"nothing is ignored\"");
+  }
 }
 
 // 5h. A local change that weakens a safety check in a file the target did not touch: stop.
@@ -991,6 +1148,87 @@ if (S.section("5o")) {
   const plan = buildPlan(ctxFor(dir));
   expect(plan.unexplained.includes(p), `draft-dup: ${p} is no longer unexplained; re-aim this case`);
   expect(!plan.registerDrafts.add.some((d) => d.files.includes(p)), `draft-dup: a second register entry is drafted for ${p}, which LP-1 already covers`);
+}
+
+// 5p. The tools never start a program from the project. On native Windows a bare program name is
+// looked for in the working folder first, and the tools start git with the project as the working
+// folder. Fakes of git and the engine – .exe and .com (this Node under another name; a preload
+// writes a marker when it runs as anything but node), .cmd and .bat (echo a marker) – sit in a
+// project, and detect, plan, apply and verify run there the way an owner runs them: the project
+// as the working folder, NoDefaultCurrentDirectoryInExePath unset. No fake may run. POSIX never
+// searches the working folder; the same run with shell-script fakes holds there too.
+if (S.section("5p")) {
+  const edited = changedSince303.find((p) => !OWNER_SHAPED.has(p));
+  const dir = materialize(fx303, { name: "planted-programs", edit: (d) => write(d, edited, `${read(d, edited)}\n# edited locally\n`) });
+  const marker = join(lab("planted-marker"), "ran.txt");
+  const names = ["git", "xezar", "xez"];
+  const extra = {};
+  if (process.platform === "win32") {
+    const preload = join(lab("planted-preload"), "mark.cjs");
+    writeFileSync(
+      preload,
+      [
+        'const me = require("node:path").basename(process.execPath);',
+        `if (!/^node(\\.exe)?$/i.test(me)) require("node:fs").appendFileSync(${JSON.stringify(marker)}, me + "\\n");`,
+        "",
+      ].join("\n"),
+    );
+    extra.NODE_OPTIONS = `--require ${JSON.stringify(preload)}`;
+    for (const n of names) {
+      for (const ext of [".exe", ".com"]) nodeAs(dir, `${n}${ext}`);
+      for (const ext of [".cmd", ".bat"]) write(dir, `${n}${ext}`, `@echo ${n}${ext}>>"${marker}"\r\n`);
+    }
+  } else {
+    for (const n of names) writeStub(join(dir, n), `#!/bin/sh\necho ${n} >> ${JSON.stringify(marker)}\n`);
+  }
+  // Untracked and ignored, so the fakes change no plan and no verify result.
+  writeFileSync(join(dir, ".git/info/exclude"), names.map((n) => `/${n}\n/${n}.*\n`).join(""));
+  const env = { ...process.env, ...extra };
+  for (const k of Object.keys(env)) if (k.toUpperCase() === "NODEFAULTCURRENTDIRECTORYINEXEPATH") delete env[k];
+  const runTool = (tool, ...args) => {
+    try {
+      const out = execFileSync(process.execPath, [join(root, `upgrade/tools/${tool}.mjs`), "--project", dir, "--target", TARGET, "--blob-pack", PACK, ...args], { cwd: dir, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return { code: 0, out };
+    } catch (e) {
+      return { code: e.status ?? -1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
+    }
+  };
+  const ran = () => (existsSync(marker) ? readFileSync(marker, "utf8").trim().split(/\s+/).join(", ") : "");
+  const d = runTool("detect");
+  const pl = runTool("plan");
+  const ap = runTool("apply");
+  const staged = existsSync(join(dir, ".local/xezar/scratch/upgrade/staged", `${edited}.merged`));
+  const ve = runTool("verify");
+  expect(d.code === 0 && pl.code === 0 && ap.code === 0 && staged && /verify-status=/.test(ve.out), `planted programs: the tools did not run far enough to start git (detect ${d.code}, plan ${pl.code}, apply ${ap.code}, merged ${staged}, verify ${ve.code}): ${`${pl.out}${ap.out}${ve.out}`.slice(-400)}`);
+  expect(ran() === "", `planted programs: an upgrade tool started a program from the project: ${ran()}`);
+  // The engine is read by a bare name too (plan.mjs engineVersion), from the folder the tool was
+  // started in; and a project folder on PATH is never searched (lib/programs.mjs avoidFolder).
+  // `node --version` exits before any preload, so a fake engine shows by its answer: Node's version.
+  let engine = null;
+  const saved = { cwd: process.cwd(), noDefault: process.env.NoDefaultCurrentDirectoryInExePath, path: process.env.PATH, nodeOptions: process.env.NODE_OPTIONS };
+  try {
+    process.chdir(dir);
+    delete process.env.NoDefaultCurrentDirectoryInExePath;
+    if (extra.NODE_OPTIONS) process.env.NODE_OPTIONS = extra.NODE_OPTIONS;
+    const ctx = ctxFor(dir);
+    process.env.PATH = prependPath(process.env, [dir]).PATH;
+    rmSync(marker, { force: true });
+    engine = engineVersion(ctx);
+    // Back in the test's own folder, the project stays on PATH: only avoidFolder keeps it out.
+    process.chdir(saved.cwd);
+    // Windows: the full path git is started by. POSIX: the PATH git is looked up in.
+    const l = launch("git", ["--version"]);
+    const seen = process.platform === "win32" ? [l.file] : String(l.options.env?.PATH ?? process.env.PATH).split(":");
+    const fromProject = seen.filter((p) => p.toLowerCase().startsWith(dir.toLowerCase()));
+    expect(!fromProject.length, `planted programs: git is taken from a project folder on PATH: ${fromProject.join(", ")}`);
+  } finally {
+    process.chdir(saved.cwd);
+    process.env.PATH = saved.path;
+    if (saved.noDefault !== undefined) process.env.NoDefaultCurrentDirectoryInExePath = saved.noDefault;
+    if (saved.nodeOptions === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = saved.nodeOptions;
+  }
+  expect(ran() === "" && engine?.version !== process.versions.node, `planted programs: the engine version was read by starting a program from the project: ${ran() || JSON.stringify(engine)}`);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1240,6 +1478,22 @@ if (S.section("9")) {
     expect(code === 0 && out.includes(`node upgrade/tools/${tool}.mjs --project <dir>`), `${tool}.mjs --help does not print its usage and exit 0 (exit ${code}): ${out.slice(0, 200)}`);
   }
 
+  // build-kit-index.mjs rewrites upgrade/kit-index/ in write mode, so --help answers and an unknown
+  // flag is refused before anything runs. The --ref names no commit, so a regression that falls
+  // through to write mode fails before it writes, never rewriting the committed index.
+  const buildIndex = (...args) => {
+    try {
+      const out = execFileSync("node", [join(root, "scripts/build-kit-index.mjs"), ...args, "--ref", "refs/heads/no-such-ref-for-a-test"], { cwd: tmpdir(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      return { code: 0, out };
+    } catch (err) {
+      return { code: err.status ?? -1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    }
+  };
+  const help = buildIndex("--help");
+  expect(help.code === 0 && help.out.includes("usage: node scripts/build-kit-index.mjs"), `build-kit-index.mjs --help does not print its usage and exit 0 (exit ${help.code}): ${help.out.slice(0, 200)}`);
+  const unknown = buildIndex("--chek");
+  expect(unknown.code === 2 && /unknown argument --chek/.test(unknown.out) && unknown.out.includes("usage:"), `build-kit-index.mjs runs with an unknown flag instead of exiting 2 with its usage (exit ${unknown.code}): ${unknown.out.slice(0, 200)}`);
+
   const e = (version) => ({ version, source: "test" });
   expect(engineChecks(["restart-leader"], () => { throw new Error("read"); }) === null, "engine-min: the engine is read when no block asks for a minimum");
   expect(engineChecks(["engine-min=0.19.0"], e("0.19.0")).checks[0].status === "met", "engine-min: an equal engine version is not met");
@@ -1250,6 +1504,10 @@ if (S.section("9")) {
   write(pinned, "node_modules/@qodeca/xezar/package.json", JSON.stringify({ name: "@qodeca/xezar", version: "0.21.3" }));
   const ev = engineVersion(ctxFor(pinned));
   expect(ev.version === "0.21.3" && ev.source === "node_modules/@qodeca/xezar", `engine-min: the project's pinned engine is not read: ${JSON.stringify(ev)}`);
+  // The prompt records the engine version by the planner's rule: the pinned build first, then PATH.
+  const prompt = readFileSync(join(root, "upgrade/UPGRADE-PROMPT.md"), "utf8");
+  const step05 = /^5\. \*\*The engine version\.\*\*[\s\S]*?(?=^6\. )/m.exec(prompt)?.[0] ?? "";
+  expect(step05.includes(`${ev.source}/package.json`) && step05.includes("xezar --version") && /pinned one when that file exists/.test(step05), `engine-min: the prompt's step 0.5 does not record the engine version by the planner's rule (the project's ${ev.source} first, then xezar --version)`);
 }
 
 // 3.1.0-stream-OC:start
@@ -1355,6 +1613,13 @@ if (S.section("10d")) {
   expect(/^## Errors$/m.test(md), "summary: plan.md has no errors section when there are none");
   const none = summary({ ...plan, perMachine: [], errors: [], engine: null });
   expect(/^## Engine minimum\n\nNone: this range sets no engine minimum\.$/m.test(none), "summary: plan.md does not say when the range sets no engine minimum");
+  // Entries whose blocks carry files only: the actions section must not read "None." alone.
+  const filesOnly = summary({
+    ...plan, perMachine: [], errors: [], engine: null, actions: [],
+    upgradeEntries: [{ source: "UPGRADE_NOTES.md", line: 7, heading: "Files only", appliesTo: "*", actions: [], files: [{ path: ".xezar/a.md", mode: "replace" }, { path: ".xezar/b.md", mode: "delete" }] }],
+  });
+  const actionsPart = filesOnly.split("## Machine-block actions for this range")[1]?.split(/\n## /)[0] ?? "";
+  expect(!/^None\.$/m.test(actionsPart) && actionsPart.includes("1 upgrade entry lists files") && actionsPart.includes("files: .xezar/a.md, .xezar/b.md (delete)"), `summary: plan.md says "None." for machine-block actions while an entry lists files:\n${actionsPart}`);
 }
 
 // 10e. Upgrade entries come from UPGRADE_NOTES.md only, never from a release's working folder.
@@ -1800,6 +2065,21 @@ if (S.section("13c")) {
   expect(dated.some((h) => h.includes("my routing still sends Codex work")) && !dated.some((h) => h.startsWith("2026-09-22")), `range: entries dated before the project's version are listed, or same-day ones dropped (${dated.join(" | ")})`);
 }
 
+// 13d. A tool added on its own line inside the Codex `enabled_tools = [ … ]` list is a
+// permission change at the plan step (#177's `emulate`), not something step 5 finds by reading;
+// a changed comment in that list grants nothing.
+if (S.section("13d")) {
+  const codex = byPath(buildPlan(ctxFor(materialize(fx303, { name: "codex-grant-303" })))).get(".codex/config.toml");
+  expect(
+    codex?.stops.includes("permission-change") && codex.notes.some((n) => n.startsWith("grant: ") && n.includes('enabled_tools[]="emulate"')),
+    `3.0.3: the kit's added Codex tool emulate is not a permission-change stop (${JSON.stringify({ class: codex?.class, stops: codex?.stops, notes: codex?.notes })})`,
+  );
+  const kitToml = readFileSync(join(root, "skills/xez-onboard-opinionated/kit/codex/config.toml"), "utf8");
+  const reworded = kitToml.replace("# The engine runs Codex", "# Reworded. The engine runs Codex");
+  expect(permissionGrants(".codex/config.toml", kitToml, reworded).length === 0, "toml grants: a changed comment counts as a grant");
+  expect(permissionGrants(".codex/config.toml", kitToml, kitToml.replace('"emulate",', '"emulate", "evaluate_script",')).includes('mcp_servers.chrome-devtools.enabled_tools[]="evaluate_script"'), "toml grants: a tool added beside another on one line is missed");
+}
+
 // 14a. A tracked owner-shaped file (.claude/settings.json) whose kept content differs from the
 // kit's copy at its base and at the target: the verifier requires a register entry for it, so
 // the plan drafts one and lists it as unexplained and for reading (cmplus dry run).
@@ -1846,6 +2126,16 @@ if (S.section("14b")) {
   );
   expect(bare.versionEvidence === null && bare.upgradeEntries.length === every.length, `range: with no evidence at all the plan does not list every entry (${bare.upgradeEntries.length} of ${every.length})`);
   expect(summary(bare).includes("every upgrade entry is listed"), "range: plan.md does not say every entry is listed when nothing names a version");
+  // A version no index holds (the never-tagged "3.1.0" an earlier tool wrote) is not trusted:
+  // the range comes from the files, as for a manifest that names none.
+  const ghost = buildPlan(
+    ctxFor(materialize(fx303, { name: "range-unindexed", edit: (d) => write(d, ".xezar/onboarding.json", `${JSON.stringify({ ...fx303.manifest, version: "3.1.0" }, null, 2)}\n`) })),
+  );
+  expect(ghost.versionUnindexed === "3.1.0", `range: a manifest naming the unindexed 3.1.0 shows versionUnindexed ${JSON.stringify(ghost.versionUnindexed)}`);
+  expect(ghost.versionEvidence?.version === "3.0.3", `range: a 3.0.3 install whose manifest says 3.1.0 shows ${JSON.stringify(ghost.versionEvidence)}, not 3.0.3`);
+  expect(heads(ghost) === heads(withVersion), `range: with an unindexed manifest version the entries are not those for 3.0.3 (${ghost.upgradeEntries.length} vs ${withVersion.upgradeEntries.length})`);
+  expect(summary(ghost).includes("a version no kit index holds"), "range: plan.md does not say the manifest's version is unknown to the index");
+  expect(withVersion.versionUnindexed === null, "range: an indexed manifest version is reported as unindexed");
 }
 
 // 14c. Each upgrade entry in the plan names its UPGRADE_NOTES.md heading and line, and plan.md

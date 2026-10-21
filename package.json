@@ -1,9 +1,12 @@
 {
   "name": "@qodeca/xezar-skills",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "private": true,
   "description": "Agent skills that run a full PR pipeline: plan, implement, review, QA gate, merge.",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/qodeca/xezar-skills.git"

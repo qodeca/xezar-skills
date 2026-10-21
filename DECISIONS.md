@@ -68,7 +68,7 @@ Browser automation uses the same descriptor pattern under `.xezar/pipeline/brows
 - One PR per unit of work: skills reuse a PR a previous skill opened and never open a second one; implementation of a spec ships on its own PR, and the spec PR stays design-only.
 - Every PR-producing skill ends with a `PR: #<n> (link: <url>)` line the next skill parses; `Issue:`, `Spec:` and `xez-brainstorm`'s `Next:` lines follow the same rule.
 - Claims are handed off, never dropped and re-acquired: the driving skill of a chain releases the lock exactly once, and a downstream skill treats an inherited same-user lock as re-entry.
-- The QA gate is human for the `xez-*` skills: `needs-qa` blocks merge until a person adds `qa-approved`; those skills request QA and never grant it. `xez-auto-fix-pr` and `xez-pr-autopilot` stop short of merging unless told otherwise. The onboarding kit is the exception: its independent QA and design-review steps apply their own approval label, through `gh-write.sh`'s verdict check, under D13 ("Reviewers run the change, and a verdict needs the tree they found").
+- The QA gate is human for the `xez-*` skills: `needs-qa` blocks merge until a person adds `qa-approved`; those skills request QA and never grant it, with one exception – `xez-auto-qa-pr`'s explicit `--self-qa-signoff` on a fully-green run with screenshots. `xez-auto-fix-pr` and `xez-pr-autopilot` stop short of merging unless told otherwise. The onboarding kit is the other exception: its independent QA and design-review steps apply their own approval label, through `gh-write.sh`'s verdict check, under D13 ("Reviewers run the change, and a verdict needs the tree they found").
 - Review autofix is opt-in on foreign PRs: the loop runs only for the automation identity's own PRs or with `--autofix`.
 - One label-rationale comment per skill per PR or issue, rewritten in place; a missing label is a logged skip, never an error.
 - `xez-code-review` keeps a complete agent artifact and posts a bounded projection to the PR; every blocker and major finding always appears.
@@ -1524,7 +1524,8 @@ belongs to the engine:
   shim fails silently, and the login reads as empty.
 - A bare `git` or `gh` in the kit's `.mjs` files is looked for in the working folder first on
   Windows, so a `git.exe` committed to a project would run there. The class is older than #122 and
-  wider than it: tech debt.
+  wider than it: tech debt. The upgrade tool is out of it since #298: it starts git and the engine
+  by full path (`upgrade/tools/lib/programs.mjs`).
 - The upgrade tool reads a kit file's executable bit from its own clone's git index. A kit copy git
   does not track falls back to `lstat`, which finds no executable bit on Windows; the prompt
   requires a verified git clone, so only the tests reach that fallback: tech debt.

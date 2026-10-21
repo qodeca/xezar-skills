@@ -1,6 +1,6 @@
 # PR finalize — open, labels, summary comment, markers
 
-The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (the draft PR opens at step 7; reuse/labels at 11, summary at 13, ready-flip + release at 14). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
+The single procedure for the "commit → push → open (or reuse) the PR → normalize labels → summary comment → chaining reference lines" mechanics (the draft PR opens at step 7; reuse/labels at 10, summary at 12, ready-flip + release at 13). The point is **one** implementation of PR opening + labeling, reused rather than copied, and never a second PR for work that already has one.
 
 ## Never open a duplicate PR
 
@@ -15,14 +15,14 @@ This skill always opens the PR inline — it does not delegate to `xez-open-pr`,
 The run **always** leaves a PR the user can watch, even when it never finishes:
 
 1. **Open early as a draft** — right after the run-folder commit (skill step 7), open the PR with the draft flag, carrying the `Tracking plan:` line and `Status: in-progress`, and claim it (three-signal lock, PR lock lifecycle in `references/claim-pr.md`). The run folder is committed, so an interrupted run leaves a draft PR carrying the plan/Tasks table rather than a run folder with no PR.
-2. **Reuse it** — steps 8–13 update this same PR: checkpoint evidence + verification comments, the review pass, labels, the summary comment.
-3. **Flip to ready at completion** — at cleanup (skill step 14), once `Status:` is `complete` (every Tasks row `done`), promote the draft with **mark-pr-ready**. A run that ends `in-progress` stays a draft for the user to resume.
+2. **Reuse it** — steps 8–12 update this same PR: checkpoint evidence + verification comments, the review pass, labels, the summary comment.
+3. **Flip to ready at completion** — at cleanup (skill step 13), once `Status:` is `complete` (every Tasks row `done`), promote the draft with **mark-pr-ready**. A run that ends `in-progress` stays a draft for the user to resume.
 
 ## PR body
 
 Use the template in `references/pr-body-template.md` — a conventional-commit-prefixed title scoped to the primary area, and a body that **MUST** include the `Tracking plan:` line so `xez-auto-continue-pr-loop` can resume. Flip `Status:` to `complete` on the PR body once every row in the Tasks table has `Status` = `done`.
 
-## Label normalization (step 11)
+## Label normalization (step 10)
 
 Apply labels from the config's taxonomy after opening the PR, always through the `apply_label` guard from the tracker descriptor (missing labels degrade to a logged skip; `labels.enabled: false` skips everything — note that in the summary comment). This is the canonical label contract for every PR-opening skill; `xez-open-pr` carries the same rules and the two must stay in sync.
 
@@ -52,7 +52,7 @@ Label emoji map (decoration only — parsers key on the backticked label text): 
 
 ## Summary comment
 
-Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 12) finishes, never claim a completion you did not reach, and never paste secrets into it.
+Every run ends with one outcome and handoff comment: the run’s delta, verification result or evidence link, and next action. Keep the enduring explanation in the PR body; do not repeat its scope or label rationale. Post it via the tracker operation **comment-pr** with a body file so multi-line formatting is preserved. Full structure and rules: `references/summary-comment-template.md`. Never post it before the automated review loop (step 11) finishes, never claim a completion you did not reach, and never paste secrets into it.
 
 ## Marker emission
 
@@ -69,6 +69,6 @@ Chained consumers (`xez-auto-review-pr`, `xez-auto-qa-pr`, orchestration scripts
 
 - **Claim immediately after opening.** As soon as the draft PR opens (step 7), claim it with the three-signal lock (assign-pr + label-pr `in-progress` via the guard + claim comment) and wire the release into a `trap`/finally — full sequence and comment strings: `references/claim-pr.md` (PR lock lifecycle).
 - **Checkpoint & final-gate verification on the PR.** The PR exists from step 7, so each checkpoint (step 8) and the final gate (step 9) post their verification outcome to the PR immediately — an idempotent `` 🤖 `xez-auto-create-pr-loop` — checkpoint <N> / final gate verification `` comment plus **attach-image-evidence** screenshots (marker `` 🤖 `xez-auto-create-pr-loop` — checkpoint <N> evidence ``, slug `checkpoint-<N>`) when UI was touched — never only in the run folder. Full procedure: `references/checkpoint-pass.md`.
-- **Flip to ready at completion.** At step 14, once `Status:` is `complete` (every Tasks row `done`), promote the draft with **mark-pr-ready**; a run that ends `in-progress` stays a draft.
-- **Final run-folder update lands under the lock.** If the PR was opened, write a final `HANDOFF.md` + `NOTIFY.md` entry (closing timestamp + PR URL), commit, and push **before** releasing the `in-progress` label so the final update lands under the same lock (step 14).
+- **Flip to ready at completion.** At step 13, once `Status:` is `complete` (every Tasks row `done`), promote the draft with **mark-pr-ready**; a run that ends `in-progress` stays a draft.
+- **Final run-folder update lands under the lock.** If the PR was opened, write a final `HANDOFF.md` + `NOTIFY.md` entry (closing timestamp + PR URL), commit, and push **before** releasing the `in-progress` label so the final update lands under the same lock (step 13).
 - **Simple runs** open the PR directly with a short body — summary + test plan + rollback; no `Tracking plan:` line, no `Status:` field, no linked run folder (`references/run-mode-contracts.md`). Label normalization and the lock lifecycle still apply in full.

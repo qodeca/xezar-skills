@@ -14,7 +14,8 @@
 // parse under the canonical regex. Malformed lines must NOT parse, because a regex that
 // accepts anything is not a contract. And every skill that documents the marker contract
 // must document the legacy fallback with it, since dropping that half breaks reading
-// output from an older installed skill.
+// output from an older installed skill. The review-verdict comment (`Verdict:` + `Head:`)
+// that `xez-approve-merge-pr` reads is held to the same producer/consumer round trip.
 //
 // Run: node scripts/test-chaining-lines.mjs
 
@@ -187,6 +188,96 @@ for (const rel of globSync("skills/*/references/rules.md", { cwd: root }).map((f
   );
 }
 expect("marker contracts were found", contracts >= 30, `found ${contracts}`);
+
+// --- 5: the review-verdict comment round-trips -------------------------------
+// `xez-auto-review-pr` writes a marked comment that `xez-approve-merge-pr` reads as the
+// recorded verdict when the host enforces no review (a one-login repo, where the host
+// refuses self-approval). Producer template and consumer rule live in two skills; this
+// binds them. The parser below IS the documented rule: marker on the first line (backticks
+// optional), a trusted author, exactly one Verdict line and one full-sha Head line.
+const VERDICT_PRODUCER = "skills/xez-auto-review-pr/references/report-templates.md";
+const VERDICT_CONSUMER = "skills/xez-approve-merge-pr/SKILL.md";
+const VERDICT_RULE = {
+  marker: /^🤖 `?xez-auto-review-pr`? — review verdict/,
+  verdict: /^Verdict: (approved|changes-requested)$/,
+  head: /^Head: ([0-9a-f]{40})$/,
+};
+const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+/** The consumer's rule: comments in list order -> {recordedVerdict, verdictHead} | null. */
+function readVerdictComment(comments, selfLogin) {
+  const marked = comments.filter((c) =>
+    VERDICT_RULE.marker.test(c.body.split("\n")[0]) &&
+    (c.user === selfLogin || TRUSTED.has(c.association)));
+  const last = marked.at(-1);
+  if (!last) return null;
+  const lines = last.body.split("\n");
+  const verdicts = lines.map((l) => VERDICT_RULE.verdict.exec(l)).filter(Boolean);
+  const heads = lines.map((l) => VERDICT_RULE.head.exec(l)).filter(Boolean);
+  if (verdicts.length !== 1 || heads.length !== 1) return null;
+  return {
+    recordedVerdict: verdicts[0][1] === "approved" ? "approved" : "rejected",
+    verdictHead: heads[0][1],
+  };
+}
+
+const SHA = GRAMMAR.Head.sample;
+let verdictTemplate = "";
+{
+  const text = readText(VERDICT_PRODUCER);
+  const m = /## Review-verdict comment[^\n]*\n[\s\S]*?```markdown\n([\s\S]*?)\n```/.exec(text);
+  expect(`${VERDICT_PRODUCER} documents the review-verdict comment template`, Boolean(m));
+  verdictTemplate = m ? m[1] : "";
+}
+const fillVerdict = (word) => verdictTemplate.split("\n").map((l) => {
+  if (l.startsWith("Verdict: ")) return `Verdict: ${word}`;
+  if (l.startsWith("Head: ")) return `Head: ${SHA}`;
+  return l.replace(/\{[^}]*\}/g, "x");
+}).join("\n");
+
+for (const [word, recorded] of [["approved", "approved"], ["changes-requested", "rejected"]]) {
+  const got = readVerdictComment([{ user: "bot", association: "NONE", body: fillVerdict(word) }], "bot");
+  expect(
+    `the documented verdict comment round-trips (${word})`,
+    got !== null && got.recordedVerdict === recorded && got.verdictHead === SHA,
+    `parsed: ${JSON.stringify(got)}\n      template:\n${verdictTemplate}`,
+  );
+}
+{
+  const body = fillVerdict("approved");
+  const legacy = body.replace("🤖 `xez-auto-review-pr` —", "🤖 xez-auto-review-pr —");
+  const one = (b, user = "bot", association = "NONE") => readVerdictComment([{ user, association, body: b }], "bot");
+  expect("the bare legacy marker form is still read", one(legacy, "me", "OWNER")?.verdictHead === SHA);
+  expect("a verdict comment from an untrusted author is never read", one(body, "stranger", "CONTRIBUTOR") === null);
+  expect("a verdict comment with a short Head is unreadable", one(body.replace(SHA, SHA.slice(0, 7))) === null);
+  expect("a verdict comment with two Verdict lines is unreadable", one(`${body}\nVerdict: changes-requested`) === null);
+  expect("an unknown verdict word is unreadable", one(body.replace("Verdict: approved", "Verdict: lgtm")) === null);
+  expect("the marker must open the comment", one(`note\n${body}`) === null);
+  const older = body.replace("Verdict: approved", "Verdict: changes-requested");
+  expect(
+    "the last trusted verdict comment wins",
+    readVerdictComment([
+      { user: "bot", association: "NONE", body: older },
+      { user: "bot", association: "NONE", body },
+      { user: "stranger", association: "NONE", body: older },
+    ], "bot")?.recordedVerdict === "approved",
+  );
+}
+{
+  const consumer = readText(VERDICT_CONSUMER);
+  for (const piece of [
+    "`^Verdict: (approved|changes-requested)$`",
+    "`^Head: ([0-9a-f]{40})$`",
+    "`` ^🤖 `?xez-auto-review-pr`? — review verdict ``",
+    "`association` is `OWNER`, `MEMBER` or `COLLABORATOR`",
+  ]) {
+    expect(
+      `${VERDICT_CONSUMER} documents the verdict-comment rule piece ${piece}`,
+      consumer.includes(piece),
+      "the consumer's documented rule drifted from the tested one",
+    );
+  }
+}
 
 // #122 (Windows): a CRLF copy of a scanned file, written to disk and read by `readText`, yields
 // exactly the LF file's lines.

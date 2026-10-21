@@ -207,7 +207,7 @@ Interactive helpers — the other half of the naming convention: they act once, 
 | Skill | What it does |
 |---|---|
 | [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) | One-per-repo configurator. Inspects the repository, asks a few questions, writes `.xezar/pipeline/config.json`, installs tracker and browser-provider descriptors, and proposes project guidance (a process doc, an agent-instructions starter) only when you ask for it — shown before it is written, never created merely because a file is absent. Verifies cross-skill coverage: if an installed skill references one that isn't installed, it prints the exact `npx skills add` command to fix it. |
-| [`xez-apply-upgrade-notes`](docs/skills/xez-apply-upgrade-notes.md) | Post-upgrade migrator. Applies `UPGRADE_NOTES.md` to the repo: re-syncs installed tracker/browser descriptors while preserving local edits, reports custom-provider gaps, and checks the config against notable upgrades. |
+| [`xez-apply-upgrade-notes`](docs/skills/xez-apply-upgrade-notes.md) | Post-upgrade migrator. Applies `UPGRADE_NOTES.md` to the repo: re-syncs installed tracker (with the GitHub companion of a Linear/Jira tracker), browser, toolchain and security descriptors while preserving local edits, reports custom-provider gaps and labels missing on the tracker, and checks the config against notable upgrades. |
 | [`xez-merge-buddy`](docs/skills/xez-merge-buddy.md) | Scans open PRs and reports which can merge now and which are close but blocked, based on labels, reviews, CI, and mergeability. |
 | [`xez-maintain-deps`](docs/skills/xez-maintain-deps.md) | Takes stock of dependencies through the configured toolchain and security providers: a bill of materials, what is behind, what is vulnerable. Proposes one PR per update group with the blast radius and the gate result stated. Proposes only — it never merges, widens a range, or disables a check. |
 | [`xez-release`](docs/skills/xez-release.md) | Cuts a release from a commit that already merged: folds changelog fragments, writes the version, opens the release PR, tags the merge. Refuses to tag anything that is not already an ancestor of the base branch, and holds no publishing credential — it prints the publish command and stops. |
@@ -445,7 +445,7 @@ assertions, and screenshots.
 
 Every PR carries at most one pipeline label (`review`, `changes-requested`, `merge-queue`, ...) plus additive category, meta, priority, and risk labels; priority says how urgent the work is, risk says how dangerous the change is to ship. The full taxonomy, and whether to use labels at all, lives in the config; [`xez-setup-agent-pipeline`](docs/skills/xez-setup-agent-pipeline.md) documents every group. It creates only the missing labels you authorize; with no established taxonomy it leaves labels off or proposes choices, and `--defaults` creates none on its own.
 
-The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until a human adds `qa-approved`, no matter how green the checks are. Automated skills request QA; they never grant it.
+The QA gate is the one hard rule: a PR labeled `needs-qa` cannot merge until `qa-approved` is added, no matter how green the checks are. Automated skills request QA; a human grants it. The one exception is [`xez-auto-qa-pr`](docs/skills/xez-auto-qa-pr.md)'s explicit `--self-qa-signoff` on a fully-green run with screenshots; the onboarding kit's independent QA step also applies its own approval label, through `gh-write.sh`'s verdict check.
 
 ## What is actually checked
 

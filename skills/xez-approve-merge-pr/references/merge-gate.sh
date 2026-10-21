@@ -18,6 +18,10 @@
 #                    | "not-enforced" | "unknown"   (TEMPLATE normalized field)
 #   reviewDecision   host-shaped fallback, used only when reviewVerdict is absent
 #   reviewEnforced   false when the host reports approval with no rule applying
+#   recordedVerdict  "approved" | "rejected"   the pipeline review verdict recorded
+#                    for this PR; read only when the host does not enforce a review
+#   verdictHead      commit that recorded verdict names (its `Head:` line)
+#   requireVerdictHead  true | false  (gates.requireVerdictHead, base branch)
 #   checks           [{"name":..., "state":"SUCCESS"|"FAILURE"|"PENDING"|...}]
 #   requiredChecks   ["name", ...]        names branch protection requires
 #   protectionReadable  true | false      false = protection API returned 404
@@ -51,6 +55,15 @@
 #      reading that as approved is the same fail-open as a label nobody created.
 #      Falling back to `reviewDecision`, "APPROVED" passes unless `reviewEnforced`
 #      is false.
+#      WHEN THE HOST DOES NOT ENFORCE A REVIEW (`reviewVerdict` "not-enforced", or
+#      no `reviewVerdict` and `reviewEnforced` false), the recorded pipeline verdict
+#      stands in for the host's approval -- a single-owner project requires no
+#      approving review, and a host refuses self-approval when every agent runs
+#      under one login. It passes only when `recordedVerdict` is "approved" AND
+#      `verdictHead` equals `headSha`. An approval naming another commit is stale:
+#      `findings`. "rejected" is `findings`. A missing verdict, a missing head, or
+#      any other value stays `unknown`. When the host DOES enforce a review, the
+#      recorded verdict is never read: the host's approval is required.
 #   5. CHECKS. Every required check must be "SUCCESS". When protection is not
 #      readable, every REPORTED check is treated as required -- the descriptor's
 #      documented degradation. A pass over an EMPTY required set is not a pass:
@@ -97,7 +110,7 @@
 set -eu
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-  sed -n '2,75p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,89p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 fi
 
@@ -153,11 +166,21 @@ OUT=$(printf '%s' "$INPUT" | jq -r '
 
   # --- review --------------------------------------------------------------
   | ($in | s("reviewVerdict")) as $verdict
+  | ($in | s("recordedVerdict")) as $recorded
+  | ($in | s("verdictHead")) as $recHead
+  # Host enforces no review: the recorded pipeline verdict for THIS head decides.
+  | (if $recorded == null then "unknown"
+     elif $recorded == "rejected" then "findings"
+     elif $recorded != "approved" then "unknown"
+     elif $head == null or $recHead == null then "unknown"
+     elif $recHead == $head then "pass"
+     else "findings" end) as $recordedReview
   | (if $verdict != null then
        (if $verdict == "approved" then "pass"
         elif $verdict == "rejected" then "findings"
+        elif $verdict == "not-enforced" then $recordedReview
         else "unknown" end)
-     elif ($in | b("reviewEnforced")) == false then "unknown"
+     elif ($in | b("reviewEnforced")) == false then $recordedReview
      elif ($in | s("reviewDecision")) == null then "unknown"
      elif ($in | s("reviewDecision")) == "APPROVED" then "pass"
      else "findings" end) as $review

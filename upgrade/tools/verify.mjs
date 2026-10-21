@@ -43,7 +43,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { git, sha256 } from "./lib/hash.mjs";
+import { git, lfText, sha256 } from "./lib/hash.mjs";
 import { loadContext, parseArgs, printHelp, SCRATCH } from "./lib/context.mjs";
 import { tomlError } from "./lib/toml.mjs";
 import { parseRegister } from "./lib/register.mjs";
@@ -81,7 +81,10 @@ export function ownerRules(text) {
 
 function before(ctx, rel) {
   if (!ctx.startCommit) return null;
-  return git(["show", `${ctx.startCommit}:${rel}`], ctx.project, { allowFail: true });
+  const text = git(["show", `${ctx.startCommit}:${rel}`], ctx.project, { allowFail: true });
+  // As LF text, the way readMine reads the current file: a file committed with CRLF would
+  // otherwise never compare equal, and no edit could fix it.
+  return text == null ? null : lfText(Buffer.from(text, "utf8")).toString("utf8");
 }
 
 function touchedFiles(ctx) {

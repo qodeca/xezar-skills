@@ -13,6 +13,7 @@ import { readManifest } from "./manifest.mjs";
 import { parseRegister } from "./register.mjs";
 import { gitState, resolveInside, PathRefused } from "./paths.mjs";
 import { git, lfText, sha256 } from "./hash.mjs";
+import { avoidFolder } from "./programs.mjs";
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const SCRATCH = ".local/xezar/scratch/upgrade";
@@ -139,6 +140,7 @@ function kitGitModes(kitSkillDir) {
  */
 export function loadContext(o) {
   const project = resolve(o.project);
+  avoidFolder(project);
   const toolRoot = resolve(o.toolRoot ?? TOOL_ROOT);
   const kitSkillDir = resolve(o.kitSkillDir ?? join(toolRoot, SKILL_DIR));
   const indexDir = resolve(o.indexDir ?? join(toolRoot, "upgrade/kit-index"));

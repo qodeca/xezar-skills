@@ -14,7 +14,7 @@ Reviews or re-reviews a PR by number in an isolated worktree, leaving your curre
 
 ## Works with
 
-Consumes a `{prNumber}` (the `PR:` reference line a PR-producing skill emitted), reviews that existing PR, and ends by reporting its verdict (`APPROVED` / `CHANGES REQUESTED`) plus the `PR:` reference line (and `Issue:` when known) for the next skill in a chain. It runs [xez-code-review](xez-code-review.md) verbatim as its review engine inside the isolated worktree, and is itself invoked by chain skills such as [xez-auto-fix-issue](xez-auto-fix-issue.md), [xez-auto-fix-pr](xez-auto-fix-pr.md), and [xez-auto-qa-pr](xez-auto-qa-pr.md).
+Consumes a `{prNumber}` (the `PR:` reference line a PR-producing skill emitted), reviews that existing PR, and ends by reporting its verdict (`APPROVED` / `CHANGES REQUESTED`) plus the `PR:` reference line (and `Issue:` when known) for the next skill in a chain. Every run also leaves one marked review-verdict comment on the PR (`Verdict:` and the reviewed `Head:` commit), updated in place on re-runs, so a later [xez-approve-merge-pr](xez-approve-merge-pr.md) can find the verdict even where GitHub refused the review because every agent runs under one login. It runs [xez-code-review](xez-code-review.md) verbatim as its review engine inside the isolated worktree, and is itself invoked by chain skills such as [xez-auto-fix-issue](xez-auto-fix-issue.md), [xez-auto-fix-pr](xez-auto-fix-pr.md), and [xez-auto-qa-pr](xez-auto-qa-pr.md).
 
 ---
 *Source: [`skills/xez-auto-review-pr/SKILL.md`](../../skills/xez-auto-review-pr/SKILL.md)*

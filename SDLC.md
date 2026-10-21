@@ -523,6 +523,14 @@ available. Only the merge step blocks on unavailable; every other stage reports 
   pipeline projects) merges. The owner's control is the owner-only decisions, the protected paths
   in `CODEOWNERS` where they exist, and the release go. Branch protection requires the checks the
   profile names and no approving review, because the project has one owner.
+- **The recorded review verdict stands in for the approval.** When branch protection does not
+  require a review, the merge gate's review check passes only on a recorded pipeline review verdict
+  that approves **and** names the pull request's current head commit. An approval for an older head
+  is stale and refuses; no recorded verdict refuses as unavailable. When branch protection does
+  require a review, the host's approval is required and a recorded verdict never replaces it.
+- **The review leaves its verdict on the pull request.** Every review run writes one marked
+  review-verdict comment naming its verdict and head, updated in place, and the merge gate reads it
+  from a trusted author when no approving review can exist.
 - Feature pull requests squash-merge into the base branch. The title becomes the commit, so it is a
   Conventional Commit (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
 - Promotion pull requests between long-lived branches use a merge commit, never a squash, so branch
@@ -712,7 +720,9 @@ After the merge, on `develop`.
 1. The owner gives the go; the plan and decisions go into `docs/plans/release-<version>.md`.
 2. `xez-maintain-deps` checks the dependencies.
 3. `xez-auto-update-changelog` folds the `changelog.d/` fragments into `CHANGELOG.md` as a docs
-   pull request.
+   pull request. By hand, that pull request also dates the changelog head and builds the kit index
+   with a local-only stand-in tag (`upgrade/README.md`). It merges with a merge commit, so the
+   stand-in commit stays on the release line.
 4. The release pull request merges `develop` into `main` with a merge commit.
 5. `xez-release` tags the merged commit; it never publishes.
 6. After the release: back-merge the release merge commit into `develop`, and refresh the kit

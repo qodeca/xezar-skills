@@ -5,7 +5,7 @@
 // the same `kitBlob` that `scripts/build-kit-index.mjs` reads out of history.
 
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { run } from "./programs.mjs";
 
 export function sha256(data) {
   return createHash("sha256").update(data).digest("hex");
@@ -35,7 +35,7 @@ export function gitBlobSha(data) {
 /** Run git with an argument vector (never a shell string). Returns stdout as a string. */
 export function git(args, cwd, { input, allowFail = false } = {}) {
   try {
-    return execFileSync("git", args, {
+    return run("git", args, {
       cwd,
       input,
       encoding: "utf8",

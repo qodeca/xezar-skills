@@ -22,6 +22,15 @@
       ],
       "answer": "accept",
       "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    },
+    {
+      "id": "codex-emulate",
+      "rule": "5",
+      "paths": [
+        ".codex/config.toml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the Codex chrome-devtools tool `emulate` that 3.2.0 adds to `enabled_tools` (#177), so the case can test what comes after it."
     }
   ]
 }

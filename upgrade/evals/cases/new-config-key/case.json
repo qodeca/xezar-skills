@@ -1,0 +1,53 @@
+{
+  "name": "new-config-key",
+  "situation": "The owner chose a supply-chain provider (security.provider) but has no security.trustBoundaries, and no designSystem object; the target documents both keys (config-fields.md), and 3.1.0 machine blocks name them as config-key actions with no upgrade default. The owner also keeps a key of their own the kit does not document.",
+  "base": "3.0.3",
+  "edits": [
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "security"
+        ],
+        "value": {
+          "provider": "osv-scanner"
+        }
+      }
+    },
+    {
+      "path": ".xezar/pipeline/config.json",
+      "jsonSet": {
+        "key": [
+          "widget",
+          "releaseTrain"
+        ],
+        "value": "monthly"
+      }
+    }
+  ],
+  "ownerAnswers": [
+    {
+      "id": "D13-review-tools",
+      "rule": "5",
+      "paths": [
+        ".xezar/workflows/acceptance-verification.yaml",
+        ".xezar/workflows/architecture-review.yaml",
+        ".xezar/workflows/code-review.yaml",
+        ".xezar/workflows/design-review.yaml",
+        ".xezar/workflows/qa.yaml",
+        ".xezar/workflows/security-review.yaml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the review-tool grants 3.1.0 adds to these six workflows (#82, D13), so the case can test what comes after them."
+    },
+    {
+      "id": "codex-emulate",
+      "rule": "5",
+      "paths": [
+        ".codex/config.toml"
+      ],
+      "answer": "accept",
+      "why": "A fixed test input, not a live answer: the owner accepts the Codex chrome-devtools tool `emulate` that 3.2.0 adds to `enabled_tools` (#177), so the case can test what comes after it."
+    }
+  ]
+}

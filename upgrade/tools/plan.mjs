@@ -24,6 +24,8 @@
 //     unblockedEntries: [ { source, line, heading } ],
 //     versionEvidence: null | { version, support, total }: for a manifest that names no kit
 //       version, the version the files show (see versionEvidence), which picks the entry range,
+//     versionUnindexed: null | version: the manifest's version when no kit index holds it; the
+//       range then comes from versionEvidence, as for a manifest that names none,
 //     engine: null | { version, source, checks: [ { min, status: met|unmet|unknown } ] },
 //     errors: [text] }
 // `engine` evaluates the range's engine-min=<v> actions (null when there are none); the version
@@ -49,7 +51,7 @@
 // Exit: 0 written; 2 cannot run.
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { run } from "./lib/programs.mjs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { git, gitBlobSha, lfText, sha256 } from "./lib/hash.mjs";
@@ -247,7 +249,7 @@ export function engineVersion(ctx) {
   for (const bin of ["xezar", "xez"]) {
     let out;
     try {
-      out = execFileSync(bin, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 }).trim();
+      out = run(bin, ["--version"], { cwd: ctx.toolRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000 }).trim();
     } catch {
       continue;
     }
@@ -757,7 +759,11 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     remove: [...new Set(out.filter((i) => i.class === "already-upstream" && i.register.length).flatMap((i) => i.register))].sort(),
   };
   // The entry range starts at the manifest's version; with none, at the version the files show.
-  const projectVersion = parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null;
+  // A version the index does not hold (the "3.1.0" the pre-release tool wrote, never tagged)
+  // counts as none: trusting it would drop every entry below it unseen.
+  const named = parseVersion(ctx.manifest.version ?? "") ? ctx.manifest.version : null;
+  const projectVersion = named && ctx.history.some((v) => v.version === named) ? named : null;
+  const versionUnindexed = named && !projectVersion ? named : null;
   const evidence = projectVersion ? null : versionEvidence(ctx, detection);
   const rangeVersion = projectVersion ?? evidence?.version ?? null;
   const { entries, errors } = upgradeEntries(ctx.toolRoot, rangeVersion);
@@ -783,6 +789,7 @@ export function buildPlan(ctx, detection = detect(ctx)) {
     upgradeEntries: entries,
     unblockedEntries: unblocked.entries,
     versionEvidence: evidence,
+    versionUnindexed,
     actions,
     engine,
     errors,
@@ -791,15 +798,18 @@ export function buildPlan(ctx, detection = detect(ctx)) {
 
 export function summary(plan) {
   const lines = [`# Upgrade plan to ${plan.target}`, "", `Project version: ${plan.projectVersion ?? "unknown"} (manifest v${plan.manifestVersion})`, ""];
-  const known = parseVersion(plan.projectVersion ?? "");
+  const known = parseVersion(plan.projectVersion ?? "") && !plan.versionUnindexed;
+  const why = plan.versionUnindexed
+    ? `the manifest names ${plan.versionUnindexed}, a version no kit index holds (never released)`
+    : "the manifest names no kit version";
   if (!known && plan.versionEvidence) {
     const e = plan.versionEvidence;
     lines.push(
-      `Upgrade entries are chosen as for ${e.version}: the manifest names no kit version, and ${e.support} of the ${e.total} files with a sure base match the kit at ${e.version}.`,
+      `Upgrade entries are chosen as for ${e.version}: ${why}, and ${e.support} of the ${e.total} files with a sure base match the kit at ${e.version}.`,
       "",
     );
   } else if (!known) {
-    lines.push("The manifest names no kit version and the files show none: every upgrade entry is listed.", "");
+    lines.push(`${why[0].toUpperCase()}${why.slice(1)} and the files show none: every upgrade entry is listed.`, "");
   }
   lines.push("| Class | Files |", "|---|---|");
   for (const [c, n] of Object.entries(plan.counts)) if (n) lines.push(`| ${c} | ${n} |`);
@@ -813,7 +823,13 @@ export function summary(plan) {
   if (!plan.unexplained.length) lines.push("None.");
   for (const p of plan.unexplained) lines.push(`- ${p}`);
   lines.push("", "## Machine-block actions for this range", "");
-  if (!plan.actions.length) lines.push("None.");
+  // An entry whose block carries files only still applies: "None." alone would read as nothing
+  // to do, so such entries are counted and listed with their files.
+  const fileOnly = (plan.upgradeEntries ?? []).filter((e) => !e.actions?.length && e.files?.length);
+  if (!plan.actions.length) {
+    lines.push(fileOnly.length ? `No actions, but ${fileOnly.length} upgrade ${fileOnly.length === 1 ? "entry lists" : "entries list"} files (carried by the per-file plan above):` : "None.");
+  }
+  const fileList = (e) => e.files.map((f) => (f.mode === "replace" ? f.path : `${f.path} (${f.mode})`)).join(", ");
   const engine = plan.engine?.version ? `engine ${plan.engine.version} from ${plan.engine.source}` : "no engine version found";
   const action = (a) => {
     const c = plan.engine?.checks.find((x) => a === `engine-min=${x.min}`);
@@ -822,12 +838,13 @@ export function summary(plan) {
   // Each action under the entry that asks for it, so the checklist can say why.
   const shown = new Set();
   for (const e of plan.upgradeEntries ?? []) {
-    if (!e.actions?.length) continue;
+    if (!e.actions?.length && !e.files?.length) continue;
     lines.push(`- ${e.source}:${e.line} ${e.heading ?? "(no entry heading)"}`);
-    for (const a of e.actions) {
+    for (const a of e.actions ?? []) {
       lines.push(`  - ${action(a)}`);
       shown.add(a);
     }
+    if (e.files?.length) lines.push(`  - files: ${fileList(e)}`);
   }
   for (const a of plan.actions) if (!shown.has(a)) lines.push(`- ${action(a)}`);
   lines.push("", "## Upgrade entries with no machine block", "");

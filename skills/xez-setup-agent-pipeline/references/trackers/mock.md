@@ -33,6 +33,9 @@ MOCK_DIR="${XEZ_MOCK_DIR:-.xezar/pipeline/mock}"
 - **Cross-repo targets** are accepted and recorded in the journal; there is one fixture set.
 - **Claim signals** work as on any tracker: the assignee, the active-ownership label and the
   `🤖` claim comment all round-trip through the journal and the fixtures.
+- **Comment authors** come from the fixture: a comment fixture carries `user` and, like GitHub,
+  `association`. One without `association` reads as untrusted, so a fixture tests the trusted
+  path only by saying `OWNER`, `MEMBER` or `COLLABORATOR` on purpose.
 
 ## Label guards
 

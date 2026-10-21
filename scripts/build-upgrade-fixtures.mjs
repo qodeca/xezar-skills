@@ -3,7 +3,8 @@
 //
 // A synthetic fixture is what a fresh onboarding of one kit version would have written: every
 // file of that version's copy map, taken from the committed kit index and the blob contents in
-// git, plus small generated owner files and a version 1 manifest. It is built once from local
+// git, plus small generated owner files and the manifest that version's onboarding wrote (version 1,
+// or version 2 from 3.2.0 on). It is built once from local
 // tags and commits and committed, so scripts/test-upgrade.mjs reads only committed files and
 // the gate stays offline (CI's shallow checkout has no tags).
 //
@@ -23,13 +24,20 @@ import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { gitBlobSha, sha256, stableJson } from "../upgrade/tools/lib/hash.mjs";
-import { render } from "../upgrade/tools/lib/rewrites.mjs";
+import { placeholdersIn, render } from "../upgrade/tools/lib/rewrites.mjs";
+import { isNeverTouched, isNotRecorded } from "../upgrade/tools/lib/policy.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(root, "scripts/fixtures/upgrade");
 
-// The four majors the plan names, and one install from an untagged commit.
-export const SOURCES = ["1.2.0", "2.1.1", "3.0.0", "3.0.3", "3.0.1+7140051874c0"];
+// The four majors the plan names, the last release before the current one, and one install from
+// an untagged commit.
+export const SOURCES = ["1.2.0", "2.1.1", "3.0.0", "3.0.3", "3.2.0", "3.0.1+7140051874c0"];
+
+// From 3.2.0 on, onboarding writes manifest version 2 (references/write.md §5 of that release).
+const MANIFEST_V2 = new Set(["3.2.0"]);
+// Per-machine kit files the synthetic .gitignore below ignores: never recorded in manifest v2.
+const IGNORED = (p) => p === ".claude/settings.local.json" || p.startsWith(".local/");
 
 // Placeholder values a synthetic onboarding filled in. Plain, made-up text.
 export const RENDER_INPUTS = {
@@ -121,7 +129,33 @@ function main() {
     for (const [p, text] of Object.entries(generated)) {
       if (index.files[p]) perFile[p] = { sha256: sha256(text), origin: "generated" };
     }
-    if (version.startsWith("3.")) manifest.files = perFile;
+    if (MANIFEST_V2.has(version)) {
+      // Manifest v2 as that version's onboarding wrote it: the project's own documents and
+      // configuration and per-machine files are never listed; the leader guide and the tracker
+      // descriptor are recorded as generated; copied and adapted files carry kitSource and kitBlob,
+      // and an adapted one the placeholder values it used as renderInputs.
+      const v2 = {};
+      for (const [p, entry] of Object.entries(perFile).sort(([a], [b]) => (a < b ? -1 : 1))) {
+        if (isNotRecorded(p) || isNeverTouched(p) || IGNORED(p)) continue;
+        const e = index.files[p];
+        const out = { sha256: entry.sha256, origin: entry.origin };
+        if (entry.origin !== "generated") {
+          out.kitSource = e.kitSource;
+          out.kitBlob = e.kitBlob;
+          if (entry.origin === "adapted") {
+            const used = placeholdersIn(blobs.get(files[p])).filter((k) => k in RENDER_INPUTS);
+            if (used.length) out.renderInputs = Object.fromEntries(used.map((k) => [k, RENDER_INPUTS[k]]));
+          }
+        }
+        v2[p] = out;
+      }
+      const descriptors = Object.fromEntries(
+        Object.entries(v2)
+          .filter(([p]) => /^\.xezar\/pipeline\/(toolchains|browsers|security|trackers)\/[^/]+\.md$/.test(p))
+          .map(([p, e]) => [p, e.sha256]),
+      );
+      Object.assign(manifest, { manifestVersion: 2, descriptors, files: v2 });
+    } else if (version.startsWith("3.")) manifest.files = perFile;
     const dir = join(OUT, version);
     mkdirSync(dir, { recursive: true });
     writeFileSync(

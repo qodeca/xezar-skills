@@ -471,9 +471,24 @@
       "version": "3.2.0+b53e269e561e"
     },
     {
-      "commit": "4d5cc453882060d07e36bdfbc39ead09d2cfab2a",
+      "commit": "b86ddf0d3f8f3e72e594e396a94ed3a078bdab84",
       "tag": "v3.2.1",
       "version": "3.2.1"
+    },
+    {
+      "commit": "a9a1fae647693ea78c1a27f823f2d1caf0bdc93a",
+      "tag": null,
+      "version": "3.2.1+a9a1fae64769"
+    },
+    {
+      "commit": "ef3c1dfc774e3542ab3247b25b04e6dea94e732d",
+      "tag": null,
+      "version": "3.2.1+ef3c1dfc774e"
+    },
+    {
+      "commit": "c1b0793e5f5dbb9b3679d134415fac59bf11764d",
+      "tag": "v3.2.2",
+      "version": "3.2.2"
     }
   ]
 }

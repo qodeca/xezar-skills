@@ -13,6 +13,13 @@ from verified defects. Omit empty sections and passing checklists. A re-review
 leads with the delta and the disposition of earlier findings; later comments
 link the review rather than reproducing it.
 
+Then write the review-verdict comment (`references/report-templates.md` →
+Review-verdict comment): `Verdict:` and `Head:` for the verdict just submitted
+and the head it covers, created or rewritten in place — also when **review-pr**
+succeeded, and also when it failed (self-approval refused, for example), in which
+case the comment's prose line says the review was not submitted and why. It is
+the only verdict record that survives a host refusing the review.
+
 ## Label mechanics
 
 Every label mutation goes through the label guards from the tracker descriptor: additions via `apply_label` (missing labels degrade to a logged skip), removals only when `LABELS_ENABLED` is `true`. When `labels.enabled` is `false`, skip every label operation in this step and say so in the completion comment and report.

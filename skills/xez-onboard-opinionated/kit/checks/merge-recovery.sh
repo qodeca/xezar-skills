@@ -100,9 +100,9 @@ if [ "$VERB" = "record-intent" ]; then
   REPLACE=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --incoming) INCOMING="${2:-}"; shift 2 ;;
-      --authorization) AUTHORIZATION="${2:-}"; shift 2 ;;
-      --scope) SCOPE="${2:-}"; shift 2 ;;
+      --incoming) [ $# -ge 2 ] || { printf 'merge-recovery record-intent: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; INCOMING="$2"; shift 2 ;;
+      --authorization) [ $# -ge 2 ] || { printf 'merge-recovery record-intent: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; AUTHORIZATION="$2"; shift 2 ;;
+      --scope) [ $# -ge 2 ] || { printf 'merge-recovery record-intent: %s needs a value\n\n' "$1" >&2; usage >&2; exit 2; }; SCOPE="$2"; shift 2 ;;
       --replace) REPLACE="--replace"; shift ;;
       *)
         printf 'merge-recovery record-intent: unknown option "%s"\n\n' "$1" >&2

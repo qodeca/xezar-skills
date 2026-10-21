@@ -23,6 +23,122 @@ a repository onboarded by `xez-onboard-opinionated`, or whose `upgrade` block li
 (`upgrade/UPGRADE-PROMPT.md`), or by hand: oldest block first, each block top to bottom, ending
 with the verifier that writes the new manifest.
 
+A hand upgrade from a kit before 3.2.0 (3.1.0 never shipped on its own; its changes are in 3.2.0)
+keeps this order: (1) the engine, as the entry "xezar did not start: saved settings or task
+records still name an agent that xezar no longer runs" says – old tasks deleted with the old
+engine first, then 0.30.0; (2) `.xezar/checks/route.mjs` before `.xezar/routing.json`; (3) one
+merge of `routing.json` against the newest defaults (`references/routing-defaults/` in the
+clone), never one version after another; (4) the remaining entries, oldest first; (5) the
+verifier, once, with `--target` set to the release you cloned.
+
+## 2026-10-19 – on Windows a Codex review posts no comment and writes no verdict
+
+Applies to a repository onboarded by `xez-onboard-opinionated` whose leader or reviews run on
+native Windows.
+
+**Symptom.** On native Windows, a Codex read-only step – code review, security review, QA, design
+review or architecture – ends with no comment on the pull request and no verdict. Its task record
+shows the engine's read-only check refusing the command the role skill prescribes
+(`jq -n '{…}' | bash .local/xezar/cache/kit/checks/gh-write.sh`, and the same form for
+`verdict-write.sh`), with reasons such as `syntax.powershell-quote` or `syntax.compound`. Codex on
+Windows runs each command through PowerShell, and engine 0.30.0 refuses a literal `"` inside a
+word and a bare `|` there. Linux, macOS, and the Claude and Qwen Code lanes are not affected.
+
+**What to do.** Nothing in the kit fixes this yet: the engine side is qodeca/xezar#1089, and the
+kit change (#230) follows once it ships. Until then, when reviews run on native Windows, keep
+them on a Claude lane: in `.xezar/routing.json`, take the `codex/…` lanes out of the read-only
+rows – `security-review`, `design-review`, `ux-design`, `architecture-decision`, `browser-qa`
+and `acceptance-verification` – so each falls to its Claude lane, and check the result with
+`node .xezar/checks/route.mjs --check .xezar/routing.json`. Put the lanes back once the fix
+ships. A Codex review that already ran
+left its finding only in its task record: read it there and post it by hand.
+
+**What you lose by skipping it.** On Windows every Codex review finishes without a comment or a
+verdict, so a pull request it reviewed waits for a review that never arrives, and its findings
+stay hidden in the task record.
+
+## 2026-10-18 – the release-publish role expects exactly three manifest changes in the release bot's PR
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** `.xezar/skills/xezar-release-publish.md` tells the release step to check the release
+bot's pull request against "the publishing script's expected three manifest changes". A project
+whose release workflow stamps a different number of `package.json` files (a root plus three
+workspaces is four) reads a correct bot diff as an unexpected change and stops the release.
+
+**What to do.** Copy `.xezar/skills/xezar-release-publish.md`: it now checks the diff against every
+`package.json` the release workflow stamps, whatever the number.
+
+**What you lose by skipping it.** A release in a workspace project stops at the bot's pull request
+for a diff that is correct.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/skills/xezar-release-publish.md
+```
+
+## 2026-10-18 – a kit check hangs on a flag with no value, or posts a long comment cut short
+
+Applies to a repository onboarded by `xez-onboard-opinionated`.
+
+**Symptom.** Any of these, from the installed `.xezar/checks/` scripts:
+
+- `bash .xezar/checks/ci-watch.sh --deadline` (or `integration-preflight.sh`,
+  `root-sync-preflight.sh`, `merge-recovery.sh record-intent` with its last flag missing a value)
+  never exits – the step holds its slot until something kills it.
+- A long tracker comment in a non-ASCII language posted through `gh-write.sh` arrives cut off,
+  sometimes mid-character, while the script exits 0.
+- `repository-checks.sh` now and then reports a background check as passed before it finished.
+- `worktree-git.sh` commits or pushes on `master` or on the project's configured base branch.
+
+**What to do.** Copy the seven files below from the release. A flag without its value now exits 2
+naming it; `gh-write.sh` counts the comment in bytes against GitHub's 65,536 limit and refuses a
+longer one whole – nothing is posted, the caller shortens it; `repository-checks.sh` moves each
+finished status into place, and reads a missing or empty one as a failure; `worktree-git.sh`
+refuses `main`, `master`, `HEAD` and the configured base branch, as the engine's own copy does. No
+configuration changes.
+
+**What you lose by skipping it.** A mistyped check step can hang until the engine's own limits end
+it, a long comment can reach the tracker incomplete with no error, a check can be counted green
+before it ran to the end, and a run worktree that ends up on the base branch can still be written to.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/checks/ci-watch.sh; .xezar/checks/integration-preflight.sh; .xezar/checks/root-sync-preflight.sh; .xezar/checks/merge-recovery.sh; .xezar/checks/gh-write.sh; .xezar/checks/repository-checks.sh; .xezar/checks/worktree-git.sh
+```
+
+## 2026-10-18 – an issue title with a backtick or `$(…)` runs as a command, and any commenter's ask gets implemented
+
+Applies to any repository with this collection's tracker descriptors,
+`.xezar/pipeline/trackers/github.md` (and `linear.md` or `jira.md` when used), whichever setup
+skill installed them.
+
+**Symptom.** Your descriptor's **create-issue**, **create-pr**, **comment-issue**, **close-issue**,
+**review-pr** or **search-issues** puts free text straight into double quotes – `--title "<title>"`,
+`--body "<body>"`, `--search "<query> in:title,body"` – so a backtick or `$(…)` in an issue title
+runs on the machine executing the operation. And **list-issue-comments** /
+**list-review-comments** return only `user`, with no `association`, so a review run cannot tell a
+maintainer's ask from a stranger's. In `jira.md`, **auth-check** fails to parse on macOS's bash 3.2
+(`unexpected EOF while looking for matching`) because of the apostrophe in `user's`.
+
+**What to do.** Re-sync the descriptor as "Re-syncing the tracker descriptor" below says, moving
+its recorded digest in an onboarded project. Every operation keeps its inputs and outputs: free
+text now travels through a file (`--body-file`, a title read from a file into `"$TITLE"`), and the
+comment reads add one field, `association` (GitHub's `author_association`). Linear and Jira gain
+the same file rule and a note on which comment authors count as trusted. Optionally list trusted
+review bots in the config's new `review.trustedBots` key; absent means none.
+
+**What you lose by skipping it.** A run that files or searches with attacker-written text can
+execute it. The review and continue skills act only on comments from `OWNER`, `MEMBER` or
+`COLLABORATOR`; against an old descriptor with no `association`, every comment reads as untrusted,
+so a maintainer's review comments are listed but no longer fixed automatically.
+
+```upgrade
+Applies-to: <3.2.2
+Files: .xezar/pipeline/trackers/github.md
+Actions: config-key=review.trustedBots
+```
+
 ## 2026-10-18 – an acceptance check falls back to a DeepSeek lane that cannot see the screen
 
 Applies to a repository onboarded by `xez-onboard-opinionated`.
@@ -129,8 +245,23 @@ agent, an old task record. No kit version shipped a `runner:` line, and the engi
 `.xezar/routing.json`: in a stock kit project the engine starts, and each task routed to a `pi/` or
 `opencode/` lane is refused when it is created.
 
-**What to do.** Follow the xezar guide page "Moving from pi or OpenCode to Qwen Code" for the
-engine's own settings and task records – there is no converter. Then, in the project, copy
+**What to do.** The order matters, because engine 0.30.0 does not start while an old task
+record names pi or OpenCode, and only your old engine can delete one:
+
+1. **With the engine you run now**, before you install 0.30.0: delete each task that ran on pi
+   or OpenCode (archiving is not enough – an archived task keeps its values), and change a
+   saved default agent of pi or OpenCode to `claude` or `codex`. The xezar guide page "Moving
+   from pi or OpenCode to Qwen Code" lists every place such a value is kept – there is no
+   converter.
+2. Stop the engine and install the new one: `npm install -g @qodeca/xezar@^0.30.0`.
+3. Follow the rest of that guide page for the engine's own files (`.xezar/config.json`,
+   `.xezar/workflows/`, `~/.xezar/` and its `config.json.bak`).
+
+Already installed 0.30.0 and it refuses to start? Either change each task's `runner` and
+`backend` values in `runs.json` by hand, as the guide page says, or go back to the engine you
+had (`npm install -g @qodeca/xezar@<old version>`), do step 1, and install 0.30.0 again.
+
+Then, in the project, copy
 `.xezar/checks/route.mjs` **first**: an older one refuses the `qwen` runner and so the whole new
 routing file. Copy `.xezar/routing.schema.json` and `.xezar/docs/routing.md`, and merge
 `.xezar/routing.json` with the defaults version 5. Each pi lane becomes the Qwen Code lane of the
@@ -620,7 +751,8 @@ images.
 ## 2026-09-27 – upgrading an onboarded project to 3.1.0
 
 Applies to any repository onboarded by `xez-onboard-opinionated` before 3.1.0. The easy path is
-the upgrade prompt: clone `qodeca/xezar-skills` at `v3.1.0`, verify the release, and run
+the upgrade prompt: clone `qodeca/xezar-skills` at the newest release tag (3.1.0 shipped inside
+3.2.0; there is no `v3.1.0` tag), verify the release, and run
 `upgrade/UPGRADE-PROMPT.md` in the project as `upgrade/README.md` describes. It applies this whole
 block file by file, keeps your local changes, and writes a report. The entries under this heading
 are the same changes for a hand upgrade, which ends – after the last entry, 15 – with the verifier
@@ -1003,7 +1135,8 @@ cp $K/checks/local-tree.sh .xezar/checks/
 
 Until the manifest is version 2 the check prints `not-applicable` and passes; the 3.1.0 upgrade
 prompt rewrites the manifest. A hand upgrade does not: it ends, once, after the last entry (15), with the verifier from a
-verified clone at `v3.1.0`, `node <clone>/upgrade/tools/verify.mjs --project . --target 3.1.0`, which writes
+verified clone at the newest release tag, `node <clone>/upgrade/tools/verify.mjs --project . --target <that version>`
+(never `3.1.0`, which no release carries), which writes
 manifest version 2 and sets `version` once every kept local change has a register entry. A kit
 file you deleted is a kept local change too: the verifier reports one with no register entry
 (`unregistered-local-change`, `removed with no register entry`) and writes no manifest until you
@@ -1838,7 +1971,7 @@ It was 0.18.0.
 **What to do.**
 
 ```bash
-npm install -g @qodeca/xezar
+npm install -g @qodeca/xezar@0.20   # a kit before 3.2.0; a bare install now brings 0.30.0, which needs kit 3.2.0
 xezar --version     # must print 0.19.0 or later
 ```
 
@@ -1972,7 +2105,7 @@ is now 0.18.0. It was 0.16.0.
 **What to do.**
 
 ```bash
-npm install -g @qodeca/xezar
+npm install -g @qodeca/xezar@0.20   # a kit before 3.2.0; a bare install now brings 0.30.0, which needs kit 3.2.0
 xezar --version     # must print 0.18.0 or later
 ```
 
@@ -2798,9 +2931,10 @@ and skips the digest refresh when the file did not match.
 **A project onboarded by `xez-onboard-opinionated` at 3.1.0 or later** (`.xezar/onboarding.json`
 with `manifestVersion` 2 or higher) records its descriptors in that manifest, and the drift check
 fails the next gate with `reason=hash-mismatch` on a descriptor copied or merged by hand. Refresh
-them there through the upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its
-manifest entry together, not through the steps in this section, `/xez-apply-upgrade-notes` or a
-re-run of `/xez-setup-agent-pipeline`. A deliberate local change to one goes in
+the browser, toolchain and security descriptors there (the tracker descriptor: above) through the
+upgrade prompt (`upgrade/UPGRADE-PROMPT.md`), which updates the file and its manifest entry
+together, not through the steps in this section, `/xez-apply-upgrade-notes` or a re-run of
+`/xez-setup-agent-pipeline`. A deliberate local change to one goes in
 `.xezar/LOCAL-PATCHES.md` (`.xezar/docs/local-patches.md`).
 
 For the shipped `linear` or `jira` split provider, substitute its filename in the commands
