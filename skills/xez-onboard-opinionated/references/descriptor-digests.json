@@ -1,7 +1,7 @@
 {
   "_comment": "SHA-256 of every descriptor the kit installs. Byte-identity with the collection's canonical copy proves the two agree; this pin proves a change was looked at, because it cannot land without a deliberate edit here. scripts/test-kit-facts.mjs FACT 9 checks both. The write step records the same digests in the project's onboarding manifest.",
   "digests": {
-    "kit/pipeline/browsers/agent-browser.md": "085ea245ba157499d8087157233137c0c250635992828f8f90a9b267ff66b343",
+    "kit/pipeline/browsers/agent-browser.md": "2392eaf77d1f0498a0371c5db0fad62caa4b03a8dd097539b51a1d65fc6fe25f",
     "kit/pipeline/browsers/chrome-devtools.md": "c8e8bec84d2a6494143530621954b314f3fe3dca4431d2df31323a24b9c950ff",
     "kit/pipeline/browsers/playwright.md": "c9c1fded256173e110d015b3af93931f9fe0fcf4f30b8203a34e65b3d52b91b8",
     "kit/pipeline/security/osv-scanner.md": "86d8946082faebb71da1cf08f7d78a60a4b5300571de0b372644db495acdb53e",
